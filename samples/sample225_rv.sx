@@ -1,0 +1,29 @@
+pub fn main() void = {
+    val a: option[i64] = some -1
+    match a {
+        some v => {
+            assert v == -1
+        }
+        none => {
+            assert false
+        }
+    }
+
+    val b: option[i32] = some -7
+    match b {
+        some v => {
+            assert v == -7
+        }
+        none => {
+            assert false
+        }
+    }
+
+    val c: option[i64] = none
+    match c {
+        some _ => {
+            assert false
+        }
+        none => {}
+    }
+}

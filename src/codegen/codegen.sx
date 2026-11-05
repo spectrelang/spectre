@@ -6019,75 +6019,31 @@ fn gen_expr(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
     }
 
     if k == parser.NK_SOME {
-        val inner: ref u8 = gen_expr(ctx, expr.d0 as ref parser.Node)
-        val inner_ann_some: ref u8 = infer_type_annotation(ctx, expr.d0 as ref parser.Node)
-        if str.raw_cmp(inner_ann_some, "f64") == 0 || str.raw_cmp(inner_ann_some, "f32") == 0 {
-            val box_tmp: i64 = fresh_tmp(ctx)
-            val some_tmp: i64 = fresh_tmp(ctx)
-            val box_buf: ref u8 = allocators.ScopedArena.alloc_or_none(
-                ctx.arena,
-                192 as usize
-            ) as ref u8
-            if str.raw_cmp(inner_ann_some, "f64") == 0 {
-                @snprintf(box_buf, 192, "    %%t{lld} =l alloc8 8\n    stored {s}, %%t{lld}\n    %%t{lld} =l add %%t{lld}, 1\n",
-                    {box_tmp, inner, box_tmp, some_tmp, box_tmp})
-            } else {
-                @snprintf(box_buf, 192, "    %%t{lld} =l alloc8 8\n    stores {s}, %%t{lld}\n    %%t{lld} =l add %%t{lld}, 1\n",
-                    {box_tmp, inner, box_tmp, some_tmp, box_tmp})
-            }
-            emit(
-                ctx,
-                box_buf
-            ) val boxed_res: ref u8 = allocators.ScopedArena.alloc_or_none(
-                ctx.arena,
-                16 as usize
-            ) as ref u8
-            @snprintf(boxed_res, 16, "%%t{lld}", {some_tmp})
-            return boxed_res
-        }
         val inner_node: ref parser.Node = expr.d0 as ref parser.Node
-        val needs_extend: mut bool = false
-        if inner_node != none && inner_node.kind == parser.NK_CALL {
-            val callee_node: ref parser.Node = inner_node.d0 as ref parser.Node
-            val callee_name: ref u8 = resolve_callee_name(ctx, callee_node)
-            val resolved: ref u8 = cg_resolve_fn_name(ctx, callee_name)
-            val ext_sym: ref u8 = cg_lookup_extern_symbol(ctx, callee_name)
-            val use_ext: bool = resolved == none && ext_sym != none
-            if use_ext {
-                val ret_ty: ref void = cg_lookup_ext_ret(ctx, callee_name)
-                if ret_ty != none {
-                    val ret_qtype: ref u8 = qbe_type_of(ret_ty as ref parser.Node)
-                    if str.raw_cmp(ret_qtype, "w") == 0 || str.raw_cmp(ret_qtype, "s") == 0 {
-                        needs_extend = true
-                    }
-                }
-            }
-        }
-
-        val tmp_some: i64 = fresh_tmp(ctx)
-        val buf_some: ref u8 = allocators.ScopedArena.alloc_or_none(
+        val inner: ref u8 = gen_expr(ctx, inner_node)
+        val inner_qt: ref u8 = expr_qbe_type(ctx, inner_node)
+        val box_tmp: i64 = fresh_tmp(ctx)
+        val some_tmp: i64 = fresh_tmp(ctx)
+        val box_buf: ref u8 = allocators.ScopedArena.alloc_or_none(
             ctx.arena,
-            128 as usize
+            192 as usize
         ) as ref u8
-        if needs_extend != 0 {
-            val ext_tmp: i64 = fresh_tmp(ctx)
-            val ext_buf: ref u8 = allocators.ScopedArena.alloc_or_none(
-                ctx.arena,
-                64 as usize
-            ) as ref u8
-            @snprintf(ext_buf, 64, "    %%t{lld} =l extuw {s}\n", {ext_tmp, inner})
-            emit(
-                ctx,
-                ext_buf
-            ) @snprintf(buf_some, 128, "    %%t{lld} =l add %%t{lld}, 1\n", {tmp_some, ext_tmp})
+        if str.raw_cmp(inner_qt, "d") == 0 {
+            @snprintf(box_buf, 192, "    %%t{lld} =l call $malloc(l 8)\n    stored {s}, %%t{lld}\n    %%t{lld} =l add %%t{lld}, 1\n",
+                {box_tmp, inner, box_tmp, some_tmp, box_tmp})
+        } elif str.raw_cmp(inner_qt, "s") == 0 {
+            @snprintf(box_buf, 192, "    %%t{lld} =l call $malloc(l 8)\n    stores {s}, %%t{lld}\n    %%t{lld} =l add %%t{lld}, 1\n",
+                {box_tmp, inner, box_tmp, some_tmp, box_tmp})
         } else {
-            @snprintf(buf_some, 64, "    %%t{lld} =l add {s}, 1\n", {tmp_some, inner})
+            val inner_l: ref u8 = cg_coerce_qtype(ctx, inner, inner_qt, "l")
+            @snprintf(box_buf, 192, "    %%t{lld} =l call $malloc(l 8)\n    storel {s}, %%t{lld}\n    %%t{lld} =l add %%t{lld}, 1\n",
+                {box_tmp, inner_l, box_tmp, some_tmp, box_tmp})
         }
         emit(
             ctx,
-            buf_some
+            box_buf
         ) val res7: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 16 as usize) as ref u8
-        @snprintf(res7, 16, "%%t{lld}", {tmp_some})
+        @snprintf(res7, 16, "%%t{lld}", {some_tmp})
         return res7
     }
 
@@ -6779,6 +6735,41 @@ fn expr_is_result(expr: ref parser.Node) bool = trust {
     return false
 }
 
+fn expr_is_option(ctx: mut ref CgCtx, expr: ref parser.Node) bool = trust {
+    if expr == none {
+        return false
+    }
+    if expr.kind == parser.NK_SOME || expr.kind == parser.NK_NONE {
+        return true
+    }
+    val ann: ref u8 = infer_type_annotation(ctx, expr)
+    return raw_starts_with(ann, "option[")
+}
+
+fn option_inner_annotation(
+    ctx: mut ref CgCtx,
+    lhs: ref parser.Node,
+    rhs: ref parser.Node
+) ref u8 = trust {
+    val lann: ref u8 = infer_type_annotation(ctx, lhs)
+    val lin: ref u8 = parse_option_inner(lann)
+    if str.raw_cmp(lin, "") != 0 {
+        return lin
+    }
+    if lhs != none && lhs.kind == parser.NK_SOME {
+        return infer_type_annotation(ctx, lhs.d0 as ref parser.Node)
+    }
+    val rann: ref u8 = infer_type_annotation(ctx, rhs)
+    val rin: ref u8 = parse_option_inner(rann)
+    if str.raw_cmp(rin, "") != 0 {
+        return rin
+    }
+    if rhs != none && rhs.kind == parser.NK_SOME {
+        return infer_type_annotation(ctx, rhs.d0 as ref parser.Node)
+    }
+    return ""
+}
+
 fn gen_binop(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
     val op: i64 = expr.d0 as i64
     val lhs_expr: ref parser.Node = expr.d1 as ref parser.Node
@@ -6969,6 +6960,150 @@ fn gen_binop(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
         ) val res: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 16 as usize) as ref u8
         @snprintf(res, 16, "%%t{lld}", {result})
         return res
+    }
+
+    val lhs_is_option: bool = expr_is_option(ctx, lhs_expr)
+    val rhs_is_option: bool = expr_is_option(ctx, rhs_expr)
+    if ((lhs_is_option || rhs_is_option) && (op == parser.OP_EQ || op == parser.OP_NE)) {
+        val lhs: ref u8 = gen_expr(ctx, lhs_expr)
+        val rhs: ref u8 = gen_expr(ctx, rhs_expr)
+        val l_non: i64 = fresh_tmp(ctx)
+        val r_non: i64 = fresh_tmp(ctx)
+        val l_zero: i64 = fresh_tmp(ctx)
+        val r_zero: i64 = fresh_tmp(ctx)
+        val both_zero: i64 = fresh_tmp(ctx)
+        val slot: i64 = fresh_tmp(ctx)
+        val lhs_ok_lbl: i64 = fresh_lbl(ctx)
+        val payload_lbl: i64 = fresh_lbl(ctx)
+        val done_lbl: i64 = fresh_lbl(ctx)
+        val head_buf: ref u8 = allocators.ScopedArena.alloc_or_none(
+            ctx.arena,
+            512 as usize
+        ) as ref u8
+        @snprintf(head_buf, 512,
+            "    %%t{lld} =l alloc4 1\n    %%t{lld} =w ceql {s}, 0\n    %%t{lld} =w ceql {s}, 0\n    %%t{lld} =w cnel {s}, 0\n    %%t{lld} =w cnel {s}, 0\n    %%t{lld} =w and %%t{lld}, %%t{lld}\n    storew %%t{lld}, %%t{lld}\n    jnz %%t{lld}, @lbl{lld}, @lbl{lld}\n@lbl{lld}\n",
+            {
+                slot,
+                l_zero,
+                lhs,
+                r_zero,
+                rhs,
+                l_non,
+                lhs,
+                r_non,
+                rhs,
+                both_zero,
+                l_zero,
+                r_zero,
+                both_zero,
+                slot,
+                l_non,
+                lhs_ok_lbl,
+                done_lbl,
+                lhs_ok_lbl
+            })
+        emit(ctx, head_buf)
+        val jump_buf: ref u8 = allocators.ScopedArena.alloc_or_none(
+            ctx.arena,
+            256 as usize
+        ) as ref u8
+        @snprintf(jump_buf, 256,
+            "    jnz %%t{lld}, @lbl{lld}, @lbl{lld}\n@lbl{lld}\n",
+            {r_non, payload_lbl, done_lbl, payload_lbl})
+        emit(ctx, jump_buf)
+        val l_ptr: i64 = fresh_tmp(ctx)
+        val r_ptr: i64 = fresh_tmp(ctx)
+        val l_val: i64 = fresh_tmp(ctx)
+        val r_val: i64 = fresh_tmp(ctx)
+        val vals_eq: i64 = fresh_tmp(ctx)
+        val inner_ann: ref u8 = option_inner_annotation(ctx, lhs_expr, rhs_expr)
+        val pay_buf: ref u8 = allocators.ScopedArena.alloc_or_none(
+            ctx.arena,
+            768 as usize
+        ) as ref u8
+        if str.raw_cmp(inner_ann, "f64") == 0 {
+            @snprintf(pay_buf, 768,
+                "    %%t{lld} =l sub {s}, 1\n    %%t{lld} =l sub {s}, 1\n    %%t{lld} =d loadd %%t{lld}\n    %%t{lld} =d loadd %%t{lld}\n    %%t{lld} =w ceqd %%t{lld}, %%t{lld}\n    storew %%t{lld}, %%t{lld}\n    jmp @lbl{lld}\n",
+                {
+                    l_ptr,
+                    lhs,
+                    r_ptr,
+                    rhs,
+                    l_val,
+                    l_ptr,
+                    r_val,
+                    r_ptr,
+                    vals_eq,
+                    l_val,
+                    r_val,
+                    vals_eq,
+                    slot,
+                    done_lbl
+                })
+        } elif str.raw_cmp(inner_ann, "f32") == 0 {
+            @snprintf(pay_buf, 768,
+                "    %%t{lld} =l sub {s}, 1\n    %%t{lld} =l sub {s}, 1\n    %%t{lld} =s loads %%t{lld}\n    %%t{lld} =s loads %%t{lld}\n    %%t{lld} =w ceqs %%t{lld}, %%t{lld}\n    storew %%t{lld}, %%t{lld}\n    jmp @lbl{lld}\n",
+                {
+                    l_ptr,
+                    lhs,
+                    r_ptr,
+                    rhs,
+                    l_val,
+                    l_ptr,
+                    r_val,
+                    r_ptr,
+                    vals_eq,
+                    l_val,
+                    r_val,
+                    vals_eq,
+                    slot,
+                    done_lbl
+                })
+        } else {
+            @snprintf(pay_buf, 768,
+                "    %%t{lld} =l sub {s}, 1\n    %%t{lld} =l sub {s}, 1\n    %%t{lld} =l loadl %%t{lld}\n    %%t{lld} =l loadl %%t{lld}\n    %%t{lld} =w ceql %%t{lld}, %%t{lld}\n    storew %%t{lld}, %%t{lld}\n    jmp @lbl{lld}\n",
+                {
+                    l_ptr,
+                    lhs,
+                    r_ptr,
+                    rhs,
+                    l_val,
+                    l_ptr,
+                    r_val,
+                    r_ptr,
+                    vals_eq,
+                    l_val,
+                    r_val,
+                    vals_eq,
+                    slot,
+                    done_lbl
+                })
+        }
+        emit(ctx, pay_buf)
+        val result: i64 = fresh_tmp(ctx)
+        val tail_buf: ref u8 = allocators.ScopedArena.alloc_or_none(
+            ctx.arena,
+            256 as usize
+        ) as ref u8
+        if op == parser.OP_NE {
+            @snprintf(tail_buf, 256,
+                "@lbl{lld}\n    %%t{lld} =w loadw %%t{lld}\n    %%t{lld} =w ceqw %%t{lld}, 0\n",
+                {done_lbl, result, slot, result, result})
+        } else {
+            @snprintf(
+                tail_buf,
+                256,
+                "@lbl{lld}\n    %%t{lld} =w loadw %%t{lld}\n",
+                {done_lbl, result, slot}
+            )
+        }
+        emit(ctx, tail_buf)
+        val out: ref u8 = allocators.ScopedArena.alloc_or_none(
+            ctx.arena,
+            16 as usize
+        ) as ref u8
+        @snprintf(out, 16, "%%t{lld}", {result})
+        return out
     }
 
     val is_float: bool = expr_is_float(ctx, lhs_expr) || expr_is_float(ctx, rhs_expr)
@@ -10254,13 +10389,14 @@ fn gen_builtin(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
             }
 
             if raw_starts_with(cur_ann, "[") {
+                val some_box: i64 = fresh_tmp(ctx)
                 val some_ptr: i64 = fresh_tmp(ctx)
                 val some_buf: ref u8 = allocators.ScopedArena.alloc_or_none(
                     ctx.arena,
-                    128 as usize
+                    192 as usize
                 ) as ref u8
-                @snprintf(some_buf, 128, "    %%t{lld} =l add {s}, 1\n    storel %%t{lld}, %%t{lld}\n    jmp @lbl{lld}\n",
-                    {some_ptr, base_ptr_name, some_ptr, result_slot, end_lbl})
+                @snprintf(some_buf, 192, "    %%t{lld} =l call $malloc(l 8)\n    storel {s}, %%t{lld}\n    %%t{lld} =l add %%t{lld}, 1\n    storel %%t{lld}, %%t{lld}\n    jmp @lbl{lld}\n",
+                    {some_box, base_ptr_name, some_box, some_ptr, some_box, some_ptr, result_slot, end_lbl})
                 emit(ctx, some_buf)
             } else {
                 val load_tmp: i64 = fresh_tmp(ctx)
@@ -10275,7 +10411,7 @@ fn gen_builtin(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
                     val some_tmp: i64 = fresh_tmp(ctx)
                     if str.raw_cmp(qtype_get, "d") == 0 {
                         @snprintf(done_buf, 512,
-                            "    %%t{lld} =d {s} {s}\n    %%t{lld} =l alloc8 8\n    stored %%t{lld}, %%t{lld}\n    %%t{lld} =l add %%t{lld}, 1\n    storel %%t{lld}, %%t{lld}\n    jmp @lbl{lld}\n",
+                            "    %%t{lld} =d {s} {s}\n    %%t{lld} =l call $malloc(l 8)\n    stored %%t{lld}, %%t{lld}\n    %%t{lld} =l add %%t{lld}, 1\n    storel %%t{lld}, %%t{lld}\n    jmp @lbl{lld}\n",
                             {
                                 load_tmp,
                                 load_instr,
@@ -10291,7 +10427,7 @@ fn gen_builtin(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
                             })
                     } else {
                         @snprintf(done_buf, 512,
-                            "    %%t{lld} =s {s} {s}\n    %%t{lld} =l alloc8 8\n    stores %%t{lld}, %%t{lld}\n    %%t{lld} =l add %%t{lld}, 1\n    storel %%t{lld}, %%t{lld}\n    jmp @lbl{lld}\n",
+                            "    %%t{lld} =s {s} {s}\n    %%t{lld} =l call $malloc(l 8)\n    stores %%t{lld}, %%t{lld}\n    %%t{lld} =l add %%t{lld}, 1\n    storel %%t{lld}, %%t{lld}\n    jmp @lbl{lld}\n",
                             {
                                 load_tmp,
                                 load_instr,
@@ -10308,10 +10444,11 @@ fn gen_builtin(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
                     }
                 } elif str.raw_cmp(qtype_get, "w") == 0 {
                     val ext_tmp: i64 = fresh_tmp(ctx)
+                    val box_tmp2: i64 = fresh_tmp(ctx)
                     val some_tmp2: i64 = fresh_tmp(ctx)
                     val ext_instr: ref u8 = cg_ann_word_extend_instr(cur_ann)
                     @snprintf(done_buf, 512,
-                        "    %%t{lld} =w {s} {s}\n    %%t{lld} =l {s} %%t{lld}\n    %%t{lld} =l add %%t{lld}, 1\n    storel %%t{lld}, %%t{lld}\n    jmp @lbl{lld}\n",
+                        "    %%t{lld} =w {s} {s}\n    %%t{lld} =l {s} %%t{lld}\n    %%t{lld} =l call $malloc(l 8)\n    storel %%t{lld}, %%t{lld}\n    %%t{lld} =l add %%t{lld}, 1\n    storel %%t{lld}, %%t{lld}\n    jmp @lbl{lld}\n",
                         {
                             load_tmp,
                             load_instr,
@@ -10319,22 +10456,29 @@ fn gen_builtin(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
                             ext_tmp,
                             ext_instr,
                             load_tmp,
-                            some_tmp2,
+                            box_tmp2,
                             ext_tmp,
+                            box_tmp2,
+                            some_tmp2,
+                            box_tmp2,
                             some_tmp2,
                             result_slot,
                             end_lbl
                         })
                 } else {
+                    val box_tmp3: i64 = fresh_tmp(ctx)
                     val some_tmp3: i64 = fresh_tmp(ctx)
                     @snprintf(done_buf, 512,
-                        "    %%t{lld} =l {s} {s}\n    %%t{lld} =l add %%t{lld}, 1\n    storel %%t{lld}, %%t{lld}\n    jmp @lbl{lld}\n",
+                        "    %%t{lld} =l {s} {s}\n    %%t{lld} =l call $malloc(l 8)\n    storel %%t{lld}, %%t{lld}\n    %%t{lld} =l add %%t{lld}, 1\n    storel %%t{lld}, %%t{lld}\n    jmp @lbl{lld}\n",
                         {
                             load_tmp,
                             load_instr,
                             base_ptr_name,
-                            some_tmp3,
+                            box_tmp3,
                             load_tmp,
+                            box_tmp3,
+                            some_tmp3,
+                            box_tmp3,
                             some_tmp3,
                             result_slot,
                             end_lbl
@@ -10405,7 +10549,7 @@ fn gen_builtin(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
                 val some_val2: i64 = fresh_tmp(ctx)
                 val load_instr2: ref u8 = cg_ann_load_instr(elem_ann_list)
                 if str.raw_cmp(elem_ann_list, "f64") == 0 {
-                    @snprintf(buf_get4, 768, "    %%t{lld} =l loadl {s}\n    %%t{lld} =l mul {s}, 8\n    %%t{lld} =l add %%t{lld}, %%t{lld}\n    %%t{lld} =d {s} %%t{lld}\n    %%t{lld} =l alloc8 8\n    stored %%t{lld}, %%t{lld}\n    %%t{lld} =l add %%t{lld}, 1\n    storel %%t{lld}, %%t{lld}\n    jmp @lbl{lld}\n",
+                    @snprintf(buf_get4, 768, "    %%t{lld} =l loadl {s}\n    %%t{lld} =l mul {s}, 8\n    %%t{lld} =l add %%t{lld}, %%t{lld}\n    %%t{lld} =d {s} %%t{lld}\n    %%t{lld} =l call $malloc(l 8)\n    stored %%t{lld}, %%t{lld}\n    %%t{lld} =l add %%t{lld}, 1\n    storel %%t{lld}, %%t{lld}\n    jmp @lbl{lld}\n",
                         {
                             buf_get_tmp,
                             lst3,
@@ -10427,7 +10571,7 @@ fn gen_builtin(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
                             end_lbl
                         })
                 } else {
-                    @snprintf(buf_get4, 768, "    %%t{lld} =l loadl {s}\n    %%t{lld} =l mul {s}, 8\n    %%t{lld} =l add %%t{lld}, %%t{lld}\n    %%t{lld} =s {s} %%t{lld}\n    %%t{lld} =l alloc8 8\n    stores %%t{lld}, %%t{lld}\n    %%t{lld} =l add %%t{lld}, 1\n    storel %%t{lld}, %%t{lld}\n    jmp @lbl{lld}\n",
+                    @snprintf(buf_get4, 768, "    %%t{lld} =l loadl {s}\n    %%t{lld} =l mul {s}, 8\n    %%t{lld} =l add %%t{lld}, %%t{lld}\n    %%t{lld} =s {s} %%t{lld}\n    %%t{lld} =l call $malloc(l 8)\n    stores %%t{lld}, %%t{lld}\n    %%t{lld} =l add %%t{lld}, 1\n    storel %%t{lld}, %%t{lld}\n    jmp @lbl{lld}\n",
                         {
                             buf_get_tmp,
                             lst3,
@@ -10450,8 +10594,9 @@ fn gen_builtin(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
                         })
                 }
             } else {
+                val box_tmp4: i64 = fresh_tmp(ctx)
                 val some_val: i64 = fresh_tmp(ctx)
-                @snprintf(buf_get4, 768, "    %%t{lld} =l loadl {s}\n    %%t{lld} =l mul {s}, 8\n    %%t{lld} =l add %%t{lld}, %%t{lld}\n    %%t{lld} =l loadl %%t{lld}\n    %%t{lld} =l add %%t{lld}, 1\n    storel %%t{lld}, %%t{lld}\n    jmp @lbl{lld}\n",
+                @snprintf(buf_get4, 768, "    %%t{lld} =l loadl {s}\n    %%t{lld} =l mul {s}, 8\n    %%t{lld} =l add %%t{lld}, %%t{lld}\n    %%t{lld} =l loadl %%t{lld}\n    %%t{lld} =l call $malloc(l 8)\n    storel %%t{lld}, %%t{lld}\n    %%t{lld} =l add %%t{lld}, 1\n    storel %%t{lld}, %%t{lld}\n    jmp @lbl{lld}\n",
                     {
                         buf_get_tmp,
                         lst3,
@@ -10462,8 +10607,11 @@ fn gen_builtin(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
                         off,
                         elem_val,
                         elem_ptr,
-                        some_val,
+                        box_tmp4,
                         elem_val,
+                        box_tmp4,
+                        some_val,
+                        box_tmp4,
                         some_val,
                         result_slot,
                         end_lbl
@@ -13476,7 +13624,7 @@ fn gen_forin_stmt(ctx: mut ref CgCtx, stmt: ref parser.Node) void = trust {
     val buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 512 as usize) as ref u8
 
     @snprintf(buf, 512,
-        "    %%t{lld} =l alloc8 8\n    storel 0, %%t{lld}\n    %%t{lld} =l add {s}, 8\n    %%t{lld} =l loadl %%t{lld}\n@lbl{lld}\n",
+        "    %%t{lld} =l call $malloc(l 8)\n    storel 0, %%t{lld}\n    %%t{lld} =l add {s}, 8\n    %%t{lld} =l loadl %%t{lld}\n@lbl{lld}\n",
         {idx, idx, len_slot, iter, len, len_slot, loop_lbl})
     emit(ctx, buf) val cur_idx: i64 = fresh_tmp(ctx)
     val cmp: i64 = fresh_tmp(ctx)
@@ -13676,24 +13824,19 @@ fn gen_match_opt(ctx: mut ref CgCtx, stmt: ref parser.Node) void = trust {
         @snprintf(vbuf, 128, "    %%t{lld} =l sub {s}, 1\n", {val_tmp, expr})
         emit(ctx, vbuf) val opt_ann: ref u8 = infer_type_annotation(ctx, expr_node)
         val inner_type: ref u8 = parse_option_inner(opt_ann)
-        val eff_tmp: mut i64 = val_tmp
+        val eff_tmp: i64 = fresh_tmp(ctx)
+        val cbuf: ref u8 = allocators.ScopedArena.alloc_or_none(
+            ctx.arena,
+            64 as usize
+        ) as ref u8
         if str.raw_cmp(inner_type, "f64") == 0 {
-            val cast_tmp: i64 = fresh_tmp(ctx)
-            val cbuf: ref u8 = allocators.ScopedArena.alloc_or_none(
-                ctx.arena,
-                64 as usize
-            ) as ref u8
-            @snprintf(cbuf, 64, "    %%t{lld} =d cast %%t{lld}\n", {cast_tmp, val_tmp})
-            emit(ctx, cbuf) eff_tmp = cast_tmp
+            @snprintf(cbuf, 64, "    %%t{lld} =d loadd %%t{lld}\n", {eff_tmp, val_tmp})
         } elif str.raw_cmp(inner_type, "f32") == 0 {
-            val load_tmp: i64 = fresh_tmp(ctx)
-            val cbuf2: ref u8 = allocators.ScopedArena.alloc_or_none(
-                ctx.arena,
-                64 as usize
-            ) as ref u8
-            @snprintf(cbuf2, 64, "    %%t{lld} =s loads %%t{lld}\n", {load_tmp, val_tmp})
-            emit(ctx, cbuf2) eff_tmp = load_tmp
+            @snprintf(cbuf, 64, "    %%t{lld} =s loads %%t{lld}\n", {eff_tmp, val_tmp})
+        } else {
+            @snprintf(cbuf, 64, "    %%t{lld} =l loadl %%t{lld}\n", {eff_tmp, val_tmp})
         }
+        emit(ctx, cbuf)
         val tmp_str: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 16 as usize) as ref u8
         @snprintf(tmp_str, 16, "{lld}", {eff_tmp})
         cg_register_local_var(ctx, some_bind, tmp_str)
