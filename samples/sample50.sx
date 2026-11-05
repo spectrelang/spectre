@@ -29,5 +29,5 @@ fn get_text(t: ref Thing) ref u8 = trust {
 pub fn main() void = trust {
     val t1 = make_thing(B("hello"))
     val text = get_text(t1)
-    @puts(text)
+    @print("{s}\n", {text})
 }

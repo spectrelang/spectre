@@ -1,0 +1,7 @@
+val alloc = use("std/allocators")
+
+pub fn main() void = {
+    val heap: alloc.HeapAllocator = @zeroed
+    val xs = @list(heap, 1, 2, 3, 4)
+    @listfree(xs)
+}

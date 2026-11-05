@@ -4,7 +4,7 @@ fn wrap(s: ref u8) option[ref u8] = {
 
 pub fn main() void = trust {
     if wrap("hello") is some v {
-        @puts(v)
+        @print("{s}\n", {v})
     } else {
         @puts("missing")
     }

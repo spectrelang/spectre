@@ -1529,7 +1529,7 @@ pub fn cmd_ref() i32 = {
                 \\ pub fn main() void = trust {
                 \\     val arena: mut allocators.Arena = allocators.Arena.new(4096 as usize)?
                 \\     val msg = greeting[allocators.Arena](arena, "world")
-                \\     @puts(string.cstr(msg))
+                \\     @print("{s}\n", {string.cstr(msg)})
                 \\     allocators.Arena.free(arena)
                 \\ }
                 \\ ```

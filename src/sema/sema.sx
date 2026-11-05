@@ -5478,6 +5478,52 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
                 add_error(ctx, ebuf)
                 return
             }
+            if bargs != none {
+                val first_opt = @get(bargs as list[ref parser.Node], 0 as usize)
+                if first_opt is some first_raw {
+                    val arg_ty: ref u8 = infer_expr_scope_type_name(
+                        ctx,
+                        first_raw as ref parser.Node
+                    )
+                    if string.raw_cmp(arg_ty, "") != 0
+                    && !string.raw_starts_with(arg_ty, "list[") {
+                        val ebuf: ref u8 = allocators.ScopedArena.alloc_or_none(
+                            ctx.arena,
+                            (640) as usize
+                        ) as ref u8
+                        @snprintf(ebuf, 640,
+                            "{s}:{lld}: builtin '@listfree' requires a list[T] argument, got '{s}'",
+                            {filename, line, arg_ty})
+                        add_error(ctx, ebuf)
+                        return
+                    }
+                }
+            }
+        }
+
+        if str_eq(bname, "puts") {
+            val valid: mut bool = actual_argc == 1
+            if valid && bargs != none {
+                val first_opt = @get(bargs as list[ref parser.Node], 0 as usize)
+                if first_opt is some first_raw {
+                    val first: ref parser.Node = first_raw as ref parser.Node
+                    if first.kind != parser.NK_STR_LIT {
+                        valid = false
+                    }
+                } else {
+                    valid = false
+                }
+            }
+            if !valid {
+                val ebuf: ref u8 = allocators.ScopedArena.alloc_or_none(
+                    ctx.arena,
+                    (512) as usize
+                ) as ref u8
+                @snprintf(ebuf, 512, "{s}:{lld}: builtin '@puts' requires exactly one string literal argument",
+                    {filename, line})
+                add_error(ctx, ebuf)
+                return
+            }
         }
 
         if str_eq(bname, "fmtalloc") && type_argc > 0 {
@@ -6685,7 +6731,69 @@ fn check_stmts(ctx: mut ref SemaCtx, stmts: ref void, filename: ref u8) void = t
     }
 }
 
-fn val_decl_type_name(ty_node: ref parser.Node, init_expr: ref parser.Node) ref u8 = trust {
+fn infer_builtin_list_decl_type(
+    ctx: ref SemaCtx,
+    init_expr: ref parser.Node
+) ref u8 = trust {
+    val expr: mut ref parser.Node = init_expr
+    val unwrapped: mut bool = false
+    if expr != none && expr.kind == parser.NK_TRUST {
+        expr = expr.d0 as ref parser.Node
+    }
+    if expr != none && expr.kind == parser.NK_TRY {
+        unwrapped = true
+        expr = expr.d0 as ref parser.Node
+    }
+    if expr == none || expr.kind != parser.NK_BUILTIN {
+        return none
+    }
+    val bname: ref u8 = parser.builtin_name(expr)
+    if str_eq(bname, "list") || str_eq(bname, "listalloc") || str_eq(bname, "argsalloc") {
+        val elem: mut ref u8 = ""
+        if str_eq(bname, "argsalloc") {
+            elem = "ref u8"
+        } elif str_eq(bname, "listalloc") {
+            val targs: list[ref parser.Node] = parser.builtin_type_args(expr)
+            if @len(targs) as i64 >= 2 {
+                val e_opt = @get(targs, 1 as usize)
+                if e_opt is some e {
+                    elem = extract_type_name(e as ref parser.Node)
+                }
+            }
+        } else {
+            val args: ref void = parser.builtin_args(expr)
+            if args != none {
+                val alen: i64 = @len(args as list[ref parser.Node]) as i64
+                if alen >= 2 {
+                    val e_opt = @get(args as list[ref parser.Node], 1 as usize)
+                    if e_opt is some e {
+                        elem = infer_expr_scope_type_name(ctx, e as ref parser.Node)
+                    }
+                }
+            }
+        }
+        if elem == none {
+            elem = "unknown"
+        }
+        val buf: ref u8 = allocators.ScopedArena.alloc_or_none(
+            ctx.arena,
+            256 as usize
+        ) as ref u8
+        if unwrapped {
+            @snprintf(buf, 256, "list[{s}]", {elem})
+        } else {
+            @snprintf(buf, 256, "result[list[{s}], AllocError]", {elem})
+        }
+        return buf
+    }
+    return none
+}
+
+fn val_decl_type_name(
+    ctx: ref SemaCtx,
+    ty_node: ref parser.Node,
+    init_expr: ref parser.Node
+) ref u8 = trust {
     val explicit: ref u8 = extract_type_name(ty_node)
     if explicit != none {
         return explicit
@@ -6693,7 +6801,7 @@ fn val_decl_type_name(ty_node: ref parser.Node, init_expr: ref parser.Node) ref 
     if init_expr != none && init_expr.kind == parser.NK_STRUCT_LIT {
         return parser.struct_lit_type_name(init_expr)
     }
-    return none
+    return infer_builtin_list_decl_type(ctx, init_expr)
 }
 
 fn check_stmt(ctx: mut ref SemaCtx, stmt: ref parser.Node, filename: ref u8) void = trust {
@@ -6725,7 +6833,7 @@ fn check_stmt(ctx: mut ref SemaCtx, stmt: ref parser.Node, filename: ref u8) voi
             add_error(ctx, buf)
         } else {
             val ty_node: ref parser.Node = stmt.d2 as ref parser.Node
-            val tname: ref u8 = val_decl_type_name(ty_node, stmt.d3 as ref parser.Node)
+            val tname: ref u8 = val_decl_type_name(ctx, ty_node, stmt.d3 as ref parser.Node)
             val is_ref_flag: mut i64 = 0
             if ty_node != none {
                 if ty_node.kind == parser.TY_REF {

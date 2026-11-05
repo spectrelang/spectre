@@ -1,0 +1,14 @@
+val alloc = use("std/allocators")
+
+pub fn main() void = {
+    val heap: alloc.HeapAllocator = @zeroed
+    val xs = @list(heap, 1, 2, 3, 4)
+    if xs is ok values {
+        for x in values {
+            trust @print("hello: {d}", {x})
+        }
+        @listfree(values)
+    } else {
+        @puts("failed to allocate.")
+    }
+}
