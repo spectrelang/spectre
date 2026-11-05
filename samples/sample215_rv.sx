@@ -14,5 +14,5 @@ pub fn main() void = trust {
     assert string.raw_cmp(string.cstr(formatted), "many 11 22 33") == 0
 
     allocators.Arena.free(arena)
-    stdio.puts("generic untyped pack values ok")
+    stdio.puts("generic argspack pack values ok")
 }

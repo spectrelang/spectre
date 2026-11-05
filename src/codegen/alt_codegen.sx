@@ -2925,7 +2925,7 @@ fn gen_vararg_scalar_pack(ctx: mut ref CCtx, value: ref u8) ref u8 = trust {
     return cc_expr_track(ctx, res)
 }
 
-fn cc_param_is_untyped(params: ref void, idx: i64) bool = trust {
+fn cc_param_is_argspack(params: ref void, idx: i64) bool = trust {
     if params == none {
         return false
     }
@@ -2936,12 +2936,12 @@ fn cc_param_is_untyped(params: ref void, idx: i64) bool = trust {
     val p_opt = @get(params as list[ref parser.Node], idx as usize)
     if p_opt is some p {
         val pty: ref parser.Node = (p as ref parser.Node).d1 as ref parser.Node
-        return pty != none && pty.kind == parser.TY_UNTYPED
+        return pty != none && pty.kind == parser.TY_ARGSPACK
     }
     return false
 }
 
-fn cc_current_fn_param_is_untyped(ctx: mut ref CCtx, name: ref u8) bool = trust {
+fn cc_current_fn_param_is_argspack(ctx: mut ref CCtx, name: ref u8) bool = trust {
     if name == none {
         return false
     }
@@ -2960,7 +2960,7 @@ fn cc_current_fn_param_is_untyped(ctx: mut ref CCtx, name: ref u8) bool = trust 
             val pnode: ref parser.Node = p as ref parser.Node
             if str.raw_cmp(pnode.d0 as ref u8, name) == 0 {
                 val pty: ref parser.Node = pnode.d1 as ref parser.Node
-                return pty != none && pty.kind == parser.TY_UNTYPED
+                return pty != none && pty.kind == parser.TY_ARGSPACK
             }
         }
         pi++
@@ -2968,7 +2968,7 @@ fn cc_current_fn_param_is_untyped(ctx: mut ref CCtx, name: ref u8) bool = trust 
     return false
 }
 
-fn cc_expand_untyped_pack(ctx: ref CCtx, pack_val: ref u8) ref u8 = trust {
+fn cc_expand_argspack_pack(ctx: ref CCtx, pack_val: ref u8) ref u8 = trust {
     val sb: ref void = str.StringBuilder.new()
     val i: mut i64 = 0
     for {
@@ -3809,7 +3809,7 @@ fn gen_call(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
                 if ga_opt is some ga {
                     val ga_node: ref parser.Node = ga as ref parser.Node
                     val gak: i64 = ga_node.kind
-                    if cc_param_is_untyped(gsrc_params, gai) {
+                    if cc_param_is_argspack(gsrc_params, gai) {
                         val packed: mut ref u8 = none
                         if gak == parser.NK_ARGS_PACK {
                             packed = gen_vararg_pack(ctx, ga_node.d0 as ref void)
@@ -5122,9 +5122,9 @@ fn gen_builtin(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
                             pi++
                         }
                     } elif pn.kind == parser.NK_IDENT &&
-                    cc_current_fn_param_is_untyped(ctx, pn.d0 as ref u8) {
+                    cc_current_fn_param_is_argspack(ctx, pn.d0 as ref u8) {
                         val av2: ref u8 = gen_expr(ctx, pn)
-                        val expanded: ref u8 = cc_expand_untyped_pack(ctx, av2)
+                        val expanded: ref u8 = cc_expand_argspack_pack(ctx, av2)
                         str.StringBuilder.append_cstr(sb, expanded)
                     } else {
                         val av2: ref u8 = gen_expr(ctx, pn)
@@ -5261,7 +5261,7 @@ fn gen_builtin(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
                         str.StringBuilder.free(sb)
                         return cc_expr_track(ctx, buf)
                     } elif pn.kind == parser.NK_IDENT &&
-                    cc_current_fn_param_is_untyped(ctx, pn.d0 as ref u8) {
+                    cc_current_fn_param_is_argspack(ctx, pn.d0 as ref u8) {
                         val av2: ref u8 = gen_expr(ctx, pn)
                         val buf: ref u8 = allocators.ScopedArena.alloc_or_none(
                             ctx.arena,

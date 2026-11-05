@@ -630,8 +630,8 @@ fn type_to_string(arena: allocators.Arena, ty: ref parser.Node) ref u8 = trust {
     if k == parser.TY_VOID {
         return "void"
     }
-    if k == parser.TY_UNTYPED {
-        return "untyped"
+    if k == parser.TY_ARGSPACK {
+        return "argspack"
     }
     if k == parser.TY_INFER {
         return "_"
@@ -1376,7 +1376,7 @@ fn type_nodes_equal(a: ref parser.Node, b: ref parser.Node) bool = trust {
     if a.kind == parser.TY_FIXED_ARR {
         return a.d0 == b.d0 && type_nodes_equal(a.d1 as ref parser.Node, b.d1 as ref parser.Node)
     }
-    if a.kind == parser.TY_VOID || a.kind == parser.TY_UNTYPED || a.kind == parser.TY_INFER {
+    if a.kind == parser.TY_VOID || a.kind == parser.TY_ARGSPACK || a.kind == parser.TY_INFER {
         return true
     }
     return false

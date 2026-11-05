@@ -42,7 +42,7 @@ type SemaCtx = {
     in_trust: mut i64
     trust_used: mut i64
     type_params: mut list[ref u8]
-    untyped_params: mut list[ref u8]
+    argspack_params: mut list[ref u8]
     var_origin_names: mut list[ref u8]
     var_origin_types: mut list[ref u8]
     arena: mut allocators.ScopedArenaAllocator
@@ -3621,7 +3621,7 @@ fn check_printf_fmt(ctx: ref SemaCtx, fmt_str: ref u8, all_args: ref void,
                 val fwd_node: ref parser.Node = fwd_raw as ref parser.Node
                 if fwd_node != none && fwd_node.kind == parser.NK_IDENT {
                     val fwd_name: ref u8 = fwd_node.d0 as ref u8
-                    for up in ctx.untyped_params {
+                    for up in ctx.argspack_params {
                         if str_eq(up, fwd_name) {
                             return
                         }
@@ -7331,8 +7331,8 @@ fn check_fn(ctx: mut ref SemaCtx, fn_node: ref parser.Node, filename: ref u8) vo
     }
     val prev_unsafe: i64 = ctx.in_unsafe_fn
     ctx.in_unsafe_fn = is_unsafe
-    val prev_untyped: list[ref u8] = ctx.untyped_params
-    ctx.untyped_params = []
+    val prev_argspack: list[ref u8] = ctx.argspack_params
+    ctx.argspack_params = []
 
     sema_validate_fn_types(ctx, fn_node, filename)
 
@@ -7344,8 +7344,8 @@ fn check_fn(ctx: mut ref SemaCtx, fn_node: ref parser.Node, filename: ref u8) vo
             val is_mut: mut i64 = 0
             val param_is_ref: mut i64 = 0
             val param_tname: ref u8 = extract_type_name(pty)
-            if pty != none && pty.kind == parser.TY_UNTYPED {
-                @append(ctx.untyped_params, pname)
+            if pty != none && pty.kind == parser.TY_ARGSPACK {
+                @append(ctx.argspack_params, pname)
             }
             if pty.kind == parser.TY_MUT {
                 is_mut = 1
@@ -7362,7 +7362,7 @@ fn check_fn(ctx: mut ref SemaCtx, fn_node: ref parser.Node, filename: ref u8) vo
     val ret_ty: ref parser.Node = fn_node.d4 as ref parser.Node
     val body: ref void = fn_node.d5 as ref void
     check_stmts(ctx, body, filename)
-    ctx.untyped_params = prev_untyped
+    ctx.argspack_params = prev_argspack
     if ret_ty != none && ret_ty.kind != parser.TY_VOID && !stmts_guarantee_return(ctx, body) {
         val buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, (512) as usize) as ref u8
         @snprintf(
@@ -7524,8 +7524,8 @@ fn check_generic_fn(ctx: mut ref SemaCtx, fn_node: ref parser.Node, filename: re
     }
     val prev_unsafe: i64 = ctx.in_unsafe_fn
     ctx.in_unsafe_fn = is_unsafe
-    val prev_untyped: list[ref u8] = ctx.untyped_params
-    ctx.untyped_params = []
+    val prev_argspack: list[ref u8] = ctx.argspack_params
+    ctx.argspack_params = []
 
     val type_params: ref void = fn_node.d6 as ref void
     val prev_type_params: list[ref u8] = ctx.type_params
@@ -7546,8 +7546,8 @@ fn check_generic_fn(ctx: mut ref SemaCtx, fn_node: ref parser.Node, filename: re
             val is_mut: mut i64 = 0
             val param_is_ref: mut i64 = 0
             val param_tname: ref u8 = extract_type_name(pty)
-            if pty != none && pty.kind == parser.TY_UNTYPED {
-                @append(ctx.untyped_params, pname)
+            if pty != none && pty.kind == parser.TY_ARGSPACK {
+                @append(ctx.argspack_params, pname)
             }
             if pty.kind == parser.TY_MUT {
                 is_mut = 1
@@ -7565,7 +7565,7 @@ fn check_generic_fn(ctx: mut ref SemaCtx, fn_node: ref parser.Node, filename: re
 
     val ret_ty: ref parser.Node = fn_node.d4 as ref parser.Node
     check_stmts(ctx, body, filename)
-    ctx.untyped_params = prev_untyped
+    ctx.argspack_params = prev_argspack
     val fn_name: ref u8 = fn_node.d2 as ref u8
     if ret_ty != none && ret_ty.kind != parser.TY_VOID && !stmts_guarantee_return(ctx, body) {
         val buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, (512) as usize) as ref u8

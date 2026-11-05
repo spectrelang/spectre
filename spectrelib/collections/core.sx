@@ -5,7 +5,7 @@
 ///   offset 16: cap  — usize, allocated capacity in elements
 ///
 /// Each element is one pointer-sized slot (8 bytes).
-/// Values are stored and retrieved as untyped (ref void / usize).
+/// Values are stored and retrieved as raw values (ref void / usize).
 
 val stdio      = use("../stdio")
 val allocators = use("../allocators")
@@ -38,7 +38,7 @@ pub enum ListAllocError = {
     OutOfMemory
 }
 
-/// An unsafe list for storing values of any type as untyped pointers (ref void).
+/// An unsafe list for storing values of any type as raw pointers (ref void).
 type PtrList = {
     ptr: ref void
     len: usize
@@ -212,7 +212,7 @@ pub fn (PtrList) pop(list: self) option[usize] = {
 
 /// A hash map using open-addressing with linear probing.
 ///
-/// Keys and values are stored as untyped usize slots (8 bytes each).
+/// Keys and values are stored as raw usize slots (8 bytes each).
 /// The caller is responsible for casting to/from the appropriate pointer types.
 ///
 /// Layout of a Map header (4 fields × 8 bytes each):

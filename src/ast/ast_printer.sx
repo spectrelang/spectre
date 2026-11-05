@@ -156,8 +156,8 @@ fn kind_to_name(kind: i64) ref u8 = {
         return "TY_FNPTR"
     } elif kind == parser.TY_VOID {
         return "TY_VOID"
-    } elif kind == parser.TY_UNTYPED {
-        return "TY_UNTYPED"
+    } elif kind == parser.TY_ARGSPACK {
+        return "TY_ARGSPACK"
     } else {
         return "UNKNOWN"
     }
@@ -1126,7 +1126,7 @@ fn print_node_recursive(node: ref parser.Node, indent: i64, is_last: bool) void 
         stdio.print("{s}{s}\n", {prefix, kind_name})
         val contracts: list[ref parser.Node] = node.d0 as list[ref parser.Node]
         print_list_of_nodes(contracts, indent + 1, 0)
-    } elif kind == parser.NK_SOME || kind == parser.NK_NONE || kind == parser.NK_OK_VAL || kind == parser.NK_ERR_VAL || kind == parser.NK_BREAK || kind == parser.NK_CONTINUE || kind == parser.TY_VOID || kind == parser.TY_UNTYPED {
+    } elif kind == parser.NK_SOME || kind == parser.NK_NONE || kind == parser.NK_OK_VAL || kind == parser.NK_ERR_VAL || kind == parser.NK_BREAK || kind == parser.NK_CONTINUE || kind == parser.TY_VOID || kind == parser.TY_ARGSPACK {
         stdio.print("{s}{s}\n", {prefix, kind_name})
     } else {
         stdio.print("{s}{s}\n", {prefix, kind_name})

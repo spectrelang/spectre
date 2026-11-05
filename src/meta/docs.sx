@@ -490,8 +490,8 @@ fn render_type(ty: ref parser.Node) ref u8 = trust {
         parser.TY_VOID => {
             return "void"
         }
-        parser.TY_UNTYPED => {
-            return "untyped"
+        parser.TY_ARGSPACK => {
+            return "argspack"
         }
     }
     return "unknown"
@@ -2224,7 +2224,7 @@ fn append_page_shell_end_html(sb: ref void) void = trust {
         \\
         \\/* ── Spectre syntax highlighter ── */
         \\(function(){
-        \\  var KW=/\b(fn|pub|val|mut|type|enum|union|spec|extern|ref|if|elif|else|for|match|return|break|continue|use|in|as|is|true|false|void|untyped|some|none|ok|err|when|otherwise|guarded|pre|post|assert|test|and|or|not)\b/g;
+        \\  var KW=/\b(fn|pub|val|mut|type|enum|union|spec|extern|ref|if|elif|else|for|match|return|break|continue|use|in|as|is|true|false|void|argspack|some|none|ok|err|when|otherwise|guarded|pre|post|assert|test|and|or|not)\b/g;
         \\  var TY=/\b(i8|i16|i32|i64|u8|u16|u32|u64|f32|f64|bool|u8|usize|isize|list|ref|option|result)\b/g;
         \\  var NUM=/\b(0x[0-9a-fA-F]+|\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)\b/g;
         \\  var STR=/(\"(?:[^\"\\]|\\.)*\")/g;
@@ -2240,7 +2240,7 @@ fn append_page_shell_end_html(sb: ref void) void = trust {
         \\    var patterns=[
         \\      {re:/\/\/[^\n]*/g,       cls:'hljs-comment'},
         \\      {re:/"(?:[^"\\]|\\.)*"/g, cls:'hljs-string'},
-        \\      {re:/\b(fn|pub|val|mut|type|enum|union|spec|extern|ref|if|elif|else|for|match|return|break|continue|use|in|as|is|true|false|void|untyped|some|none|ok|err|when|otherwise|guarded|pre|post|assert|test|and|or|not)\b/g, cls:'hljs-keyword'},
+        \\      {re:/\b(fn|pub|val|mut|type|enum|union|spec|extern|ref|if|elif|else|for|match|return|break|continue|use|in|as|is|true|false|void|argspack|some|none|ok|err|when|otherwise|guarded|pre|post|assert|test|and|or|not)\b/g, cls:'hljs-keyword'},
         \\      {re:/\b(i8|i16|i32|i64|u8|u16|u32|u64|f32|f64|bool|usize|isize)\b/g, cls:'hljs-type'},
         \\      {re:/\b(list|option|result)\b/g, cls:'hljs-built_in'},
         \\      {re:/\b0x[0-9a-fA-F]+|\b\d+(?:\.\d+)?(?:[eE][+-]?\d+)?\b/g, cls:'hljs-number'},

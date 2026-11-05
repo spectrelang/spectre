@@ -4208,7 +4208,7 @@ fn gen_variadic_arg(ctx: mut ref CgCtx, node: ref parser.Node) ref u8 = trust {
     return arg_buf
 }
 
-fn cg_param_is_untyped(params: ref void, idx: i64) bool = trust {
+fn cg_param_is_argspack(params: ref void, idx: i64) bool = trust {
     if params == none {
         return false
     }
@@ -4219,12 +4219,12 @@ fn cg_param_is_untyped(params: ref void, idx: i64) bool = trust {
     val p_opt = @get(params as list[ref parser.Node], idx as usize)
     if p_opt is some p {
         val pty: ref parser.Node = (p as ref parser.Node).d1 as ref parser.Node
-        return pty != none && pty.kind == parser.TY_UNTYPED
+        return pty != none && pty.kind == parser.TY_ARGSPACK
     }
     return false
 }
 
-fn cg_current_fn_param_is_untyped(ctx: mut ref CgCtx, name: ref u8) bool = trust {
+fn cg_current_fn_param_is_argspack(ctx: mut ref CgCtx, name: ref u8) bool = trust {
     if name == none {
         return false
     }
@@ -4243,7 +4243,7 @@ fn cg_current_fn_param_is_untyped(ctx: mut ref CgCtx, name: ref u8) bool = trust
             val pnode: ref parser.Node = p as ref parser.Node
             if str.raw_cmp(pnode.d0 as ref u8, name) == 0 {
                 val pty: ref parser.Node = pnode.d1 as ref parser.Node
-                return pty != none && pty.kind == parser.TY_UNTYPED
+                return pty != none && pty.kind == parser.TY_ARGSPACK
             }
         }
         pi++
@@ -4279,7 +4279,7 @@ fn cg_pack_value_to_l(ctx: mut ref CgCtx, node: ref parser.Node) ref u8 = trust 
     return value
 }
 
-fn cg_gen_untyped_pack(
+fn cg_gen_argspack_pack(
     ctx: mut ref CgCtx,
     elems: list[ref parser.Node]
 ) ref u8 = trust {
@@ -4314,7 +4314,7 @@ fn cg_gen_untyped_pack(
     return r
 }
 
-fn cg_expand_untyped_pack_args(
+fn cg_expand_argspack_pack_args(
     ctx: mut ref CgCtx,
     pack_val: ref u8
 ) ref u8 = trust {
@@ -8261,7 +8261,7 @@ fn gen_store_field_value(
     }
 }
 
-fn cg_callsite_param_is_untyped(ctx: mut ref CgCtx, expr: ref parser.Node, idx: i64) bool = trust {
+fn cg_callsite_param_is_argspack(ctx: mut ref CgCtx, expr: ref parser.Node, idx: i64) bool = trust {
     val callee: ref parser.Node = parser.call_callee(expr)
     if callee == none {
         return false
@@ -8295,7 +8295,7 @@ fn cg_callsite_param_is_untyped(ctx: mut ref CgCtx, expr: ref parser.Node, idx: 
         val pnode: ref parser.Node = p as ref parser.Node
         if pnode != none {
             val pty: ref parser.Node = pnode.d1 as ref parser.Node
-            return pty != none && pty.kind == parser.TY_UNTYPED
+            return pty != none && pty.kind == parser.TY_ARGSPACK
         }
     }
     return false
@@ -8368,7 +8368,7 @@ fn gen_call(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
                 if ga_opt is some ga {
                     val ga_node: ref parser.Node = ga as ref parser.Node
                     val gak: i64 = ga_node.kind
-                    if cg_param_is_untyped(gsrc_params, gai) {
+                    if cg_param_is_argspack(gsrc_params, gai) {
                         val elems: mut list[ref parser.Node] = []
                         if gak == parser.NK_ARGS_PACK {
                             val pack: ref void = ga_node.d0 as ref void
@@ -8387,7 +8387,7 @@ fn gen_call(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
                         } else {
                             @append(elems, ga_node)
                         }
-                        val pack_ptr: ref u8 = cg_gen_untyped_pack(ctx, elems)
+                        val pack_ptr: ref u8 = cg_gen_argspack_pack(ctx, elems)
                         @append(arg_tmps_g, pack_ptr)
                         @append(arg_qts_g, "l")
                     } elif gak == parser.NK_ARGS_PACK {
@@ -8922,7 +8922,7 @@ fn gen_call(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
             if arg_opt is some arg {
                 val arg_node: ref parser.Node = arg as ref parser.Node
                 val ak: i64 = arg_node.kind
-                if cg_callsite_param_is_untyped(ctx, expr, ai) {
+                if cg_callsite_param_is_argspack(ctx, expr, ai) {
                     if ak == parser.NK_ARGS_PACK {
                         val elems: mut list[ref parser.Node] = []
                         val pack: ref void = arg_node.d0 as ref void
@@ -8938,18 +8938,18 @@ fn gen_call(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
                             }
                             pi++
                         }
-                        val pack_ptr: ref u8 = cg_gen_untyped_pack(ctx, elems)
+                        val pack_ptr: ref u8 = cg_gen_argspack_pack(ctx, elems)
                         @append(arg_tmps, pack_ptr)
                         @append(arg_qts, "l")
                     } elif arg_node.kind == parser.NK_IDENT &&
-                    cg_current_fn_param_is_untyped(ctx, arg_node.d0 as ref u8) {
+                    cg_current_fn_param_is_argspack(ctx, arg_node.d0 as ref u8) {
                         val at: ref u8 = gen_expr(ctx, arg_node)
                         @append(arg_tmps, at)
                         @append(arg_qts, "l")
                     } else {
                         val elems: mut list[ref parser.Node] = []
                         @append(elems, arg_node)
-                        val pack_ptr: ref u8 = cg_gen_untyped_pack(ctx, elems)
+                        val pack_ptr: ref u8 = cg_gen_argspack_pack(ctx, elems)
                         @append(arg_tmps, pack_ptr)
                         @append(arg_qts, "l")
                     }
@@ -9866,9 +9866,9 @@ fn gen_builtin(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
                             pi2++
                         }
                     } elif pn.kind == parser.NK_IDENT &&
-                    cg_current_fn_param_is_untyped(ctx, pn.d0 as ref u8) {
+                    cg_current_fn_param_is_argspack(ctx, pn.d0 as ref u8) {
                         val pack_val: ref u8 = gen_expr(ctx, pn)
-                        val expanded: ref u8 = cg_expand_untyped_pack_args(ctx, pack_val)
+                        val expanded: ref u8 = cg_expand_argspack_pack_args(ctx, pack_val)
                         val exp_len: i64 = str.len_raw(expanded)
                         @memcpy(@ptradd(call_buf2, call_pos2), expanded, exp_len)
                         call_pos2 = call_pos2 + exp_len
@@ -9922,12 +9922,12 @@ fn gen_builtin(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
                             spi++
                         }
                     } elif spn.kind == parser.NK_IDENT &&
-                    cg_current_fn_param_is_untyped(ctx, spn.d0 as ref u8) {
+                    cg_current_fn_param_is_argspack(ctx, spn.d0 as ref u8) {
                         val pack_val: ref u8 = gen_expr(ctx, spn)
-                        val expanded: ref u8 = cg_expand_untyped_pack_args(ctx, pack_val)
+                        val expanded: ref u8 = cg_expand_argspack_pack_args(ctx, pack_val)
                         str.StringBuilder.append_cstr(scall_sb, expanded)
                     } else {
-                        // Single non-pack argument (e.g. untyped parameter passthrough)
+                        // Single non-pack argument (e.g. argspack parameter passthrough)
                         val svarg2: ref u8 = gen_variadic_arg(ctx, spn)
                         val spbuf2: ref u8 = allocators.ScopedArena.alloc_or_none(
                             ctx.arena,
