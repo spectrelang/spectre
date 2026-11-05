@@ -13,6 +13,7 @@ val lexer       = use("../ast/lexer.sx")
 val parser      = use("../ast/parser.sx")
 val module      = use("../module/module.sx")
 val defines     = use("../meta/defines.sx")
+val features    = use("../meta/features.sx")
 
 extern (C) fn strstr(haystack: ref u8, needle: ref u8) ref u8 = "strstr"
 
@@ -94,6 +95,9 @@ pub type CgCtx = {
     embed_labels: mut list[ref u8]
     embed_count: mut i64
     alloc_runtime: mut bool
+    unboxed_option_result: mut bool
+    current_fn_ret_unboxed: mut bool
+    current_fn_ret_layout_size: mut i64
 }
 
 /// Result of a code generation pass: QBE IR plus any generated C shim.
@@ -213,6 +217,9 @@ fn cg_new() ref CgCtx = trust {
     ctx.embed_labels = []
     ctx.embed_count = 0
     ctx.alloc_runtime = false
+    ctx.unboxed_option_result = features.unboxed_option_result()
+    ctx.current_fn_ret_unboxed = false
+    ctx.current_fn_ret_layout_size = 0
     return ctx
 }
 
@@ -759,6 +766,217 @@ fn cg_alloc_size_for_type(ctx: mut ref CgCtx, ty: ref parser.Node) i64 = trust {
     return type_size(resolved)
 }
 
+fn cg_payload_storage_size(ctx: mut ref CgCtx, ty: ref parser.Node, depth: i64) i64 = trust {
+    if ty == none || depth > 64 {
+        return 8
+    }
+    val resolved: ref parser.Node = cg_concrete_ty(ctx, ty)
+    if resolved == none {
+        return 8
+    }
+    val k: i64 = resolved.kind
+    if k == parser.TY_VOID {
+        return 0
+    }
+    if k == parser.TY_MUT {
+        return cg_payload_storage_size(ctx, resolved.d0 as ref parser.Node, depth + 1)
+    }
+    if k == parser.TY_OPTION {
+        return cg_option_layout_size(ctx, resolved, depth + 1)
+    }
+    if k == parser.TY_RESULT {
+        return cg_result_layout_size(ctx, resolved, depth + 1)
+    }
+    if k == parser.TY_NAMED {
+        return type_size(resolved)
+    }
+    if k == parser.TY_FIXED_ARR {
+        val count: i64 = parser.fixed_arr_size(resolved)
+        val inner: i64 = cg_payload_storage_size(ctx, resolved.d1 as ref parser.Node, depth + 1)
+        return count * inner
+    }
+    if k == parser.TY_LIST || k == parser.TY_REF || k == parser.TY_SLICE || k == parser.TY_FNPTR {
+        return 8
+    }
+    return type_size(resolved)
+}
+
+fn cg_option_payload_size(ctx: mut ref CgCtx, ty: ref parser.Node, depth: i64) i64 = trust {
+    val inner: ref parser.Node = ty.d0 as ref parser.Node
+    val sz: i64 = cg_payload_storage_size(ctx, inner, depth + 1)
+    val aligned: i64 = align_to(sz, 8)
+    if aligned < 8 {
+        return 8
+    }
+    return aligned
+}
+
+fn cg_option_layout_size(ctx: mut ref CgCtx, ty: ref parser.Node, depth: i64) i64 = trust {
+    return 8 + cg_option_payload_size(ctx, ty, depth)
+}
+
+fn cg_result_payload_size(ctx: mut ref CgCtx, ty: ref parser.Node, depth: i64) i64 = trust {
+    val ok_sz: i64 = cg_payload_storage_size(ctx, ty.d0 as ref parser.Node, depth + 1)
+    val err_sz: i64 = cg_payload_storage_size(ctx, ty.d1 as ref parser.Node, depth + 1)
+    val mx: mut i64 = ok_sz
+    if err_sz > mx {
+        mx = err_sz
+    }
+    val aligned: i64 = align_to(mx, 8)
+    if aligned < 8 {
+        return 8
+    }
+    return aligned
+}
+
+fn cg_result_layout_size(ctx: mut ref CgCtx, ty: ref parser.Node, depth: i64) i64 = trust {
+    return 8 + cg_result_payload_size(ctx, ty, depth)
+}
+
+fn cg_wrap_payload_is_aggregate(ctx: mut ref CgCtx, ty: ref parser.Node) bool = trust {
+    if ty == none {
+        return false
+    }
+    val resolved: ref parser.Node = cg_concrete_ty(ctx, ty)
+    if resolved == none {
+        return false
+    }
+    return resolved.kind == parser.TY_OPTION || resolved.kind == parser.TY_RESULT
+    || resolved.kind == parser.TY_FIXED_ARR
+}
+
+fn cg_wrap_layout_size(ctx: mut ref CgCtx, ty: ref parser.Node) i64 = trust {
+    if ty == none {
+        return 8
+    }
+    val resolved: ref parser.Node = cg_concrete_ty(ctx, ty)
+    if resolved == none {
+        return 8
+    }
+    if resolved.kind == parser.TY_OPTION {
+        return cg_option_layout_size(ctx, resolved, 0)
+    }
+    if resolved.kind == parser.TY_RESULT {
+        return cg_result_layout_size(ctx, resolved, 0)
+    }
+    return cg_payload_storage_size(ctx, resolved, 0)
+}
+
+fn cg_emit_store_typed(ctx: mut ref CgCtx, base: ref u8, offset: i64, value: ref u8, ty: ref parser.Node) void = trust {
+    val sz: i64 = cg_payload_storage_size(ctx, ty, 0)
+    val aggregate: bool = cg_wrap_payload_is_aggregate(ctx, ty)
+    val buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 512 as usize) as ref u8
+    if aggregate {
+        val off_tmp: i64 = fresh_tmp(ctx)
+        @snprintf(buf, 512, "    %%t{lld} =l add {s}, {lld}\n    call $memcpy(l %%t{lld}, l {s}, l {lld})\n",
+            {off_tmp, base, offset, off_tmp, value, sz})
+        emit(ctx, buf)
+        return
+    }
+    val qt: ref u8 = qbe_type_of(ty)
+    val op: mut ref u8 = "storel"
+    if str.raw_cmp(qt, "w") == 0 {
+        op = "storew"
+    } elif str.raw_cmp(qt, "s") == 0 {
+        op = "stores"
+    } elif str.raw_cmp(qt, "d") == 0 {
+        op = "stored"
+    }
+    if offset == 0 {
+        @snprintf(buf, 512, "    {s} {s}, {s}\n", {op, value, base})
+    } else {
+        val off_tmp2: i64 = fresh_tmp(ctx)
+        @snprintf(buf, 512, "    %%t{lld} =l add {s}, {lld}\n    {s} {s}, %%t{lld}\n",
+            {off_tmp2, base, offset, op, value, off_tmp2})
+    }
+    emit(ctx, buf)
+}
+
+fn cg_emit_bind_typed(ctx: mut ref CgCtx, base: ref u8, offset: i64, bind: ref u8, ty: ref parser.Node) void = trust {
+    val ann: ref u8 = type_expr_to_annotation(ctx, ty)
+    if cg_wrap_payload_is_aggregate(ctx, ty) {
+        val sz: i64 = cg_payload_storage_size(ctx, ty, 0)
+        val dst: i64 = fresh_tmp(ctx)
+        val off_tmp: i64 = fresh_tmp(ctx)
+        val buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 512 as usize) as ref u8
+        @snprintf(buf, 512, "    %%t{lld} =l alloc8 {lld}\n    %%t{lld} =l add {s}, {lld}\n    call $memcpy(l %%t{lld}, l %%t{lld}, l {lld})\n",
+            {dst, sz, off_tmp, base, offset, dst, off_tmp, sz})
+        emit(ctx, buf)
+        val tmp_str: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 32 as usize) as ref u8
+        @snprintf(tmp_str, 32, "%%t{lld}", {dst})
+        cg_register_local_var(ctx, bind, tmp_str)
+        if str.raw_cmp(ann, "") != 0 {
+            cg_register_local_type(ctx, bind, ann)
+        }
+        if raw_starts_with(ann, "ref ") || raw_starts_with(ann, "mut ref ") || cg_ann_is_indirect_value(ctx, ann) {
+            cg_register_local_ref_type(ctx, bind)
+        }
+        return
+    }
+    val qt: ref u8 = qbe_type_of(ty)
+    val load_op: mut ref u8 = "loadl"
+    if str.raw_cmp(qt, "w") == 0 {
+        load_op = "loadw"
+    } elif str.raw_cmp(qt, "s") == 0 {
+        load_op = "loads"
+    } elif str.raw_cmp(qt, "d") == 0 {
+        load_op = "loadd"
+    }
+    val val_tmp: i64 = fresh_tmp(ctx)
+    val buf2: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 512 as usize) as ref u8
+    if offset == 0 {
+        @snprintf(buf2, 512, "    %%t{lld} ={s} {s} {s}\n", {val_tmp, qt, load_op, base})
+    } else {
+        val off_tmp2: i64 = fresh_tmp(ctx)
+        @snprintf(buf2, 512, "    %%t{lld} =l add {s}, {lld}\n    %%t{lld} ={s} {s} %%t{lld}\n",
+            {off_tmp2, base, offset, val_tmp, qt, load_op, off_tmp2})
+    }
+    emit(ctx, buf2)
+    val tmp_str2: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 32 as usize) as ref u8
+    @snprintf(tmp_str2, 32, "%%t{lld}", {val_tmp})
+    cg_register_local_var(ctx, bind, tmp_str2)
+    if str.raw_cmp(ann, "") != 0 {
+        cg_register_local_type(ctx, bind, ann)
+    }
+}
+
+fn cg_emit_load_typed(ctx: mut ref CgCtx, base: ref u8, offset: i64, ty: ref parser.Node) ref u8 = trust {
+    if cg_wrap_payload_is_aggregate(ctx, ty) {
+        val sz: i64 = cg_payload_storage_size(ctx, ty, 0)
+        val dst: i64 = fresh_tmp(ctx)
+        val off_tmp: i64 = fresh_tmp(ctx)
+        val buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 512 as usize) as ref u8
+        @snprintf(buf, 512, "    %%t{lld} =l alloc8 {lld}\n    %%t{lld} =l add {s}, {lld}\n    call $memcpy(l %%t{lld}, l %%t{lld}, l {lld})\n",
+            {dst, sz, off_tmp, base, offset, dst, off_tmp, sz})
+        emit(ctx, buf)
+        val res: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 32 as usize) as ref u8
+        @snprintf(res, 32, "%%t{lld}", {dst})
+        return res
+    }
+    val qt: ref u8 = qbe_type_of(ty)
+    val load_op: mut ref u8 = "loadl"
+    if str.raw_cmp(qt, "w") == 0 {
+        load_op = "loadw"
+    } elif str.raw_cmp(qt, "s") == 0 {
+        load_op = "loads"
+    } elif str.raw_cmp(qt, "d") == 0 {
+        load_op = "loadd"
+    }
+    val val_tmp: i64 = fresh_tmp(ctx)
+    val buf2: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 512 as usize) as ref u8
+    if offset == 0 {
+        @snprintf(buf2, 512, "    %%t{lld} ={s} {s} {s}\n", {val_tmp, qt, load_op, base})
+    } else {
+        val off_tmp2: i64 = fresh_tmp(ctx)
+        @snprintf(buf2, 512, "    %%t{lld} =l add {s}, {lld}\n    %%t{lld} ={s} {s} %%t{lld}\n",
+            {off_tmp2, base, offset, val_tmp, qt, load_op, off_tmp2})
+    }
+    emit(ctx, buf2)
+    val res2: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 32 as usize) as ref u8
+    @snprintf(res2, 32, "%%t{lld}", {val_tmp})
+    return res2
+}
+
 fn cg_expr_is_zero_init_like(expr: ref parser.Node) bool = trust {
     if expr == none {
         return false
@@ -1245,6 +1463,8 @@ fn monomorphize_generic_fn(ctx: mut ref CgCtx, gfn_node: ref parser.Node, gfn_pr
         val saved_ret_qtype = ctx.current_fn_ret_qtype
         val saved_ret_union = ctx.current_fn_ret_union
         val saved_ret_ty = ctx.current_fn_ret_ty
+        val saved_ret_unboxed = ctx.current_fn_ret_unboxed
+        val saved_ret_layout_size = ctx.current_fn_ret_layout_size
         val saved_expected_ty = ctx.expected_ty
         val saved_local_src_names = cg_clone_char_list(ctx.local_src_names)
         val saved_local_qbe_names = cg_clone_char_list(ctx.local_qbe_names)
@@ -1269,6 +1489,8 @@ fn monomorphize_generic_fn(ctx: mut ref CgCtx, gfn_node: ref parser.Node, gfn_pr
         ctx.current_fn_ret_qtype = saved_ret_qtype
         ctx.current_fn_ret_union = saved_ret_union
         ctx.current_fn_ret_ty = saved_ret_ty
+        ctx.current_fn_ret_unboxed = saved_ret_unboxed
+        ctx.current_fn_ret_layout_size = saved_ret_layout_size
         ctx.expected_ty = saved_expected_ty
         ctx.local_src_names = saved_local_src_names
         ctx.local_qbe_names = saved_local_qbe_names
@@ -1597,6 +1819,7 @@ fn cg_alloc_runtime_c_source() ref u8 = trust {
     \\void sxqbe_list_reserve(long long* h,long long cap){if(!h)return;if(cap>h[2])sxqbe_list_grow(h,cap);}
     \\typedef void* (*sxqbe_raw_alloc_fn)(long long,unsigned long long);
     \\static void* sxqbe_raw_alloc_call(sxqbe_raw_alloc_fn f,long long ctx,long long size){return f(ctx,(unsigned long long)size);}
+    \\static void* sxqbe_wrap_alloc(void* af,long long ctx,long long size){return sxqbe_raw_alloc_call((sxqbe_raw_alloc_fn)af,ctx,size);}
     \\long long sxqbe_some_alloc(void* af,long long ctx,long long value){void* p=sxqbe_raw_alloc_call((sxqbe_raw_alloc_fn)af,ctx,8);if(!p)return 0;*(long long*)p=value;return (long long)(intptr_t)p+1;}
     \\long long sxqbe_ok_alloc(void* af,long long ctx,long long value){long long* p=(long long*)sxqbe_raw_alloc_call((sxqbe_raw_alloc_fn)af,ctx,16);if(!p)return 0;p[0]=0;p[1]=value;return (long long)(intptr_t)p;}
     \\long long sxqbe_err_alloc(void* af,long long ctx,long long value){long long* p=(long long*)sxqbe_raw_alloc_call((sxqbe_raw_alloc_fn)af,ctx,16);if(!p)return 0;p[0]=1;p[1]=value;return (long long)(intptr_t)p;}
@@ -4104,33 +4327,34 @@ fn infer_type_annotation(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = tru
 
     if k == parser.NK_BUILTIN {
         val bname_ann: ref u8 = expr.d0 as ref u8
-        if str.raw_cmp(bname_ann, "get") == 0 {
+        if str.raw_cmp(bname_ann, "get") == 0 || str.raw_cmp(bname_ann, "getref") == 0
+        || str.raw_cmp(bname_ann, "getmut") == 0 {
             val bargs_ann: ref void = expr.d1 as ref void
             if bargs_ann != none {
                 val blen: i64 = @len(bargs_ann as list[ref parser.Node]) as i64
                 val a0_opt = @get(bargs_ann as list[ref parser.Node], 0 as usize)
                 if a0_opt is some a0 {
                     val base_ann: ref u8 = infer_type_annotation(ctx, a0 as ref parser.Node)
+                    val elem_t: mut ref u8 = ""
                     if raw_starts_with(base_ann, "list[") {
                         val la_len: i64 = str.len_raw(base_ann)
-                        val elem_t: ref u8 = str.substr(base_ann, 5, la_len - 6)
+                        elem_t = str.substr(base_ann, 5, la_len - 6)
+                    } elif raw_starts_with(base_ann, "[") && blen > 1 {
+                        elem_t = cg_ann_after_get_indices(base_ann, blen - 1)
+                    }
+                    if str.raw_cmp(elem_t, "") != 0 {
                         val opt_a: ref u8 = allocators.ScopedArena.alloc_or_none(
                             ctx.arena,
-                            256 as usize
+                            512 as usize
                         ) as ref u8
-                        @snprintf(opt_a, 256, "option[{s}]", {elem_t})
-                        return opt_a
-                    }
-                    if raw_starts_with(base_ann, "[") && blen > 1 {
-                        val elem_t2: ref u8 = cg_ann_after_get_indices(base_ann, blen - 1)
-                        if str.raw_cmp(elem_t2, "") != 0 {
-                            val opt_a2: ref u8 = allocators.ScopedArena.alloc_or_none(
-                                ctx.arena,
-                                256 as usize
-                            ) as ref u8
-                            @snprintf(opt_a2, 256, "option[{s}]", {elem_t2})
-                            return opt_a2
+                        if str.raw_cmp(bname_ann, "getref") == 0 {
+                            @snprintf(opt_a, 512, "option[ref {s}]", {elem_t})
+                        } elif str.raw_cmp(bname_ann, "getmut") == 0 {
+                            @snprintf(opt_a, 512, "option[ref mut {s}]", {elem_t})
+                        } else {
+                            @snprintf(opt_a, 512, "option[{s}]", {elem_t})
                         }
+                        return opt_a
                     }
                 }
             }
@@ -5806,6 +6030,25 @@ fn gen_expr(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
     }
 
     if k == parser.NK_NONE {
+        if ctx.unboxed_option_result && ctx.expected_ty != none
+        && (ctx.expected_ty as ref parser.Node).kind == parser.TY_OPTION {
+            val opt_ty: ref parser.Node = ctx.expected_ty as ref parser.Node
+            val sz: i64 = cg_option_layout_size(ctx, opt_ty, 0)
+            val tmp_none: i64 = fresh_tmp(ctx)
+            val buf_none: ref u8 = allocators.ScopedArena.alloc_or_none(
+                ctx.arena,
+                128 as usize
+            ) as ref u8
+            @snprintf(buf_none, 128, "    %%t{lld} =l alloc8 {lld}\n    storel 0, %%t{lld}\n",
+                {tmp_none, sz, tmp_none})
+            emit(ctx, buf_none)
+            val res_none: ref u8 = allocators.ScopedArena.alloc_or_none(
+                ctx.arena,
+                16 as usize
+            ) as ref u8
+            @snprintf(res_none, 16, "%%t{lld}", {tmp_none})
+            return res_none
+        }
         val tmp5: i64 = fresh_tmp(ctx)
         val buf5: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 64 as usize) as ref u8
         @snprintf(buf5, 64, "    %%t{lld} =l copy 0\n", {tmp5})
@@ -6022,6 +6265,60 @@ fn gen_expr(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
         val inner: ref u8 = gen_expr(ctx, inner_node)
         val inner_qt: ref u8 = expr_qbe_type(ctx, inner_node)
         val alloc_node: ref parser.Node = parser.wrap_allocator(expr)
+        if ctx.unboxed_option_result {
+            val opt_ty: mut ref parser.Node = none
+            if ctx.expected_ty != none && (ctx.expected_ty as ref parser.Node).kind == parser.TY_OPTION {
+                opt_ty = ctx.expected_ty as ref parser.Node
+            } else {
+                opt_ty = parser.make_node(ctx.arena, parser.TY_OPTION, expr.line)
+                val inner_ann: ref u8 = infer_type_annotation(ctx, inner_node)
+                parser.node_store_slot[ref parser.Node](
+                    @addr(opt_ty.d0),
+                    cg_named_ty_from_ann(ctx, inner_ann)
+                )
+            }
+            val sz: i64 = cg_option_layout_size(ctx, opt_ty, 0)
+            val some_ptr: i64 = fresh_tmp(ctx)
+            if alloc_node != none {
+                val alloc_ann: ref u8 = infer_type_annotation(ctx, alloc_node)
+                val alloc_ty: ref parser.Node = cg_named_ty_from_ann(ctx, alloc_ann)
+                val ac: ref u8 = gen_expr(ctx, alloc_node)
+                val af: ref u8 = cg_alloc_fn_ptr(ctx, alloc_ty, "alloc_raw")
+                ctx.alloc_runtime = true
+                val abuf: ref u8 = allocators.ScopedArena.alloc_or_none(
+                    ctx.arena,
+                    256 as usize
+                ) as ref u8
+                @snprintf(abuf, 256, "    %%t{lld} =l call $sxqbe_wrap_alloc(l {s}, l {s}, l {lld})\n",
+                    {some_ptr, af, ac, sz})
+                emit(ctx, abuf)
+            } else {
+                val abuf2: ref u8 = allocators.ScopedArena.alloc_or_none(
+                    ctx.arena,
+                    128 as usize
+                ) as ref u8
+                @snprintf(abuf2, 128, "    %%t{lld} =l alloc8 {lld}\n", {some_ptr, sz})
+                emit(ctx, abuf2)
+            }
+            val tbuf: ref u8 = allocators.ScopedArena.alloc_or_none(
+                ctx.arena,
+                64 as usize
+            ) as ref u8
+            @snprintf(tbuf, 64, "    storel 1, %%t{lld}\n", {some_ptr})
+            emit(ctx, tbuf)
+            val ptr_str: ref u8 = allocators.ScopedArena.alloc_or_none(
+                ctx.arena,
+                32 as usize
+            ) as ref u8
+            @snprintf(ptr_str, 32, "%%t{lld}", {some_ptr})
+            cg_emit_store_typed(ctx, ptr_str, 8, inner, opt_ty.d0 as ref parser.Node)
+            val unbox_res: ref u8 = allocators.ScopedArena.alloc_or_none(
+                ctx.arena,
+                16 as usize
+            ) as ref u8
+            @snprintf(unbox_res, 16, "%%t{lld}", {some_ptr})
+            return unbox_res
+        }
         if alloc_node != none {
             val alloc_ann: ref u8 = infer_type_annotation(ctx, alloc_node)
             val alloc_ty: ref parser.Node = cg_named_ty_from_ann(ctx, alloc_ann)
@@ -6079,6 +6376,71 @@ fn gen_expr(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
 
     if k == parser.NK_OK_VAL {
         val alloc_node: ref parser.Node = parser.wrap_allocator(expr)
+        if ctx.unboxed_option_result {
+            val res_ty: mut ref parser.Node = none
+            if ctx.expected_ty != none && (ctx.expected_ty as ref parser.Node).kind == parser.TY_RESULT {
+                res_ty = ctx.expected_ty as ref parser.Node
+            } else {
+                res_ty = parser.make_node(ctx.arena, parser.TY_RESULT, expr.line)
+                val ok_ann: mut ref u8 = "i64"
+                if expr.d0 != 0 {
+                    ok_ann = infer_type_annotation(ctx, expr.d0 as ref parser.Node)
+                }
+                parser.node_store_slot[ref parser.Node](
+                    @addr(res_ty.d0),
+                    cg_named_ty_from_ann(ctx, ok_ann)
+                )
+                parser.node_store_slot[ref parser.Node](
+                    @addr(res_ty.d1),
+                    cg_named_ty_from_ann(ctx, "i64")
+                )
+            }
+            val sz: i64 = cg_result_layout_size(ctx, res_ty, 0)
+            val ok_ptr: i64 = fresh_tmp(ctx)
+            if alloc_node != none {
+                val alloc_ann: ref u8 = infer_type_annotation(ctx, alloc_node)
+                val alloc_ty: ref parser.Node = cg_named_ty_from_ann(ctx, alloc_ann)
+                val ac: ref u8 = gen_expr(ctx, alloc_node)
+                val af: ref u8 = cg_alloc_fn_ptr(ctx, alloc_ty, "alloc_raw")
+                ctx.alloc_runtime = true
+                val abuf: ref u8 = allocators.ScopedArena.alloc_or_none(
+                    ctx.arena,
+                    256 as usize
+                ) as ref u8
+                @snprintf(abuf, 256, "    %%t{lld} =l call $sxqbe_wrap_alloc(l {s}, l {s}, l {lld})\n",
+                    {ok_ptr, af, ac, sz})
+                emit(ctx, abuf)
+            } else {
+                val abuf2: ref u8 = allocators.ScopedArena.alloc_or_none(
+                    ctx.arena,
+                    128 as usize
+                ) as ref u8
+                @snprintf(abuf2, 128, "    %%t{lld} =l alloc8 {lld}\n", {ok_ptr, sz})
+                emit(ctx, abuf2)
+            }
+            val tbuf: ref u8 = allocators.ScopedArena.alloc_or_none(
+                ctx.arena,
+                64 as usize
+            ) as ref u8
+            @snprintf(tbuf, 64, "    storel 0, %%t{lld}\n", {ok_ptr})
+            emit(ctx, tbuf)
+            if expr.d0 != 0 {
+                val inner_ok_expr: ref parser.Node = expr.d0 as ref parser.Node
+                val inner_ok: ref u8 = gen_expr(ctx, inner_ok_expr)
+                val ptr_str: ref u8 = allocators.ScopedArena.alloc_or_none(
+                    ctx.arena,
+                    32 as usize
+                ) as ref u8
+                @snprintf(ptr_str, 32, "%%t{lld}", {ok_ptr})
+                cg_emit_store_typed(ctx, ptr_str, 8, inner_ok, res_ty.d0 as ref parser.Node)
+            }
+            val unbox_res: ref u8 = allocators.ScopedArena.alloc_or_none(
+                ctx.arena,
+                16 as usize
+            ) as ref u8
+            @snprintf(unbox_res, 16, "%%t{lld}", {ok_ptr})
+            return unbox_res
+        }
         if alloc_node != none {
             val inner_val: mut ref u8 = "0"
             if expr.d0 != 0 {
@@ -6147,6 +6509,68 @@ fn gen_expr(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
 
     if k == parser.NK_ERR_VAL {
         val alloc_node: ref parser.Node = parser.wrap_allocator(expr)
+        if ctx.unboxed_option_result {
+            val res_ty: mut ref parser.Node = none
+            if ctx.expected_ty != none && (ctx.expected_ty as ref parser.Node).kind == parser.TY_RESULT {
+                res_ty = ctx.expected_ty as ref parser.Node
+            } else {
+                res_ty = parser.make_node(ctx.arena, parser.TY_RESULT, expr.line)
+                parser.node_store_slot[ref parser.Node](
+                    @addr(res_ty.d0),
+                    cg_named_ty_from_ann(ctx, "i64")
+                )
+                val err_ann: mut ref u8 = "i64"
+                if expr.d0 != 0 {
+                    err_ann = infer_type_annotation(ctx, expr.d0 as ref parser.Node)
+                }
+                parser.node_store_slot[ref parser.Node](
+                    @addr(res_ty.d1),
+                    cg_named_ty_from_ann(ctx, err_ann)
+                )
+            }
+            val sz: i64 = cg_result_layout_size(ctx, res_ty, 0)
+            val err_ptr: i64 = fresh_tmp(ctx)
+            if alloc_node != none {
+                val alloc_ann: ref u8 = infer_type_annotation(ctx, alloc_node)
+                val alloc_ty: ref parser.Node = cg_named_ty_from_ann(ctx, alloc_ann)
+                val ac: ref u8 = gen_expr(ctx, alloc_node)
+                val af: ref u8 = cg_alloc_fn_ptr(ctx, alloc_ty, "alloc_raw")
+                ctx.alloc_runtime = true
+                val abuf: ref u8 = allocators.ScopedArena.alloc_or_none(
+                    ctx.arena,
+                    256 as usize
+                ) as ref u8
+                @snprintf(abuf, 256, "    %%t{lld} =l call $sxqbe_wrap_alloc(l {s}, l {s}, l {lld})\n",
+                    {err_ptr, af, ac, sz})
+                emit(ctx, abuf)
+            } else {
+                val abuf2: ref u8 = allocators.ScopedArena.alloc_or_none(
+                    ctx.arena,
+                    128 as usize
+                ) as ref u8
+                @snprintf(abuf2, 128, "    %%t{lld} =l alloc8 {lld}\n", {err_ptr, sz})
+                emit(ctx, abuf2)
+            }
+            val tbuf: ref u8 = allocators.ScopedArena.alloc_or_none(
+                ctx.arena,
+                64 as usize
+            ) as ref u8
+            @snprintf(tbuf, 64, "    storel 1, %%t{lld}\n", {err_ptr})
+            emit(ctx, tbuf)
+            val inner_err: ref u8 = gen_expr(ctx, expr.d0 as ref parser.Node)
+            val ptr_str: ref u8 = allocators.ScopedArena.alloc_or_none(
+                ctx.arena,
+                32 as usize
+            ) as ref u8
+            @snprintf(ptr_str, 32, "%%t{lld}", {err_ptr})
+            cg_emit_store_typed(ctx, ptr_str, 8, inner_err, res_ty.d1 as ref parser.Node)
+            val unbox_res: ref u8 = allocators.ScopedArena.alloc_or_none(
+                ctx.arena,
+                16 as usize
+            ) as ref u8
+            @snprintf(unbox_res, 16, "%%t{lld}", {err_ptr})
+            return unbox_res
+        }
         if alloc_node != none {
             val inner_node: ref parser.Node = expr.d0 as ref parser.Node
             val inner_raw: ref u8 = gen_expr(ctx, inner_node)
@@ -8758,6 +9182,26 @@ fn gen_call(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
         if gret_node != none {
             gret_qt = qbe_type_of(gret_node as ref parser.Node)
         }
+        val gret_union_name: ref u8 = is_union_type(ctx, gret_node as ref parser.Node)
+        val greturns_union: bool = str.raw_cmp(gret_union_name, "") != 0
+        val greturns_unboxed: bool = ctx.unboxed_option_result && gret_node != none
+        && ((gret_node as ref parser.Node).kind == parser.TY_OPTION
+            || (gret_node as ref parser.Node).kind == parser.TY_RESULT)
+        val ghas_sret: bool = greturns_union || greturns_unboxed
+        val gret_buf: mut i64 = -1
+        if ghas_sret {
+            gret_buf = fresh_tmp(ctx)
+            val gret_sz: mut i64 = 16
+            if greturns_unboxed {
+                gret_sz = cg_wrap_layout_size(ctx, gret_node as ref parser.Node)
+            }
+            val grabuf: ref u8 = allocators.ScopedArena.alloc_or_none(
+                ctx.arena,
+                128 as usize
+            ) as ref u8
+            @snprintf(grabuf, 128, "    %%t{lld} =l alloc8 {lld}\n", {gret_buf, gret_sz})
+            emit(ctx, grabuf)
+        }
         val gcall_buf: ref u8 = allocators.ScopedArena.alloc_or_none(
             ctx.arena,
             2048 as usize
@@ -8768,6 +9212,13 @@ fn gen_call(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
         val ghdr_len: i64 = str.len_raw(ghdr)
         @memcpy(@ptradd(gcall_buf, gcall_pos), ghdr, ghdr_len as usize)
         gcall_pos = gcall_pos + ghdr_len val gtlen: i64 = @len(arg_tmps_g) as i64
+        if ghas_sret {
+            val gra: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 64 as usize) as ref u8
+            @snprintf(gra, 64, "l %%t{lld}", {gret_buf})
+            val gralen: i64 = str.len_raw(gra)
+            @memcpy(@ptradd(gcall_buf, gcall_pos), gra, gralen as usize)
+            gcall_pos = gcall_pos + gralen
+        }
         val gti: mut i64 = 0
         for {
             if gti >= gtlen {
@@ -8801,7 +9252,7 @@ fn gen_call(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
                     ctx.arena,
                     128 as usize
                 ) as ref u8
-                if gti > 0 {
+                if gti > 0 || ghas_sret {
                     @memcpy(@ptradd(gcall_buf, gcall_pos), ", " as ref void, 2)
                     gcall_pos += 2
                 }
@@ -8819,7 +9270,7 @@ fn gen_call(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
                 if pad_i >= pad_need {
                     break
                 }
-                if pad_i > 0 {
+                if pad_i > 0 || ghas_sret {
                     @memcpy(@ptradd(gcall_buf, gcall_pos), ", " as ref void, 2)
                     gcall_pos += 2
                 }
@@ -8837,7 +9288,11 @@ fn gen_call(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
             ctx,
             gcall_buf
         ) val gres: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 16 as usize) as ref u8
-        @snprintf(gres, 16, "%%t{lld}", {gtmp})
+        val gresult: mut i64 = gtmp
+        if ghas_sret {
+            gresult = gret_buf
+        }
+        @snprintf(gres, 16, "%%t{lld}", {gresult})
         return gres
     }
 
@@ -9419,9 +9874,11 @@ fn gen_call(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
 
     val ret_qtype: mut ref u8 = "l"
     val ret_union_name: mut ref u8 = ""
+    val ret_ty_node: mut ref parser.Node = none
     if using_ext {
         val ret_ty: ref void = cg_lookup_ext_ret(ctx, callee_raw)
         if ret_ty != none {
+            ret_ty_node = ret_ty as ref parser.Node
             ret_qtype = qbe_type_of(ret_ty as ref parser.Node)
             ret_union_name = is_union_type(ctx, ret_ty as ref parser.Node)
         }
@@ -9432,21 +9889,35 @@ fn gen_call(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
         }
         val ret_ty: ref void = cg_lookup_fn_ret(ctx, lookup_name)
         if ret_ty != none {
+            ret_ty_node = ret_ty as ref parser.Node
             ret_qtype = qbe_type_of(ret_ty as ref parser.Node)
             ret_union_name = is_union_type(ctx, ret_ty as ref parser.Node)
         }
     }
+    val inferred_ret: ref parser.Node = cg_infer_call_ret_ty(ctx, expr)
+    if inferred_ret != none {
+        ret_ty_node = inferred_ret
+        ret_qtype = qbe_type_of(inferred_ret)
+        ret_union_name = is_union_type(ctx, inferred_ret)
+    }
 
     val returns_union: bool = str.raw_cmp(ret_union_name, "") != 0
+    val returns_unboxed: bool = ctx.unboxed_option_result && ret_ty_node != none
+    && (ret_ty_node.kind == parser.TY_OPTION || ret_ty_node.kind == parser.TY_RESULT)
+    val has_sret: bool = returns_union || returns_unboxed
     val ret_buf_tmp: mut i64 = -1
 
-    if returns_union {
+    if has_sret {
         ret_buf_tmp = fresh_tmp(ctx)
+        val ret_sz: mut i64 = 16
+        if returns_unboxed {
+            ret_sz = cg_wrap_layout_size(ctx, ret_ty_node)
+        }
         val alloc_buf: ref u8 = allocators.ScopedArena.alloc_or_none(
             ctx.arena,
             64 as usize
         ) as ref u8
-        @snprintf(alloc_buf, 64, "    %%t{lld} =l alloc8 16\n", {ret_buf_tmp})
+        @snprintf(alloc_buf, 64, "    %%t{lld} =l alloc8 {lld}\n", {ret_buf_tmp, ret_sz})
         emit(ctx, alloc_buf)
     }
 
@@ -9473,8 +9944,8 @@ fn gen_call(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
     @memcpy(@ptradd(call_buf, call_pos), hdr, hdr_len)
     call_pos = call_pos + hdr_len val tlen: i64 = @len(arg_tmps) as i64
 
-    // If returning a union, add the return buffer as the first argument
-    if returns_union {
+    // If returning an aggregate, add the return buffer as the first argument
+    if has_sret {
         val ret_arg: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 32 as usize) as ref u8
         @snprintf(ret_arg, 32, "l %%t{lld}", {ret_buf_tmp})
         val ret_arg_len: i64 = str.len_raw(ret_arg)
@@ -9500,7 +9971,7 @@ fn gen_call(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
             val src_qtype: mut ref u8 = "l"
             val is_variadic_arg: bool = is_variadic_extern && ti >= fixed_params_len
             if is_variadic_arg && !variadic_started {
-                if ti > 0 || returns_union {
+                if ti > 0 || has_sret {
                     @memcpy(@ptradd(call_buf, call_pos), ", ..." as ref void, 5)
                     call_pos += 5
                 } else {
@@ -9571,9 +10042,9 @@ fn gen_call(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
         }
     }
 
-    // If the function returns a union, return the buffer pointer instead of the call result
+    // If the function returns an aggregate, return the caller buffer pointer.
     val result_tmp: mut i64 = tmp
-    if returns_union {
+    if has_sret {
         result_tmp = ret_buf_tmp
     }
 
@@ -9954,6 +10425,180 @@ fn cg_named_ty_from_ann(ctx: ref CgCtx, ann: ref u8) ref parser.Node = trust {
     val node: mut ref parser.Node = parser.make_node(ctx.arena, parser.TY_NAMED, 0)
     parser.node_store_slot[ref u8](@addr(node.d0), ann)
     return node
+}
+
+fn cg_ann_is_scalar(ann: ref u8) bool = trust {
+    if str.raw_cmp(ann, "") == 0 {
+        return false
+    }
+    if is_word_type_name(ann) || is_float_type_name(ann) {
+        return true
+    }
+    if str.raw_cmp(ann, "bool") == 0 || str.raw_cmp(ann, "i64") == 0
+    || str.raw_cmp(ann, "u64") == 0 || str.raw_cmp(ann, "usize") == 0
+    || str.raw_cmp(ann, "isize") == 0 || str.raw_cmp(ann, "u8") == 0 {
+        return true
+    }
+    return false
+}
+
+/// Unboxed implementation of @get / @getref / @getmut.
+/// mode: 0 = copy, 1 = borrowed ref, 2 = borrowed mut ref.
+fn gen_get_unboxed(ctx: mut ref CgCtx, expr: ref parser.Node, args: ref void, mode: i64) ref u8 = trust {
+    val opt_ann: ref u8 = infer_type_annotation(ctx, expr)
+    val elem_ann: ref u8 = parse_option_inner(opt_ann)
+    val payload_ty: ref parser.Node = cg_named_ty_from_ann(ctx, elem_ann)
+    val opt_ty: mut ref parser.Node = parser.make_node(ctx.arena, parser.TY_OPTION, expr.line)
+    parser.node_store_slot[ref parser.Node](@addr(opt_ty.d0), payload_ty)
+    val opt_sz: i64 = cg_option_layout_size(ctx, opt_ty, 0)
+    val opt_buf: i64 = fresh_tmp(ctx)
+    val init_buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 128 as usize) as ref u8
+    @snprintf(init_buf, 128, "    %%t{lld} =l alloc8 {lld}\n    storel 0, %%t{lld}\n", {opt_buf, opt_sz, opt_buf})
+    emit(ctx, init_buf)
+
+    val base_arg_opt = @get(args as list[ref parser.Node], 0 as usize)
+    val base_arg: mut ref parser.Node = none
+    if base_arg_opt is some base_arg_raw {
+        base_arg = base_arg_raw as ref parser.Node
+    }
+    val base_ann: ref u8 = infer_type_annotation(ctx, base_arg)
+    val some_lbl: i64 = fresh_lbl(ctx)
+    val none_lbl: i64 = fresh_lbl(ctx)
+    val end_lbl: i64 = fresh_lbl(ctx)
+    val opt_str: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 32 as usize) as ref u8
+    @snprintf(opt_str, 32, "%%t{lld}", {opt_buf})
+
+    if !raw_starts_with(base_ann, "[") {
+        val lst: ref u8 = get_list_arg(ctx, args, 0)
+        val idx_raw: ref u8 = get_arg(ctx, args, 1)
+        val idx_node_opt = @get(args as list[ref parser.Node], 1 as usize)
+        val idx_qt: mut ref u8 = "l"
+        if idx_node_opt is some idx_node {
+            idx_qt = expr_qtype(ctx, idx_node as ref parser.Node)
+        }
+        val idx: ref u8 = cg_coerce_qtype(ctx, idx_raw, idx_qt, "l")
+        val data_tmp: i64 = fresh_tmp(ctx)
+        val len_tmp: i64 = fresh_tmp(ctx)
+        val in_bounds: i64 = fresh_tmp(ctx)
+        val hbuf1: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 256 as usize) as ref u8
+        @snprintf(hbuf1, 256, "    %%t{lld} =l loadl {s}\n", {data_tmp, lst})
+        emit(ctx, hbuf1)
+        val hbuf2: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 256 as usize) as ref u8
+        @snprintf(hbuf2, 256, "    %%t{lld} =l add {s}, 8\n    %%t{lld} =l loadl %%t{lld}\n",
+            {len_tmp, lst, len_tmp, len_tmp})
+        emit(ctx, hbuf2)
+        val hbuf3: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 256 as usize) as ref u8
+        @snprintf(hbuf3, 256, "    %%t{lld} =w csltl {s}, %%t{lld}\n    jnz %%t{lld}, @lbl{lld}, @lbl{lld}\n@lbl{lld}\n",
+            {in_bounds, idx, len_tmp, in_bounds, some_lbl, none_lbl, some_lbl})
+        emit(ctx, hbuf3)
+        val off_tmp: i64 = fresh_tmp(ctx)
+        val elem_addr: i64 = fresh_tmp(ctx)
+        val abuf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 256 as usize) as ref u8
+        @snprintf(abuf, 256, "    %%t{lld} =l mul {s}, 8\n    %%t{lld} =l add %%t{lld}, %%t{lld}\n",
+            {off_tmp, idx, elem_addr, data_tmp, off_tmp})
+        emit(ctx, abuf)
+        val elem_str: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 32 as usize) as ref u8
+        @snprintf(elem_str, 32, "%%t{lld}", {elem_addr})
+        if mode == 0 {
+            val src_tmp: i64 = fresh_tmp(ctx)
+            val lbuf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 128 as usize) as ref u8
+            @snprintf(lbuf, 128, "    %%t{lld} =l loadl %%t{lld}\n", {src_tmp, elem_addr})
+            emit(ctx, lbuf)
+            val src_str: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 32 as usize) as ref u8
+            @snprintf(src_str, 32, "%%t{lld}", {src_tmp})
+            if !cg_wrap_payload_is_aggregate(ctx, payload_ty) {
+                val woff: i64 = fresh_tmp(ctx)
+                val wbuf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 128 as usize) as ref u8
+                @snprintf(wbuf, 128, "    %%t{lld} =l add %%t{lld}, 8\n    storel {s}, %%t{lld}\n",
+                    {woff, opt_buf, src_str, woff})
+                emit(ctx, wbuf)
+            } else {
+                val sz: i64 = cg_payload_storage_size(ctx, payload_ty, 0)
+                val off2: i64 = fresh_tmp(ctx)
+                val dbuf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 512 as usize) as ref u8
+                @snprintf(dbuf, 512, "    %%t{lld} =l add %%t{lld}, 8\n    call $memcpy(l %%t{lld}, l {s}, l {lld})\n",
+                    {off2, opt_buf, off2, src_str, sz})
+                emit(ctx, dbuf)
+            }
+        } else {
+            if cg_ann_is_scalar(elem_ann) {
+                cg_emit_store_typed(ctx, opt_str, 8, elem_str, payload_ty)
+            } else {
+                val src2: i64 = fresh_tmp(ctx)
+                val lbuf2: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 128 as usize) as ref u8
+                @snprintf(lbuf2, 128, "    %%t{lld} =l loadl %%t{lld}\n", {src2, elem_addr})
+                emit(ctx, lbuf2)
+                val src2_str: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 32 as usize) as ref u8
+                @snprintf(src2_str, 32, "%%t{lld}", {src2})
+                cg_emit_store_typed(ctx, opt_str, 8, src2_str, payload_ty)
+            }
+        }
+        val tag_buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 256 as usize) as ref u8
+        @snprintf(tag_buf, 256, "    storel 1, %%t{lld}\n    jmp @lbl{lld}\n@lbl{lld}\n    jmp @lbl{lld}\n@lbl{lld}\n",
+            {opt_buf, end_lbl, none_lbl, end_lbl, end_lbl})
+        emit(ctx, tag_buf)
+        return opt_str
+    }
+
+    // Fixed arrays.
+    val base_ptr: mut ref u8 = get_arg(ctx, args, 0)
+    val arg_count: i64 = @len(args as list[ref parser.Node]) as i64
+    val cur_ann: mut ref u8 = base_ann
+    val ai: mut i64 = 1
+    for {
+        if ai >= arg_count {
+            break
+        }
+        if !raw_starts_with(cur_ann, "[") {
+            val jbuf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 64 as usize) as ref u8
+            @snprintf(jbuf, 64, "    jmp @lbl{lld}\n", {none_lbl})
+            emit(ctx, jbuf)
+            break
+        }
+        val idx_raw2: ref u8 = get_arg(ctx, args, ai)
+        val idx_node_opt2 = @get(args as list[ref parser.Node], ai as usize)
+        val idx_qt2: mut ref u8 = "l"
+        if idx_node_opt2 is some idx_node2 {
+            idx_qt2 = expr_qtype(ctx, idx_node2 as ref parser.Node)
+        }
+        val idx2: ref u8 = cg_coerce_qtype(ctx, idx_raw2, idx_qt2, "l")
+        val len2: i64 = cg_ann_fixed_arr_len_val(ctx, cur_ann)
+        val next_ann: ref u8 = ann_fixed_arr_inner(cur_ann)
+        val elem_sz: i64 = cg_ann_size(ctx, next_ann)
+        val ok_tmp2: i64 = fresh_tmp(ctx)
+        val cont_lbl: i64 = fresh_lbl(ctx)
+        val step_off: i64 = fresh_tmp(ctx)
+        val step_ptr: i64 = fresh_tmp(ctx)
+        val dbuf2: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 768 as usize) as ref u8
+        @snprintf(dbuf2, 768,
+            "    %%t{lld} =w csltl {s}, {lld}\n    jnz %%t{lld}, @lbl{lld}, @lbl{lld}\n@lbl{lld}\n    %%t{lld} =l mul {s}, {lld}\n    %%t{lld} =l add {s}, %%t{lld}\n",
+            {ok_tmp2, idx2, len2, ok_tmp2, cont_lbl, none_lbl, cont_lbl, step_off, idx2, elem_sz, step_ptr, base_ptr, step_off})
+        emit(ctx, dbuf2)
+        val step_name: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 32 as usize) as ref u8
+        @snprintf(step_name, 32, "%%t{lld}", {step_ptr})
+        base_ptr = step_name
+        cur_ann = next_ann
+        ai++
+    }
+    if raw_starts_with(cur_ann, "[") {
+        if mode == 0 {
+            cg_emit_store_typed(ctx, opt_str, 8, base_ptr, payload_ty)
+        } else {
+            cg_emit_store_typed(ctx, opt_str, 8, base_ptr, payload_ty)
+        }
+    } else {
+        if mode == 0 {
+            val loaded: ref u8 = cg_emit_load_typed(ctx, base_ptr, 0, payload_ty)
+            cg_emit_store_typed(ctx, opt_str, 8, loaded, payload_ty)
+        } else {
+            cg_emit_store_typed(ctx, opt_str, 8, base_ptr, payload_ty)
+        }
+    }
+    val tag_buf2: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 256 as usize) as ref u8
+    @snprintf(tag_buf2, 256, "    storel 1, %%t{lld}\n    jmp @lbl{lld}\n@lbl{lld}\n    jmp @lbl{lld}\n@lbl{lld}\n",
+        {opt_buf, end_lbl, none_lbl, end_lbl, end_lbl})
+    emit(ctx, tag_buf2)
+    return opt_str
 }
 
 fn gen_builtin(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
@@ -10517,7 +11162,17 @@ fn gen_builtin(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
         )
         emit(ctx, buf)
         tmp = len_val
-    } elif str.raw_cmp(name, "get") == 0 {
+    } elif str.raw_cmp(name, "get") == 0 || str.raw_cmp(name, "getref") == 0
+    || str.raw_cmp(name, "getmut") == 0 {
+        if ctx.unboxed_option_result {
+            val get_mode: mut i64 = 0
+            if str.raw_cmp(name, "getref") == 0 {
+                get_mode = 1
+            } elif str.raw_cmp(name, "getmut") == 0 {
+                get_mode = 2
+            }
+            return gen_get_unboxed(ctx, expr, args, get_mode)
+        }
         val arg0_opt = @get(args as list[ref parser.Node], 0 as usize)
         val base_ann: mut ref u8 = ""
         if arg0_opt is some a0 {
@@ -11643,14 +12298,21 @@ fn gen_builtin(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
                     ret_union_name = is_union_type(ctx, ret_ty)
                 }
                 val returns_union: bool = str.raw_cmp(ret_union_name, "") != 0
+                val returns_unboxed: bool = ctx.unboxed_option_result && ret_ty != none
+                && (ret_ty.kind == parser.TY_OPTION || ret_ty.kind == parser.TY_RESULT)
+                val has_sret: bool = returns_union || returns_unboxed
                 val ret_buf_tmp: mut i64 = -1
-                if returns_union {
+                if has_sret {
                     ret_buf_tmp = fresh_tmp(ctx)
+                    val ret_sz: mut i64 = 16
+                    if returns_unboxed {
+                        ret_sz = cg_wrap_layout_size(ctx, ret_ty)
+                    }
                     val alloc_buf: ref u8 = allocators.ScopedArena.alloc_or_none(
                         ctx.arena,
                         64 as usize
                     ) as ref u8
-                    @snprintf(alloc_buf, 64, "    %%t{lld} =l alloc8 16\n", {ret_buf_tmp})
+                    @snprintf(alloc_buf, 64, "    %%t{lld} =l alloc8 {lld}\n", {ret_buf_tmp, ret_sz})
                     emit(ctx, alloc_buf)
                 }
 
@@ -11774,7 +12436,7 @@ fn gen_builtin(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
                     512 as usize
                 ) as ref u8
                 @snprintf(hdr3_buf, 512, "    %%t{lld} ={s} call {s}(", {tmp, ret_qtype, fn_ptr})
-                str.StringBuilder.append_cstr(call_sb2, hdr3_buf) if returns_union {
+                str.StringBuilder.append_cstr(call_sb2, hdr3_buf) if has_sret {
                     val ret_arg: ref u8 = allocators.ScopedArena.alloc_or_none(
                         ctx.arena,
                         32 as usize
@@ -11803,7 +12465,7 @@ fn gen_builtin(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
                             src_qt = sq as ref u8
                         }
                         val arg_val2: ref u8 = cg_coerce_qtype(ctx, t3 as ref u8, src_qt, arg_qt)
-                        if returns_union || ti3 > 0 {
+                        if has_sret || ti3 > 0 {
                             str.StringBuilder.append_cstr(call_sb2, ", ")
                         }
                         val tbuf4: ref u8 = allocators.ScopedArena.alloc_or_none(
@@ -11819,7 +12481,7 @@ fn gen_builtin(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
                 val call_line3: ref void = str.StringBuilder.build(call_sb2)
                 str.StringBuilder.free(call_sb2)
                 emit(ctx, str.cstr(call_line3))
-                if returns_union {
+                if has_sret {
                     @snprintf(buf, 512, "    %%t{lld} =l copy %%t{lld}\n", {tmp, ret_buf_tmp})
                     emit(ctx, buf)
                 }
@@ -12400,19 +13062,33 @@ fn gen_try(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
     @snprintf(buf, 256,
         "    %%t{lld} =l loadl {s}\n    %%t{lld} =w ceql %%t{lld}, 0\n    jnz %%t{lld}, @lbl{lld}, @lbl{lld}\n@lbl{lld}\n",
         {tag_tmp, inner, is_ok, tag_tmp, is_ok, ok_lbl, err_lbl, err_lbl})
-    emit(ctx, buf) // err branch: return the result as-is
-    val rbuf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 64 as usize) as ref u8
-    @snprintf(rbuf, 64, "    ret {s}\n@lbl{lld}\n", {inner, ok_lbl})
-    emit(ctx, rbuf) // ok branch: load value at offset 8
+    emit(ctx, buf) // err branch: propagate the result
+    if ctx.current_fn_ret_unboxed {
+        val rbuf0: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 128 as usize) as ref u8
+        @snprintf(rbuf0, 128, "    call $memcpy(l %%__ret, l {s}, l {lld})\n    ret %%__ret\n@lbl{lld}\n",
+            {inner, ctx.current_fn_ret_layout_size, ok_lbl})
+        emit(ctx, rbuf0)
+    } else {
+        val rbuf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 64 as usize) as ref u8
+        @snprintf(rbuf, 64, "    ret {s}\n@lbl{lld}\n", {inner, ok_lbl})
+        emit(ctx, rbuf)
+    }
+    // ok branch: load the payload
+    if ctx.unboxed_option_result {
+        val res_ann: ref u8 = infer_type_annotation(ctx, inner_node)
+        val ok_buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 256 as usize) as ref u8
+        val err_buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 256 as usize) as ref u8
+        parse_result_types(res_ann, ok_buf, err_buf)
+        val payload_ty: ref parser.Node = cg_named_ty_from_ann(ctx, ok_buf)
+        return cg_emit_load_typed(ctx, inner, 8, payload_ty)
+    }
     val off_tmp: i64 = fresh_tmp(ctx)
     val val_tmp: i64 = fresh_tmp(ctx)
     val vbuf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 128 as usize) as ref u8
     @snprintf(vbuf, 128, "    %%t{lld} =l add {s}, 8\n    %%t{lld} =l loadl %%t{lld}\n",
         {off_tmp, inner, val_tmp, off_tmp})
-    emit(
-        ctx,
-        vbuf
-    ) val res: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 16 as usize) as ref u8
+    emit(ctx, vbuf)
+    val res: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 16 as usize) as ref u8
     @snprintf(res, 16, "%%t{lld}", {val_tmp})
     return res
 }
@@ -12951,8 +13627,12 @@ fn gen_stmt(ctx: mut ref CgCtx, stmt: ref parser.Node) void = trust {
             cg_emit_invariant_checks(ctx)
             cg_emit_defers(ctx)
 
-            // If returning a union, use memcpy to copy to %__ret
-            if str.raw_cmp(ctx.current_fn_ret_union, "") != 0 {
+            // Aggregate and unboxed returns are copied into the caller's buffer.
+            if str.raw_cmp(ctx.current_fn_ret_union, "") != 0 || ctx.current_fn_ret_unboxed {
+                val sz: mut i64 = 16
+                if ctx.current_fn_ret_unboxed {
+                    sz = ctx.current_fn_ret_layout_size
+                }
                 val buf5: ref u8 = allocators.ScopedArena.alloc_or_none(
                     ctx.arena,
                     128 as usize
@@ -12960,8 +13640,8 @@ fn gen_stmt(ctx: mut ref CgCtx, stmt: ref parser.Node) void = trust {
                 @snprintf(
                     buf5,
                     128,
-                    "    call $memcpy(l %%__ret, l {s}, l 16)\n    ret %%__ret\n",
-                    {rv}
+                    "    call $memcpy(l %%__ret, l {s}, l {lld})\n    ret %%__ret\n",
+                    {rv, sz}
                 )
                 emit(ctx, buf5)
             } else {
@@ -14034,38 +14714,52 @@ fn gen_match_opt(ctx: mut ref CgCtx, stmt: ref parser.Node) void = trust {
     val end_lbl: i64 = fresh_lbl(ctx)
     val tag: i64 = fresh_tmp(ctx)
     val buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 256 as usize) as ref u8
-    @snprintf(buf, 256,
-        "    %%t{lld} =w cnel {s}, 0\n    jnz %%t{lld}, @lbl{lld}, @lbl{lld}\n@lbl{lld}\n",
-        {tag, expr, tag, some_lbl, none_lbl, some_lbl})
-    emit(ctx, buf) if some_bind != none && str.raw_cmp(some_bind, "_") != 0 {
-        val val_tmp: i64 = fresh_tmp(ctx)
-        val vbuf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 128 as usize) as ref u8
-        @snprintf(vbuf, 128, "    %%t{lld} =l sub {s}, 1\n", {val_tmp, expr})
-        emit(ctx, vbuf) val opt_ann: ref u8 = infer_type_annotation(ctx, expr_node)
+    if ctx.unboxed_option_result {
+        val is_some: i64 = fresh_tmp(ctx)
+        @snprintf(buf, 256,
+            "    %%t{lld} =l loadl {s}\n    %%t{lld} =w cnel %%t{lld}, 0\n    jnz %%t{lld}, @lbl{lld}, @lbl{lld}\n@lbl{lld}\n",
+            {tag, expr, is_some, tag, is_some, some_lbl, none_lbl, some_lbl})
+        emit(ctx, buf)
+    } else {
+        @snprintf(buf, 256,
+            "    %%t{lld} =w cnel {s}, 0\n    jnz %%t{lld}, @lbl{lld}, @lbl{lld}\n@lbl{lld}\n",
+            {tag, expr, tag, some_lbl, none_lbl, some_lbl})
+        emit(ctx, buf)
+    }
+    if some_bind != none && str.raw_cmp(some_bind, "_") != 0 {
+        val opt_ann: ref u8 = infer_type_annotation(ctx, expr_node)
         val inner_type: ref u8 = parse_option_inner(opt_ann)
-        val eff_tmp: i64 = fresh_tmp(ctx)
-        val cbuf: ref u8 = allocators.ScopedArena.alloc_or_none(
-            ctx.arena,
-            64 as usize
-        ) as ref u8
-        if str.raw_cmp(inner_type, "f64") == 0 {
-            @snprintf(cbuf, 64, "    %%t{lld} =d loadd %%t{lld}\n", {eff_tmp, val_tmp})
-        } elif str.raw_cmp(inner_type, "f32") == 0 {
-            @snprintf(cbuf, 64, "    %%t{lld} =s loads %%t{lld}\n", {eff_tmp, val_tmp})
+        if ctx.unboxed_option_result {
+            val inner_ty: ref parser.Node = cg_named_ty_from_ann(ctx, inner_type)
+            cg_emit_bind_typed(ctx, expr, 8, some_bind, inner_ty)
         } else {
-            @snprintf(cbuf, 64, "    %%t{lld} =l loadl %%t{lld}\n", {eff_tmp, val_tmp})
-        }
-        emit(ctx, cbuf)
-        val tmp_str: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 16 as usize) as ref u8
-        @snprintf(tmp_str, 16, "{lld}", {eff_tmp})
-        cg_register_local_var(ctx, some_bind, tmp_str)
-        if str.raw_cmp(inner_type, "") != 0 {
-            cg_register_local_type(ctx, some_bind, inner_type)
-            if raw_starts_with(inner_type, "ref ") {
+            val val_tmp: i64 = fresh_tmp(ctx)
+            val vbuf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 128 as usize) as ref u8
+            @snprintf(vbuf, 128, "    %%t{lld} =l sub {s}, 1\n", {val_tmp, expr})
+            emit(ctx, vbuf) val eff_tmp: i64 = fresh_tmp(ctx)
+            val cbuf: ref u8 = allocators.ScopedArena.alloc_or_none(
+                ctx.arena,
+                64 as usize
+            ) as ref u8
+            if str.raw_cmp(inner_type, "f64") == 0 {
+                @snprintf(cbuf, 64, "    %%t{lld} =d loadd %%t{lld}\n", {eff_tmp, val_tmp})
+            } elif str.raw_cmp(inner_type, "f32") == 0 {
+                @snprintf(cbuf, 64, "    %%t{lld} =s loads %%t{lld}\n", {eff_tmp, val_tmp})
+            } else {
+                @snprintf(cbuf, 64, "    %%t{lld} =l loadl %%t{lld}\n", {eff_tmp, val_tmp})
+            }
+            emit(ctx, cbuf)
+            val tmp_str: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 16 as usize) as ref u8
+            @snprintf(tmp_str, 16, "{lld}", {eff_tmp})
+            cg_register_local_var(ctx, some_bind, tmp_str)
+            if str.raw_cmp(inner_type, "") != 0 {
+                cg_register_local_type(ctx, some_bind, inner_type)
+                if raw_starts_with(inner_type, "ref ") {
+                    cg_register_local_ref_type(ctx, some_bind)
+                }
+            } else {
                 cg_register_local_ref_type(ctx, some_bind)
             }
-        } else {
-            cg_register_local_ref_type(ctx, some_bind)
         }
     }
 
@@ -14141,29 +14835,34 @@ fn gen_match_res(ctx: mut ref CgCtx, stmt: ref parser.Node) void = trust {
 
     emit(ctx, buf) if is_real_result {
         if ok_bind != none && str.raw_cmp(ok_bind, "_") != 0 {
-            val off_ok: i64 = fresh_tmp(ctx)
-            val val_ok: i64 = fresh_tmp(ctx)
-            val vbuf: ref u8 = allocators.ScopedArena.alloc_or_none(
-                ctx.arena,
-                256 as usize
-            ) as ref u8
-            @snprintf(vbuf, 256,
-                "    %%t{lld} =l add {s}, 8\n    %%t{lld} =l loadl %%t{lld}\n",
-                {off_ok, expr, val_ok, off_ok})
-            emit(
-                ctx,
-                vbuf
-            ) val tmp_str: ref u8 = allocators.ScopedArena.alloc_or_none(
-                ctx.arena,
-                16 as usize
-            ) as ref u8
-            @snprintf(tmp_str, 16, "{lld}", {val_ok})
-            cg_register_local_var(ctx, ok_bind, tmp_str)
-            val ok_inner: ref u8 = ok_type_buf
-            if str.raw_cmp(ok_inner, "") != 0 {
-                cg_register_local_type(ctx, ok_bind, ok_inner)
-                if raw_starts_with(ok_inner, "ref ") {
-                    cg_register_local_ref_type(ctx, ok_bind)
+            if ctx.unboxed_option_result {
+                val ok_ty: ref parser.Node = cg_named_ty_from_ann(ctx, ok_type_buf)
+                cg_emit_bind_typed(ctx, expr, 8, ok_bind, ok_ty)
+            } else {
+                val off_ok: i64 = fresh_tmp(ctx)
+                val val_ok: i64 = fresh_tmp(ctx)
+                val vbuf: ref u8 = allocators.ScopedArena.alloc_or_none(
+                    ctx.arena,
+                    256 as usize
+                ) as ref u8
+                @snprintf(vbuf, 256,
+                    "    %%t{lld} =l add {s}, 8\n    %%t{lld} =l loadl %%t{lld}\n",
+                    {off_ok, expr, val_ok, off_ok})
+                emit(
+                    ctx,
+                    vbuf
+                ) val tmp_str: ref u8 = allocators.ScopedArena.alloc_or_none(
+                    ctx.arena,
+                    16 as usize
+                ) as ref u8
+                @snprintf(tmp_str, 16, "{lld}", {val_ok})
+                cg_register_local_var(ctx, ok_bind, tmp_str)
+                val ok_inner: ref u8 = ok_type_buf
+                if str.raw_cmp(ok_inner, "") != 0 {
+                    cg_register_local_type(ctx, ok_bind, ok_inner)
+                    if raw_starts_with(ok_inner, "ref ") {
+                        cg_register_local_ref_type(ctx, ok_bind)
+                    }
                 }
             }
         }
@@ -14218,24 +14917,29 @@ fn gen_match_res(ctx: mut ref CgCtx, stmt: ref parser.Node) void = trust {
     }
     if is_real_result {
         if err_bind != none && str.raw_cmp(err_bind, "_") != 0 {
-            val off_err: i64 = fresh_tmp(ctx)
-            val val_err: i64 = fresh_tmp(ctx)
-            val vbuf2: ref u8 = allocators.ScopedArena.alloc_or_none(
-                ctx.arena,
-                256 as usize
-            ) as ref u8
-            @snprintf(vbuf2, 256,
-                "    %%t{lld} =l add {s}, 8\n    %%t{lld} =l loadl %%t{lld}\n    %%{s} =l copy %%t{lld}\n",
-                {off_err, expr, val_err, off_err, err_bind, val_err})
-            emit(
-                ctx,
-                vbuf2
-            ) val tmp_str_err: ref u8 = allocators.ScopedArena.alloc_or_none(
-                ctx.arena,
-                16 as usize
-            ) as ref u8
-            @snprintf(tmp_str_err, 16, "{lld}", {val_err})
-            cg_register_local_var(ctx, err_bind, tmp_str_err)
+            if ctx.unboxed_option_result {
+                val err_ty: ref parser.Node = cg_named_ty_from_ann(ctx, err_type_buf)
+                cg_emit_bind_typed(ctx, expr, 8, err_bind, err_ty)
+            } else {
+                val off_err: i64 = fresh_tmp(ctx)
+                val val_err: i64 = fresh_tmp(ctx)
+                val vbuf2: ref u8 = allocators.ScopedArena.alloc_or_none(
+                    ctx.arena,
+                    256 as usize
+                ) as ref u8
+                @snprintf(vbuf2, 256,
+                    "    %%t{lld} =l add {s}, 8\n    %%t{lld} =l loadl %%t{lld}\n    %%{s} =l copy %%t{lld}\n",
+                    {off_err, expr, val_err, off_err, err_bind, val_err})
+                emit(
+                    ctx,
+                    vbuf2
+                ) val tmp_str_err: ref u8 = allocators.ScopedArena.alloc_or_none(
+                    ctx.arena,
+                    16 as usize
+                ) as ref u8
+                @snprintf(tmp_str_err, 16, "{lld}", {val_err})
+                cg_register_local_var(ctx, err_bind, tmp_str_err)
+            }
         }
     } else {
         if err_bind != none && str.raw_cmp(err_bind, "_") != 0 {
@@ -14942,15 +15646,18 @@ fn gen_fn_prefixed(ctx: mut ref CgCtx, fn_node: ref parser.Node, mod_prefix: ref
         }
     }
     val returns_union: bool = str.raw_cmp(ret_union_name, "") != 0
+    val returns_unboxed: bool = ctx.unboxed_option_result && ret_ty != none
+    && (ret_ty.kind == parser.TY_OPTION || ret_ty.kind == parser.TY_RESULT)
+    val has_sret: bool = returns_union || returns_unboxed
 
     @snprintf(sig_buf, 512, "{s}function {s} ${s}(", {export_kw, ret_qt, mangled})
-    emit(ctx, sig_buf) if returns_union {
+    emit(ctx, sig_buf) if has_sret {
         emit(ctx, "l %__ret")
     }
 
     val is_main: bool = str.raw_cmp(name, "main") == 0 && str.raw_cmp(mod_prefix, "") == 0
     if is_main {
-        if returns_union {
+        if has_sret {
             emit(ctx, ", ")
         }
         emit(ctx, "w %argc, l %argv")
@@ -14973,7 +15680,7 @@ fn gen_fn_prefixed(ctx: mut ref CgCtx, fn_node: ref parser.Node, mod_prefix: ref
                     ctx.arena,
                     64 as usize
                 ) as ref u8
-                if pi > 0 || returns_union {
+                if pi > 0 || has_sret {
                     emit(ctx, ", ")
                 }
                 @snprintf(pbuf, 64, "{s} %%{s}", {pqt, pqname})
@@ -15000,6 +15707,12 @@ fn gen_fn_prefixed(ctx: mut ref CgCtx, fn_node: ref parser.Node, mod_prefix: ref
         ctx.current_fn_ret_union = ret_union_name
     } else {
         ctx.current_fn_ret_union = ""
+    }
+    ctx.current_fn_ret_unboxed = returns_unboxed
+    if returns_unboxed {
+        ctx.current_fn_ret_layout_size = cg_wrap_layout_size(ctx, ret_ty)
+    } else {
+        ctx.current_fn_ret_layout_size = 0
     }
     ctx.current_fn_ret_qtype = ret_qt
     ctx.current_fn_ret_ty = ret_ty
@@ -15184,6 +15897,8 @@ fn gen_fn_prefixed(ctx: mut ref CgCtx, fn_node: ref parser.Node, mod_prefix: ref
     }
     ctx.current_fn_ret_qtype = "l"
     ctx.current_fn_ret_union = ""
+    ctx.current_fn_ret_unboxed = false
+    ctx.current_fn_ret_layout_size = 0
     ctx.current_fn_ret_ty = none
     ctx.expected_ty = none
     ctx.current_module_prefix = saved_module_prefix

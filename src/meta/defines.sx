@@ -97,6 +97,21 @@ pub fn get(name: ref u8) option[ref u8] = {
     return none
 }
 
+/// Return true when a compile-time definition with the given name exists.
+pub fn has(name: ref u8) bool = {
+    val cur: mut ref Define = defs
+    for {
+        if cur == none {
+            break
+        }
+        if str.raw_cmp(cur.name, name) == 0 {
+            return true
+        }
+        cur = cur.next
+    }
+    return false
+}
+
 /// Parse a NAME=VALUE definition and add it to the compile-time environment.
 pub fn add_spec(definition: ref u8) bool = trust {
     val len: i64 = str.len_raw(definition)

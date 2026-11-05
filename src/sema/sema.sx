@@ -8,6 +8,7 @@ val fs         = use("std/fs")
 val path       = use("std/path")
 val parser     = use("../ast/parser.sx")
 val modinfo    = use("../module/module.sx")
+val features   = use("../meta/features.sx")
 
 type ScopeEntry = {
     name: mut ref u8
@@ -204,7 +205,7 @@ fn normalize_path(path: ref u8) ref u8 = trust {
 }
 
 fn builtin_min_arity(name: ref u8) i64 = trust {
-    if str_eq(name, "get") {
+    if str_eq(name, "get") || str_eq(name, "getref") || str_eq(name, "getmut") {
         return 2
     }
     if str_eq(name, "set") {
@@ -440,6 +441,8 @@ fn is_known_builtin(name: ref u8) bool = trust {
         "remove",
         "insert",
         "get",
+        "getref",
+        "getmut",
         "set",
         "len",
         "reserve",
@@ -1761,6 +1764,124 @@ fn sema_validate_type_node(
     }
 }
 
+fn sema_named_in_list(names: list[ref u8], name: ref u8) bool = trust {
+    for n in names {
+        if n != none && str_eq(n as ref u8, name) {
+            return true
+        }
+    }
+    return false
+}
+
+/// True when `ty` contains `target` without passing through a ref/list/slice.
+fn sema_type_contains_recursive(
+    ctx: ref SemaCtx,
+    ty: ref parser.Node,
+    target: ref u8,
+    seen: mut list[ref u8],
+    depth: i64
+) bool = trust {
+    if ty == none || depth > 64 {
+        return false
+    }
+    val k: i64 = ty.kind
+    if k == parser.TY_REF || k == parser.TY_LIST || k == parser.TY_SLICE {
+        return false
+    }
+    if k == parser.TY_MUT || k == parser.TY_OPTION || k == parser.TY_RESULT {
+        if k == parser.TY_RESULT {
+            if sema_type_contains_recursive(ctx, ty.d0 as ref parser.Node, target, seen, depth + 1) {
+                return true
+            }
+            return sema_type_contains_recursive(ctx, ty.d1 as ref parser.Node, target, seen, depth + 1)
+        }
+        return sema_type_contains_recursive(ctx, ty.d0 as ref parser.Node, target, seen, depth + 1)
+    }
+    if k == parser.TY_FIXED_ARR {
+        return sema_type_contains_recursive(ctx, ty.d1 as ref parser.Node, target, seen, depth + 1)
+    }
+    if k != parser.TY_NAMED {
+        return false
+    }
+    val name: ref u8 = ty.d0 as ref u8
+    if name == none || str_eq(name, "") {
+        return false
+    }
+    if str_eq(name, target) {
+        return true
+    }
+    if sema_named_in_list(seen, name) {
+        return false
+    }
+    val td: ref parser.Node = sema_lookup_typedef(ctx, name)
+    if td == none || td.kind != parser.NK_TYPEDEF {
+        return false
+    }
+    val fields: ref void = td.d2 as ref void
+    if fields == none {
+        return false
+    }
+    @append(seen, name)
+    for f in fields as list[ref parser.Node] {
+        if f != none {
+            if sema_type_contains_recursive(
+                ctx,
+                f.d2 as ref parser.Node,
+                target,
+                seen,
+                depth + 1
+            ) {
+                return true
+            }
+        }
+    }
+    return false
+}
+
+fn sema_check_recursive_types(
+    ctx: ref SemaCtx,
+    items: list[ref parser.Node],
+    filename: ref u8
+) void = trust {
+    if !features.unboxed_option_result() {
+        return
+    }
+    for item in items {
+        if item == none || item.kind != parser.NK_TYPEDEF {
+            continue
+        }
+        val tname: ref u8 = item.d1 as ref u8
+        val fields: ref void = item.d2 as ref void
+        if tname == none || fields == none {
+            continue
+        }
+        for f in fields as list[ref parser.Node] {
+            if f == none {
+                continue
+            }
+            val fty: ref parser.Node = f.d2 as ref parser.Node
+            if fty == none {
+                continue
+            }
+            val seen: mut list[ref u8] = []
+            if sema_type_contains_recursive(ctx, fty, tname, seen, 0) {
+                val buf: ref u8 = allocators.ScopedArena.alloc_or_none(
+                    ctx.arena,
+                    512 as usize
+                ) as ref u8
+                @snprintf(
+                    buf,
+                    512,
+                    "{s}:{lld}: recursive type '{s}' has infinite size; use a reference, for example 'option[ref {s}]'",
+                    {filename, f.line, tname, tname}
+                )
+                add_error(ctx, buf)
+                break
+            }
+        }
+    }
+}
+
 /// Validate parameter and return types of a function declaration.
 fn sema_validate_fn_types(
     ctx: ref SemaCtx,
@@ -1792,6 +1913,22 @@ fn sema_validate_fn_types(
         "return type",
         fn_name
     )
+    if features.unboxed_option_result() && fn_node.kind == parser.NK_EXTERN_FN {
+        val ret_k: i64 = ty_wrap_kind(fn_node.d4 as ref parser.Node)
+        if ret_k == 1 || ret_k == 2 {
+            val buf: ref u8 = allocators.ScopedArena.alloc_or_none(
+                ctx.arena,
+                512 as usize
+            ) as ref u8
+            @snprintf(
+                buf,
+                512,
+                "{s}:{lld}: extern function '{s}' cannot return option/result across the FFI boundary; return a ref or use an explicit ABI struct",
+                {filename, fn_node.line, fn_name}
+            )
+            add_error(ctx, buf)
+        }
+    }
 }
 
 fn find_spec_in_items(
@@ -1885,7 +2022,7 @@ fn expr_wrap_kind(ctx: ref SemaCtx, expr: ref parser.Node) i64 = trust {
     }
     if k == parser.NK_BUILTIN {
         val bname: ref u8 = expr.d0 as ref u8
-        if str_eq(bname, "get") {
+        if str_eq(bname, "get") || str_eq(bname, "getref") || str_eq(bname, "getmut") {
             return 2
         }
         if str_eq(bname, "argsalloc") || str_eq(bname, "listalloc") ||
@@ -5493,7 +5630,8 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
         ) || str_eq(
             bname,
             "store"
-        ) || str_eq(bname, "append") || str_eq(bname, "remove") || str_eq(bname, "reserve") {
+        ) || str_eq(bname, "append") || str_eq(bname, "remove") || str_eq(bname, "reserve")
+        || str_eq(bname, "getmut") {
             if bargs != none {
                 val btarget_opt = @get(bargs as list[ref parser.Node], 0)
                 if btarget_opt is some btarget {
@@ -8356,6 +8494,7 @@ pub fn check_module(
     }
 
     check_duplicates(ctx, filename)
+    sema_check_recursive_types(ctx, items, filename)
 
     for item2 in items {
         check_top_item(ctx, item2, filename)
