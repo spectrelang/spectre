@@ -1762,7 +1762,11 @@ fn sema_validate_type_node(
 }
 
 /// Validate parameter and return types of a function declaration.
-fn sema_validate_fn_types(ctx: ref SemaCtx, fn_node: ref parser.Node, filename: ref u8) void = trust {
+fn sema_validate_fn_types(
+    ctx: ref SemaCtx,
+    fn_node: ref parser.Node,
+    filename: ref u8
+) void = trust {
     val fn_name: ref u8 = fn_node.d2 as ref u8
     val params: ref void = fn_node.d3 as ref void
     if params != none {
@@ -4525,6 +4529,10 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
     }
     if k == parser.NK_SOME ||
     k == parser.NK_OK_VAL || k == parser.NK_ERR_VAL {
+        val alloc_node: ref parser.Node = parser.wrap_allocator(expr)
+        if alloc_node != none {
+            check_expr(ctx, alloc_node, filename)
+        }
         check_expr(ctx, expr.d0 as ref parser.Node, filename)
         return
     }
@@ -5766,7 +5774,11 @@ fn sema_const_unknown() SemaConstVal = trust {
 /// field_names and field_vals are parallel lists of (ref u8, i64) containing
 /// only values known at compile time. The result records whether the expression
 /// could be fully evaluated.
-fn sema_const_eval(expr: ref parser.Node, field_names: ref void, field_vals: ref void) SemaConstVal = trust {
+fn sema_const_eval(
+    expr: ref parser.Node,
+    field_names: ref void,
+    field_vals: ref void
+) SemaConstVal = trust {
     if expr == none {
         return sema_const_unknown()
     }
@@ -6000,7 +6012,11 @@ fn sema_const_eval_no_fields(expr: ref parser.Node) SemaConstVal = trust {
 
 /// Collect unconditional preconditions from a function body. Preconditions
 /// inside an active compile-time `when` branch are unconditional as well.
-fn sema_collect_preconditions(ctx: ref SemaCtx, stmts: ref void, out: mut list[ref parser.Node]) void = trust {
+fn sema_collect_preconditions(
+    ctx: ref SemaCtx,
+    stmts: ref void,
+    out: mut list[ref parser.Node]
+) void = trust {
     if stmts == none {
         return
     }
@@ -7875,6 +7891,13 @@ fn expr_uses_import_alias(node: ref parser.Node, import_name: ref u8) bool = tru
     }
     if k == parser.NK_TRUST || k == parser.NK_TRY || k == parser.NK_ADDR || k == parser.NK_DEREF ||
     k == parser.NK_SOME || k == parser.NK_OK_VAL || k == parser.NK_ERR_VAL {
+        val alloc_node: ref parser.Node = parser.wrap_allocator(node)
+        if alloc_node != none && expr_uses_import_alias(alloc_node, import_name) {
+            return true
+        }
+        if node.d0 == 0 as i64 {
+            return false
+        }
         return expr_uses_import_alias(node.d0 as ref parser.Node, import_name)
     }
     if k == parser.NK_LIST_LIT || k == parser.NK_ARGS_PACK {

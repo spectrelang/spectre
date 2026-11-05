@@ -398,6 +398,17 @@ pub fn match_opt_is_sugar(n: ref Node) bool = {
     return match_opt_sugar_kind(n) != 0
 }
 
+pub fn wrap_allocator(n: ref Node) ref Node = trust {
+    if n == none {
+        return none
+    }
+    val k: i64 = n.kind
+    if k == NK_SOME || k == NK_OK_VAL || k == NK_ERR_VAL {
+        return n.d1 as ref Node
+    }
+    return none
+}
+
 pub fn match_res_expr(n: ref Node) ref Node = {
     return n.d0 as ref Node
 }
@@ -1724,6 +1735,40 @@ fn parse_mul(p: mut ref Parser) result[ref Node, ref u8] = trust {
     return ok res
 }
 
+fn parse_wrap_args(
+    p: mut ref Parser,
+    allow_empty: bool
+) result[ref Node, ref u8] = trust {
+    val out: mut ref Node = make_node(p.arena, NK_ARGS_PACK, p_line(p))
+    out.d0 = 0
+    out.d1 = 0
+    if lexer.kind_is_lparen(p_peek_kind(p)) {
+        p_advance(p)
+        if allow_empty && lexer.kind_is_rparen(p_peek_kind(p)) {
+            p_advance(p)
+            return ok out
+        }
+        val first = parse_expr(p)?
+        if p_eat_fn(p, lexer.kind_is_comma) {
+            node_store_slot[ref Node](@addr(out.d1), first)
+            if lexer.kind_is_rparen(p_peek_kind(p)) {
+                p_advance(p)
+                return ok out
+            }
+            val inner = parse_expr(p)?
+            node_store_slot[ref Node](@addr(out.d0), inner)
+            p_expect_rparen(p)?
+        } else {
+            p_expect_rparen(p)?
+            node_store_slot[ref Node](@addr(out.d0), first)
+        }
+        return ok out
+    }
+    val inner = parse_unary(p)?
+    node_store_slot[ref Node](@addr(out.d0), inner)
+    return ok out
+}
+
 fn parse_unary(p: mut ref Parser) result[ref Node, ref u8] = trust {
     val line: i64 = p_line(p)
     val k: lexer.TokenKind = p_peek_kind(p)
@@ -1751,29 +1796,26 @@ fn parse_unary(p: mut ref Parser) result[ref Node, ref u8] = trust {
     }
     if kind_is_some(k) {
         p_advance(p)
-        val inner5 = parse_unary(p)?
+        val args5 = parse_wrap_args(p, false)?
         val n5: mut ref Node = make_node(p.arena, NK_SOME, line)
-        node_store_slot[ref Node](@addr(n5.d0), inner5)
+        node_store_slot[ref Node](@addr(n5.d0), args5.d0 as ref Node)
+        node_store_slot[ref Node](@addr(n5.d1), args5.d1 as ref Node)
         return ok n5
     }
     if kind_is_ok(k) {
         p_advance(p)
-        if lexer.kind_is_lparen(p_peek_kind(p)) && lexer.kind_is_rparen(p_peek2_kind(p)) {
-            p_advance(p) p_advance(p)
-            val n6: mut ref Node = make_node(p.arena, NK_OK_VAL, line)
-            n6.d0 = 0
-            return ok n6
-        }
-        val inner6 = parse_unary(p)?
+        val args6 = parse_wrap_args(p, true)?
         val n6: mut ref Node = make_node(p.arena, NK_OK_VAL, line)
-        node_store_slot[ref Node](@addr(n6.d0), inner6)
+        n6.d0 = args6.d0
+        node_store_slot[ref Node](@addr(n6.d1), args6.d1 as ref Node)
         return ok n6
     }
     if kind_is_err(k) {
         p_advance(p)
-        val inner7 = parse_unary(p)?
+        val args7 = parse_wrap_args(p, false)?
         val n7: mut ref Node = make_node(p.arena, NK_ERR_VAL, line)
-        node_store_slot[ref Node](@addr(n7.d0), inner7)
+        node_store_slot[ref Node](@addr(n7.d0), args7.d0 as ref Node)
+        node_store_slot[ref Node](@addr(n7.d1), args7.d1 as ref Node)
         return ok n7
     }
     return parse_postfix(p)

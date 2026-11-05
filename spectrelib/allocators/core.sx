@@ -98,6 +98,17 @@ pub fn (Arena) alloc_or_none(arena: self, size: usize) ref void = {
     }
 }
 
+/// Allocate `size` bytes without wrapping the result in an option.
+///
+/// Returns none when the arena is exhausted.
+pub fn (Arena) alloc_raw(arena: self, size: usize) ref void = trust {
+    val out = Arena.alloc(arena, size)
+    if out is some p {
+        return p
+    }
+    return none
+}
+
 /// Return the number of bytes currently used.
 pub fn (Arena) used(arena: self) usize = {
     return trust @load(@ptradd(arena, 8)) as usize
@@ -451,6 +462,20 @@ pub fn (ScopedArena) alloc(a: ScopedArenaAllocator, size: usize) option[ref void
 /// Allocate `size` bytes, returning none on exhaustion.
 pub fn (ScopedArena) alloc_or_none(a: ScopedArenaAllocator, size: usize) ref void = {
     match trust ScopedArena.alloc(a, size) {
+        some p => {
+            return p
+        }
+        none => {
+            return none
+        }
+    }
+}
+
+/// Allocate `size` bytes without wrapping the result in an option.
+///
+/// Returns none when allocation fails.
+pub fn (ScopedArena) alloc_raw(a: ScopedArenaAllocator, size: usize) ref void = trust {
+    match ScopedArena.alloc(a, size) {
         some p => {
             return p
         }

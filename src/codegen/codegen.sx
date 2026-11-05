@@ -108,6 +108,27 @@ type GlobalInit = {
     expr: mut ref void
 }
 
+fn cg_list_slot(list: ref void, i: i64) ref void = trust {
+    val buf: ref void = @load(list)
+    return @ptradd(buf, (i * 8) as usize)
+}
+
+fn cg_copy_str(ctx: ref CgCtx, s: ref u8) ref u8 = trust {
+    if s == none {
+        return ""
+    }
+    val n: i64 = str.len_raw(s)
+    val out: ref u8 = allocators.ScopedArena.alloc_or_none(
+        ctx.arena,
+        (n + 1) as usize
+    ) as ref u8
+    if n > 0 {
+        @memcpy(out, s, n)
+    }
+    @store8(@ptradd(out, n), 0)
+    return out
+}
+
 fn cg_new() ref CgCtx = trust {
     val ctx: mut ref CgCtx = @alloc(@sizeof(CgCtx)) as ref CgCtx
     match allocators.ScopedArena.new(67108864 as usize) {
@@ -490,22 +511,7 @@ fn generic_fn_qualified_name(
     if str.raw_cmp(mod_prefix, "") == 0 {
         return base
     }
-    val is_std_child: mut bool = false
-    val scn_len: i64 = @len(get_std_child_names()) as i64
-    val scn_i: mut i64 = 0
-    for {
-        if scn_i >= scn_len {
-            break
-        }
-        val scn_opt = @get(get_std_child_names(), scn_i as usize)
-        if scn_opt is some scn {
-            if str.raw_cmp(scn as ref u8, mod_prefix) == 0 {
-                is_std_child = true
-                break
-            }
-        }
-        scn_i++
-    }
+    val is_std_child: bool = is_std_child_name(mod_prefix)
     val qualified: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 512 as usize) as ref u8
     if is_std_child {
         @snprintf(qualified, 512, "std__{s}__{s}", {mod_prefix, base})
@@ -1589,6 +1595,11 @@ fn cg_alloc_runtime_c_source() ref u8 = trust {
     \\long long* sxqbe_fmt_alloc(void* aft,void* fft,void* rft,long long ctx,const char* f,long long* p){sxqbe_alloc_fn af=(sxqbe_alloc_fn)aft;sxqbe_free_fn ff=(sxqbe_free_fn)fft;sxqbe_realloc_fn rf=(sxqbe_realloc_fn)rft;long long cap=4096;char* b=(char*)sxqbe_alloc_call(af,ctx,cap);if(!b)return sxqbe_err(0);int n=p?snprintf(b,(size_t)cap,f,p[0],p[1],p[2],p[3],p[4],p[5],p[6],p[7],p[8],p[9],p[10],p[11],p[12],p[13],p[14],p[15]):snprintf(b,(size_t)cap,"%s",f);if(n<0){ff(ctx,(long long)(intptr_t)b);return sxqbe_err(0);}if((long long)n>=cap){long long ncap=(long long)n+1;long long nb=sxqbe_realloc_call(rf,ctx,b,ncap);if(!nb){ff(ctx,(long long)(intptr_t)b);return sxqbe_err(0);}b=(char*)(intptr_t)nb;cap=ncap;n=p?snprintf(b,(size_t)cap,f,p[0],p[1],p[2],p[3],p[4],p[5],p[6],p[7],p[8],p[9],p[10],p[11],p[12],p[13],p[14],p[15]):snprintf(b,(size_t)cap,"%s",f);if(n<0){ff(ctx,(long long)(intptr_t)b);return sxqbe_err(0);}}return sxqbe_ok((long long)(intptr_t)b);}
     \\void sxqbe_list_free(long long* h){if(!h)return;long long buf=h[0];sxqbe_alloc_desc* d=(sxqbe_alloc_desc*)(intptr_t)h[3];if(d){if(buf)d->free(d->ctx,buf);free(d);}else{if(buf)free((void*)(intptr_t)buf);}free(h);}
     \\void sxqbe_list_reserve(long long* h,long long cap){if(!h)return;if(cap>h[2])sxqbe_list_grow(h,cap);}
+    \\typedef void* (*sxqbe_raw_alloc_fn)(long long,unsigned long long);
+    \\static void* sxqbe_raw_alloc_call(sxqbe_raw_alloc_fn f,long long ctx,long long size){return f(ctx,(unsigned long long)size);}
+    \\long long sxqbe_some_alloc(void* af,long long ctx,long long value){void* p=sxqbe_raw_alloc_call((sxqbe_raw_alloc_fn)af,ctx,8);if(!p)return 0;*(long long*)p=value;return (long long)(intptr_t)p+1;}
+    \\long long sxqbe_ok_alloc(void* af,long long ctx,long long value){long long* p=(long long*)sxqbe_raw_alloc_call((sxqbe_raw_alloc_fn)af,ctx,16);if(!p)return 0;p[0]=0;p[1]=value;return (long long)(intptr_t)p;}
+    \\long long sxqbe_err_alloc(void* af,long long ctx,long long value){long long* p=(long long*)sxqbe_raw_alloc_call((sxqbe_raw_alloc_fn)af,ctx,16);if(!p)return 0;p[0]=1;p[1]=value;return (long long)(intptr_t)p;}
     \\
 }
 
@@ -2089,22 +2100,7 @@ fn cg_resolve_fn_name(ctx: mut ref CgCtx, name: ref u8) ref u8 = trust {
     val cur_name: mut ref u8 = none
     if str.raw_cmp(ctx.current_module_prefix, "") != 0 {
         val cur_prefix_len: i64 = str.len_raw(ctx.current_module_prefix)
-        val is_sc: mut bool = false
-        val scn_len: i64 = @len(get_std_child_names()) as i64
-        val scn_i: mut i64 = 0
-        for {
-            if scn_i >= scn_len {
-                break
-            }
-            val scn_opt = @get(get_std_child_names(), scn_i as usize)
-            if scn_opt is some scn {
-                if str.raw_cmp(scn as ref u8, ctx.current_module_prefix) == 0 {
-                    is_sc = true
-                    break
-                }
-            }
-            scn_i++
-        }
+        val is_sc: bool = is_std_child_name(ctx.current_module_prefix)
         if is_sc {
             val cur_name_cap: i64 = cur_prefix_len + namelen + 8
             cur_name = allocators.ScopedArena.alloc_or_none(
@@ -2127,25 +2123,22 @@ fn cg_resolve_fn_name(ctx: mut ref CgCtx, name: ref u8) ref u8 = trust {
         if ni >= nlen {
             break
         }
-        val n_opt = @get(names as list[ref u8], ni as usize)
-        if n_opt is some n {
-            val candidate: ref u8 = n as ref u8
-            if str.raw_cmp(candidate, name) == 0 {
-                if cur_name != none { }
-                cg_mark_prefix_used(ctx, "")
-                return candidate
-            }
-            if cur_name != none && str.raw_cmp(candidate, cur_name) == 0 {
-                cg_mark_prefix_used(ctx, ctx.current_module_prefix)
-                return candidate
-            }
-            val clen: i64 = str.len_raw(candidate)
-            val slen: i64 = namelen + 2
-            if clen > slen {
-                val tail: ref u8 = @ptradd(candidate, clen - slen) as ref u8
-                if str.raw_cmp(tail, suffix) == 0 {
-                    found = candidate
-                }
+        val candidate: ref u8 = @load(cg_list_slot(names, ni)) as ref u8
+        if str.raw_cmp(candidate, name) == 0 {
+            if cur_name != none { }
+            cg_mark_prefix_used(ctx, "")
+            return candidate
+        }
+        if cur_name != none && str.raw_cmp(candidate, cur_name) == 0 {
+            cg_mark_prefix_used(ctx, ctx.current_module_prefix)
+            return candidate
+        }
+        val clen: i64 = str.len_raw(candidate)
+        val slen: i64 = namelen + 2
+        if clen > slen {
+            val tail: ref u8 = @ptradd(candidate, clen - slen) as ref u8
+            if str.raw_cmp(tail, suffix) == 0 {
+                found = candidate
             }
         }
         ni++
@@ -6028,6 +6021,37 @@ fn gen_expr(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
         val inner_node: ref parser.Node = expr.d0 as ref parser.Node
         val inner: ref u8 = gen_expr(ctx, inner_node)
         val inner_qt: ref u8 = expr_qbe_type(ctx, inner_node)
+        val alloc_node: ref parser.Node = parser.wrap_allocator(expr)
+        if alloc_node != none {
+            val alloc_ann: ref u8 = infer_type_annotation(ctx, alloc_node)
+            val alloc_ty: ref parser.Node = cg_named_ty_from_ann(ctx, alloc_ann)
+            val ac: ref u8 = gen_expr(ctx, alloc_node)
+            val af: ref u8 = cg_alloc_fn_ptr(ctx, alloc_ty, "alloc_raw")
+            val inner_l: ref u8 = cg_coerce_qtype(ctx, inner, inner_qt, "l")
+            val some_tmp2: i64 = fresh_tmp(ctx)
+            ctx.alloc_runtime = true
+            val alloc_hdr: ref u8 = allocators.ScopedArena.alloc_or_none(
+                ctx.arena,
+                64 as usize
+            ) as ref u8
+            @snprintf(alloc_hdr, 64, "    %%t{lld} =l call $sxqbe_some_alloc(l ", {some_tmp2})
+            emit(ctx, alloc_hdr)
+            val af_safe: ref u8 = cg_copy_str(ctx, af)
+            val ac_safe: ref u8 = cg_copy_str(ctx, ac)
+            val inner_safe: ref u8 = cg_copy_str(ctx, inner_l)
+            emit(ctx, af_safe)
+            emit(ctx, ", l ")
+            emit(ctx, ac_safe)
+            emit(ctx, ", l ")
+            emit(ctx, inner_safe)
+            emit(ctx, ")\n")
+            val alloc_res: ref u8 = allocators.ScopedArena.alloc_or_none(
+                ctx.arena,
+                16 as usize
+            ) as ref u8
+            @snprintf(alloc_res, 16, "%%t{lld}", {some_tmp2})
+            return alloc_res
+        }
         val box_tmp: i64 = fresh_tmp(ctx)
         val some_tmp: i64 = fresh_tmp(ctx)
         val box_buf: ref u8 = allocators.ScopedArena.alloc_or_none(
@@ -6054,6 +6078,42 @@ fn gen_expr(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
     }
 
     if k == parser.NK_OK_VAL {
+        val alloc_node: ref parser.Node = parser.wrap_allocator(expr)
+        if alloc_node != none {
+            val inner_val: mut ref u8 = "0"
+            if expr.d0 != 0 {
+                val inner_node: ref parser.Node = expr.d0 as ref parser.Node
+                val inner_raw: ref u8 = gen_expr(ctx, inner_node)
+                inner_val = inner_raw
+            }
+            val alloc_ann: ref u8 = infer_type_annotation(ctx, alloc_node)
+            val alloc_ty: ref parser.Node = cg_named_ty_from_ann(ctx, alloc_ann)
+            val ac: ref u8 = gen_expr(ctx, alloc_node)
+            val af: ref u8 = cg_alloc_fn_ptr(ctx, alloc_ty, "alloc_raw")
+            val ok_tmp2: i64 = fresh_tmp(ctx)
+            ctx.alloc_runtime = true
+            val alloc_hdr: ref u8 = allocators.ScopedArena.alloc_or_none(
+                ctx.arena,
+                64 as usize
+            ) as ref u8
+            @snprintf(alloc_hdr, 64, "    %%t{lld} =l call $sxqbe_ok_alloc(l ", {ok_tmp2})
+            emit(ctx, alloc_hdr)
+            val af_safe: ref u8 = cg_copy_str(ctx, af)
+            val ac_safe: ref u8 = cg_copy_str(ctx, ac)
+            val inner_safe: ref u8 = cg_copy_str(ctx, inner_val)
+            emit(ctx, af_safe)
+            emit(ctx, ", l ")
+            emit(ctx, ac_safe)
+            emit(ctx, ", l ")
+            emit(ctx, inner_safe)
+            emit(ctx, ")\n")
+            val alloc_res: ref u8 = allocators.ScopedArena.alloc_or_none(
+                ctx.arena,
+                16 as usize
+            ) as ref u8
+            @snprintf(alloc_res, 16, "%%t{lld}", {ok_tmp2})
+            return alloc_res
+        }
         val ptr_ok: i64 = fresh_tmp(ctx)
         val buf_ok: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 64 as usize) as ref u8
         @snprintf(
@@ -6086,7 +6146,41 @@ fn gen_expr(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
     }
 
     if k == parser.NK_ERR_VAL {
-        // result err: [tag=1:l][value:l]
+        val alloc_node: ref parser.Node = parser.wrap_allocator(expr)
+        if alloc_node != none {
+            val inner_node: ref parser.Node = expr.d0 as ref parser.Node
+            val inner_raw: ref u8 = gen_expr(ctx, inner_node)
+            val inner_val: mut ref u8 = "0"
+            inner_val = inner_raw
+            val alloc_ann: ref u8 = infer_type_annotation(ctx, alloc_node)
+            val alloc_ty: ref parser.Node = cg_named_ty_from_ann(ctx, alloc_ann)
+            val ac: ref u8 = gen_expr(ctx, alloc_node)
+            val af: ref u8 = cg_alloc_fn_ptr(ctx, alloc_ty, "alloc_raw")
+            val err_tmp2: i64 = fresh_tmp(ctx)
+            ctx.alloc_runtime = true
+            val alloc_hdr: ref u8 = allocators.ScopedArena.alloc_or_none(
+                ctx.arena,
+                64 as usize
+            ) as ref u8
+            @snprintf(alloc_hdr, 64, "    %%t{lld} =l call $sxqbe_err_alloc(l ", {err_tmp2})
+            emit(ctx, alloc_hdr)
+            val af_safe: ref u8 = cg_copy_str(ctx, af)
+            val ac_safe: ref u8 = cg_copy_str(ctx, ac)
+            val inner_safe: ref u8 = cg_copy_str(ctx, inner_val)
+            emit(ctx, af_safe)
+            emit(ctx, ", l ")
+            emit(ctx, ac_safe)
+            emit(ctx, ", l ")
+            emit(ctx, inner_safe)
+            emit(ctx, ")\n")
+            val alloc_res: ref u8 = allocators.ScopedArena.alloc_or_none(
+                ctx.arena,
+                16 as usize
+            ) as ref u8
+            @snprintf(alloc_res, 16, "%%t{lld}", {err_tmp2})
+            return alloc_res
+        }
+        // result err: [tag=1][value]
         val inner2: ref u8 = gen_expr(ctx, expr.d0 as ref parser.Node)
         val ptr3: i64 = fresh_tmp(ctx)
         val buf10: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 64 as usize) as ref u8
@@ -9783,6 +9877,31 @@ fn cg_last_type_segment(name: ref u8) ref u8 = trust {
     return @ptradd(name, start) as ref u8
 }
 
+fn cg_find_fn_by_suffix(ctx: ref CgCtx, suffix: ref u8) ref u8 = trust {
+    val suffix_len: i64 = str.len_raw(suffix)
+    val names: ref void = ctx.fn_names as ref void
+    val nlen: i64 = @len(ctx.fn_names) as i64
+    val ni: mut i64 = 0
+    for {
+        if ni >= nlen {
+            break
+        }
+        val candidate: ref u8 = @load(cg_list_slot(names, ni)) as ref u8
+        if str.raw_cmp(candidate, suffix) == 0 {
+            return candidate
+        }
+        val clen: i64 = str.len_raw(candidate)
+        if clen > suffix_len + 2 {
+            val tail: ref u8 = @ptradd(candidate, clen - suffix_len) as ref u8
+            if str.raw_cmp(tail, suffix) == 0 {
+                return candidate
+            }
+        }
+        ni++
+    }
+    return ""
+}
+
 fn cg_resolve_alloc_fn(ctx: mut ref CgCtx, ty: ref parser.Node, method: ref u8) ref u8 = trust {
     val concrete: ref parser.Node = cg_concrete_ty(ctx, ty)
     if concrete == none || concrete.kind != parser.TY_NAMED {
@@ -9790,28 +9909,20 @@ fn cg_resolve_alloc_fn(ctx: mut ref CgCtx, ty: ref parser.Node, method: ref u8) 
     }
     val short_name: ref u8 = cg_last_type_segment(concrete.d0 as ref u8)
     val suffix: ref u8 = str.concat_raw(short_name, str.concat_raw("__", method))
-    val suffix_len: i64 = str.len_raw(suffix)
-    val nlen: i64 = @len(ctx.fn_names) as i64
-    val ni: mut i64 = 0
-    for {
-        if ni >= nlen {
-            break
-        }
-        val n_opt = @get(ctx.fn_names, ni as usize)
-        if n_opt is some n {
-            val candidate: ref u8 = n as ref u8
-            if str.raw_cmp(candidate, suffix) == 0 {
-                return candidate
-            }
-            val clen: i64 = str.len_raw(candidate)
-            if clen > suffix_len + 2 {
-                val tail: ref u8 = @ptradd(candidate, clen - suffix_len) as ref u8
-                if str.raw_cmp(tail, suffix) == 0 {
-                    return candidate
-                }
-            }
-        }
-        ni++
+    val found: ref u8 = cg_find_fn_by_suffix(ctx, suffix)
+    if str.len_raw(found) != 0 {
+        return found
+    }
+    if str.raw_ends_with(short_name, "Allocator") {
+        val base_len: i64 = str.len_raw(short_name) - 9
+        val base_name: ref u8 = allocators.ScopedArena.alloc_or_none(
+            ctx.arena,
+            (base_len + 1) as usize
+        ) as ref u8
+        @memcpy(base_name, short_name, base_len as usize)
+        @store8(@ptradd(base_name, base_len), 0)
+        val alt_suffix: ref u8 = str.concat_raw(base_name, str.concat_raw("__", method))
+        return cg_find_fn_by_suffix(ctx, alt_suffix)
     }
     return ""
 }
@@ -10495,7 +10606,16 @@ fn gen_builtin(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
                     192 as usize
                 ) as ref u8
                 @snprintf(some_buf, 192, "    %%t{lld} =l call $malloc(l 8)\n    storel {s}, %%t{lld}\n    %%t{lld} =l add %%t{lld}, 1\n    storel %%t{lld}, %%t{lld}\n    jmp @lbl{lld}\n",
-                    {some_box, base_ptr_name, some_box, some_ptr, some_box, some_ptr, result_slot, end_lbl})
+                    {
+                        some_box,
+                        base_ptr_name,
+                        some_box,
+                        some_ptr,
+                        some_box,
+                        some_ptr,
+                        result_slot,
+                        end_lbl
+                    })
                 emit(ctx, some_buf)
             } else {
                 val load_tmp: i64 = fresh_tmp(ctx)
@@ -14737,9 +14857,26 @@ fn gen_match_tagged_union(ctx: mut ref CgCtx, stmt: ref parser.Node) void = trus
     emit(ctx, endbuf2)
 }
 
-fn get_std_child_names() mut list[ref u8] = {
-    val std_child_names: list[ref u8] = ["allocators", "collections", "crypto", "env", "fmt", "fs", "log", "math", "os", "path", "random", "reflection", "stdio", "string", "str", "time", "thread", "algorithms", "encoding"]
-    return std_child_names
+fn is_std_child_name(name: ref u8) bool = trust {
+    return str.raw_cmp(name, "allocators") == 0
+    || str.raw_cmp(name, "collections") == 0
+    || str.raw_cmp(name, "crypto") == 0
+    || str.raw_cmp(name, "env") == 0
+    || str.raw_cmp(name, "fmt") == 0
+    || str.raw_cmp(name, "fs") == 0
+    || str.raw_cmp(name, "log") == 0
+    || str.raw_cmp(name, "math") == 0
+    || str.raw_cmp(name, "os") == 0
+    || str.raw_cmp(name, "path") == 0
+    || str.raw_cmp(name, "random") == 0
+    || str.raw_cmp(name, "reflection") == 0
+    || str.raw_cmp(name, "stdio") == 0
+    || str.raw_cmp(name, "string") == 0
+    || str.raw_cmp(name, "str") == 0
+    || str.raw_cmp(name, "time") == 0
+    || str.raw_cmp(name, "thread") == 0
+    || str.raw_cmp(name, "algorithms") == 0
+    || str.raw_cmp(name, "encoding") == 0
 }
 
 fn gen_fn_prefixed(ctx: mut ref CgCtx, fn_node: ref parser.Node, mod_prefix: ref u8) void = trust {
@@ -14758,22 +14895,7 @@ fn gen_fn_prefixed(ctx: mut ref CgCtx, fn_node: ref parser.Node, mod_prefix: ref
         @snprintf(base, 256, "{s}", {name})
     }
 
-    val is_std_child: mut bool = false
-    val scn_len: i64 = @len(get_std_child_names()) as i64
-    val scn_i: mut i64 = 0
-    for {
-        if scn_i >= scn_len {
-            break
-        }
-        val scn_opt = @get(get_std_child_names(), scn_i as usize)
-        if scn_opt is some scn {
-            if str.raw_cmp(scn as ref u8, mod_prefix) == 0 {
-                is_std_child = true
-                break
-            }
-        }
-        scn_i++
-    }
+    val is_std_child: bool = is_std_child_name(mod_prefix)
 
     if str.raw_cmp(mod_prefix, "") == 0 {
         @snprintf(mangled, 512, "{s}", {base})
@@ -15383,22 +15505,7 @@ fn preregister_items(
                 } else {
                     @snprintf(base, 256, "{s}", {name})
                 }
-                val is_std_child: mut bool = false
-                val scn_len: i64 = @len(get_std_child_names()) as i64
-                val scn_i: mut i64 = 0
-                for {
-                    if scn_i >= scn_len {
-                        break
-                    }
-                    val scn_opt = @get(get_std_child_names(), scn_i as usize)
-                    if scn_opt is some scn {
-                        if str.raw_cmp(scn as ref u8, mod_prefix) == 0 {
-                            is_std_child = true
-                            break
-                        }
-                    }
-                    scn_i++
-                }
+                val is_std_child: bool = is_std_child_name(mod_prefix)
                 val mangled: ref u8 = allocators.ScopedArena.alloc_or_none(
                     ctx.arena,
                     512 as usize
@@ -15889,31 +15996,28 @@ fn items_have_external_links(items: list[ref parser.Node]) bool = trust {
         if i >= ilen {
             break
         }
-        val item_opt = @get(items, i as usize)
-        if item_opt is some item {
-            val node: ref parser.Node = item as ref parser.Node
-            if node.kind == parser.NK_LINK || node.kind == parser.NK_LIB {
+        val node: ref parser.Node = @load(cg_list_slot(items as ref void, i)) as ref parser.Node
+        if node.kind == parser.NK_LINK || node.kind == parser.NK_LIB {
+            return true
+        }
+        if node.kind == parser.NK_WHEN_ITEMS {
+            val witems: list[ref parser.Node] = node.d1 as list[ref parser.Node]
+            if items_have_external_links(witems) {
                 return true
             }
-            if node.kind == parser.NK_WHEN_ITEMS {
-                val witems: list[ref parser.Node] = node.d1 as list[ref parser.Node]
-                if items_have_external_links(witems) {
-                    return true
-                }
-                val or_when_branches: ref void = node.d2 as ref void
-                if or_when_branches != none {
-                    for ow in or_when_branches as list[ref parser.Node] {
-                        val ow_items: list[ref parser.Node] = ow.d1 as list[ref parser.Node]
-                        if items_have_external_links(ow_items) {
-                            return true
-                        }
-                    }
-                }
-                val ow_otherwise: ref void = node.d3 as ref void
-                if ow_otherwise != none {
-                    if items_have_external_links(ow_otherwise as list[ref parser.Node]) {
+            val or_when_branches: ref void = node.d2 as ref void
+            if or_when_branches != none {
+                for ow in or_when_branches as list[ref parser.Node] {
+                    val ow_items: list[ref parser.Node] = ow.d1 as list[ref parser.Node]
+                    if items_have_external_links(ow_items) {
                         return true
                     }
+                }
+            }
+            val ow_otherwise: ref void = node.d3 as ref void
+            if ow_otherwise != none {
+                if items_have_external_links(ow_otherwise as list[ref parser.Node]) {
+                    return true
                 }
             }
         }
@@ -15934,33 +16038,27 @@ fn scan_items_for_usage(
         if i >= ilen {
             break
         }
-        val item_opt = @get(items, i as usize)
-        if item_opt is some item {
-            val node: ref parser.Node = item as ref parser.Node
-            val k: i64 = node.kind
-            if k == parser.NK_FN {
-                val body: ref void = node.d5 as ref void
-                if body != none {
-                    val blen: i64 = @len(body as list[ref parser.Node]) as i64
-                    val bi: mut i64 = 0
-                    for {
-                        if bi >= blen {
-                            break
-                        }
-                        val stmt_opt = @get(body as list[ref parser.Node], bi as usize)
-                        if stmt_opt is some stmt_val {
-                            val stmt: ref parser.Node = stmt_val as ref parser.Node
-                            scan_node_for_calls_depth(ctx, stmt, 0)
-                        }
-                        bi++
+        val node: ref parser.Node = @load(cg_list_slot(items as ref void, i)) as ref parser.Node
+        val k: i64 = node.kind
+        if k == parser.NK_FN {
+            val body: ref void = node.d5 as ref void
+            if body != none {
+                val blen: i64 = @len(body as list[ref parser.Node]) as i64
+                val bi: mut i64 = 0
+                for {
+                    if bi >= blen {
+                        break
                     }
+                    val stmt: ref parser.Node = @load(cg_list_slot(body, bi)) as ref parser.Node
+                    scan_node_for_calls_depth(ctx, stmt, 0)
+                    bi++
                 }
-            } elif k == parser.NK_WHEN_ITEMS {
-                val plat: ref u8 = node.d0 as ref u8
-                if cg_platform_matches(ctx, plat) {
-                    val witems: list[ref parser.Node] = node.d1 as list[ref parser.Node]
-                    scan_items_for_usage(ctx, witems, mod_prefix)
-                }
+            }
+        } elif k == parser.NK_WHEN_ITEMS {
+            val plat: ref u8 = node.d0 as ref u8
+            if cg_platform_matches(ctx, plat) {
+                val witems: list[ref parser.Node] = node.d1 as list[ref parser.Node]
+                scan_items_for_usage(ctx, witems, mod_prefix)
             }
         }
         i++
@@ -15982,11 +16080,8 @@ fn scan_stmts_for_calls(ctx: mut ref CgCtx, stmts: ref void) void = trust {
         if si >= slen {
             break
         }
-        val stmt_opt = @get(stmts as list[ref parser.Node], si as usize)
-        if stmt_opt is some stmt_val {
-            val stmt: ref parser.Node = stmt_val as ref parser.Node
-            scan_node_for_calls_depth(ctx, stmt, 0)
-        }
+        val stmt: ref parser.Node = @load(cg_list_slot(stmts, si)) as ref parser.Node
+        scan_node_for_calls_depth(ctx, stmt, 0)
         si++
     }
 }
@@ -16023,10 +16118,8 @@ fn scan_node_for_calls_depth(ctx: mut ref CgCtx, node: ref parser.Node, depth: i
                 if ai >= alen {
                     break
                 }
-                val arg_opt = @get(args as list[ref parser.Node], ai as usize)
-                if arg_opt is some arg {
-                    scan_node_for_calls_depth(ctx, arg as ref parser.Node, depth + 1)
-                }
+                val arg: ref parser.Node = @load(cg_list_slot(args, ai)) as ref parser.Node
+                scan_node_for_calls_depth(ctx, arg, depth + 1)
                 ai++
             }
         }
@@ -16107,12 +16200,12 @@ fn scan_node_for_calls_depth(ctx: mut ref CgCtx, node: ref parser.Node, depth: i
                 if ai >= alen {
                     break
                 }
-                val arm_opt = @get(arms, ai as usize)
-                if arm_opt is some arm_val {
-                    val arm: ref parser.Node = arm_val as ref parser.Node
-                    val arm_body = parser.match_enum_arm_body(arm)
-                    scan_stmts_for_calls(ctx, arm_body as ref void)
-                }
+                val arm: ref parser.Node = @load(cg_list_slot(
+                        arms as ref void,
+                        ai
+                    )) as ref parser.Node
+                val arm_body = parser.match_enum_arm_body(arm)
+                scan_stmts_for_calls(ctx, arm_body as ref void)
                 ai++
             }
         }
@@ -16129,16 +16222,16 @@ fn scan_node_for_calls_depth(ctx: mut ref CgCtx, node: ref parser.Node, depth: i
                 if vai >= valen {
                     break
                 }
-                val varm_opt = @get(varms, vai as usize)
-                if varm_opt is some varm_val {
-                    val varm: ref parser.Node = varm_val as ref parser.Node
-                    val vpat = parser.match_value_arm_pattern(varm)
-                    if vpat != none {
-                        scan_node_for_calls_depth(ctx, vpat, depth + 1)
-                    }
-                    val varm_body = parser.match_value_arm_body(varm)
-                    scan_stmts_for_calls(ctx, varm_body as ref void)
+                val varm: ref parser.Node = @load(cg_list_slot(
+                        varms as ref void,
+                        vai
+                    )) as ref parser.Node
+                val vpat = parser.match_value_arm_pattern(varm)
+                if vpat != none {
+                    scan_node_for_calls_depth(ctx, vpat, depth + 1)
                 }
+                val varm_body = parser.match_value_arm_body(varm)
+                scan_stmts_for_calls(ctx, varm_body as ref void)
                 vai++
             }
         }
@@ -16162,12 +16255,12 @@ fn scan_node_for_calls_depth(ctx: mut ref CgCtx, node: ref parser.Node, depth: i
                 if sai >= salen {
                     break
                 }
-                val sarm_opt = @get(sarms, sai as usize)
-                if sarm_opt is some sarm_val {
-                    val sarm: ref parser.Node = sarm_val as ref parser.Node
-                    val sarm_body = parser.match_str_arm_body(sarm)
-                    scan_stmts_for_calls(ctx, sarm_body as ref void)
-                }
+                val sarm: ref parser.Node = @load(cg_list_slot(
+                        sarms as ref void,
+                        sai
+                    )) as ref parser.Node
+                val sarm_body = parser.match_str_arm_body(sarm)
+                scan_stmts_for_calls(ctx, sarm_body as ref void)
                 sai++
             }
         }
@@ -16191,12 +16284,12 @@ fn scan_node_for_calls_depth(ctx: mut ref CgCtx, node: ref parser.Node, depth: i
                 if uai >= ualen {
                     break
                 }
-                val uarm_opt = @get(uarms, uai as usize)
-                if uarm_opt is some uarm_val {
-                    val uarm: ref parser.Node = uarm_val as ref parser.Node
-                    val uarm_body = parser.match_union_arm_body(uarm)
-                    scan_stmts_for_calls(ctx, uarm_body as ref void)
-                }
+                val uarm: ref parser.Node = @load(cg_list_slot(
+                        uarms as ref void,
+                        uai
+                    )) as ref parser.Node
+                val uarm_body = parser.match_union_arm_body(uarm)
+                scan_stmts_for_calls(ctx, uarm_body as ref void)
                 uai++
             }
         }
@@ -16220,12 +16313,12 @@ fn scan_node_for_calls_depth(ctx: mut ref CgCtx, node: ref parser.Node, depth: i
                 if tai >= talen {
                     break
                 }
-                val tarm_opt = @get(tarms, tai as usize)
-                if tarm_opt is some tarm_val {
-                    val tarm: ref parser.Node = tarm_val as ref parser.Node
-                    val tarm_body = parser.match_tagged_union_arm_body(tarm)
-                    scan_stmts_for_calls(ctx, tarm_body as ref void)
-                }
+                val tarm: ref parser.Node = @load(cg_list_slot(
+                        tarms as ref void,
+                        tai
+                    )) as ref parser.Node
+                val tarm_body = parser.match_tagged_union_arm_body(tarm)
+                scan_stmts_for_calls(ctx, tarm_body as ref void)
                 tai++
             }
         }
@@ -16259,10 +16352,8 @@ fn scan_node_for_calls_depth(ctx: mut ref CgCtx, node: ref parser.Node, depth: i
                 if ai >= alen {
                     break
                 }
-                val arg_opt = @get(args as list[ref parser.Node], ai as usize)
-                if arg_opt is some arg {
-                    scan_node_for_calls_depth(ctx, arg as ref parser.Node, depth + 1)
-                }
+                val arg: ref parser.Node = @load(cg_list_slot(args, ai)) as ref parser.Node
+                scan_node_for_calls_depth(ctx, arg, depth + 1)
                 ai++
             }
         }
@@ -16277,11 +16368,8 @@ fn scan_node_for_calls_depth(ctx: mut ref CgCtx, node: ref parser.Node, depth: i
                 if fi >= flen {
                     break
                 }
-                val field_opt = @get(fields as list[ref parser.Node], fi as usize)
-                if field_opt is some field_val {
-                    val field: ref parser.Node = field_val as ref parser.Node
-                    scan_node_for_calls_depth(ctx, field.d1 as ref parser.Node, depth + 1)
-                }
+                val field: ref parser.Node = @load(cg_list_slot(fields, fi)) as ref parser.Node
+                scan_node_for_calls_depth(ctx, field.d1 as ref parser.Node, depth + 1)
                 fi++
             }
         }
@@ -16294,11 +16382,8 @@ fn scan_node_for_calls_depth(ctx: mut ref CgCtx, node: ref parser.Node, depth: i
                 if ei >= elen {
                     break
                 }
-                val elem_opt = @get(elems as list[ref parser.Node], ei as usize)
-                if elem_opt is some elem_val {
-                    val elem: ref parser.Node = elem_val as ref parser.Node
-                    scan_node_for_calls_depth(ctx, elem, depth + 1)
-                }
+                val elem: ref parser.Node = @load(cg_list_slot(elems, ei)) as ref parser.Node
+                scan_node_for_calls_depth(ctx, elem, depth + 1)
                 ei++
             }
         }
@@ -16311,11 +16396,8 @@ fn scan_node_for_calls_depth(ctx: mut ref CgCtx, node: ref parser.Node, depth: i
                 if ei >= elen {
                     break
                 }
-                val elem_opt = @get(elems as list[ref parser.Node], ei as usize)
-                if elem_opt is some elem_val {
-                    val elem: ref parser.Node = elem_val as ref parser.Node
-                    scan_node_for_calls_depth(ctx, elem, depth + 1)
-                }
+                val elem: ref parser.Node = @load(cg_list_slot(elems, ei)) as ref parser.Node
+                scan_node_for_calls_depth(ctx, elem, depth + 1)
                 ei++
             }
         }
@@ -16597,20 +16679,8 @@ pub fn gen_module_resolved(
             val pfx_std_opt = @get(out_prefixes, li_std as usize)
             if pfx_std_opt is some pfx_std {
                 val pfx_str: ref u8 = pfx_std as ref u8
-                val nlen: i64 = @len(get_std_child_names()) as i64
-                val ni: mut i64 = 0
-                for {
-                    if ni >= nlen {
-                        break
-                    }
-                    val std_name_opt = @get(get_std_child_names(), ni as usize)
-                    if std_name_opt is some std_name {
-                        if str.raw_cmp(pfx_str, std_name as ref u8) == 0 {
-                            cg_mark_prefix_used(ctx, pfx_str)
-                            break
-                        }
-                    }
-                    ni++
+                if is_std_child_name(pfx_str) {
+                    cg_mark_prefix_used(ctx, pfx_str)
                 }
             }
             li_std++
@@ -16714,20 +16784,8 @@ pub fn get_used_prefixes(root: ref module.ResolvedModule) list[ref u8] = trust {
             val pfx_std_opt = @get(out_prefixes, li_std as usize)
             if pfx_std_opt is some pfx_std {
                 val pfx_str: ref u8 = pfx_std as ref u8
-                val nlen: i64 = @len(get_std_child_names()) as i64
-                val ni: mut i64 = 0
-                for {
-                    if ni >= nlen {
-                        break
-                    }
-                    val std_name_opt = @get(get_std_child_names(), ni as usize)
-                    if std_name_opt is some std_name {
-                        if str.raw_cmp(pfx_str, std_name as ref u8) == 0 {
-                            cg_mark_prefix_used(ctx, pfx_str)
-                            break
-                        }
-                    }
-                    ni++
+                if is_std_child_name(pfx_str) {
+                    cg_mark_prefix_used(ctx, pfx_str)
                 }
             }
             li_std++
@@ -16990,20 +17048,8 @@ pub fn gen_module_resolved_test(
             val pfx_std_opt = @get(out_prefixes, li_std as usize)
             if pfx_std_opt is some pfx_std {
                 val pfx_str: ref u8 = pfx_std as ref u8
-                val nlen: i64 = @len(get_std_child_names()) as i64
-                val ni: mut i64 = 0
-                for {
-                    if ni >= nlen {
-                        break
-                    }
-                    val std_name_opt = @get(get_std_child_names(), ni as usize)
-                    if std_name_opt is some std_name {
-                        if str.raw_cmp(pfx_str, std_name as ref u8) == 0 {
-                            cg_mark_prefix_used(ctx, pfx_str)
-                            break
-                        }
-                    }
-                    ni++
+                if is_std_child_name(pfx_str) {
+                    cg_mark_prefix_used(ctx, pfx_str)
                 }
             }
             li_std++
