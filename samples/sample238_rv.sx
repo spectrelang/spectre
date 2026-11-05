@@ -1,0 +1,23 @@
+val allocators = use("std/allocators")
+
+// Regression: dereferencing a ref to a struct allocator must keep the struct
+// address intact, since allocator methods receive `self` by reference.
+pub fn main() void = trust {
+    val sa: allocators.ScopedArenaAllocator = allocators.ScopedArena.new(4096 as usize)?
+    val la: mut allocators.ListArena = {arena: sa}
+    val la_ref: ref allocators.ListArena = @addr(la)
+
+    val xs: mut list[i64] = @listalloc[allocators.ListArena, i64](@deref(la_ref))?
+    @append(xs, 41)
+    @append(xs, 1)
+
+    assert @len(xs) == 2
+    val total: mut i64 = 0
+    for x in xs {
+        total += x
+    }
+    assert total == 42
+
+    allocators.ScopedArena.free(sa)
+    @puts("list allocator deref ok\n")
+}

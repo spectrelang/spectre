@@ -1,0 +1,10 @@
+val allocators = use("std/allocators")
+
+// Regression: initializing a global of an imported struct type must not
+// aggregate-copy from a null source when a field is initialized to none.
+val global_arena: mut allocators.ListArena = {arena: none}
+
+pub fn main() void = trust {
+    assert global_arena.arena == none
+    @puts("global initializer ok\n")
+}

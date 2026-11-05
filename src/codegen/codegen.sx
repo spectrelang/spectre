@@ -7073,6 +7073,10 @@ fn gen_expr(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
         val inner5: ref u8 = gen_expr(ctx, expr.d0 as ref parser.Node)
         val tmp8: i64 = fresh_tmp(ctx)
         val pointee: ref u8 = cg_ann_deref(infer_type_annotation(ctx, expr.d0 as ref parser.Node))
+        if cg_lookup_struct(ctx, pointee) != none ||
+        cg_lookup_union_suffix(ctx, pointee) != none {
+            return inner5
+        }
         val load_op: mut ref u8 = "loadl"
         val load_qtype: mut ref u8 = "l"
         if str.raw_cmp(pointee, "f32") == 0 {
@@ -16793,29 +16797,6 @@ fn gen_items_with_prefix(
     items: list[ref parser.Node],
     mod_prefix: ref u8
 ) void = trust {
-    val ilen0: i64 = @len(items) as i64
-    val i0: mut i64 = 0
-    for {
-        if i0 >= ilen0 {
-            break
-        }
-        val item_opt0 = @get(items, i0 as usize)
-        if item_opt0 is some item0 {
-            val node0: ref parser.Node = item0 as ref parser.Node
-            if node0.kind == parser.NK_TYPEDEF {
-                val spec_name: ref u8 = node0.d4 as ref u8
-                if spec_name != none {
-                    val alias_ty: mut ref parser.Node = parser.make_node(ctx.arena,
-                        parser.TY_NAMED,
-                        node0.line
-                    )
-                    alias_ty.d0 = node0.d1 as i64
-                    gsubst_push(ctx, spec_name, alias_ty)
-                }
-            }
-        }
-        i0++
-    }
     preregister_items(ctx, items, mod_prefix)
     val ilen: i64 = @len(items) as i64
     val i: mut i64 = 0

@@ -3742,6 +3742,14 @@ fn gen_expr(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
     }
     if k == parser.NK_DEREF {
         val inner: ref u8 = gen_expr(ctx, expr.d0 as ref parser.Node)
+        val inner_ty: ref parser.Node = cc_infer_expr_ty(ctx, expr.d0 as ref parser.Node)
+        val pointee: ref parser.Node = cc_unwrap_ref_inner_ty(inner_ty)
+        if pointee != none {
+            val pointee_name: ref u8 = cc_spectre_type_name_of(ctx, pointee)
+            if cc_lookup_struct(ctx, pointee_name) != none {
+                return inner
+            }
+        }
         val buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 128 as usize) as ref u8
         @snprintf(buf, 128, "(*(int64_t*)(intptr_t)({s}))", {inner}) return cc_expr_track(ctx, buf)
     }
@@ -8763,28 +8771,6 @@ fn gen_items_with_prefix(
     items: list[ref parser.Node],
     mod_prefix: ref u8
 ) void = trust {
-    val ilen0: i64 = @len(items) as i64 val i0: mut i64 = 0
-    for {
-        if i0 >= ilen0 {
-            break
-        }
-        val item_opt0 = @get(items, i0 as usize)
-        if item_opt0 is some item0 {
-            val node0: ref parser.Node = item0 as ref parser.Node
-            if node0.kind == parser.NK_TYPEDEF {
-                val spec_name: ref u8 = node0.d4 as ref u8
-                if spec_name != none {
-                    val alias_ty: mut ref parser.Node = parser.make_node(ctx.arena,
-                        parser.TY_NAMED,
-                        node0.line
-                    )
-                    alias_ty.d0 = node0.d1 as i64
-                    cc_gsubst_push(ctx, spec_name, alias_ty)
-                }
-            }
-        }
-        i0++
-    }
     preregister_items(ctx, items, mod_prefix)
     val ilen: i64 = @len(items) as i64 val i: mut i64 = 0
     for {
