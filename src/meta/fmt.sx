@@ -389,9 +389,53 @@ fn kind_is_enum(k: lexer.TokenKind) bool = {
     }
 }
 
+fn kind_is_union(k: lexer.TokenKind) bool = {
+    match k {
+        Union() => {
+            return true
+        }
+        else => {
+            return false
+        }
+    }
+}
+
+fn kind_is_ref(k: lexer.TokenKind) bool = {
+    match k {
+        Ref() => {
+            return true
+        }
+        else => {
+            return false
+        }
+    }
+}
+
 fn kind_is_semicolon(k: lexer.TokenKind) bool = {
     match k {
         Semicolon() => {
+            return true
+        }
+        else => {
+            return false
+        }
+    }
+}
+
+fn kind_is_defer(k: lexer.TokenKind) bool = {
+    match k {
+        Defer() => {
+            return true
+        }
+        else => {
+            return false
+        }
+    }
+}
+
+fn kind_is_extern(k: lexer.TokenKind) bool = {
+    match k {
+        Extern() => {
             return true
         }
         else => {
@@ -606,6 +650,529 @@ fn brace_is_block(tokens: list[ref lexer.Token], i: i64) bool = trust {
         }
     }
     return true
+}
+
+fn kind_starts_statement(k: lexer.TokenKind) bool = {
+    match k {
+        Val() => {
+            return true
+        }
+        Return() => {
+            return true
+        }
+        Pre() => {
+            return true
+        }
+        Post() => {
+            return true
+        }
+        Guarded() => {
+            return true
+        }
+        Guard() => {
+            return true
+        }
+        If() => {
+            return true
+        }
+        For() => {
+            return true
+        }
+        Defer() => {
+            return true
+        }
+        Break() => {
+            return true
+        }
+        Continue() => {
+            return true
+        }
+        Assert() => {
+            return true
+        }
+        When() => {
+            return true
+        }
+        Match() => {
+            return true
+        }
+        Trust() => {
+            return true
+        }
+        At() => {
+            return true
+        }
+        Ident _ => {
+            return true
+        }
+        Str _ => {
+            return true
+        }
+        Int _ => {
+            return true
+        }
+        Float _ => {
+            return true
+        }
+        CharLit _ => {
+            return true
+        }
+        True() => {
+            return true
+        }
+        False() => {
+            return true
+        }
+        Some() => {
+            return true
+        }
+        None() => {
+            return true
+        }
+        Ok() => {
+            return true
+        }
+        Err() => {
+            return true
+        }
+        else => {
+            return false
+        }
+    }
+}
+
+fn kind_ends_statement(k: lexer.TokenKind) bool = {
+    match k {
+        Ident _ => {
+            return true
+        }
+        Str _ => {
+            return true
+        }
+        Int _ => {
+            return true
+        }
+        Float _ => {
+            return true
+        }
+        CharLit _ => {
+            return true
+        }
+        True() => {
+            return true
+        }
+        False() => {
+            return true
+        }
+        None() => {
+            return true
+        }
+        RParen() => {
+            return true
+        }
+        RBracket() => {
+            return true
+        }
+        RBrace() => {
+            return true
+        }
+        Question() => {
+            return true
+        }
+        Break() => {
+            return true
+        }
+        Continue() => {
+            return true
+        }
+        else => {
+            return false
+        }
+    }
+}
+
+fn kind_starts_top_level_decl(k: lexer.TokenKind) bool = {
+    match k {
+        Val() => {
+            return true
+        }
+        Pub() => {
+            return true
+        }
+        Fn() => {
+            return true
+        }
+        Type() => {
+            return true
+        }
+        Union() => {
+            return true
+        }
+        Enum() => {
+            return true
+        }
+        Spec() => {
+            return true
+        }
+        Extern() => {
+            return true
+        }
+        Test() => {
+            return true
+        }
+        Use() => {
+            return true
+        }
+        Link() => {
+            return true
+        }
+        Lib() => {
+            return true
+        }
+        else => {
+            return false
+        }
+    }
+}
+
+fn token_ident_is(tokens: list[ref lexer.Token], idx: i64, text: ref u8) bool = trust {
+    if !lexer.kind_is_ident(lexer.tok_kind(tokens, idx)) {
+        return false
+    }
+    val tok_text: ref u8 = lexer.tok_text(tokens, idx)
+    if tok_text == none {
+        return false
+    }
+    return str.raw_cmp(tok_text, text) == 0
+}
+
+/// Returns the index of the paren that matches the closing paren at `close_idx`.
+fn find_matching_paren_back(tokens: list[ref lexer.Token], close_idx: i64) i64 = trust {
+    val depth: mut i64 = 0
+    val i: mut i64 = close_idx
+
+    for {
+        if i < 0 {
+            break
+        }
+        val k: lexer.TokenKind = lexer.tok_kind(tokens, i)
+        if lexer.kind_is_rparen(k) {
+            depth++
+        } elif lexer.kind_is_lparen(k) {
+            depth--
+            if depth == 0 {
+                return i
+            }
+        }
+        i--
+    }
+
+    return -1
+}
+
+/// Returns the index of the bracket that matches the closing bracket at `close_idx`.
+fn find_matching_bracket_back(tokens: list[ref lexer.Token], close_idx: i64) i64 = trust {
+    val depth: mut i64 = 0
+    val i: mut i64 = close_idx
+
+    for {
+        if i < 0 {
+            break
+        }
+        val k: lexer.TokenKind = lexer.tok_kind(tokens, i)
+        if lexer.kind_is_rbracket(k) {
+            depth++
+        } elif lexer.kind_is_lbracket(k) {
+            depth--
+            if depth == 0 {
+                return i
+            }
+        }
+        i--
+    }
+
+    return -1
+}
+
+/// True when `)` closes the parameter list of a function declaration/type,
+/// meaning a following identifier is its return type rather than a new
+/// statement.
+fn paren_closes_fn_params(tokens: list[ref lexer.Token], close_idx: i64) bool = trust {
+    val open: i64 = find_matching_paren_back(tokens, close_idx)
+    if open < 0 {
+        return false
+    }
+    if open > 0 {
+        val before: lexer.TokenKind = lexer.tok_kind(tokens, open - 1)
+        if lexer.kind_is_fn(before) {
+            return true
+        }
+    }
+
+    val name_idx: mut i64 = open - 1
+    if name_idx >= 0 && lexer.kind_is_rbracket(lexer.tok_kind(tokens, name_idx)) {
+        val bopen: i64 = find_matching_bracket_back(tokens, name_idx)
+        if bopen <= 0 {
+            return false
+        }
+        name_idx = bopen - 1
+    }
+    if name_idx < 0 || !lexer.kind_is_ident(lexer.tok_kind(tokens, name_idx)) {
+        return false
+    }
+    if name_idx == 0 {
+        return false
+    }
+
+    val before_name: lexer.TokenKind = lexer.tok_kind(tokens, name_idx - 1)
+    if lexer.kind_is_fn(before_name) {
+        return true
+    }
+    if lexer.kind_is_rparen(before_name) {
+        val recv_open: i64 = find_matching_paren_back(tokens, name_idx - 1)
+        if recv_open > 0 {
+            val before_recv: lexer.TokenKind = lexer.tok_kind(tokens, recv_open - 1)
+            if lexer.kind_is_fn(before_recv) {
+                return true
+            }
+        }
+    }
+    return false
+}
+
+/// True when `]` closes a fixed-size array type such as `[32]u8`.
+fn bracket_closes_array_type(tokens: list[ref lexer.Token], close_idx: i64) bool = trust {
+    val open: i64 = find_matching_bracket_back(tokens, close_idx)
+    if open <= 0 {
+        return false
+    }
+    val before: lexer.TokenKind = lexer.tok_kind(tokens, open - 1)
+    if lexer.kind_is_colon(before) || lexer.kind_is_comma(before) ||
+    lexer.kind_is_lparen(before) || lexer.kind_is_lbracket(before) ||
+    lexer.kind_is_rbracket(before) || kind_is_as(before) ||
+    lexer.kind_is_mut(before) || kind_is_ref(before) {
+        return true
+    }
+    return false
+}
+
+/// True when a `{` opens the body of a type/union/enum/spec declaration.
+/// Fields and methods inside those bodies are not statements.
+fn brace_opens_decl_body(tokens: list[ref lexer.Token], i: i64) bool = trust {
+    val parens: mut i64 = 0
+    val brackets: mut i64 = 0
+    val j: mut i64 = i - 1
+
+    for {
+        if j < 0 {
+            break
+        }
+        val k: lexer.TokenKind = lexer.tok_kind(tokens, j)
+        if lexer.kind_is_rparen(k) {
+            parens++
+        } elif lexer.kind_is_lparen(k) {
+            if parens > 0 {
+                parens--
+            }
+        } elif lexer.kind_is_rbracket(k) {
+            brackets++
+        } elif lexer.kind_is_lbracket(k) {
+            if brackets > 0 {
+                brackets--
+            }
+        }
+
+        if parens == 0 && brackets == 0 {
+            if kind_is_type(k) || kind_is_union(k) ||
+            kind_is_enum(k) || lexer.kind_is_spec(k) {
+                return true
+            }
+            if lexer.kind_is_lbrace(k) || lexer.kind_is_rbrace(k) ||
+            kind_is_semicolon(k) || lexer.kind_is_arrow(k) ||
+            lexer.kind_is_fatarrow(k) || lexer.kind_is_val(k) ||
+            lexer.kind_is_return(k) || lexer.kind_is_if(k) ||
+            lexer.kind_is_for(k) || kind_is_assert(k) ||
+            kind_is_when(k) || kind_is_defer(k) ||
+            lexer.kind_is_guard(k) {
+                break
+            }
+        }
+        j--
+    }
+
+    return false
+}
+
+/// True when a `{` opens the body of a `match`, where arm patterns are not
+/// statements and must not be split apart.
+fn brace_opens_match_body(tokens: list[ref lexer.Token], i: i64) bool = trust {
+    val parens: mut i64 = 0
+    val brackets: mut i64 = 0
+    val j: mut i64 = i - 1
+
+    for {
+        if j < 0 {
+            break
+        }
+        val k: lexer.TokenKind = lexer.tok_kind(tokens, j)
+        if lexer.kind_is_rparen(k) {
+            parens++
+        } elif lexer.kind_is_lparen(k) {
+            if parens > 0 {
+                parens--
+            }
+        } elif lexer.kind_is_rbracket(k) {
+            brackets++
+        } elif lexer.kind_is_lbracket(k) {
+            if brackets > 0 {
+                brackets--
+            }
+        }
+
+        if parens == 0 && brackets == 0 {
+            if kind_is_match(k) {
+                return true
+            }
+            if lexer.kind_is_lbrace(k) || lexer.kind_is_rbrace(k) ||
+            kind_is_semicolon(k) || lexer.kind_is_arrow(k) ||
+            lexer.kind_is_fatarrow(k) || lexer.kind_is_val(k) ||
+            lexer.kind_is_return(k) || lexer.kind_is_if(k) ||
+            lexer.kind_is_for(k) || kind_is_assert(k) ||
+            kind_is_when(k) || kind_is_defer(k) ||
+            lexer.kind_is_guard(k) {
+                break
+            }
+        }
+        j--
+    }
+
+    return false
+}
+
+/// Inserts a newline between statements that were written on the same line.
+fn format_statement_separators(src: ref u8) ref u8 = trust {
+    val tok_res = lexer.tokenize(src)
+    val tokens: mut list[ref lexer.Token] = mem.new[ref lexer.Token]()
+    match tok_res {
+        ok toks => {
+            tokens = toks
+        }
+        err _ => {
+            return src
+        }
+    }
+    defer {
+        lexer.free_tokens(tokens)
+    }
+
+    val len: i64 = str.len_raw(src)
+    val starts: mut list[i64] = collect_line_starts(src, len)
+    defer {
+        free_i64_list(starts)
+    }
+    val ntokens: i64 = @len(tokens) as i64
+    val newlines: mut list[i64] = mem.new[i64]()
+    // 1 = normal block (statements may be split), 0 = literal/match body.
+    val frames: mut list[i64] = mem.new[i64]()
+    val parens: mut i64 = 0
+    val brackets: mut i64 = 0
+    val i: mut i64 = 0
+
+    for {
+        if i >= ntokens {
+            break
+        }
+        val k: lexer.TokenKind = lexer.tok_kind(tokens, i)
+
+        val can_split: bool = i > 0 &&
+        parens == 0 &&
+        brackets == 0 &&
+        token_line(tokens, i) == token_line(tokens, i - 1)
+        if can_split {
+            val prev_k: lexer.TokenKind = lexer.tok_kind(tokens, i - 1)
+            val inside_block: mut bool = false
+            if @len(frames) > 0 {
+                val top_frame_opt = @get(frames, (@len(frames) - 1) as usize)
+                if top_frame_opt is some top_frame {
+                    inside_block = (top_frame as i64) == 1
+                }
+            }
+
+            val starts_stmt: mut bool = false
+            if inside_block {
+                starts_stmt = kind_starts_statement(k)
+            } elif @len(frames) == 0 {
+                starts_stmt = kind_starts_top_level_decl(k)
+            }
+
+            if starts_stmt && kind_ends_statement(prev_k) {
+                val continuation: mut bool = false
+                if lexer.kind_is_ident(k) && token_ident_is(tokens, i, "is") {
+                    continuation = true
+                }
+                if token_ident_is(tokens, i - 1, "is") ||
+                token_ident_is(tokens, i - 1, "or") {
+                    continuation = true
+                }
+                if lexer.kind_is_ident(k) && lexer.kind_is_rparen(prev_k) {
+                    if paren_closes_fn_params(tokens, i - 1) {
+                        continuation = true
+                    }
+                }
+                if lexer.kind_is_fn(k) && lexer.kind_is_rparen(prev_k) {
+                    val open: i64 = find_matching_paren_back(tokens, i - 1)
+                    if open > 0 {
+                        val before: lexer.TokenKind = lexer.tok_kind(tokens, open - 1)
+                        if kind_is_extern(before) {
+                            continuation = true
+                        }
+                    }
+                }
+                if lexer.kind_is_ident(k) && lexer.kind_is_rbracket(prev_k) {
+                    if bracket_closes_array_type(tokens, i - 1) {
+                        continuation = true
+                    }
+                }
+                if !continuation {
+                    val pos: i64 = token_start(tokens, starts, i)
+                    @append(newlines, pos)
+                }
+            }
+        }
+
+        if lexer.kind_is_lparen(k) {
+            parens++
+        } elif lexer.kind_is_rparen(k) {
+            if parens > 0 {
+                parens--
+            }
+        } elif lexer.kind_is_lbracket(k) {
+            brackets++
+        } elif lexer.kind_is_rbracket(k) {
+            if brackets > 0 {
+                brackets--
+            }
+        } elif lexer.kind_is_lbrace(k) {
+            val frame: mut i64 = 0
+            if !brace_opens_match_body(tokens, i) &&
+            !brace_opens_decl_body(tokens, i) &&
+            brace_is_block(tokens, i) {
+                frame = 1
+            }
+            @append(frames, frame)
+        } elif lexer.kind_is_rbrace(k) {
+            val flen: i64 = @len(frames) as i64
+            if flen > 0 {
+                @remove(frames, (flen - 1) as usize)
+            }
+        }
+
+        i++
+    }
+
+    val result: ref u8 = insert_newlines(src, newlines)
+    free_i64_list(frames)
+    return result
 }
 
 fn sort_positions(pos: mut list[i64]) void = trust {
@@ -3250,6 +3817,10 @@ fn trim_leading_newlines(src: ref u8) ref u8 = trust {
 fn format_source(src: ref u8) ref u8 = trust {
     val current: mut ref u8 = rewrite_matches(src)
     val pass: mut ref u8 = format_for_headers(current)
+    release_if_owned(current, pass, src)
+    current = pass
+
+    pass = format_statement_separators(current)
     release_if_owned(current, pass, src)
     current = pass
 

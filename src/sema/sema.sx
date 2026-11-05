@@ -3485,70 +3485,128 @@ fn parse_fmt_specifiers(ctx: ref SemaCtx, s: ref u8) list[ref u8] = trust {
     return result
 }
 
+fn fmt_is_flag(c: u8) bool = {
+    return c == 45 || c == 43 || c == 32 || c == 35 || c == 48
+}
+
+fn fmt_is_digit(c: u8) bool = {
+    return c >= 48 && c <= 57
+}
+
+fn fmt_is_conversion(c: u8) bool = {
+    return c == 100 || c == 105 || c == 111 || c == 117 || c == 120 || c == 88 ||
+    c == 102 || c == 70 || c == 101 || c == 69 || c == 103 || c == 71 ||
+    c == 97 || c == 65 || c == 99 || c == 115 || c == 112 || c == 110
+}
+
+/// Parses the body of a `{...}` format specifier (without the braces).
+/// Returns its conversion character, or 0 when the specifier is not a valid
+/// printf conversion. Flags, width, precision, and length modifiers are
+/// accepted, so `{d}`, `{08llx}`, `{5000d}`, and `{lf}` are all valid.
+fn fmt_specifier_conversion(specifier: ref u8) u8 = trust {
+    if specifier == none {
+        return 0
+    }
+    val len: i64 = string.len_raw(specifier)
+    if len == 0 {
+        return 0
+    }
+
+    val i: mut i64 = 0
+    for {
+        if i >= len {
+            break
+        }
+        val c: u8 = @load8(@ptradd(specifier, i))
+        if !fmt_is_flag(c) {
+            break
+        }
+        i++
+    }
+
+    // A '*' width/precision consumes an additional argument, which the
+    // format-string arity check cannot represent.
+    if i < len && @load8(@ptradd(specifier, i)) == 42 {
+        return 0
+    }
+    for {
+        if i >= len {
+            break
+        }
+        val c: u8 = @load8(@ptradd(specifier, i))
+        if !fmt_is_digit(c) {
+            break
+        }
+        i++
+    }
+
+    if i < len && @load8(@ptradd(specifier, i)) == 46 {
+        i++
+        if i < len && @load8(@ptradd(specifier, i)) == 42 {
+            return 0
+        }
+        for {
+            if i >= len {
+                break
+            }
+            val c: u8 = @load8(@ptradd(specifier, i))
+            if !fmt_is_digit(c) {
+                break
+            }
+            i++
+        }
+    }
+
+    if i < len {
+        val c: u8 = @load8(@ptradd(specifier, i))
+        if c == 104 { // h / hh
+            i++
+            if i < len && @load8(@ptradd(specifier, i)) == 104 {
+                i++
+            }
+        } elif c == 108 { // l / ll
+            i++
+            if i < len && @load8(@ptradd(specifier, i)) == 108 {
+                i++
+            }
+        } elif c == 76 || c == 122 || c == 106 || c == 116 { // L z j t
+            i++
+        }
+    }
+
+    if i >= len {
+        return 0
+    }
+    val conv: u8 = @load8(@ptradd(specifier, i))
+    if !fmt_is_conversion(conv) {
+        return 0
+    }
+    i++
+    if i != len {
+        return 0
+    }
+    return conv
+}
+
 /// Maps a format specifier string to its expected argument category.
 /// Returns "int", "str", "u8", "float", "ptr", or "unknown".
 fn fmt_specifier_category(specifier: ref u8) ref u8 = trust {
-    if str_eq(specifier, "s") {
+    val conv: u8 = fmt_specifier_conversion(specifier)
+    if conv == 115 { // s
         return "str"
     }
-    if str_eq(specifier, "c") {
+    if conv == 99 { // c
         return "u8"
     }
-    if str_eq(specifier, "f") {
+    if conv == 102 || conv == 70 || conv == 101 || conv == 69 ||
+    conv == 103 || conv == 71 || conv == 97 || conv == 65 {
         return "float"
     }
-    if str_eq(specifier, "lf") {
-        return "float"
-    }
-    if str_eq(specifier, "g") {
-        return "float"
-    }
-    if str_eq(specifier, "e") {
-        return "float"
-    }
-    if str_eq(specifier, "d") {
+    if conv == 100 || conv == 105 || conv == 111 || conv == 117 ||
+    conv == 120 || conv == 88 {
         return "int"
     }
-    if str_eq(specifier, "i") {
-        return "int"
-    }
-    if str_eq(specifier, "u") {
-        return "int"
-    }
-    if str_eq(specifier, "x") {
-        return "int"
-    }
-    if str_eq(specifier, "X") {
-        return "int"
-    }
-    if str_eq(specifier, "o") {
-        return "int"
-    }
-    if str_eq(specifier, "ld") {
-        return "int"
-    }
-    if str_eq(specifier, "li") {
-        return "int"
-    }
-    if str_eq(specifier, "lu") {
-        return "int"
-    }
-    if str_eq(specifier, "lld") {
-        return "int"
-    }
-    if str_eq(specifier, "lli") {
-        return "int"
-    }
-    if str_eq(specifier, "llu") {
-        return "int"
-    }
-    if str_eq(specifier, "lx") {
-        return "int"
-    }
-    if str_eq(specifier, "llx") {
-        return "int"
-    }
-    if str_eq(specifier, "p") {
+    if conv == 112 || conv == 110 {
         return "ptr"
     }
     return "unknown"
@@ -3632,6 +3690,46 @@ fn infer_expr_scope_is_ref(ctx: ref SemaCtx, node: ref parser.Node) i64 = trust 
     return 0
 }
 
+/// Maps a declared type node to the broad category used by format checking.
+fn type_node_category(ty: ref parser.Node) ref u8 = trust {
+    if ty == none {
+        return "unknown"
+    }
+    val k: i64 = ty.kind
+    if k == parser.TY_MUT {
+        return type_node_category(ty.d0 as ref parser.Node)
+    }
+    if k == parser.TY_REF {
+        val inner: ref parser.Node = ty.d0 as ref parser.Node
+        if inner != none && inner.kind == parser.TY_NAMED &&
+        str_eq(unqualified_type_name(inner.d0 as ref u8), "u8") {
+            return "str"
+        }
+        return "ptr"
+    }
+    if k == parser.TY_LIST || k == parser.TY_SLICE ||
+    k == parser.TY_FIXED_ARR || k == parser.TY_FNPTR {
+        return "ptr"
+    }
+    if k != parser.TY_NAMED {
+        return "unknown"
+    }
+    val name: ref u8 = unqualified_type_name(ty.d0 as ref u8)
+    if str_eq(name, "u8") {
+        return "u8"
+    }
+    if str_eq(name, "i8") || str_eq(name, "i16") || str_eq(name, "i32") ||
+    str_eq(name, "i64") || str_eq(name, "u16") || str_eq(name, "u32") ||
+    str_eq(name, "u64") || str_eq(name, "usize") || str_eq(name, "isize") ||
+    str_eq(name, "i") || str_eq(name, "u") || str_eq(name, "bool") {
+        return "int"
+    }
+    if str_eq(name, "f32") || str_eq(name, "f64") || str_eq(name, "f") {
+        return "float"
+    }
+    return "unknown"
+}
+
 /// Infers a broad type category for an expression node.
 /// Returns "int", "str", "u8", "float", "ptr", or "unknown".
 fn get_expr_type_category(ctx: ref SemaCtx, node: ref parser.Node) ref u8 = trust {
@@ -3653,6 +3751,42 @@ fn get_expr_type_category(ctx: ref SemaCtx, node: ref parser.Node) ref u8 = trus
     }
     if k == parser.NK_BOOL {
         return "int"
+    }
+    if k == parser.NK_CAST {
+        return type_node_category(node.d1 as ref parser.Node)
+    }
+    if k == parser.NK_TRUST {
+        return get_expr_type_category(ctx, node.d0 as ref parser.Node)
+    }
+    if k == parser.NK_UNOP {
+        return get_expr_type_category(ctx, parser.unop_inner(node))
+    }
+    if k == parser.NK_FIELD {
+        val root: ref parser.Node = find_root_ident(node)
+        if root != none {
+            val vname: ref u8 = root.d0 as ref u8
+            val tname: ref u8 = scope_lookup_type(ctx, vname)
+            val fname: ref u8 = parser.field_name(node)
+            if tname != none && fname != none {
+                val fty: ref parser.Node = find_field_type_node(ctx, tname, fname)
+                if fty != none {
+                    return type_node_category(fty)
+                }
+            }
+        }
+        return "unknown"
+    }
+    if k == parser.NK_CALL {
+        val fn_node: ref parser.Node = resolve_called_fn(ctx, parser.call_callee(node))
+        if fn_node != none {
+            if fn_node.kind == parser.NK_FN || fn_node.kind == parser.NK_GENERIC_FN {
+                return type_node_category(fn_node.d4 as ref parser.Node)
+            }
+            if fn_node.kind == parser.NK_EXTERN_FN {
+                return type_node_category(fn_node.d5 as ref parser.Node)
+            }
+        }
+        return "unknown"
     }
     if k == parser.NK_IDENT {
         val vname: ref u8 = node.d0 as ref u8
@@ -3745,6 +3879,28 @@ fn check_printf_fmt(ctx: ref SemaCtx, fmt_str: ref u8, all_args: ref void,
 
     val specs: list[ref u8] = parse_fmt_specifiers(ctx, fmt_str)
     val spec_count: i64 = @len(specs) as i64
+
+    val spec_idx: mut i64 = 0
+    for {
+        if spec_idx >= spec_count {
+            break
+        }
+        val spec_opt = @get(specs, spec_idx as usize)
+        if spec_opt is some spec_raw {
+            val specifier: ref u8 = spec_raw as ref u8
+            if fmt_specifier_conversion(specifier) == 0 {
+                val buf: ref u8 = allocators.ScopedArena.alloc_or_none(
+                    ctx.arena,
+                    (512) as usize
+                ) as ref u8
+                @snprintf(buf, 512, "{s}:{lld}: invalid format specifier \{{s}\}",
+                    {filename, line, specifier})
+                add_error(ctx, buf)
+                return
+            }
+        }
+        spec_idx++
+    }
 
     // Determine arg count and whether we have pack-style or individual-style args.
     val total_args: mut i64 = 0
@@ -3841,6 +3997,9 @@ fn check_printf_fmt(ctx: ref SemaCtx, fmt_str: ref u8, all_args: ref void,
                     if !str_eq(act_cat, "unknown") {
                         val its_ok: mut bool = str_eq(exp_cat, act_cat)
                         if str_eq(exp_cat, "u8") && str_eq(act_cat, "int") {
+                            its_ok = true
+                        }
+                        if str_eq(exp_cat, "int") && str_eq(act_cat, "u8") {
                             its_ok = true
                         }
                         if str_eq(exp_cat, "ptr") && str_eq(act_cat, "str") {
@@ -5632,7 +5791,8 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
         val is_printf: bool = str_eq(bname, "print")
         val is_dprintf: bool = str_eq(bname, "dprintf")
         val is_snprintf: bool = str_eq(bname, "snprintf")
-        if is_printf || is_dprintf || is_snprintf {
+        val is_fmtalloc: bool = str_eq(bname, "fmtalloc")
+        if is_printf || is_dprintf || is_snprintf || is_fmtalloc {
             val fmt_idx: mut i64 = 0
             val args_start: mut i64 = 1
             if is_dprintf {
@@ -5640,6 +5800,9 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
             }
             if is_snprintf {
                 fmt_idx = 2 args_start = 3
+            }
+            if is_fmtalloc && type_argc > 0 {
+                fmt_idx = 1 args_start = 2
             }
             if bargs != none {
                 val blen: i64 = @len(bargs) as i64
@@ -7022,6 +7185,41 @@ fn infer_builtin_list_decl_type(
     return none
 }
 
+/// Infers a type name for simple literal initializers when no explicit type
+/// was written. This lets later checks (including format-string validation)
+/// know whether an inferred `val` holds a string, integer, float, or char.
+fn infer_simple_literal_type_name(expr: ref parser.Node) ref u8 = trust {
+    if expr == none {
+        return none
+    }
+    val k: i64 = expr.kind
+    if k == parser.NK_STR_LIT {
+        return "u8"
+    }
+    if k == parser.NK_INT_LIT {
+        return "i64"
+    }
+    if k == parser.NK_FLOAT_LIT {
+        return "f64"
+    }
+    if k == parser.NK_BOOL {
+        return "bool"
+    }
+    if k == parser.NK_CHAR_LIT {
+        return "u8"
+    }
+    if k == parser.NK_TRUST {
+        return infer_simple_literal_type_name(expr.d0 as ref parser.Node)
+    }
+    if k == parser.NK_UNOP {
+        return infer_simple_literal_type_name(parser.unop_inner(expr))
+    }
+    if k == parser.NK_CAST {
+        return extract_type_name(expr.d1 as ref parser.Node)
+    }
+    return none
+}
+
 fn val_decl_type_name(
     ctx: ref SemaCtx,
     ty_node: ref parser.Node,
@@ -7033,6 +7231,10 @@ fn val_decl_type_name(
     }
     if init_expr != none && init_expr.kind == parser.NK_STRUCT_LIT {
         return parser.struct_lit_type_name(init_expr)
+    }
+    val literal: ref u8 = infer_simple_literal_type_name(init_expr)
+    if literal != none {
+        return literal
     }
     return infer_builtin_list_decl_type(ctx, init_expr)
 }
@@ -7074,6 +7276,7 @@ fn check_stmt(ctx: mut ref SemaCtx, stmt: ref parser.Node, filename: ref u8) voi
         } else {
             val ty_node: ref parser.Node = stmt.d2 as ref parser.Node
             val tname: ref u8 = val_decl_type_name(ctx, ty_node, stmt.d3 as ref parser.Node)
+            val init_expr: ref parser.Node = stmt.d3 as ref parser.Node
             val is_ref_flag: mut i64 = 0
             if ty_node != none {
                 if ty_node.kind == parser.TY_REF {
@@ -7084,8 +7287,9 @@ fn check_stmt(ctx: mut ref SemaCtx, stmt: ref parser.Node, filename: ref u8) voi
                         is_ref_flag = 1
                     }
                 }
+            } elif init_expr != none {
+                is_ref_flag = infer_expr_scope_is_ref(ctx, init_expr)
             }
-            val init_expr: ref parser.Node = stmt.d3 as ref parser.Node
             if is_ref_flag == 1 && init_expr != none {
                 if !ref_assignment_rhs_ok(ctx, tname, is_ref_flag, init_expr) {
                     val target_ty: ref u8 = format_type_for_error(ctx, tname, is_ref_flag)

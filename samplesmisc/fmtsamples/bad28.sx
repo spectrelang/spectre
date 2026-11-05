@@ -1,0 +1,3 @@
+pub fn main() void = trust {
+    val y: i32 = 1 @puts("hello") @print("{d}", {y})
+}

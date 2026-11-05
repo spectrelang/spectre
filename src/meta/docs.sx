@@ -765,7 +765,7 @@ fn render_const_expr(expr: ref parser.Node) ref u8 = trust {
         return @fmtalloc("[{s}]", {render_expr_list(expr.d0 as list[ref parser.Node], ", ")})
     }
     if kind == parser.NK_ARGS_PACK {
-        return @fmtalloc("{{{s}}}", {render_expr_list(expr.d0 as list[ref parser.Node], ", ")})
+        return @fmtalloc("\\{{s}\\}", {render_expr_list(expr.d0 as list[ref parser.Node], ", ")})
     }
     return "..."
 }

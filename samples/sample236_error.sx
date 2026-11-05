@@ -1,0 +1,4 @@
+pub fn main() void = trust {
+    val x = "hello, world"
+    @print("{d}", {x})
+}
