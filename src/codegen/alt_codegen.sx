@@ -3230,30 +3230,10 @@ fn gen_expr(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
         val buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 128 as usize) as ref u8
         if ctx.autovec_plan != none {
             val plan: ref autovec.Plan = ctx.autovec_plan as ref autovec.Plan
-            if plan.lanes == 4 {
-                @snprintf(
-                    buf,
-                    256,
-                    "(({s})\{(({s}){s}),(({s}){s}),(({s}){s}),(({s}){s})\})",
-                    {
-                        plan.vec_type,
-                        plan.elem_ctype,
-                        text,
-                        plan.elem_ctype,
-                        text,
-                        plan.elem_ctype,
-                        text,
-                        plan.elem_ctype,
-                        text
-                    }
-                )
+            if plan.elem_size == 4 {
+                @snprintf(buf, 128, "sx__vbroadcast_i32((int32_t)({s}))", {text})
             } else {
-                @snprintf(
-                    buf,
-                    128,
-                    "(({s})\{(({s}){s}),(({s}){s})\})",
-                    {plan.vec_type, plan.elem_ctype, text, plan.elem_ctype, text}
-                )
+                @snprintf(buf, 128, "sx__vbroadcast_i64((int64_t)({s}))", {text})
             }
         } elif @load8(text) == 48 && @load8(@ptradd(text, 1)) == 120 {
             @snprintf(buf, 64, "((int64_t){s})", {text})
@@ -7529,13 +7509,17 @@ fn cc_autovec_load_expr(
     val base_node: ref parser.Node = autovec.Plan.ptr_base(plan, ptr)
     val base: ref u8 = gen_expr(ctx, base_node)
     val off: ref u8 = cc_autovec_offset(ctx, plan)
+    val suffix: mut ref u8 = "i32"
+    if plan.elem_size != 4 {
+        suffix = "i64"
+    }
     val cap: i64 = str.len_raw(base) + str.len_raw(off) + 192
     val buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, cap as usize) as ref u8
     @snprintf(
         buf,
         cap,
-        "(*({s}*)(intptr_t)((char*)(intptr_t)({s})+({s})))",
-        {plan.vec_type, base, off}
+        "sx__vload_{s}((void*)(intptr_t)((char*)(intptr_t)({s})+({s})))",
+        {suffix, base, off}
     )
     return cc_expr_track(ctx, buf)
 }
@@ -7551,13 +7535,17 @@ fn cc_autovec_store_expr(
     val base: ref u8 = gen_expr(ctx, base_node)
     val value: ref u8 = gen_expr(ctx, value_node)
     val off: ref u8 = cc_autovec_offset(ctx, plan)
-    val cap: i64 = str.len_raw(base) + str.len_raw(value) + str.len_raw(off) + 224
+    val suffix: mut ref u8 = "i32"
+    if plan.elem_size != 4 {
+        suffix = "i64"
+    }
+    val cap: i64 = str.len_raw(base) + str.len_raw(value) + str.len_raw(off) + 256
     val buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, cap as usize) as ref u8
     @snprintf(
         buf,
         cap,
-        "(*({s}*)(intptr_t)((char*)(intptr_t)({s})+({s}))=({s})({s}))",
-        {plan.vec_type, base, off, plan.vec_type, value}
+        "sx__vstore_{s}((void*)(intptr_t)((char*)(intptr_t)({s})+({s})),({s})({s}))",
+        {suffix, base, off, plan.vec_type, value}
     )
     return cc_expr_track(ctx, buf)
 }
@@ -7577,19 +7565,23 @@ fn cc_autovec_select(
     val base: ref u8 = gen_expr(ctx, base_node)
     val off: ref u8 = cc_autovec_offset(ctx, plan)
     val t: i64 = fresh_tmp(ctx)
+    val suffix: mut ref u8 = "i32"
+    if plan.elem_size != 4 {
+        suffix = "i64"
+    }
     val cap: i64 = str.len_raw(cond) + str.len_raw(then_value)
-    + str.len_raw(else_value) + str.len_raw(base) + str.len_raw(off) + 384
+    + str.len_raw(else_value) + str.len_raw(base) + str.len_raw(off) + 512
     val buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, cap as usize) as ref u8
     @snprintf(
         buf,
         cap,
-        "{s} sx__vm{lld}=({s})({s});\n(*({s}*)(intptr_t)((char*)(intptr_t)({s})+({s}))=((({s})({s}))&sx__vm{lld})|((({s})({s}))&(~sx__vm{lld})));\n",
+        "{s} sx__vm{lld}=({s})({s});\nsx__vstore_{s}((void*)(intptr_t)((char*)(intptr_t)({s})+({s})),(((({s})({s}))&sx__vm{lld})|((({s})({s}))&(~sx__vm{lld}))));\n",
         {
             plan.vec_type,
             t,
             plan.vec_type,
             cond,
-            plan.vec_type,
+            suffix,
             base,
             off,
             plan.vec_type,
@@ -7611,6 +7603,10 @@ fn cc_gen_autovec_vector(
 ) void = trust {
     val end_src: ref u8 = gen_expr(ctx, plan.end_expr)
     val end_tmp: i64 = fresh_tmp(ctx)
+    val lane_macro: mut ref u8 = "SX__VLANES_I64"
+    if plan.elem_size == 4 {
+        lane_macro = "SX__VLANES_I32"
+    }
     val head_cap: i64 = str.len_raw(end_src) + 256
     val head: ref u8 = allocators.ScopedArena.alloc_or_none(
         ctx.arena,
@@ -7619,8 +7615,8 @@ fn cc_gen_autovec_vector(
     @snprintf(
         head,
         head_cap,
-        "#if SX__HAVE_VECTOR_I64\n\{int64_t sx__ve{lld}=({s});for(;((t_{s})+{lld})<=(sx__ve{lld});t_{s}+={lld})\n\{\n",
-        {end_tmp, end_src, plan.index, plan.lanes, end_tmp, plan.index, plan.lanes}
+        "#if SX__HAVE_VECTOR_I64\n\{int64_t sx__ve{lld}=({s});for(;((t_{s})+{s})<=(sx__ve{lld});t_{s}+={s})\n\{\n",
+        {end_tmp, end_src, plan.index, lane_macro, end_tmp, plan.index, lane_macro}
     )
     emit(ctx, head)
     cc_expr_drain(ctx)
@@ -9229,7 +9225,7 @@ fn emit_c_preamble(ctx: ref CCtx) void = trust {
     }
     emitln_fwd(
         ctx,
-        "/* Autovectorization lane types: 2 x int64_t or 4 x int32_t in a 16-byte\n   vector, mapping to SSE2 on x86-64 and NEON on AArch64 without -march. */\n#if defined(__GNUC__) && !defined(__TINYC__)\ntypedef int64_t sx__vi64 __attribute__((vector_size(16)));\ntypedef int32_t sx__vi32 __attribute__((vector_size(16)));\n#define SX__HAVE_VECTOR_I64 1\n#else\n#define SX__HAVE_VECTOR_I64 0\n#endif"
+        "/* Autovectorization lane types: 4 x int64_t or 8 x int32_t in a 32-byte\n   vector on AVX2; 2 x int64_t or 4 x int32_t in a 16-byte vector otherwise.\n   SSE2/NEON remain the portable baseline. */\n#if defined(__GNUC__) && !defined(__TINYC__)\n#if defined(__AVX2__)\ntypedef int64_t sx__vi64 __attribute__((vector_size(32)));\ntypedef int32_t sx__vi32 __attribute__((vector_size(32)));\n#define SX__VLANES_I64 4\n#define SX__VLANES_I32 8\n#else\ntypedef int64_t sx__vi64 __attribute__((vector_size(16)));\ntypedef int32_t sx__vi32 __attribute__((vector_size(16)));\n#define SX__VLANES_I64 2\n#define SX__VLANES_I32 4\n#endif\nstatic inline sx__vi64 sx__vload_i64(const void*p){sx__vi64 v;__builtin_memcpy(&v,p,sizeof(v));return v;}\nstatic inline void sx__vstore_i64(void*p,sx__vi64 v){__builtin_memcpy(p,&v,sizeof(v));}\nstatic inline sx__vi32 sx__vload_i32(const void*p){sx__vi32 v;__builtin_memcpy(&v,p,sizeof(v));return v;}\nstatic inline void sx__vstore_i32(void*p,sx__vi32 v){__builtin_memcpy(p,&v,sizeof(v));}\n#if defined(__AVX2__)\nstatic inline sx__vi64 sx__vbroadcast_i64(int64_t x){return (sx__vi64){x,x,x,x};}\nstatic inline sx__vi32 sx__vbroadcast_i32(int32_t x){return (sx__vi32){x,x,x,x,x,x,x,x};}\n#else\nstatic inline sx__vi64 sx__vbroadcast_i64(int64_t x){return (sx__vi64){x,x};}\nstatic inline sx__vi32 sx__vbroadcast_i32(int32_t x){return (sx__vi32){x,x,x,x};}\n#endif\n#define SX__HAVE_VECTOR_I64 1\n#else\n#define SX__HAVE_VECTOR_I64 0\n#endif"
     )
     emitln_fwd(
         ctx,
