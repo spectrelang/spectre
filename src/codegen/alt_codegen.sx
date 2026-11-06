@@ -5565,15 +5565,19 @@ fn gen_builtin(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
     }
     if str.raw_cmp(bname, "append") == 0 {
         val e: ref u8 = get_arg(ctx, args, 1)
-        val buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 512 as usize) as ref u8
         val list_arg_opt = @get(args as list[ref parser.Node], 0 as usize)
         if list_arg_opt is some list_arg {
             val lan: ref parser.Node = list_arg as ref parser.Node
             if lan.kind == parser.NK_FIELD {
                 val fa: ref u8 = gen_field_addr(ctx, lan)
+                val cap: i64 = str.len_raw(fa) + str.len_raw(e) + 128
+                val buf: ref u8 = allocators.ScopedArena.alloc_or_none(
+                    ctx.arena,
+                    cap as usize
+                ) as ref u8
                 @snprintf(
                     buf,
-                    512,
+                    cap,
                     "sx__rt_append((void*)(intptr_t)({s}),(int64_t)({s}))",
                     {fa, e}
                 )
@@ -5583,9 +5587,14 @@ fn gen_builtin(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
                 val iname: ref u8 = lan.d0 as ref u8
                 val lt2: ref u8 = cc_lookup_local_type(ctx, iname)
                 if str.raw_cmp(lt2, "") != 0 {
+                    val cap: i64 = str.len_raw(iname) + str.len_raw(e) + 128
+                    val buf: ref u8 = allocators.ScopedArena.alloc_or_none(
+                        ctx.arena,
+                        cap as usize
+                    ) as ref u8
                     @snprintf(
                         buf,
-                        512,
+                        cap,
                         "sx__rt_append_f((int64_t*)&t_{s},(int64_t)({s}))",
                         {iname, e}
                     )
@@ -5594,9 +5603,14 @@ fn gen_builtin(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
             }
         }
         val l: ref u8 = get_arg(ctx, args, 0)
+        val cap: i64 = str.len_raw(l) + str.len_raw(e) + 128
+        val buf: ref u8 = allocators.ScopedArena.alloc_or_none(
+            ctx.arena,
+            cap as usize
+        ) as ref u8
         @snprintf(
             buf,
-            512,
+            cap,
             "sx__rt_append((void*)(intptr_t)({s}),(int64_t)({s}))",
             {l, e}
         )
@@ -5605,15 +5619,19 @@ fn gen_builtin(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
     if str.raw_cmp(bname, "insert") == 0 {
         val idx: ref u8 = get_arg(ctx, args, 1)
         val elem: ref u8 = get_arg(ctx, args, 2)
-        val buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 512 as usize) as ref u8
         val list_arg_opt = @get(args as list[ref parser.Node], 0 as usize)
         if list_arg_opt is some list_arg {
             val lan: ref parser.Node = list_arg as ref parser.Node
             if lan.kind == parser.NK_FIELD {
                 val fa: ref u8 = gen_field_addr(ctx, lan)
+                val cap: i64 = str.len_raw(fa) + str.len_raw(idx) + str.len_raw(elem) + 160
+                val buf: ref u8 = allocators.ScopedArena.alloc_or_none(
+                    ctx.arena,
+                    cap as usize
+                ) as ref u8
                 @snprintf(
                     buf,
-                    512,
+                    cap,
                     "sx__rt_insert((void*)(intptr_t)({s}),(int64_t)({s}),(int64_t)({s}))",
                     {fa, idx, elem}
                 )
@@ -5623,9 +5641,14 @@ fn gen_builtin(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
                 val iname: ref u8 = lan.d0 as ref u8
                 val lt2: ref u8 = cc_lookup_local_type(ctx, iname)
                 if str.raw_cmp(lt2, "") != 0 {
+                    val cap: i64 = str.len_raw(iname) + str.len_raw(idx) + str.len_raw(elem) + 160
+                    val buf: ref u8 = allocators.ScopedArena.alloc_or_none(
+                        ctx.arena,
+                        cap as usize
+                    ) as ref u8
                     @snprintf(
                         buf,
-                        512,
+                        cap,
                         "sx__rt_insert_f((int64_t*)&t_{s},(int64_t)({s}),(int64_t)({s}))",
                         {iname, idx, elem}
                     )
@@ -5634,9 +5657,14 @@ fn gen_builtin(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
             }
         }
         val l: ref u8 = get_arg(ctx, args, 0)
+        val cap: i64 = str.len_raw(l) + str.len_raw(idx) + str.len_raw(elem) + 160
+        val buf: ref u8 = allocators.ScopedArena.alloc_or_none(
+            ctx.arena,
+            cap as usize
+        ) as ref u8
         @snprintf(
             buf,
-            512,
+            cap,
             "sx__rt_insert((void*)(intptr_t)({s}),(int64_t)({s}),(int64_t)({s}))",
             {l, idx, elem}
         )
