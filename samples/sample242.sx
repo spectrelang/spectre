@@ -12,12 +12,24 @@ type SomeType = {
     x: mut u8 y: mut u8 z: mut u8 m: mut u8
     a: mut u8 b: mut u8 c: mut u8 d: mut u8
 }
-fn test_number(st: mut SomeType, pst: mut ref SomeType, px: mut ref u8, a: u8, b: u16, c: f32) u64 = {
-    st.x = st.x + 1 trust stdio.print("st.x + 1 = {d}\n", {st.x})
-    pst.x = pst.x - 1 trust stdio.print("pst->x - 1 = {d}\n", {pst.x})
-    @deref(px) = @deref(px) + 1 trust stdio.print("*px + 1 = {d}\t# It's u8 !!?\n", {@deref(px)}) // bug 256 !!?
+
+fn test_number(
+    st: mut SomeType,
+    pst: mut ref SomeType,
+    px: mut ref u8,
+    a: u8,
+    b: u16,
+    c: f32
+) u64 = {
+    st.x = st.x + 1
+    trust stdio.print("st.x + 1 = {d}\n", {st.x})
+    pst.x = pst.x - 1
+    trust stdio.print("pst->x - 1 = {d}\n", {pst.x})
+    @deref(px) = @deref(px) + 1
+    trust stdio.print("*px + 1 = {d}\t# It's u8 !!?\n", {@deref(px)}) // bug 256 !!?
     @deref(px) = 0
-    @deref(px) = @deref(px) - 3 trust stdio.print("*px = 0\n*px - 3 = {d}\n", {@deref(px)}) // bug -3 !!? maybe is i32
+    @deref(px) = @deref(px) - 3
+    trust stdio.print("*px = 0\n*px - 3 = {d}\n", {@deref(px)}) // bug -3 !!? maybe is i32
     trust stdio.print("*((u64*)px) = {u}\t# maybe it's i32\n", {@deref(px as ref u64)})
 
     //return st.x + pst.x + @deref(px) + a + b + c

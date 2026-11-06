@@ -52,11 +52,13 @@ pub fn main() void = trust {
                 @puts("Simple test 6 - got Fn")
             }
             else => {
-                @puts("ERROR: expected Fn") assert false
+                @puts("ERROR: expected Fn")
+                assert false
             }
         }
     } else {
-        @puts("ERROR: no token") assert false
+        @puts("ERROR: no token")
+        assert false
     }
 
     @puts("Simple test 7 - all passed")

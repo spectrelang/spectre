@@ -21,10 +21,10 @@ pub type Container = {
 
 pub fn add_inline(c: mut Container, x: f32, y: f32) void = {
     @append(c.items, {
-        x: x,
-        y: y,
-        label: 7
-    })
+            x: x,
+            y: y,
+            label: 7
+        })
 }
 
 pub fn add_hoisted(c: mut Container, x: f32, y: f32) void = {

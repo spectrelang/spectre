@@ -3,12 +3,29 @@ type SomeType = {
     a: mut u8 b: mut u8 c: mut u8 d: mut u8
 }
 
-type U8Pair = { x: mut u8 y: mut u8 }
-type U16Pair = { x: mut u16 y: mut u16 }
-type U32Pair = { x: mut u32 y: mut u32 }
-type I8Pair = { x: mut i8 y: mut i8 }
-type I16Pair = { x: mut i16 y: mut i16 }
-type I32Pair = { x: mut i32 y: mut i32 }
+type U8Pair = {
+    x: mut u8 y: mut u8
+}
+
+type U16Pair = {
+    x: mut u16 y: mut u16
+}
+
+type U32Pair = {
+    x: mut u32 y: mut u32
+}
+
+type I8Pair = {
+    x: mut i8 y: mut i8
+}
+
+type I16Pair = {
+    x: mut i16 y: mut i16
+}
+
+type I32Pair = {
+    x: mut i32 y: mut i32
+}
 
 fn test_number(
     st: mut SomeType,

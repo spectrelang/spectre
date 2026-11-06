@@ -49,8 +49,8 @@ pub fn main() i32 = {
     )
 
     if outer.mid.inner.value == (42.0 as f32)
-        && outer.mid.inner.enabled
-        && outer.mid.other == (7.0 as f32) {
+    && outer.mid.inner.enabled
+    && outer.mid.other == (7.0 as f32) {
         return 0 as i32
     }
     return 1 as i32
