@@ -2598,7 +2598,7 @@ fn output_dir_for_target(target: ref u8, target_is_dir: bool) ref u8 = trust {
     return "./docs-out"
 }
 
-pub fn cmd_doc(target: ref u8, markdown: bool) i32 = trust {
+pub fn cmd_doc(target: ref u8, markdown: bool, output_override: ref u8) i32 = trust {
     val parse_arena: allocators.ScopedArenaAllocator = allocators.ScopedArena.new(
         67108864 as usize
     )?
@@ -2610,7 +2610,10 @@ pub fn cmd_doc(target: ref u8, markdown: bool) i32 = trust {
         return 1
     }
     val target_is_dir: bool = dir_exists(target)
-    val out_dir: ref u8 = output_dir_for_target(target, target_is_dir)
+    val out_dir: mut ref u8 = output_dir_for_target(target, target_is_dir)
+    if !str_eq(output_override, "") {
+        out_dir = output_override
+    }
     if !ensure_dir(out_dir) {
         stdio.print("error: could not create '{s}'\n", {out_dir})
         return 1
@@ -2701,7 +2704,7 @@ pub fn cmd_doc(target: ref u8, markdown: bool) i32 = trust {
     return 0
 }
 
-test {
+test "docs extracts comments, signatures and slugs" {
     assert str_eq(trust substr("hello", -5, 2), "he")
     assert str_eq(trust substr("hello", 10, 3), "")
     assert str_eq(trust substr("hello", 1, 99), "ello")

@@ -128,7 +128,7 @@ pub fn write_u64_be(data: ref u8, offset: usize, value: u64) void = trust {
     @store8(@ptradd(data, offset + (7 as usize)), (value & 255) as u8)
 }
 
-test {
+test "binary readers and writers roundtrip endian values" {
     val data: [32]u8 = @zeroed
 
     trust {

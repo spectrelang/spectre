@@ -836,7 +836,7 @@ pub fn (Http) free_headers(list: ref void) void = trust {
     }
 }
 
-test {
+test "http client fetches a response" {
     val ac: allocators.HeapAllocator = @zeroed
     Http.init()
 

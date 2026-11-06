@@ -1070,7 +1070,7 @@ pub fn inflate_zlib[A: allocators.GeneralAllocator](
     return ok out
 }
 
-test {
+test "zlib inflate decompresses hello" {
     val ac: allocators.HeapAllocator = @zeroed
     // zlib-compressed "hello"
     val compressed: mut [13]u8 = [

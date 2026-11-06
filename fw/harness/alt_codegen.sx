@@ -1,0 +1,43 @@
+/// Leak harness for src/codegen/alt_codegen.sx.
+///
+/// SPDX-License-Identifier: GPL-3.0-only
+/// (C) Navid Momtahen - 2026
+
+val stdio       = use("std/stdio")
+val allocators  = use("std/allocators")
+val mem         = use("../../src/meta/mem.sx")
+val sema        = use("../../src/sema/sema.sx")
+val alt_codegen = use("../../src/codegen/alt_codegen.sx")
+val check       = use("lib/check.sx")
+
+test "alt codegen does not leak" {
+    trust {
+        mem.init()
+        val arena: allocators.ScopedArenaAllocator = allocators.ScopedArena.new(
+            67108864 as usize
+        )?
+        val root = check.resolve(arena, "./fw/harness/fixtures/smoke.sx")
+        val errors = sema.check_module_tree(arena, root, 1, "")
+        if (@len(errors) as i64) > 0 {
+            for error in errors {
+                stdio.print("[FAIL] sema: {s}\n", {error})
+            }
+            assert false
+        }
+
+        val before = check.baseline()
+        val output: ref u8 = alt_codegen.gen_module_c_test(
+            root,
+            false,
+            mem.new[ref u8](),
+            "",
+            false,
+            0,
+            false
+        )
+        @free(output as ref void)
+        allocators.ScopedArena.free(arena)
+        mem.close()
+        check.expect_clean_since("alt_codegen", before)
+    }
+}

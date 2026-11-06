@@ -1,0 +1,46 @@
+/// Small self-contained program used by the compiler leak harnesses.
+///
+/// SPDX-License-Identifier: GPL-3.0-only
+/// (C) Navid Momtahen - 2026
+
+type Point = {
+    x: mut i64
+    y: mut i64
+}
+
+enum Direction = {
+    North
+    South
+}
+
+fn add(a: i64, b: i64) i64 = {
+    return a + b
+}
+
+fn classify(value: i64) i64 = {
+    if value > 0 {
+        return 1
+    } elif value < 0 {
+        return -1
+    }
+    return 0
+}
+
+pub fn main() void = {
+    val p: mut Point = {x: 1, y: 2}
+    val total: mut i64 = 0
+    val i: mut i64 = 0
+    for i < 10 {
+        total = total + add(i, p.x)
+        i++
+    }
+    p.y = classify(total)
+    val direction: Direction = Direction.North
+    if direction == Direction.North {
+        p.x = 3
+    }
+    val text: ref u8 = "ok"
+    if text == "ok" {
+        p.x = p.x + 1
+    }
+}

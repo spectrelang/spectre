@@ -583,7 +583,7 @@ pub fn (Vec3) lerp(a: self, b: Vec3, t: f64) Vec3 = {
     }
 }
 
-test {
+test "vector, matrix and quaternion operations" {
     val identity = Mat4x4.identity()
     assert core.approx_eq(identity.m00, 1.0, 0.0001)
     assert core.approx_eq(identity.m11, 1.0, 0.0001)

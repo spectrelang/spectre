@@ -1,0 +1,23 @@
+/// Leak harness for src/module/module.sx.
+///
+/// SPDX-License-Identifier: GPL-3.0-only
+/// (C) Navid Momtahen - 2026
+
+val allocators = use("std/allocators")
+val mem        = use("../../src/meta/mem.sx")
+val check      = use("lib/check.sx")
+
+test "module resolver does not leak" {
+    trust {
+        mem.init()
+        val before = check.baseline()
+        val arena: allocators.ScopedArenaAllocator = allocators.ScopedArena.new(
+            67108864 as usize
+        )?
+        val root = check.resolve(arena, "./fw/harness/fixtures/smoke.sx")
+        assert root != none
+        allocators.ScopedArena.free(arena)
+        mem.close()
+        check.expect_clean_since("module", before)
+    }
+}

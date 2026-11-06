@@ -1,0 +1,25 @@
+/// Leak harness for src/meta/docs.sx.
+///
+/// SPDX-License-Identifier: GPL-3.0-only
+/// (C) Navid Momtahen - 2026
+
+val os    = use("std/os")
+val mem   = use("../../src/meta/mem.sx")
+val docs  = use("../../src/meta/docs.sx")
+val check = use("lib/check.sx")
+
+test "docs generator does not leak" {
+    trust {
+        mem.init()
+        val before = check.baseline()
+        val code: i32 = docs.cmd_doc(
+            "./fw/harness/fixtures/smoke.sx",
+            false,
+            "./s-out/checkmem-docs"
+        )
+        os.run("rm -rf ./s-out/checkmem-docs")
+        mem.close()
+        check.expect_clean_since("docs", before)
+        assert code == 0
+    }
+}

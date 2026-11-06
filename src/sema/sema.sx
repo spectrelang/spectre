@@ -172,6 +172,8 @@ fn canonicalize_path(ctx: ref SemaCtx, path: ref u8) ref u8 = trust {
     val out: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, (n) as usize) as ref u8
     @memcpy(out, src_cstr, n as usize)
     string.StringBuilder.free(sb)
+    @free(@load(built))
+    @free(built)
     return out
 }
 
@@ -388,6 +390,8 @@ fn resolve_embed_builtin(
         val base_dir: ref u8 = path.dir(filename)
         val joined: ref u8 = path.join(base_dir, rel)
         val canonical: ref u8 = canonicalize_path(ctx, joined)
+        @free(base_dir as ref void)
+        @free(joined as ref void)
         val size_opt = fs.file_size(canonical)
         match size_opt {
             some size => {
@@ -486,8 +490,8 @@ fn push_scope(ctx: ref SemaCtx) void = trust {
         ctx_not_null: ctx != none
     }
 
-    val frame: ref list[ref ScopeEntry] = @alloc(@sizeof(list[ref ScopeEntry])) as ref list[ref ScopeEntry]
-    @memset(frame, 0, @sizeof(list[ref ScopeEntry]) as usize)
+    val heap: allocators.HeapAllocator = @zeroed
+    val frame: ref list[ref ScopeEntry] = @listalloc[allocators.HeapAllocator, ref ScopeEntry](heap)?
     @append(ctx.scopes, frame)
 
     guarded post {
@@ -546,6 +550,9 @@ fn pop_scope(ctx: ref SemaCtx, filename: ref u8, _: i64) void = trust {
                 }
                 i++
             }
+        }
+        if frame_opt is some frame {
+            @listfree(frame)
         }
         @remove(ctx.scopes, len - 1)
     }

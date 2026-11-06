@@ -758,7 +758,7 @@ pub fn re_print(pattern: ref void) void = {
     }
 }
 
-test {
+test "regex matches patterns and reports errors" {
     val heap: allocators.HeapAllocator = @zeroed
     val matchlength: mut i64 = 0
     match re_match("^h.llo$", "hello", @addr(matchlength)) {

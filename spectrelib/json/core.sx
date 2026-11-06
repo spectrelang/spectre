@@ -450,7 +450,7 @@ pub fn builder_set_root(handle: JsonBuilder, value: ref void) void = trust {
     yyjson_mut_doc_set_root(doc, value)
 }
 
-test {
+test "json parses and builds objects and arrays" {
     val input: ref u8 = \\{"name":"Alice","age":30,"active":true,"score":9.5}
     val arena: mut allocators.Arena = trust allocators.Arena.new(4096 as usize)?
     val doc_opt = trust parse(input)

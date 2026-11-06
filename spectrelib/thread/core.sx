@@ -331,7 +331,7 @@ fn thread_test_entry(arg: ref void) ref void = {
     return c
 }
 
-test {
+test "threads and mutexes synchronize access" {
     val ac: allocators.HeapAllocator = @zeroed
     val counter: ref void = @alloc(8)
     trust @store(counter, 0)

@@ -649,7 +649,7 @@ pub fn config_dir_raw() option[ref u8] = trust {
     return none
 }
 
-test {
+test "file and directory operations roundtrip" {
     val arena: mut allocators.Arena = trust allocators.Arena.new(8192 as usize)?
     val path: ref u8 = "test_file.txt"
     @puts("1")

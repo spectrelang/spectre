@@ -244,6 +244,7 @@ pub fn main() i32 = trust {
     if string.raw_cmp(input, "doc") == 0 {
         val target_arg: mut ref u8 = "."
         val md_mode: mut bool = false
+        val output_arg: mut ref u8 = ""
         val doc_arg_i: mut i64 = 2
         for {
             val arg_opt = @get(args, doc_arg_i)
@@ -251,6 +252,29 @@ pub fn main() i32 = trust {
                 val arg: ref u8 = dv as ref u8
                 if string.raw_cmp(arg, "-md") == 0 {
                     md_mode = true
+                } elif string.raw_cmp(arg, "-h") == 0 || string.raw_cmp(arg, "-help") == 0 {
+                    val code: i32 = meta.print_help("doc")
+                    allocators.Arena.free(arena)
+                    return code
+                } elif string.raw_cmp(arg, "-o") == 0 || string.raw_cmp(arg, "-output") == 0 {
+                    val next_i: i64 = doc_arg_i + 1
+                    val next_opt = @get(args, next_i)
+                    if next_opt is some ov {
+                        output_arg = ov as ref u8
+                        doc_arg_i = next_i
+                    } else {
+                        stdio.puts("error: -o requires a directory")
+                        allocators.Arena.free(arena)
+                        return 1
+                    }
+                } elif string.raw_starts_with(arg, "-o:") {
+                    val out_len: i64 = string.len_raw(arg) as i64 - 3
+                    if out_len <= 0 {
+                        stdio.puts("error: -o requires a directory")
+                        allocators.Arena.free(arena)
+                        return 1
+                    }
+                    output_arg = string.substr(arg, 3, out_len)
                 } elif string.raw_starts_with(arg, "-") {
                     stdio.print("error: unknown doc option '{s}'\n", {arg})
                     allocators.Arena.free(arena)
@@ -263,7 +287,7 @@ pub fn main() i32 = trust {
             }
             doc_arg_i++
         }
-        val code: i32 = docs.cmd_doc(target_arg, md_mode)
+        val code: i32 = docs.cmd_doc(target_arg, md_mode, output_arg)
         allocators.Arena.free(arena)
         return code
     }

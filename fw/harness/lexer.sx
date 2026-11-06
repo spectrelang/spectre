@@ -1,0 +1,27 @@
+/// Leak harness for src/ast/lexer.sx.
+///
+/// SPDX-License-Identifier: GPL-3.0-only
+/// (C) Navid Momtahen - 2026
+
+val lexer = use("../../src/ast/lexer.sx")
+val mem   = use("../../src/meta/mem.sx")
+val check = use("lib/check.sx")
+
+test "lexer does not leak tokens" {
+    trust {
+        mem.init()
+        val source: ref u8 = "fn main() void = { val x = 42 }\n// trailing comment\n"
+        match lexer.tokenize(source) {
+            ok tokens => {
+                assert @len(tokens) as i64 > 0
+                lexer.free_tokens(tokens)
+            }
+            err message => {
+                @free(message as ref void)
+                assert false
+            }
+        }
+        mem.close()
+        check.expect_clean("lexer")
+    }
+}

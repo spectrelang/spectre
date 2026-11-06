@@ -118,7 +118,7 @@ pub fn random_uuid() ref u8 = trust {
     return out
 }
 
-test {
+test "random values and uuids are generated" {
     val r1 = random_u64()
     val r2 = random_u64()
     assert r1 != r2

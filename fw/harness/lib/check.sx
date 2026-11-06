@@ -1,0 +1,167 @@
+/// Shared helpers for the compiler memory-leak harnesses.
+///
+/// SPDX-License-Identifier: GPL-3.0-only
+/// (C) Navid Momtahen - 2026
+
+val stdio      = use("std/stdio")
+val string     = use("std/string")
+val testing    = use("std/testing")
+val allocators = use("std/allocators")
+val mem        = use("../../../src/meta/mem.sx")
+val module     = use("../../../src/module/module.sx")
+
+extern (C) fn c_malloc(size: usize) ref void = "malloc"
+extern (C) fn c_free(ptr: ref void) void = "free"
+
+/// A copy of the live allocations present before a target module runs.
+pub type Baseline = {
+    records: ref testing.LeakRecord
+    count: i64
+    invalid: i64
+}
+
+fn record_at(records: ref testing.LeakRecord, index: i64) ref testing.LeakRecord = {
+    val offset: usize = (index as usize) * @sizeof(testing.LeakRecord)
+    return trust @ptradd(records, offset)
+}
+
+fn same_record(a: ref testing.LeakRecord, b: ref testing.LeakRecord) bool = {
+    if a.size != b.size || a.line != b.line {
+        return false
+    }
+    return string.raw_cmp(a.file, b.file) == 0
+}
+
+/// Snapshot the current live-allocation set.
+pub fn baseline() Baseline = trust {
+    val diagnostics = @dumpmemleaks()
+    val count: i64 = diagnostics.record_count
+    val bytes: usize = (count as usize) * @sizeof(testing.LeakRecord)
+    val records: ref testing.LeakRecord = c_malloc(bytes) as ref testing.LeakRecord
+    if count > 0 && records != none && diagnostics.records != none {
+        @memcpy(records, diagnostics.records, bytes)
+    }
+    val result: Baseline = {
+        records: records,
+        count: count,
+        invalid: diagnostics.invalid_frees
+    }
+    return result
+}
+
+/// Release the memory held by a baseline snapshot.
+pub fn discard_baseline(before: Baseline) void = trust {
+    if before.records != none {
+        c_free(before.records as ref void)
+    }
+}
+
+/// Fail the current test unless leak checking is enabled and all tracked
+/// allocations have been released.
+pub fn expect_clean(name: ref u8) void = trust {
+    val diagnostics = @dumpmemleaks()
+    if diagnostics.enabled != 1 {
+        stdio.print("[FAIL] {s}: leak checking is not enabled\n", {name})
+        assert false
+    }
+    if diagnostics.live_allocations != 0 || diagnostics.invalid_frees != 0 {
+        stdio.print("[FAIL] {s}: live allocations or invalid frees detected\n", {name})
+        testing.pprint(diagnostics)
+        assert false
+    }
+    stdio.print(
+        "[PASS] {s}: {d} allocations, {d} frees, 0 live\n",
+        {
+            name,
+            diagnostics.total_allocations,
+            diagnostics.total_frees
+        }
+    )
+}
+
+/// Fail unless the module added no live allocations or invalid frees since
+/// `before`. Baseline allocations that the target happens to release are
+/// ignored; only newly live allocation records count as leaks.
+pub fn expect_clean_since(name: ref u8, before: Baseline) void = trust {
+    val diagnostics = @dumpmemleaks()
+    if diagnostics.enabled != 1 {
+        stdio.print("[FAIL] {s}: leak checking is not enabled\n", {name})
+        assert false
+    }
+    val new_invalid: i64 = diagnostics.invalid_frees - before.invalid
+
+    val count: i64 = diagnostics.record_count
+    val new_leaks: mut i64 = 0
+    val i: mut i64 = 0
+    for i < count {
+        val current = record_at(diagnostics.records, i)
+        val seen_current: mut i64 = 0
+        val j: mut i64 = 0
+        for j <= i {
+            if same_record(record_at(diagnostics.records, j), current) {
+                seen_current++
+            }
+            j++
+        }
+        val seen_baseline: mut i64 = 0
+        val k: mut i64 = 0
+        for k < before.count {
+            if same_record(record_at(before.records, k), current) {
+                seen_baseline++
+            }
+            k++
+        }
+        if seen_current > seen_baseline {
+            new_leaks++
+            stdio.print(
+                "[FAIL] {s}: new leak of {d} bytes at {s}:{d}\n",
+                {name, current.size, current.file, current.line}
+            )
+        }
+        i++
+    }
+
+    if new_leaks > 0 {
+        testing.pprint(diagnostics)
+        assert false
+    }
+
+    if new_invalid != 0 {
+        stdio.print("[FAIL] {s}: {d} new invalid frees\n", {name, new_invalid})
+        testing.pprint(diagnostics)
+        assert false
+    }
+
+    stdio.print(
+        "[PASS] {s}: {d} allocations, {d} frees, no new live allocations\n",
+        {
+            name,
+            diagnostics.total_allocations,
+            diagnostics.total_frees
+        }
+    )
+}
+
+/// Resolve a module tree into `arena`, returning the root module.
+pub fn resolve(
+    arena: allocators.ScopedArenaAllocator,
+    path: ref u8
+) ref module.ResolvedModule = trust {
+    val result = module.resolve_module(
+        arena,
+        path,
+        mem.new[ref u8](),
+        ".",
+        none
+    )
+    match result {
+        ok resolved => {
+            return resolved
+        }
+        err message => {
+            stdio.print("[FAIL] could not resolve {s}: {s}\n", {path, message})
+            assert false
+        }
+    }
+    return none
+}

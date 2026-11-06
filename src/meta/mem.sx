@@ -86,7 +86,7 @@ pub fn close() void = {
     }
 }
 
-test {
+test "compiler list arena appends items" {
     init()
     val xs: mut list[i64] = new[i64]()
     @append(xs, 1)

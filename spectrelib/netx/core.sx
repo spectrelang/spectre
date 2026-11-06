@@ -696,7 +696,7 @@ pub fn (WebServer) free[A: allocators.GeneralAllocator](
     allocators.free_in[A](ac, server)
 }
 
-test {
+test "web server registers a route" {
     val ac: allocators.HeapAllocator = @zeroed
     val server: mut ref WebServer = trust WebServer.new[allocators.HeapAllocator](ac, 8091 as i32)
     assert server != none

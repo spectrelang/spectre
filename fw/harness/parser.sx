@@ -1,0 +1,49 @@
+/// Leak harness for src/ast/parser.sx.
+///
+/// SPDX-License-Identifier: GPL-3.0-only
+/// (C) Navid Momtahen - 2026
+
+val allocators = use("std/allocators")
+val lexer      = use("../../src/ast/lexer.sx")
+val parser     = use("../../src/ast/parser.sx")
+val mem        = use("../../src/meta/mem.sx")
+val check      = use("lib/check.sx")
+
+test "parser does not leak" {
+    trust {
+        mem.init()
+        val arena: allocators.ScopedArenaAllocator = allocators.ScopedArena.new(
+            4194304 as usize
+        )?
+        val source: ref u8 = \\type Point = { x: i64, y: i64 }
+        \\fn add(a: i64, b: i64) i64 = { return a + b }
+        \\pub fn main() void = {
+        \\    val p: Point = {x: 1, y: 2}
+        \\    if add(p.x, p.y) > 0 {
+        \\        p.x = 3
+        \\    }
+        \\}
+        val token_result = lexer.tokenize_with(arena, source)
+        match token_result {
+            ok tokens => {
+                val parse_result = parser.parse_module_with(arena, tokens, "<harness>")
+                match parse_result {
+                    ok items => {
+                        assert @len(items) as i64 > 0
+                    }
+                    err message => {
+                        @free(message as ref void)
+                        assert false
+                    }
+                }
+            }
+            err message => {
+                @free(message as ref void)
+                assert false
+            }
+        }
+        allocators.ScopedArena.free(arena)
+        mem.close()
+        check.expect_clean("parser")
+    }
+}

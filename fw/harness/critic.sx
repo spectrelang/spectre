@@ -1,0 +1,26 @@
+/// Leak harness for src/meta/critic.sx.
+///
+/// SPDX-License-Identifier: GPL-3.0-only
+/// (C) Navid Momtahen - 2026
+
+val os     = use("std/os")
+val fs     = use("std/fs")
+val mem    = use("../../src/meta/mem.sx")
+val critic = use("../../src/meta/critic.sx")
+val check  = use("lib/check.sx")
+
+test "critic does not leak" {
+    trust {
+        mem.init()
+        val path: ref u8 = "./s-out/checkmem-critic.sx"
+        fs.write_all(path, "pub fn main() void = {\n    val x: i64 = 1\n}\n")
+        val targets: mut list[ref u8] = mem.new[ref u8]()
+        @append(targets, path)
+        val before = check.baseline()
+        val code: i32 = critic.cmd_critic(targets, false)
+        os.delete(path)
+        mem.close()
+        check.expect_clean_since("critic", before)
+        assert code >= 0
+    }
+}

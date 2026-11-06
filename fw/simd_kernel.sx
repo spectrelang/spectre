@@ -3,7 +3,7 @@ val stdio = use("std/stdio")
 val N: i64 = 1024
 val ITERS: i64 = 1000
 
-/// Small autovectorization smoke test used by fw/test_simd.sh.
+/// Autovectorization smoke test used by fw/test_simd.sh.
 ///
 /// The loop is element-wise and contains a vector select, so it exercises the
 /// GNU/Clang vector path and the MSVC intrinsics path.

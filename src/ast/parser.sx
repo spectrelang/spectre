@@ -1380,6 +1380,19 @@ fn kind_is_dotdotdot(k: lexer.TokenKind) bool = trust {
     }
 }
 
+/// Copy a heap string into the parser arena so AST-owned names live exactly
+/// as long as the AST. The temporary builder result can then be released.
+fn p_arena_str(p: ref Parser, s: ref u8) ref u8 = trust {
+    val n: i64 = string.len_raw(s)
+    val out: ref u8 = allocators.ScopedArena.alloc_or_none(
+        p.arena,
+        (n + 1) as usize
+    ) as ref u8
+    @memcpy(out, s, n as usize)
+    @store8(@ptradd(out, n), 0)
+    return out
+}
+
 pub fn parse_type(p: mut ref Parser) result[ref Node, ref u8] = trust {
     val line: i64 = p_line(p)
 
@@ -1418,8 +1431,10 @@ pub fn parse_type(p: mut ref Parser) result[ref Node, ref u8] = trust {
                 string.StringBuilder.append_cstr(sb, seg)
             }
             val built: ref void = string.StringBuilder.build(sb)
+            sz_name = p_arena_str(p, string.cstr(built))
             string.StringBuilder.free(sb)
-            sz_name = string.cstr(built)
+            @free(@load(built))
+            @free(built)
         } else {
             return err p_error(p, "expected integer size in fixed array type")
         }
@@ -1518,8 +1533,10 @@ pub fn parse_type(p: mut ref Parser) result[ref Node, ref u8] = trust {
             string.StringBuilder.append_cstr(sb, seg)
         }
         val full_str: ref void = string.StringBuilder.build(sb)
+        val full: ref u8 = p_arena_str(p, string.cstr(full_str))
         string.StringBuilder.free(sb)
-        val full: ref u8 = string.cstr(full_str)
+        @free(@load(full_str))
+        @free(full_str)
         val nn: mut ref Node = make_node(p.arena, TY_NAMED, line)
         node_store_slot[ref u8](@addr(nn.d0), full)
         return ok nn
@@ -1866,7 +1883,7 @@ fn parse_postfix(p: mut ref Parser) result[ref Node, ref u8] = trust {
             val has_fields: bool =
             kind_is_ident(after_open) && lexer.kind_is_colon(p_peek3_kind(p))
             if has_fields {
-                val type_name: ref u8 = expr_to_type_name(res)
+                val type_name: ref u8 = expr_to_type_name(p, res)
                 if type_name != none {
                     res = parse_struct_lit_fields(p, line, type_name)?
                     continue
@@ -1921,7 +1938,7 @@ fn parse_postfix(p: mut ref Parser) result[ref Node, ref u8] = trust {
     return ok res
 }
 
-fn expr_to_type_name(expr: ref Node) ref u8 = trust {
+fn expr_to_type_name(p: ref Parser, expr: ref Node) ref u8 = trust {
     if expr == none {
         return none
     }
@@ -1931,7 +1948,7 @@ fn expr_to_type_name(expr: ref Node) ref u8 = trust {
     if expr.kind == NK_FIELD {
         val base: ref Node = field_base(expr)
         val field: ref u8 = field_name(expr)
-        val base_name: ref u8 = expr_to_type_name(base)
+        val base_name: ref u8 = expr_to_type_name(p, base)
         if base_name == none || field == none {
             return none
         }
@@ -1940,8 +1957,11 @@ fn expr_to_type_name(expr: ref Node) ref u8 = trust {
         string.StringBuilder.append_char(sb, 46 as u8)
         string.StringBuilder.append_cstr(sb, field)
         val built: ref void = string.StringBuilder.build(sb)
+        val out: ref u8 = p_arena_str(p, string.cstr(built))
         string.StringBuilder.free(sb)
-        return string.cstr(built)
+        @free(@load(built))
+        @free(built)
+        return out
     }
     return none
 }
@@ -2195,8 +2215,11 @@ fn parse_when_selector(p: mut ref Parser) result[ref u8, ref u8] = trust {
         string.StringBuilder.append_cstr(sb, seg)
     }
     val built: ref void = string.StringBuilder.build(sb)
+    val out: ref u8 = p_arena_str(p, string.cstr(built))
     string.StringBuilder.free(sb)
-    return ok string.cstr(built)
+    @free(@load(built))
+    @free(built)
+    return ok out
 }
 
 fn parse_contracts(p: mut ref Parser) result[list[ref Node], ref u8] = trust {
@@ -3540,8 +3563,10 @@ fn parse_type_def_item(
             string.StringBuilder.append_cstr(sb, seg)
         }
         val full_spec: ref void = string.StringBuilder.build(sb)
+        spec_name = p_arena_str(p, string.cstr(full_spec))
         string.StringBuilder.free(sb)
-        spec_name = string.cstr(full_spec)
+        @free(@load(full_spec))
+        @free(full_spec)
         p_expect_rparen(p)?
     }
     val name = p_expect_ident(p)?
@@ -4102,7 +4127,7 @@ fn parse_expr_src(src: ref u8) result[ref Node, ref u8] = {
     }
 }
 
-test {
+test "parser parses expressions, statements and top-level items" {
     val r1 = parse_expr_src("42")
     match r1 {
         err e => {

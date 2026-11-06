@@ -621,7 +621,7 @@ pub fn fma(a: f64, b: f64, c: f64) f64 = {
     return a * b + c
 }
 
-test {
+test "math helpers compute expected values" {
     @puts("running")
 
     assert clamp(10, 0, 5) == 5

@@ -331,6 +331,15 @@ fn stmt_references_import_shallow(node: ref parser.Node, import_name: ref u8) bo
         return expr_references_import_shallow(node.d0 as ref parser.Node, import_name)
     } elif node.kind == parser.NK_EXPR_STMT {
         return expr_references_import_shallow(node.d0 as ref parser.Node, import_name)
+    } elif node.kind == parser.NK_TRUST_BLOCK {
+        val block_body: ref void = node.d0 as ref void
+        if block_body != none {
+            for block_stmt in block_body as list[ref parser.Node] {
+                if stmt_references_import_shallow(block_stmt, import_name) {
+                    return true
+                }
+            }
+        }
     } elif node.kind == parser.NK_ASSERT {
         return expr_references_import_shallow(node.d0 as ref parser.Node, import_name)
     } elif node.kind == parser.NK_WHEN_STMT {
@@ -2199,6 +2208,11 @@ fn collect_needed_subnames_in_stmt(
         collect_needed_subnames_in_expr(stmt.d0 as ref parser.Node, import_name, needed)
     } elif stmt.kind == parser.NK_EXPR_STMT {
         collect_needed_subnames_in_expr(stmt.d0 as ref parser.Node, import_name, needed)
+    } elif stmt.kind == parser.NK_TRUST_BLOCK {
+        val block_body: ref void = stmt.d0 as ref void
+        if block_body != none {
+            collect_needed_subnames_in_stmts(block_body, import_name, needed)
+        }
     } elif stmt.kind == parser.NK_GUARD {
         collect_needed_subnames_in_expr(stmt.d0 as ref parser.Node, import_name, needed)
         val guard_body2: ref void = stmt.d1 as ref void
@@ -2783,6 +2797,13 @@ fn collect_used_imports_stmt(
         collect_used_imports_expr(node.d0 as ref parser.Node, import_names, used)
     } elif node.kind == parser.NK_EXPR_STMT {
         collect_used_imports_expr(node.d0 as ref parser.Node, import_names, used)
+    } elif node.kind == parser.NK_TRUST_BLOCK {
+        val block_body: ref void = node.d0 as ref void
+        if block_body != none {
+            for block_stmt in block_body as list[ref parser.Node] {
+                collect_used_imports_stmt(block_stmt, import_names, used)
+            }
+        }
     } elif node.kind == parser.NK_ASSERT {
         collect_used_imports_expr(node.d0 as ref parser.Node, import_names, used)
     } elif node.kind == parser.NK_ADD_ASSIGN || node.kind == parser.NK_SUB_ASSIGN {

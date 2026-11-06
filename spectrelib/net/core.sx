@@ -587,7 +587,7 @@ pub fn (TcpServer) fd(server: ref ServerHandle) i64 = {
     return server.fd
 }
 
-test {
+test "event loop and tcp server manage sockets" {
     val ac: allocators.HeapAllocator = @zeroed
 
     val loop = trust EventLoop.new[allocators.HeapAllocator](ac)?

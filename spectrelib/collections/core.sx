@@ -476,7 +476,7 @@ pub fn (Map) clear(map: self) void = {
     trust @store(@ptradd(header, 8), 0)
 }
 
-test {
+test "int map stores, updates and deletes keys" {
     @puts("STARTING 2")
     val heap: allocators.HeapAllocator = @zeroed
     val m: mut Map = trust Map.new[allocators.HeapAllocator](heap, 8 as usize, @addr(hash_identity))
@@ -570,7 +570,7 @@ test {
     stdio.puts("map tests passed")
 }
 
-test {
+test "pointer list appends, gets and resizes" {
     val heap: allocators.HeapAllocator = @zeroed
 
     val list: mut ref void = trust PtrList.new[allocators.HeapAllocator](heap, 2 as usize)?
@@ -812,7 +812,7 @@ pub fn (StringMap) free[A: allocators.GeneralAllocator](ac: A, map: self) void =
     allocators.free_in[A](ac, header)
 }
 
-test {
+test "string map stores, updates and deletes keys" {
     @puts("sm: new")
     val heap: allocators.HeapAllocator = @zeroed
     val m: StringMap = trust StringMap.new[allocators.HeapAllocator](heap, 8 as usize)
@@ -1165,7 +1165,7 @@ pub fn (RawIndexMap) free(map: ref void) void = trust {
     allocators.HeapAllocator.free(heap, map)
 }
 
-test {
+test "index map preserves insertion order" {
     val heap: allocators.HeapAllocator = @zeroed
     val m: IndexMap = trust IndexMap.new[allocators.HeapAllocator](heap, 8 as usize)
 
@@ -1269,7 +1269,7 @@ test {
     stdio.puts("index map tests passed")
 }
 
-test {
+test "raw index map stores and retrieves values" {
     val m: ref void = trust RawIndexMap.new(8 as usize)
     trust RawIndexMap.set(m, "hello", 11 as usize)
     assert RawIndexMap.contains(m, "hello")
@@ -1530,7 +1530,7 @@ pub fn (LongMap) free[A: allocators.GeneralAllocator](ac: A, map: ref void) void
     allocators.free_in[A](ac, map)
 }
 
-test {
+test "long map adds and retrieves values" {
     val heap: allocators.HeapAllocator = @zeroed
     trust {
         val map: ref void = LongMap.new[allocators.HeapAllocator](heap, 8 as usize)

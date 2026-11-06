@@ -169,6 +169,10 @@ fn cc_new() ref CCtx = trust {
     return ctx
 }
 
+fn cc_free_ctx(ctx: mut ref CCtx) void = trust {
+    @free(ctx as ref void)
+}
+
 fn cc_platform_matches(ctx: ref CCtx, name: ref u8) bool = trust {
     return codegen.platform_matches_with_target(name, ctx.src_target)
 }
@@ -1700,6 +1704,8 @@ fn cc_monomorphize_generic_fn(ctx: mut ref CCtx, gfn_node: ref parser.Node, gfn_
         val temp_built: ref void = str.StringBuilder.build(temp_mono_sb)
         str.StringBuilder.append_cstr(ctx.mono_sb, str.cstr(temp_built))
         str.StringBuilder.free(temp_mono_sb)
+        @free(@load(temp_built))
+        @free(temp_built)
     }
     ctx.gsubst_names = old_gsubst_names
     ctx.gsubst_tnodes = old_gsubst_tnodes
@@ -2665,6 +2671,13 @@ fn cc_defer_push(ctx: ref CCtx, body: ref parser.Node) void = trust {
 
 fn cc_emit_defers(ctx: mut ref CCtx) void = trust {
     val n: i64 = @len(ctx.defer_stack) as i64
+    if n == 0 {
+        return
+    }
+    // Each emission gets its own C scope. A defer can be emitted at several
+    // return sites, and a body that declares locals must not collide with the
+    // declarations emitted for another return path.
+    emitln(ctx, "{")
     val i: mut i64 = n - 1
     for {
         if i < 0 {
@@ -2676,6 +2689,7 @@ fn cc_emit_defers(ctx: mut ref CCtx) void = trust {
         }
         i--
     }
+    emitln(ctx, "}")
 }
 
 fn cc_handle_block_defers(ctx: mut ref CCtx, target_depth: i64) void = trust {
@@ -2690,6 +2704,111 @@ fn cc_handle_block_defers(ctx: mut ref CCtx, target_depth: i64) void = trust {
         }
         @remove(ctx.defer_stack, (n - 1) as usize)
     }
+}
+
+/// Drop defers that belong to a block that cannot fall through. They have
+/// already been emitted at the terminating statement (return, break, etc.).
+fn cc_discard_block_defers(ctx: mut ref CCtx, target_depth: i64) void = trust {
+    for {
+        val n: i64 = @len(ctx.defer_stack) as i64
+        if n <= target_depth {
+            break
+        }
+        @remove(ctx.defer_stack, (n - 1) as usize)
+    }
+}
+
+fn cc_stmt_terminated(ctx: mut ref CCtx, stmt: ref parser.Node) bool = trust {
+    if stmt == none {
+        return false
+    }
+    val k: i64 = stmt.kind
+    if k == parser.NK_RETURN || k == parser.NK_BREAK || k == parser.NK_CONTINUE {
+        return true
+    }
+    if k == parser.NK_TRUST_BLOCK {
+        return cc_stmts_terminated(ctx, stmt.d0 as ref parser.Node)
+    }
+    if k == parser.NK_WHEN_STMT {
+        return cc_when_stmt_terminated(ctx, stmt)
+    }
+    return false
+}
+
+/// Returns true if the effective last statement in a list cannot fall through.
+fn cc_stmts_terminated(ctx: mut ref CCtx, stmts: ref parser.Node) bool = trust {
+    if stmts == none {
+        return false
+    }
+    val len: i64 = @len(stmts) as i64
+    if len == 0 {
+        return false
+    }
+    val last_opt = @get(stmts, (len - 1) as usize)
+    if last_opt is some last {
+        val s: ref parser.Node = last as ref parser.Node
+        if s.kind == parser.NK_GENERIC_WHEN {
+            val start: mut i64 = len - 1
+            for {
+                if start <= 0 {
+                    break
+                }
+                val prev_opt = @get(stmts, (start - 1) as usize)
+                if prev_opt is some prev {
+                    if ((prev as ref parser.Node).kind != parser.NK_GENERIC_WHEN) {
+                        break
+                    }
+                    start--
+                } else {
+                    break
+                }
+            }
+            val gi: mut i64 = start
+            for {
+                if gi >= len {
+                    break
+                }
+                val g_opt = @get(stmts, gi as usize)
+                if g_opt is some g {
+                    val gnode: ref parser.Node = g as ref parser.Node
+                    if gnode.kind != parser.NK_GENERIC_WHEN {
+                        break
+                    }
+                    if cc_gwhen_matches(ctx, gnode) {
+                        return cc_stmts_terminated(ctx, gnode.d1 as ref parser.Node)
+                    }
+                } else {
+                    break
+                }
+                gi++
+            }
+            return false
+        }
+        return cc_stmt_terminated(ctx, s)
+    }
+    return false
+}
+
+/// Returns true if the active branch of a NK_WHEN_STMT cannot fall through.
+fn cc_when_stmt_terminated(ctx: mut ref CCtx, stmt: ref parser.Node) bool = trust {
+    val plat: ref u8 = stmt.d0 as ref u8
+    if cc_platform_matches(ctx, plat) {
+        return cc_stmts_terminated(ctx, stmt.d1 as ref parser.Node)
+    }
+    val or_when_branches: ref void = stmt.d2 as ref void
+    if or_when_branches != none {
+        for ow_node in or_when_branches as list[ref parser.Node] {
+            val ow_plat: ref u8 = ow_node.d0 as ref u8
+            if cc_platform_matches(ctx, ow_plat) {
+                return cc_stmts_terminated(ctx, ow_node.d1 as ref parser.Node)
+            }
+        }
+    }
+    val otherwise_stmts: ref void = stmt.d3 as ref void
+    if otherwise_stmts != none {
+        return cc_stmts_terminated(ctx, stmt.d3 as ref parser.Node)
+    }
+    return false
 }
 
 fn field_offset_bytes(ctx: ref CCtx, fields: ref void, field_name: ref u8) i64 = trust {
@@ -3077,6 +3196,7 @@ fn cc_expand_argspack_pack(ctx: ref CCtx, pack_val: ref u8) ref u8 = trust {
     val built: ref void = str.StringBuilder.build(sb)
     val out: ref u8 = str.cstr(built)
     str.StringBuilder.free(sb)
+    @free(built)
     return out
 }
 
@@ -4839,6 +4959,8 @@ fn cc_embed_data(ctx: mut ref CCtx, path: ref u8, size: i64) ref u8 = trust {
     val built: ref void = str.StringBuilder.build(sb)
     str.StringBuilder.append_cstr(ctx.fwd_sb, str.cstr(built))
     str.StringBuilder.free(sb)
+    @free(@load(built))
+    @free(built)
     return label
 }
 
@@ -6008,6 +6130,8 @@ fn gen_builtin(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
             val built: ref void = str.StringBuilder.build(sb)
             emit(ctx, str.cstr(built))
             str.StringBuilder.free(sb)
+            @free(@load(built))
+            @free(built)
             val er: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 128 as usize) as ref u8
             @snprintf(er, 128, "sx__le{lld}", {arr_tmp})
             elems_ref = er
@@ -7042,6 +7166,7 @@ fn gen_stmts(ctx: mut ref CCtx, stmts: ref parser.Node) void = trust {
     val old_depth: i64 = @len(ctx.defer_stack) as i64
     val len: i64 = @len(stmts) as i64
     val i: mut i64 = 0
+    val terminated: mut bool = false
     for {
         if i >= len {
             break
@@ -7051,6 +7176,7 @@ fn gen_stmts(ctx: mut ref CCtx, stmts: ref parser.Node) void = trust {
             val sn: ref parser.Node = s as ref parser.Node
             if sn.kind == parser.NK_GENERIC_WHEN {
                 val matched: mut bool = false
+                val matched_terminated: mut bool = false
                 val j: mut i64 = i
                 for {
                     if j >= len {
@@ -7065,22 +7191,38 @@ fn gen_stmts(ctx: mut ref CCtx, stmts: ref parser.Node) void = trust {
                         if !matched && cc_gwhen_matches(ctx, sn2) {
                             gen_stmts(ctx, sn2.d1 as ref parser.Node)
                             matched = true
+                            matched_terminated = cc_stmts_terminated(
+                                ctx,
+                                sn2.d1 as ref parser.Node
+                            )
                         }
                     } else {
                         break
                     }
                     j++
                 }
+                if matched_terminated {
+                    terminated = true
+                    break
+                }
                 i = j
                 continue
             } else {
                 gen_stmt(ctx, sn)
+                if cc_stmt_terminated(ctx, sn) {
+                    terminated = true
+                    break
+                }
             }
         }
         i++
     }
 
-    cc_handle_block_defers(ctx, old_depth)
+    if terminated {
+        cc_discard_block_defers(ctx, old_depth)
+    } else {
+        cc_handle_block_defers(ctx, old_depth)
+    }
 }
 
 fn gen_stmt(ctx: mut ref CCtx, stmt: ref parser.Node) void = trust {
@@ -9908,6 +10050,8 @@ fn gen_init_fn(ctx: mut ref CCtx) void = trust {
     emit(ctx, body_str)
     emitln(ctx, "}")
     emitln(ctx, "")
+    @free(@load(init_body))
+    @free(init_body)
 }
 
 fn gen_items_with_prefix_skip_main(
@@ -10082,7 +10226,9 @@ pub fn gen_module_c_test(
 ) ref u8 = trust {
     val ctx: mut ref CCtx = cc_new()
     defer {
-        allocators.ScopedArena.free(ctx.arena)
+        val arena = ctx.arena
+        cc_free_ctx(ctx)
+        allocators.ScopedArena.free(arena)
     }
     ctx.release_mode = release_mode
     ctx.leak_check = leak_check
@@ -10200,6 +10346,7 @@ pub fn gen_module_c_test(
     @free(body_built)
     str.StringBuilder.free(ctx.fwd_sb)
     str.StringBuilder.free(ctx.mono_sb)
+    str.StringBuilder.free(ctx.init_sb)
     str.StringBuilder.free(ctx.sb)
     return result
 }
@@ -10215,7 +10362,9 @@ pub fn gen_module_c(
 ) ref u8 = trust {
     val ctx: mut ref CCtx = cc_new()
     defer {
-        allocators.ScopedArena.free(ctx.arena)
+        val arena = ctx.arena
+        cc_free_ctx(ctx)
+        allocators.ScopedArena.free(arena)
     }
     ctx.release_mode = release_mode
     ctx.leak_check = leak_check
@@ -10303,6 +10452,7 @@ pub fn gen_module_c(
     @free(body_built)
     str.StringBuilder.free(ctx.fwd_sb)
     str.StringBuilder.free(ctx.mono_sb)
+    str.StringBuilder.free(ctx.init_sb)
     str.StringBuilder.free(ctx.sb)
     return result
 }

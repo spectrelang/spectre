@@ -226,6 +226,19 @@ fn cg_new() ref CgCtx = trust {
     return ctx
 }
 
+fn cg_free_ctx(ctx: mut ref CgCtx) void = trust {
+    if ctx.mc_index != none {
+        collections.RawIndexMap.free(ctx.mc_index)
+    }
+    if ctx.fn_name_index != none {
+        collections.RawIndexMap.free(ctx.fn_name_index)
+    }
+    if ctx.c_const_index != none {
+        collections.RawIndexMap.free(ctx.c_const_index)
+    }
+    @free(ctx as ref void)
+}
+
 fn cg_sb(ctx: ref CgCtx) ref void = {
     return ctx.sb as ref void
 }
@@ -1586,6 +1599,8 @@ fn monomorphize_generic_fn(ctx: mut ref CgCtx, gfn_node: ref parser.Node, gfn_pr
         val temp_built: ref void = str.StringBuilder.build(temp_mono_sb)
         str.StringBuilder.append_cstr(ctx.mono_sb, str.cstr(temp_built))
         str.StringBuilder.free(temp_mono_sb)
+        @free(@load(temp_built))
+        @free(temp_built)
     }
 
     ctx.gsubst_names = old_gsubst_names
@@ -2106,6 +2121,7 @@ fn cg_build_c_shim(ctx: ref CgCtx) ref u8 = trust {
     val built: ref void = str.StringBuilder.build(sb)
     val out: ref u8 = str.cstr(built)
     str.StringBuilder.free(sb)
+    @free(built)
     return out
 }
 
@@ -4851,6 +4867,7 @@ fn cg_expand_argspack_pack_args(
     val built: ref void = str.StringBuilder.build(sb)
     val out: ref u8 = str.cstr(built)
     str.StringBuilder.free(sb)
+    @free(built)
     return out
 }
 
@@ -5038,8 +5055,10 @@ fn type_expr_to_annotation(ctx: mut ref CgCtx, ty: ref parser.Node) ref u8 = tru
         str.StringBuilder.append_cstr(sb, ") ")
         str.StringBuilder.append_cstr(sb, type_expr_to_annotation(ctx, ty.d1 as ref parser.Node))
         val built: ref void = str.StringBuilder.build(sb)
+        val out: ref u8 = str.cstr(built)
         str.StringBuilder.free(sb)
-        return str.cstr(built)
+        @free(built)
+        return out
     }
 
     return ""
@@ -10811,6 +10830,8 @@ fn cg_emit_embed_data(ctx: ref CgCtx, path: ref u8, label: ref u8, size: i64) vo
     val built: ref void = str.StringBuilder.build(sb)
     str.StringBuilder.append_cstr(ctx.embed_sb, str.cstr(built))
     str.StringBuilder.free(sb)
+    @free(@load(built))
+    @free(built)
 }
 
 fn cg_first_type_arg(targs: list[ref parser.Node]) ref parser.Node = trust {
@@ -11638,6 +11659,8 @@ fn gen_builtin(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
         val scall_line: ref void = str.StringBuilder.build(scall_sb)
         str.StringBuilder.free(scall_sb)
         emit(ctx, str.cstr(scall_line))
+        @free(@load(scall_line))
+        @free(scall_line)
         val sext_tmp: i64 = fresh_tmp(ctx)
         val sext_buf: ref u8 = allocators.ScopedArena.alloc_or_none(
             ctx.arena,
@@ -13011,6 +13034,8 @@ fn gen_builtin(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
         val fmt_call_line: ref void = str.StringBuilder.build(fmt_call_sb)
         str.StringBuilder.free(fmt_call_sb)
         emit(ctx, str.cstr(fmt_call_line))
+        @free(@load(fmt_call_line))
+        @free(fmt_call_line)
         // extsw, malloc copy, memcpy, nul-terminate, free buf
         val tail_buf: ref u8 = allocators.ScopedArena.alloc_or_none(
             ctx.arena,
@@ -13249,6 +13274,8 @@ fn gen_builtin(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
                 val call_line3: ref void = str.StringBuilder.build(call_sb2)
                 str.StringBuilder.free(call_sb2)
                 emit(ctx, str.cstr(call_line3))
+                @free(@load(call_line3))
+                @free(call_line3)
                 if has_sret {
                     @snprintf(buf, 512, "    %%t{lld} =l copy %%t{lld}\n", {tmp, ret_buf_tmp})
                     emit(ctx, buf)
@@ -13334,6 +13361,8 @@ fn gen_builtin(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
         val call_line2: ref void = str.StringBuilder.build(call_sb)
         str.StringBuilder.free(call_sb)
         emitln(ctx, str.cstr(call_line2))
+        @free(@load(call_line2))
+        @free(call_line2)
     }
     val res: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 16 as usize) as ref u8
     @snprintf(res, 16, "%%t{lld}", {tmp})
@@ -18280,6 +18309,7 @@ fn cg_flush_qbe_fn(
                 val a_opt = @get(allocs, ai as usize)
                 if a_opt is some a {
                     cg_append_qbe_line(out, a as ref u8)
+                    @free(a as ref void)
                 }
                 ai++
             }
@@ -18287,6 +18317,7 @@ fn cg_flush_qbe_fn(
         val l_opt = @get(lines, i as usize)
         if l_opt is some l {
             cg_append_qbe_line(out, l as ref u8)
+            @free(l as ref void)
         }
         i++
     }
@@ -18299,6 +18330,7 @@ fn cg_flush_qbe_fn(
             val a2_opt = @get(allocs, ai2 as usize)
             if a2_opt is some a2 {
                 cg_append_qbe_line(out, a2 as ref u8)
+                @free(a2 as ref void)
             }
             ai2++
         }
@@ -18341,11 +18373,13 @@ fn cg_hoist_qbe_allocs(qbe: ref u8) ref u8 = trust {
                     @append(lines, line)
                 } else {
                     cg_append_qbe_line(out, line)
+                    @free(line as ref void)
                 }
             } else {
                 if str.raw_cmp(line, "}") == 0 {
                     cg_flush_qbe_fn(out, lines, allocs, insert_at)
                     cg_append_qbe_line(out, line)
+                    @free(line as ref void)
                     in_fn = false
                 } elif cg_contains_raw(line, "=l alloc") {
                     @append(allocs, line)
@@ -18370,6 +18404,8 @@ fn cg_hoist_qbe_allocs(qbe: ref u8) ref u8 = trust {
     val built: ref void = str.StringBuilder.build(out)
     val result: ref u8 = str.cstr(built)
     str.StringBuilder.free(out)
+    @free(built)
+    @free(qbe as ref void)
     return result
 }
 
@@ -18378,14 +18414,19 @@ fn cg_finish_qbe(ctx: mut ref CgCtx) ref u8 = trust {
     val mono_str: ref u8 = str.cstr(mono_built)
     str.StringBuilder.append_cstr(cg_sb(ctx), mono_str)
     str.StringBuilder.free(ctx.mono_sb)
+    @free(@load(mono_built))
+    @free(mono_built)
 
     val embed_built: ref void = str.StringBuilder.build(ctx.embed_sb)
     str.StringBuilder.append_cstr(cg_sb(ctx), str.cstr(embed_built))
     str.StringBuilder.free(ctx.embed_sb)
+    @free(@load(embed_built))
+    @free(embed_built)
 
     val built: ref void = str.StringBuilder.build(cg_sb(ctx))
     val result: ref u8 = str.cstr(built)
     str.StringBuilder.free(cg_sb(ctx))
+    @free(built)
     return cg_hoist_qbe_allocs(result)
 }
 
@@ -18399,7 +18440,9 @@ pub fn gen_module_resolved(
 ) ref CgOutput = trust {
     val ctx: mut ref CgCtx = cg_new()
     defer {
-        allocators.ScopedArena.free(ctx.arena)
+        val arena = ctx.arena
+        cg_free_ctx(ctx)
+        allocators.ScopedArena.free(arena)
     }
     ctx.release_mode = release_mode
     ctx.leak_check = leak_check
@@ -18528,7 +18571,9 @@ pub fn gen_module_resolved(
 pub fn get_used_prefixes(root: ref module.ResolvedModule) list[ref u8] = trust {
     val ctx: mut ref CgCtx = cg_new()
     defer {
-        allocators.ScopedArena.free(ctx.arena)
+        val arena = ctx.arena
+        cg_free_ctx(ctx)
+        allocators.ScopedArena.free(arena)
     }
 
     val out_prefixes: mut list[ref u8] = mem.new[ref u8]()
@@ -18597,7 +18642,8 @@ pub fn get_used_prefixes(root: ref module.ResolvedModule) list[ref u8] = trust {
         }
     }
 
-    return ctx.used_prefixes
+    val result: list[ref u8] = ctx.used_prefixes
+    return result
 }
 
 /// Emit a single test block as a numbered function. Returns the function name.
@@ -18745,7 +18791,9 @@ pub fn gen_module_resolved_test(
 ) ref CgOutput = trust {
     val ctx: mut ref CgCtx = cg_new()
     defer {
-        allocators.ScopedArena.free(ctx.arena)
+        val arena = ctx.arena
+        cg_free_ctx(ctx)
+        allocators.ScopedArena.free(arena)
     }
     ctx.release_mode = release_mode
     ctx.leak_check = leak_check
@@ -19258,7 +19306,9 @@ fn gen_items_with_prefix_skip_main(
 pub fn gen_module(items: list[ref parser.Node]) ref u8 = trust {
     val ctx: mut ref CgCtx = cg_new()
     defer {
-        allocators.ScopedArena.free(ctx.arena)
+        val arena = ctx.arena
+        cg_free_ctx(ctx)
+        allocators.ScopedArena.free(arena)
     }
 
     emit_runtime_helpers(ctx)

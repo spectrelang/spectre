@@ -98,7 +98,7 @@ pub fn fatal(msg: ref u8) void = {
     trust os.exit(1)
 }
 
-test {
+test "log levels filter messages" {
     set_colors(false)
     set_level(Level.Debug)
     debug("This is a debug")

@@ -491,7 +491,7 @@ fn test_f64_roundtrip(x: f64) void = trust {
     allocators.Arena.free(arena)
 }
 
-test {
+test "integer, float and format string helpers roundtrip" {
     val arena: mut allocators.Arena = trust allocators.Arena.new(4096 as usize)?
     val s: mut ref u8 = ""
 

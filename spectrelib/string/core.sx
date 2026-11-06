@@ -1098,7 +1098,7 @@ pub fn (StringBuilder) build(sb: self) String = trust {
 pub fn (StringBuilder) free(sb: self) void = trust {
     val ptr: ref void = @load(sb as ref void)
     @free(ptr)
-    val hdr: mut StringBuilder = sb
+    val hdr: mut ref void = sb as ref void
     @free(hdr)
 }
 
@@ -1137,7 +1137,7 @@ pub fn copy(dst: ref u8, dst_off: i64, src: ref u8) void = trust {
     @memcpy(@ptradd(dst, dst_off), src, slen)
 }
 
-test {
+test "string operations build, search and transform" {
     val arena: mut allocators.Arena = trust allocators.Arena.new(32768 as usize)?
     val empty = trust new()
     assert len(empty) == 0

@@ -1294,7 +1294,7 @@ pub fn kind_is_invariant(k: TokenKind) bool = {
     }
 }
 
-test {
+test "lexer tokenizes keywords, literals, operators and comments" {
     val r1 = trust tokenize("fn val mut pub return if else for")
     match r1 {
         err _ => {

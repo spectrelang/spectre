@@ -1,0 +1,22 @@
+/// Leak harness for src/translate/c_translate.sx.
+///
+/// SPDX-License-Identifier: GPL-3.0-only
+/// (C) Navid Momtahen - 2026
+
+val os          = use("std/os")
+val mem         = use("../../src/meta/mem.sx")
+val c_translate = use("../../src/translate/c_translate.sx")
+val check       = use("lib/check.sx")
+
+test "c translator does not leak" {
+    trust {
+        mem.init()
+        val before = check.baseline()
+        val output: ref u8 = "./s-out/checkmem-c.sx"
+        val code: i32 = c_translate.translate_c("./samples/csamples/hello.c", output)
+        os.delete(output)
+        mem.close()
+        check.expect_clean_since("c_translate", before)
+        assert code == 0
+    }
+}

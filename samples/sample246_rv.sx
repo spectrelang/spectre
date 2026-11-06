@@ -1,0 +1,19 @@
+val counter: mut i64 = 0
+
+fn deferred_value(x: i64) i64 = trust {
+    val local: i64 = x
+    defer {
+        val cleanup: i64 = local + 1
+        counter = counter + cleanup
+    }
+    if x < 0 {
+        return -1
+    }
+    return x * 2
+}
+
+pub fn main() void = trust {
+    assert deferred_value(5) == 10
+    assert deferred_value(-1) == -1
+    assert counter == 6
+}

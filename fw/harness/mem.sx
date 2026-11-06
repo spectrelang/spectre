@@ -1,0 +1,19 @@
+/// Leak harness for src/meta/mem.sx.
+///
+/// SPDX-License-Identifier: GPL-3.0-only
+/// (C) Navid Momtahen - 2026
+
+val mem   = use("../../src/meta/mem.sx")
+val check = use("lib/check.sx")
+
+test "compiler list arena does not leak" {
+    trust {
+        mem.init()
+        val values: mut list[i64] = mem.new[i64]()
+        @append(values, 1)
+        @append(values, 2)
+        assert @len(values) as i64 == 2
+        mem.close()
+        check.expect_clean("mem")
+    }
+}

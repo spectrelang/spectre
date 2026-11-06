@@ -1,4 +1,4 @@
-.PHONY: all cprev clean test_fmt test_critic
+.PHONY: all cprev clean test_fmt test_critic checkmem checkmem-strict
 
 all:
 ifeq ($(OS),Windows_NT)
@@ -24,6 +24,12 @@ test_fmt:
 
 test_critic:
 	@bash ./fw/test_critic.sh
+
+checkmem:
+	@bash ./fw/checkmem.sh
+
+checkmem-strict:
+	@bash ./fw/checkmem.sh --strict
 
 test_surface:
 	@bash ./fw/test_alt.sh

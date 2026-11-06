@@ -57,7 +57,9 @@ pub fn (Arena) new(capacity: usize) result[Allocator, AllocError] = trust {
 pub fn (Arena) free(arena: mut self) void = trust {
     val buf: mut ref void = @load(arena)
     @free(buf)
-    @free(arena)
+    val hdr: mut ref void = arena as ref void
+    @free(hdr)
+    arena = arena
 }
 
 /// Allocate `size` bytes from the arena.
@@ -141,7 +143,7 @@ pub fn (Arena) reset(arena: self) void = trust {
     @store(@ptradd(arena, 8), 0)
 }
 
-test {
+test "arena allocates and tracks usage" {
     val arena: mut Arena = trust Arena.new(64 as usize)?
 
     stdio.puts("done making new arena")
@@ -234,7 +236,7 @@ pub fn (Stack) free(stack: mut self) void = trust {
     @free(stack)
 }
 
-test {
+test "stack allocator saves and restores markers" {
     val stack: mut Stack = trust Stack.new(1024 as usize)?
     val marker = Stack.save(stack)
     val tmp1 = Stack.alloc(stack, 200 as usize)
@@ -351,7 +353,7 @@ pub fn realloc_in[A: GeneralAllocator](ac: A, ptr: ref void, new_size: usize) op
     return A.realloc(ac, ptr, new_size)
 }
 
-test {
+test "heap allocator allocates, reallocs and frees" {
     val alloc: HeapAllocator = @zeroed
     val p1 = trust HeapAllocator.alloc(alloc, 16 as usize)
     assert p1 != none
@@ -555,7 +557,7 @@ pub fn (ListArena) realloc(a: self, ptr: ref void, new_size: usize) option[ref v
     return none
 }
 
-test {
+test "scoped arena grows past its block size" {
     val sa: ScopedArenaAllocator = trust ScopedArena.new(64 as usize)?
     val p1: mut ref void = ScopedArena.alloc_or_none(sa, 16 as usize)
     val p2: mut ref void = ScopedArena.alloc_or_none(sa, 200 as usize)
@@ -575,7 +577,7 @@ test {
     trust ScopedArena.free(sa)
 }
 
-test {
+test "list arena appends items" {
     val sa: ScopedArenaAllocator = trust ScopedArena.new(128 as usize)?
     val la: ListArena = {arena: sa}
     val xs: mut list[i64] = @listalloc[ListArena, i64](la)?

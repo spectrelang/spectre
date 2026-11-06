@@ -167,6 +167,7 @@ pub fn canonicalize_path(path: ref u8) ref u8 = trust {
         @memcpy(seg, @ptradd(path, start), seg_len as usize)
         @store8(@ptradd(seg, seg_len), 0)
         if str.raw_cmp(seg, ".") == 0 {
+            @free(seg as ref void)
             continue
         }
         if str.raw_cmp(seg, "..") == 0 {
@@ -176,19 +177,27 @@ pub fn canonicalize_path(path: ref u8) ref u8 = trust {
                 match last_opt {
                     some last => {
                         if str.raw_cmp(last as ref u8, "..") != 0 {
+                            @free(last as ref void)
                             @remove(segs, segs_len - 1)
+                            @free(seg as ref void)
                         } elif !is_abs {
                             @append(segs, seg)
+                        } else {
+                            @free(seg as ref void)
                         }
                     }
                     none => {
                         if !is_abs {
                             @append(segs, seg)
+                        } else {
+                            @free(seg as ref void)
                         }
                     }
                 }
             } elif !is_abs {
                 @append(segs, seg)
+            } else {
+                @free(seg as ref void)
             }
             continue
         }
@@ -215,19 +224,32 @@ pub fn canonicalize_path(path: ref u8) ref u8 = trust {
     val built: ref void = str.StringBuilder.build(sb)
     val out: ref u8 = str.cstr(built)
     str.StringBuilder.free(sb)
+    @free(built)
+    val fi: mut i64 = 0
+    for fi < @len(segs) as i64 {
+        val seg_opt = @get(segs, fi as usize)
+        if seg_opt is some seg {
+            val seg_ptr: mut ref u8 = seg as ref u8
+            @free(seg_ptr as ref void)
+        }
+        fi++
+    }
     if str.len_raw(out) == 0 {
+        @free(out as ref void)
         if is_abs {
             return "/"
         }
         return "."
     }
     if keep_dot_prefix && @load8(@ptradd(out, 0)) != 46 {
-        return @fmtalloc("./{s}", {out})
+        val prefixed: ref u8 = @fmtalloc("./{s}", {out})
+        @free(out as ref void)
+        return prefixed
     }
     return out
 }
 
-test {
+test "path canonicalization normalizes segments" {
     assert str.raw_cmp(
         trust canonicalize_path("./samples/bigproj/hi/../mod1.sx"),
         "./samples/bigproj/mod1.sx"

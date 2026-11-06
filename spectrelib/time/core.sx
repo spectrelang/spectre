@@ -290,7 +290,7 @@ pub fn (DateTime) diff_seconds(a: self, b: self) i64 = {
     return ua - ub
 }
 
-test {
+test "datetime and clock helpers return values" {
     val dt: DateTime = DateTime.new(2026, 4, 2, 14, 30, 0, 0)
     assert DateTime.year(dt) == 2026
     assert DateTime.month(dt) == 4
