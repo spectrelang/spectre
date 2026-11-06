@@ -900,6 +900,12 @@ pub fn main() i32 = trust {
                     perf_flags
                 }
             )
+            if string.raw_cmp(compiler_kind, "clang-cl") == 0 {
+                cc_flags_alt = @fmtalloc(
+                    "{s} -Wno-error=int-conversion",
+                    {cc_flags_alt}
+                )
+            }
         } else {
             cc_flags_alt = @fmtalloc(
                 "{s} {s} {s} -Wno-error=int-conversion{s}",
