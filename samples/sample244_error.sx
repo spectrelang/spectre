@@ -1,0 +1,19 @@
+fn accept_u8(x: u8) void = trust {
+    @print("{d}", {x})
+}
+
+fn accept_u16(x: u16) void = trust {
+    @print("{d}", {x})
+}
+
+fn accept_u32(x: u32) void = trust {
+    @print("{d}", {x})
+}
+
+pub fn main() void = {
+    trust {
+        accept_u8(255)
+        accept_u16(655350)
+        accept_u32(6553500)
+    }
+}
