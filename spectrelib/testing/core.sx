@@ -22,43 +22,24 @@ pub type LeakDiagnostics = {
     invalid_frees: i64
 }
 
+val LEAK_TABLE_FMT: ref u8 = "LeakDiagnostics\nmetric              {12s}\nenabled             {12d}\nlive allocations    {12d}\nlive bytes          {12d}\nallocations         {12d}\nfrees               {12d}\npeak bytes          {12d}\ninvalid frees       {12d}\n"
+
 /// Print a readable leak summary to stdout.
 pub fn (LeakDiagnostics) pprint(ld: self) void = {
-    if ld.enabled == 0 {
-        stdio.puts("LeakDiagnostics: leak checking disabled")
-        return
-    }
-    trust stdio.print(
-        "LeakDiagnostics: {d} live allocation(s), {d} byte(s) leaked; allocations={d} frees={d} peak={d} invalid_frees={d}\n",
-        {
-            ld.live_allocations,
-            ld.live_bytes,
-            ld.total_allocations,
-            ld.total_frees,
-            ld.peak_live_bytes,
-            ld.invalid_frees
-        }
-    )
+    val text: mut string.String = LeakDiagnostics.pprint_str(ld)
+    trust stdio.print("{s}", {string.cstr(text)})
+    trust string.string_free(text)
 }
 
 /// Return the same summary as a heap-allocated String.
 pub fn (LeakDiagnostics) pprint_str(ld: self) string.String = {
-    if ld.enabled == 0 {
-        val disabled_arena: mut allocators.Arena = trust allocators.Arena.new(128 as usize)?
-        val disabled_text = trust fmt.format[allocators.Arena](
-            disabled_arena,
-            "LeakDiagnostics: leak checking disabled\n",
-            {}
-        )
-        val disabled_result = trust string.clone(disabled_text)
-        trust allocators.Arena.free(disabled_arena)
-        return disabled_result
-    }
     val arena: mut allocators.Arena = trust allocators.Arena.new(512 as usize)?
     val text = trust fmt.format[allocators.Arena](
         arena,
-        "LeakDiagnostics: {d} live allocation(s), {d} byte(s) leaked; allocations={d} frees={d} peak={d} invalid_frees={d}\n",
+        LEAK_TABLE_FMT,
         {
+            "value",
+            ld.enabled,
             ld.live_allocations,
             ld.live_bytes,
             ld.total_allocations,
