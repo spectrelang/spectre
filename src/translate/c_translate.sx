@@ -6,13 +6,15 @@ val os         = use("std/os")
 val fs         = use("std/fs")
 val allocators = use("std/allocators")
 
-pub val STOP_EOF: i64 = 0
-pub val STOP_ELSE: i64 = 1
-pub val STOP_ENDIF: i64 = 2
-pub val STOP_ELIF: i64 = 3
-pub val COND_NONE: i64 = 0
-pub val COND_WIN_TRUE: i64 = 1
-pub val COND_WIN_FALSE: i64 = 2
+pub val (
+    STOP_EOF: i64       = 0
+    STOP_ELSE: i64      = 1
+    STOP_ENDIF: i64     = 2
+    STOP_ELIF: i64      = 3
+    COND_NONE: i64      = 0
+    COND_WIN_TRUE: i64  = 1
+    COND_WIN_FALSE: i64 = 2
+)
 
 type BlockResult = {
     next_index: mut i64

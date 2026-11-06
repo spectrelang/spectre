@@ -17,7 +17,6 @@ val defines     = use("../meta/defines.sx")
 
 extern (C) fn strstr(haystack: ref u8, needle: ref u8) ref u8 = "strstr"
 
-
 /// Codegen context
 pub type CgCtx = {
     sb: mut ref void

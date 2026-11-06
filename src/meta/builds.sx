@@ -132,12 +132,12 @@ pub fn alt_compiler_kind(compiler: ref u8) ref u8 = {
 
 pub fn compiler_uses_msvc_flags(kind: ref u8) bool = {
     return string.raw_cmp(kind, "msvc") == 0
-        || string.raw_cmp(kind, "clang-cl") == 0
+    || string.raw_cmp(kind, "clang-cl") == 0
 }
 
 pub fn compiler_uses_gnu_vectors(kind: ref u8) bool = {
     return string.raw_cmp(kind, "gnu") == 0
-        || string.raw_cmp(kind, "clang-cl") == 0
+    || string.raw_cmp(kind, "clang-cl") == 0
 }
 
 /// Return the SIMD backend to use for the alt code generator.

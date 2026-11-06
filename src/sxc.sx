@@ -996,8 +996,8 @@ pub fn main() i32 = trust {
                 val error_prefix = string.from[allocators.Arena](arena, "error:")
                 val msvc_error = string.from[allocators.Arena](arena, "error")
                 val has_error: bool = string.contains(v, error_prefix)
-                    || (builds.compiler_uses_msvc_flags(compiler_kind)
-                        && string.contains(v, msvc_error))
+                || (builds.compiler_uses_msvc_flags(compiler_kind)
+                    && string.contains(v, msvc_error))
                 if has_error {
                     val display: mut ref u8 = vstr
                     if !bootstrap_mode {
