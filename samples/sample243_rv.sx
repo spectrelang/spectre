@@ -1,0 +1,125 @@
+type SomeType = {
+    x: mut u8 y: mut u8 z: mut u8 m: mut u8
+    a: mut u8 b: mut u8 c: mut u8 d: mut u8
+}
+
+type U8Pair = { x: mut u8 y: mut u8 }
+type U16Pair = { x: mut u16 y: mut u16 }
+type U32Pair = { x: mut u32 y: mut u32 }
+type I8Pair = { x: mut i8 y: mut i8 }
+type I16Pair = { x: mut i16 y: mut i16 }
+type I32Pair = { x: mut i32 y: mut i32 }
+
+fn test_number(
+    st: mut SomeType,
+    pst: mut ref SomeType,
+    px: mut ref u8,
+    a: u8,
+    b: u16,
+    c: f32
+) u64 = {
+    st.x = st.x + 1
+    assert st.x == 0
+
+    pst.x = pst.x - 1
+    assert pst.x == 255
+
+    @deref(px) = @deref(px) + 1
+    assert @deref(px) == 0
+    assert st.y == 0
+    assert st.z == 0
+    assert st.m == 0
+
+    @deref(px) = 0
+    @deref(px) = @deref(px) - 3
+    assert @deref(px) == 253
+    assert @deref(px as ref u64) == (253 as u64)
+    assert st.y == 0
+    assert st.z == 0
+    assert st.m == 0
+
+    return st.x + pst.x + @deref(px) + a + b + c as u64
+}
+
+fn test_u8_pointer() void = {
+    val pair: mut U8Pair = { x: 255, y: 0 }
+    val p: mut ref u8 = @addr(pair.x)
+
+    @deref(p) = @deref(p) + 1
+    assert @deref(p) == 0
+    assert pair.y == 0
+
+    @deref(p) = 250
+    @deref(p) += 10
+    assert @deref(p) == 4
+    assert pair.y == 0
+
+    @deref(p) -= 10
+    assert @deref(p) == 250
+    assert pair.y == 0
+
+    @deref(p)++
+    assert @deref(p) == 251
+    @deref(p)--
+    assert @deref(p) == 250
+    assert pair.y == 0
+}
+
+fn test_u16_pointer() void = {
+    val pair: mut U16Pair = { x: 65535, y: 0 }
+    val p: mut ref u16 = @addr(pair.x)
+    @deref(p) = @deref(p) + 1
+    assert @deref(p) == 0
+    assert pair.y == 0
+}
+
+fn test_u32_pointer() void = {
+    val pair: mut U32Pair = { x: 4294967295, y: 0 }
+    val p: mut ref u32 = @addr(pair.x)
+    @deref(p) = @deref(p) + 1
+    assert @deref(p) == 0
+    assert pair.y == 0
+}
+
+fn test_i8_pointer() void = {
+    val pair: mut I8Pair = { x: 127, y: 0 }
+    val p: mut ref i8 = @addr(pair.x)
+    @deref(p) = @deref(p) + 1
+    assert @deref(p) == (0 - 128)
+    assert pair.y == 0
+}
+
+fn test_i16_pointer() void = {
+    val pair: mut I16Pair = { x: 32767, y: 0 }
+    val p: mut ref i16 = @addr(pair.x)
+    @deref(p) = @deref(p) + 1
+    assert @deref(p) == (0 - 32768)
+    assert pair.y == 0
+}
+
+fn test_i32_pointer() void = {
+    val pair: mut I32Pair = { x: 2147483647, y: 0 }
+    val p: mut ref i32 = @addr(pair.x)
+    @deref(p) = @deref(p) + 1
+    assert @deref(p) == (0 - 2147483647 - 1)
+    assert pair.y == 0
+}
+
+pub fn main() i32 = {
+    val st: mut SomeType = { x: 255, y: 0, z: 0, m: 0, a: 0, b: 0, c: 0, d: 0 }
+    val n = test_number(st, @addr(st), @addr(st.x), 255, 65535, 3.1415926)
+    assert n == (66552 as u64)
+    assert st.x == 253
+    assert st.y == 0
+    assert st.z == 0
+    assert st.m == 0
+    assert st.a == 0
+
+    test_u8_pointer()
+    test_u16_pointer()
+    test_u32_pointer()
+    test_i8_pointer()
+    test_i16_pointer()
+    test_i32_pointer()
+    return 0 as i32
+}
