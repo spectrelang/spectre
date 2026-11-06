@@ -11,7 +11,6 @@ Spectre is a statically typed, design-by-contract language aiming to offer low-l
 Resources:
 
 - [Documentation](https://spectre-docs.pages.dev)
-- [Playground](https://spectrelang.org/playground)
 - [Devlog](https://spectrelang.org/log/devlog)
 - [Matrix](https://matrix.to/#/%23spectrelang:matrix.org)
 - [Discord](https://discord.gg/aCnnVwAUWU)
