@@ -1206,7 +1206,7 @@ fn append_doc_html(sb: ref void, docs: ref u8) void = trust {
             if str_eq(line, "") {
                 if !str_eq(paragraph, "") {
                     string.StringBuilder.append_cstr(sb, "<p>")
-                    string.StringBuilder.append_cstr(sb, html_escape(paragraph))
+                    append_markdown_inline_html(sb, paragraph)
                     string.StringBuilder.append_cstr(sb, "</p>")
                     paragraph = ""
                 }
@@ -1225,7 +1225,7 @@ fn append_doc_html(sb: ref void, docs: ref u8) void = trust {
             if str_eq(line, "") {
                 if !str_eq(paragraph, "") {
                     string.StringBuilder.append_cstr(sb, "<p>")
-                    string.StringBuilder.append_cstr(sb, html_escape(paragraph))
+                    append_markdown_inline_html(sb, paragraph)
                     string.StringBuilder.append_cstr(sb, "</p>")
                     paragraph = ""
                 }
@@ -1242,7 +1242,7 @@ fn append_doc_html(sb: ref void, docs: ref u8) void = trust {
     }
     if !str_eq(paragraph, "") {
         string.StringBuilder.append_cstr(sb, "<p>")
-        string.StringBuilder.append_cstr(sb, html_escape(paragraph))
+        append_markdown_inline_html(sb, paragraph)
         string.StringBuilder.append_cstr(sb, "</p>")
     }
     string.StringBuilder.append_cstr(sb, "</div>")
@@ -2725,6 +2725,16 @@ test {
     )
     assert str_eq(trust lookup_doc(header_only_docs, 3), "")
 
+    val doc_html_sb = string.StringBuilder.new()
+    trust append_doc_html(doc_html_sb, "Return when x is `none`")
+    val doc_html_built = trust string.StringBuilder.build(doc_html_sb)
+    val doc_html = trust string.cstr(doc_html_built)
+    trust string.StringBuilder.free(doc_html_sb)
+    assert str.raw_cmp(
+        doc_html,
+        "<div class=\"docs\"><p>Return when x is <code>none</code></p></div>"
+    ) == 0
+
     assert str_eq(trust slugify("Hello.World"), "hello-world")
     assert str_eq(trust strip_sx_ext("src/meta/docs.sx"), "src/meta/docs")
 
@@ -2810,7 +2820,7 @@ test {
 
         val ml_const_sig: mut i64 = 0
         match regex.re_match(
-            "return @fmt\\(\"\\{s\\}val \\{s\\} = \\{s\\}\"",
+            "return @fmtalloc\\(\"\\{s\\}val \\{s\\} = \\{s\\}\"",
             docs_src,
             @addr(ml_const_sig)
         ) {
