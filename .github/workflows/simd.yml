@@ -2,7 +2,7 @@ name: SIMD
 
 on:
   push:
-    branches: [simd-optimizations]
+    branches: [simd-optimizations, master]
   workflow_dispatch:
 
 permissions:
