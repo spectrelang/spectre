@@ -1,0 +1,11 @@
+pub fn main() void = {
+    val x: [3]u8 = [1, 2, 3]
+    for y in x {
+        trust @print("{d}\n", {y})
+    }
+
+    val other_list: [_]i64 = [-234, 400, 5555]
+    for z in other_list {
+        trust @print("{d}\n", {z})
+    }
+}

@@ -7663,6 +7663,46 @@ fn val_decl_type_name(
     return infer_builtin_list_decl_type(ctx, init_expr)
 }
 
+/// Infer fixed-array dimensions written as `_` from a list-literal initializer.
+/// Returns false when a `_` dimension has no inferable initializer.
+fn sema_infer_fixed_arr_sizes(ty: ref parser.Node, init: ref parser.Node) bool = trust {
+    if ty == none {
+        return true
+    }
+    if ty.kind == parser.TY_MUT {
+        return sema_infer_fixed_arr_sizes(ty.d0 as ref parser.Node, init)
+    }
+    if ty.kind != parser.TY_FIXED_ARR {
+        return true
+    }
+    val elem_ty: ref parser.Node = ty.d1 as ref parser.Node
+    val size_name: ref u8 = parser.fixed_arr_size_name(ty)
+    val has_infer: bool = size_name != none && str_eq(size_name, "_")
+    if has_infer {
+        if init == none || init.kind != parser.NK_LIST_LIT {
+            return false
+        }
+        val elems: ref void = init.d0 as ref void
+        val count: mut i64 = 0
+        if elems != none {
+            count = @len(elems as list[ref parser.Node]) as i64
+        }
+        parser.node_store_slot[i64](@addr(ty.d0), count)
+        parser.node_store_slot[ref u8](@addr(ty.d2), "")
+    }
+    if init != none && init.kind == parser.NK_LIST_LIT && elem_ty != none {
+        val elems2: ref void = init.d0 as ref void
+        if elems2 != none {
+            for elem in elems2 as list[ref parser.Node] {
+                if !sema_infer_fixed_arr_sizes(elem_ty, elem) {
+                    return false
+                }
+            }
+        }
+    }
+    return true
+}
+
 fn check_stmt(ctx: mut ref SemaCtx, stmt: ref parser.Node, filename: ref u8) void = trust {
     guarded pre {
         ctx_not_null: ctx != none
@@ -7677,6 +7717,19 @@ fn check_stmt(ctx: mut ref SemaCtx, stmt: ref parser.Node, filename: ref u8) voi
         val name: ref u8 = stmt.d0 as ref u8
         val mutable: i64 = stmt.d1
         check_no_module_to_module_type(ctx, stmt.d2 as ref parser.Node, line, filename)
+        if !sema_infer_fixed_arr_sizes(
+            stmt.d2 as ref parser.Node,
+            stmt.d3 as ref parser.Node
+        ) {
+            val ibuf: ref u8 = allocators.ScopedArena.alloc_or_none(
+                ctx.arena,
+                (512) as usize
+            ) as ref u8
+            @snprintf(ibuf, 512,
+                "{s}:{lld}: cannot infer fixed array size from initializer; use an explicit size",
+                {filename, line})
+            add_error(ctx, ibuf)
+        }
         check_expr(ctx, stmt.d3 as ref parser.Node, filename)
         sema_check_int_literal_range(
             ctx,
@@ -8844,6 +8897,19 @@ fn check_top_item(ctx: mut ref SemaCtx, item: ref parser.Node, filename: ref u8)
     }
     if k == parser.NK_CONST {
         val init_node: ref parser.Node = item.d2 as ref parser.Node
+        if !sema_infer_fixed_arr_sizes(
+            item.d3 as ref parser.Node,
+            init_node
+        ) {
+            val ibuf: ref u8 = allocators.ScopedArena.alloc_or_none(
+                ctx.arena,
+                (512) as usize
+            ) as ref u8
+            @snprintf(ibuf, 512,
+                "{s}:{lld}: cannot infer fixed array size from initializer; use an explicit size",
+                {filename, item.line})
+            add_error(ctx, ibuf)
+        }
         if init_node != none {
             check_expr(ctx, init_node, filename)
         }

@@ -6438,9 +6438,10 @@ fn gen_struct_lit(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
 
 fn gen_list_lit(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
     stdio.eprint(
-        "warning: {s}:{lld}: implicit dynamic list allocation; use an allocator-backed list such as @list(ac, ...) or @listalloc[Alloc, T](ac)\n",
+        "error: {s}:{lld}: implicit dynamic list allocation is not allowed; use @list(ac, ...) or @listalloc[Alloc, T](ac)\n",
         {ctx.current_src_file, expr.line}
     )
+    os.exit(1)
     val elems: ref void = expr.d0 as ref void
     val elen: mut i64 = 0
     if elems != none {
@@ -8033,6 +8034,56 @@ fn gen_forin_stmt(ctx: mut ref CCtx, stmt: ref parser.Node) void = trust {
     val iter_node: ref parser.Node = stmt.d1 as ref parser.Node
     val iter: ref u8 = gen_expr(ctx, iter_node)
     val t: i64 = fresh_tmp(ctx)
+
+    val iter_ty_pre: ref parser.Node = cc_infer_expr_ty(ctx, iter_node)
+    val concrete_pre0: ref parser.Node = cc_concrete_ty(ctx, iter_ty_pre)
+    val concrete_pre: mut ref parser.Node = concrete_pre0
+    for {
+        if concrete_pre == none || concrete_pre.kind != parser.TY_MUT {
+            break
+        }
+        concrete_pre = cc_concrete_ty(ctx, concrete_pre.d0 as ref parser.Node)
+    }
+    if concrete_pre != none && concrete_pre.kind == parser.TY_FIXED_ARR {
+        val fixed_count: i64 = cc_fixed_arr_size_val(ctx, concrete_pre)
+        val fixed_inner: ref parser.Node = parser.fixed_arr_inner(concrete_pre)
+        val fixed_ctype: ref u8 = c_type_of(fixed_inner)
+        val fixed_stype: ref u8 = cc_spectre_type_name_of(ctx, fixed_inner)
+        val fixed_size: i64 = c_size_of(ctx, fixed_inner)
+        val fixed_scalar: bool = cc_elem_is_scalar(ctx, fixed_inner)
+        || (fixed_inner != none && fixed_inner.kind == parser.TY_REF)
+        val fixed_buf: ref u8 = allocators.ScopedArena.alloc_or_none(
+            ctx.arena,
+            1024 as usize
+        ) as ref u8
+        if fixed_scalar {
+            @snprintf(fixed_buf, 1024,
+                "\{int64_t sx__i{lld}=0;for(;sx__i{lld}<{lld};sx__i{lld}++)\{{s} t_{s}=*(({s}*)((char*)(intptr_t)({s})+sx__i{lld}*{lld}));\n",
+                {
+                    t,
+                    t,
+                    fixed_count,
+                    t,
+                    fixed_ctype,
+                    binding,
+                    fixed_ctype,
+                    iter,
+                    t,
+                    fixed_size
+                })
+        } else {
+            @snprintf(fixed_buf, 1024,
+                "\{int64_t sx__i{lld}=0;for(;sx__i{lld}<{lld};sx__i{lld}++)\{int64_t t_{s}=(int64_t)(intptr_t)((char*)(intptr_t)({s})+sx__i{lld}*{lld});\n",
+                {t, t, fixed_count, t, binding, iter, t, fixed_size})
+        }
+        emit(ctx, fixed_buf)
+        cc_expr_drain(ctx)
+        cc_register_local(ctx, binding, fixed_stype, fixed_inner, 1)
+        gen_stmts(ctx, stmt.d2 as ref parser.Node)
+        emitln(ctx, "}}")
+        return
+    }
+
     val buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 1024 as usize) as ref u8
     @snprintf(buf, 1024, "\{int64_t sx__it{lld}={s};int64_t sx__len{lld}=(sx__it{lld}==0?0:*(int64_t*)((char*)(intptr_t)sx__it{lld}+8));int64_t*sx__buf{lld}=(sx__it{lld}==0?0:*(int64_t**)(intptr_t)sx__it{lld});int64_t sx__i{lld}=0;for(;sx__i{lld}<sx__len{lld};sx__i{lld}++)\{int64_t t_{s}=sx__buf{lld}[sx__i{lld}];\n",
         {t, iter, t, t, t, t, t, t, t, t, t, t, binding, t, t})
@@ -9131,7 +9182,12 @@ fn preregister_items(
                     }
                 }
                 if ce != none && ce.kind == parser.NK_LIST_LIT {
-                    cc_register_module_global(ctx, cn, mod_prefix, none)
+                    cc_register_module_global(
+                        ctx,
+                        cn,
+                        mod_prefix,
+                        node.d3 as ref parser.Node
+                    )
                 }
                 if cv != none {
                     cc_register_module_const(ctx, cn, cv)
@@ -9253,7 +9309,13 @@ fn gen_module_val(ctx: mut ref CCtx, node: ref parser.Node, mod_prefix: ref u8) 
         ctx.sb = ctx.init_sb
         val old_expected = ctx.expected_ty
         ctx.expected_ty = ty_node
-        val val_str: ref u8 = gen_expr(ctx, init_expr)
+        val fixed_ty: ref parser.Node = cc_fixed_arr_ty(ctx, ty_node)
+        val val_str: mut ref u8 = ""
+        if init_expr.kind == parser.NK_LIST_LIT && fixed_ty != none {
+            val_str = gen_fixed_arr_lit(ctx, init_expr, fixed_ty)
+        } else {
+            val_str = gen_expr(ctx, init_expr)
+        }
         ctx.expected_ty = old_expected
         val init_buf: ref u8 = allocators.ScopedArena.alloc_or_none(
             ctx.arena,
@@ -9273,7 +9335,8 @@ fn gen_module_const_list(
 ) void = trust {
     val name: ref u8 = node.d1 as ref u8
     val init_expr: ref parser.Node = node.d2 as ref parser.Node
-    val mangled: ref u8 = cc_register_module_global(ctx, name, mod_prefix, none)
+    val ty_node: ref parser.Node = cc_concrete_ty(ctx, node.d3 as ref parser.Node)
+    val mangled: ref u8 = cc_register_module_global(ctx, name, mod_prefix, ty_node)
     val buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 1024 as usize) as ref u8
     @snprintf(buf, 1024, "static int64_t {s};\n", {mangled})
     emit_to_fwd(ctx, buf)
@@ -9281,8 +9344,14 @@ fn gen_module_const_list(
         val old_sb = ctx.sb
         ctx.sb = ctx.init_sb
         val old_expected = ctx.expected_ty
-        ctx.expected_ty = none
-        val val_str: ref u8 = gen_expr(ctx, init_expr)
+        ctx.expected_ty = ty_node
+        val fixed_ty: ref parser.Node = cc_fixed_arr_ty(ctx, ty_node)
+        val val_str: mut ref u8 = ""
+        if init_expr.kind == parser.NK_LIST_LIT && fixed_ty != none {
+            val_str = gen_fixed_arr_lit(ctx, init_expr, fixed_ty)
+        } else {
+            val_str = gen_expr(ctx, init_expr)
+        }
         ctx.expected_ty = old_expected
         val init_buf: ref u8 = allocators.ScopedArena.alloc_or_none(
             ctx.arena,

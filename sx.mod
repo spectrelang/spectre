@@ -6,6 +6,10 @@ build prod {
     action "./fw/build.sh"
 }
 
+build loud {
+    flags "-l"
+}
+
 build dev {
     output "./spectre-dev"
     env {

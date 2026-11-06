@@ -13275,9 +13275,10 @@ fn gen_fixed_arr_lit(
 
 fn gen_list_lit(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
     stdio.eprint(
-        "warning: {s}:{lld}: implicit dynamic list allocation; use an allocator-backed list such as @list(ac, ...) or @listalloc[Alloc, T](ac)\n",
+        "error: {s}:{lld}: implicit dynamic list allocation is not allowed; use @list(ac, ...) or @listalloc[Alloc, T](ac)\n",
         {ctx.current_filename, expr.line}
     )
+    os.exit(1)
     val elems: ref void = expr.d0 as ref void
     val elen: mut i64 = 0
     if elems != none {
@@ -15207,6 +15208,155 @@ fn gen_for_stmt(ctx: mut ref CgCtx, stmt: ref parser.Node) void = trust {
     cg_set_cont_lbl(ctx, prev_cont)
 }
 
+fn gen_fixed_forin_stmt(
+    ctx: mut ref CgCtx,
+    stmt: ref parser.Node,
+    binding: ref u8,
+    iter: ref u8,
+    loop_lbl: i64,
+    body_lbl: i64,
+    break_lbl: i64,
+    cont_lbl: i64,
+    prev_break: i64,
+    prev_cont: i64
+) bool = trust {
+    val fixed_iter_node: ref parser.Node = stmt.d1 as ref parser.Node
+    val fixed_ann_raw: ref u8 = infer_type_annotation(ctx, fixed_iter_node)
+    val fixed_ann: mut ref u8 = fixed_ann_raw
+    if raw_starts_with(fixed_ann, "ref ") {
+        fixed_ann = @ptradd(fixed_ann, 4) as ref u8
+    }
+    if str.raw_cmp(fixed_ann, "") != 0 && raw_starts_with(fixed_ann, "[") {
+        val fixed_count: i64 = cg_ann_fixed_arr_len_val(ctx, fixed_ann)
+        val fixed_elem_ann: ref u8 = ann_fixed_arr_inner(fixed_ann)
+        val fixed_elem_size: i64 = cg_ann_size(ctx, fixed_elem_ann)
+        val fixed_idx_slot: i64 = fresh_tmp(ctx)
+        val fixed_init: ref u8 = allocators.ScopedArena.alloc_or_none(
+            ctx.arena,
+            256 as usize
+        ) as ref u8
+        @snprintf(fixed_init, 256,
+            "    %%t{lld} =l alloc8 8\n    storel 0, %%t{lld}\n@lbl{lld}\n",
+            {fixed_idx_slot, fixed_idx_slot, loop_lbl})
+        emit(ctx, fixed_init)
+
+        val fixed_cur: i64 = fresh_tmp(ctx)
+        val fixed_cmp: i64 = fresh_tmp(ctx)
+        val fixed_head: ref u8 = allocators.ScopedArena.alloc_or_none(
+            ctx.arena,
+            512 as usize
+        ) as ref u8
+        @snprintf(fixed_head, 512,
+            "    %%t{lld} =l loadl %%t{lld}\n    %%t{lld} =w csltl %%t{lld}, {lld}\n    jnz %%t{lld}, @lbl{lld}, @lbl{lld}\n@lbl{lld}\n",
+            {
+                fixed_cur,
+                fixed_idx_slot,
+                fixed_cmp,
+                fixed_cur,
+                fixed_count,
+                fixed_cmp,
+                body_lbl,
+                break_lbl,
+                body_lbl
+            })
+        emit(ctx, fixed_head)
+
+        val fixed_off: i64 = fresh_tmp(ctx)
+        val fixed_elem_ptr: i64 = fresh_tmp(ctx)
+        val fixed_ptr_buf: ref u8 = allocators.ScopedArena.alloc_or_none(
+            ctx.arena,
+            512 as usize
+        ) as ref u8
+        @snprintf(fixed_ptr_buf, 512,
+            "    %%t{lld} =l mul %%t{lld}, {lld}\n    %%t{lld} =l add {s}, %%t{lld}\n",
+            {fixed_off, fixed_cur, fixed_elem_size, fixed_elem_ptr, iter, fixed_off})
+        emit(ctx, fixed_ptr_buf)
+
+        val fixed_binding_qbe: mut ref u8 = ""
+        val fixed_elem_is_scalar: bool = cg_ann_is_scalar(fixed_elem_ann)
+        || raw_starts_with(fixed_elem_ann, "ref ")
+        || raw_starts_with(fixed_elem_ann, "mut ref ")
+        if fixed_elem_is_scalar {
+            val fixed_elem: i64 = fresh_tmp(ctx)
+            val fixed_load_op: ref u8 = scalar_load_instr_for_name(fixed_elem_ann)
+            val fixed_load_qt: ref u8 = scalar_load_qtype_for_name(fixed_elem_ann)
+            val fixed_load_buf: ref u8 = allocators.ScopedArena.alloc_or_none(
+                ctx.arena,
+                256 as usize
+            ) as ref u8
+            @snprintf(fixed_load_buf, 256,
+                "    %%t{lld} ={s} {s} %%t{lld}\n",
+                {fixed_elem, fixed_load_qt, fixed_load_op, fixed_elem_ptr})
+            emit(ctx, fixed_load_buf)
+            val fixed_bind: mut i64 = fixed_elem
+            if str.raw_cmp(fixed_load_qt, "w") == 0 {
+                val fixed_wide: i64 = fresh_tmp(ctx)
+                val fixed_ext: mut ref u8 = "extuw"
+                if str.raw_cmp(fixed_elem_ann, "i8") == 0
+                || str.raw_cmp(fixed_elem_ann, "i16") == 0
+                || str.raw_cmp(fixed_elem_ann, "i32") == 0 {
+                    fixed_ext = "extsw"
+                }
+                val fixed_ext_buf: ref u8 = allocators.ScopedArena.alloc_or_none(
+                    ctx.arena,
+                    128 as usize
+                ) as ref u8
+                @snprintf(fixed_ext_buf, 128,
+                    "    %%t{lld} =l {s} %%t{lld}\n",
+                    {fixed_wide, fixed_ext, fixed_elem})
+                emit(ctx, fixed_ext_buf)
+                fixed_bind = fixed_wide
+            }
+            val fixed_bind_buf: ref u8 = allocators.ScopedArena.alloc_or_none(
+                ctx.arena,
+                32 as usize
+            ) as ref u8
+            @snprintf(fixed_bind_buf, 32, "%%t{lld}", {fixed_bind})
+            fixed_binding_qbe = fixed_bind_buf
+        } else {
+            val fixed_bind_buf2: ref u8 = allocators.ScopedArena.alloc_or_none(
+                ctx.arena,
+                32 as usize
+            ) as ref u8
+            @snprintf(fixed_bind_buf2, 32, "%%t{lld}", {fixed_elem_ptr})
+            fixed_binding_qbe = fixed_bind_buf2
+        }
+
+        cg_register_local_var(ctx, binding, fixed_binding_qbe)
+        if str.raw_cmp(fixed_elem_ann, "") != 0 {
+            if fixed_elem_is_scalar {
+                cg_register_local_type(ctx, binding, fixed_elem_ann)
+                if raw_starts_with(fixed_elem_ann, "ref ")
+                || raw_starts_with(fixed_elem_ann, "mut ref ") {
+                    cg_register_local_ref_type(ctx, binding)
+                }
+            } else {
+                val fixed_ref_ann: ref u8 = str.concat_raw("ref ", fixed_elem_ann)
+                cg_register_local_type(ctx, binding, fixed_ref_ann)
+                cg_register_local_ref_type(ctx, binding)
+            }
+        }
+
+        gen_stmts(ctx, stmt.d2 as ref parser.Node)
+
+        val fixed_nxt: i64 = fresh_tmp(ctx)
+        val fixed_tail: ref u8 = allocators.ScopedArena.alloc_or_none(
+            ctx.arena,
+            256 as usize
+        ) as ref u8
+        @snprintf(fixed_tail, 256,
+            "@lbl{lld}\n    %%t{lld} =l add %%t{lld}, 1\n    storel %%t{lld}, %%t{lld}\n    jmp @lbl{lld}\n@lbl{lld}\n",
+            {cont_lbl, fixed_nxt, fixed_cur, fixed_nxt, fixed_idx_slot, loop_lbl, break_lbl})
+        emit(ctx, fixed_tail)
+        cg_set_break_lbl(ctx, prev_break)
+        cg_set_cont_lbl(ctx, prev_cont)
+        return true
+    }
+    return false
+}
+
+
+
 fn gen_forin_stmt(ctx: mut ref CgCtx, stmt: ref parser.Node) void = trust {
     val binding: ref u8 = stmt.d0 as ref u8
     val iter: ref u8 = gen_expr(ctx, stmt.d1 as ref parser.Node)
@@ -15222,6 +15372,21 @@ fn gen_forin_stmt(ctx: mut ref CgCtx, stmt: ref parser.Node) void = trust {
 
     cg_set_break_lbl(ctx, break_lbl)
     cg_set_cont_lbl(ctx, cont_lbl)
+
+    if gen_fixed_forin_stmt(
+        ctx,
+        stmt,
+        binding,
+        iter,
+        loop_lbl,
+        body_lbl,
+        break_lbl,
+        cont_lbl,
+        prev_break2,
+        prev_cont2
+    ) {
+        return
+    }
 
     val len_slot: i64 = fresh_tmp(ctx)
     val buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 512 as usize) as ref u8
