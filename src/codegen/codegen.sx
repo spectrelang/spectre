@@ -13275,7 +13275,7 @@ fn gen_fixed_arr_lit(
 
 fn gen_list_lit(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
     stdio.eprint(
-        "error: {s}:{lld}: implicit dynamic list allocation is not allowed; use @list(ac, ...) or @listalloc[Alloc, T](ac)\n",
+        "error: {s}:{lld}: implicit dynamic list allocation is not allowed, use @list(ac, ...) or @listalloc[Alloc, T](ac)\n",
         {ctx.current_filename, expr.line}
     )
     os.exit(1)

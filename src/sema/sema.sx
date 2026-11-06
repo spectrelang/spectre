@@ -830,7 +830,7 @@ fn check_no_module_to_module_field(
         @snprintf(
             ebuf,
             512,
-            "{s}:{lld}: chained module access '{s}.{s}' is not allowed; import '{s}' directly with `use(...)` instead",
+            "{s}:{lld}: chained module access '{s}.{s}' is not allowed, import '{s}' directly with `use(...)` instead",
             {filename, line, root_name, field, field}
         )
         add_error(ctx, ebuf)
@@ -3872,7 +3872,7 @@ fn check_printf_fmt(ctx: ref SemaCtx, fmt_str: ref u8, all_args: ref void,
                 ctx.arena,
                 (256) as usize
             ) as ref u8
-            @snprintf(buf, 256, "{s}:{lld}: C-style format specifiers are not allowed; use \{d\}, \{s\} etc.",
+            @snprintf(buf, 256, "{s}:{lld}: C-style format specifiers are not allowed, use \{d\}, \{s\} etc...",
                 {filename, line})
             add_error(ctx, buf)
             return
