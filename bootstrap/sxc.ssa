@@ -740,8 +740,8 @@ function l $std__allocators__scoped_block_new(l %__ret, l %block_size) {
     %t19 =l alloc4 1
     %t26 =l alloc4 1
     %t41 =l alloc4 1
-    %t51 =l alloc8 16
-    %t63 =l alloc8 16
+    %t50 =l alloc8 16
+    %t62 =l alloc8 16
     %t1 =l copy 32
     %t0 =l call $malloc(l %t1)
     %t2 =l copy %t0
@@ -822,36 +822,35 @@ function l $std__allocators__scoped_block_new(l %__ret, l %block_size) {
     jnz %t47, @lbl69, @lbl70
 @lbl69
     %t49 =l loadl %t3
-    %t50 =l copy %t49
-    call $free(l %t50)
+    call $free(l %t49)
     %t48 =l copy 0
     jmp @lbl70
 @lbl70
-    storel 1, %t51
-    %t52 =l copy 0
-    %t53 =l add %t51, 8
-    storel %t52, %t53
-    call $memcpy(l %__ret, l %t51, l 16)
+    storel 1, %t50
+    %t51 =l copy 0
+    %t52 =l add %t50, 8
+    storel %t51, %t52
+    call $memcpy(l %__ret, l %t50, l 16)
     ret %__ret
 @lbl59
-    %t54 =l loadl %t3
-    storel %t4, %t54
-    %t55 =l copy 0
-    %t56 =l loadl %t3
-    %t57 =l add %t56, 8
-    storel %t55, %t57
-    %t58 =l loadl %t3
-    %t59 =l add %t58, 16
-    storel %block_size, %t59
-    %t60 =l copy 0
-    %t61 =l loadl %t3
-    %t62 =l add %t61, 24
-    storel %t60, %t62
-    storel 0, %t63
-    %t64 =l loadl %t3
-    %t65 =l add %t63, 8
-    storel %t64, %t65
-    call $memcpy(l %__ret, l %t63, l 16)
+    %t53 =l loadl %t3
+    storel %t4, %t53
+    %t54 =l copy 0
+    %t55 =l loadl %t3
+    %t56 =l add %t55, 8
+    storel %t54, %t56
+    %t57 =l loadl %t3
+    %t58 =l add %t57, 16
+    storel %block_size, %t58
+    %t59 =l copy 0
+    %t60 =l loadl %t3
+    %t61 =l add %t60, 24
+    storel %t59, %t61
+    storel 0, %t62
+    %t63 =l loadl %t3
+    %t64 =l add %t62, 8
+    storel %t63, %t64
+    call $memcpy(l %__ret, l %t62, l 16)
     ret %__ret
 }
 
@@ -929,12 +928,12 @@ export function l $std__allocators__ScopedArena__alloc(l %__ret, l %a, l %size) 
     %t4 =l alloc8 8
     %t15 =l alloc8 8
     %t23 =l alloc4 1
-    %t54 =l alloc8 16
-    %t62 =l alloc8 8
-    %t67 =l alloc8 16
-    %t89 =l alloc8 16
+    %t53 =l alloc8 16
+    %t61 =l alloc8 8
+    %t66 =l alloc8 16
+    %t88 =l alloc8 16
+    %t90 =l alloc8 16
     %t91 =l alloc8 16
-    %t92 =l alloc8 16
     %t0 =l copy 0
     %t1 =w csgtl %size, %t0
     jnz %t1, @lbl83, @lbl84
@@ -1011,76 +1010,75 @@ export function l $std__allocators__ScopedArena__alloc(l %__ret, l %a, l %size) 
     %t49 =l add %t48, 8
     storel %t47, %t49
     %t50 =l loadl %t15
-    %t51 =l copy %t50
-    %t52 =l loadl %t4
-    %t53 =l add %t52, 8
-    storel %t51, %t53
-    storel 1, %t54
-    %t55 =l add %t54, 8
-    storel %t38, %t55
-    call $memcpy(l %__ret, l %t54, l 16)
+    %t51 =l loadl %t4
+    %t52 =l add %t51, 8
+    storel %t50, %t52
+    storel 1, %t53
+    %t54 =l add %t53, 8
+    storel %t38, %t54
+    call $memcpy(l %__ret, l %t53, l 16)
     ret %__ret
 @lbl96
-    %t56 =l loadl %t15
-    %t58 =l add %t56, 24
-    %t57 =l loadl %t58
-    storel %t57, %t15
+    %t55 =l loadl %t15
+    %t57 =l add %t55, 24
+    %t56 =l loadl %t57
+    storel %t56, %t15
     jmp @lbl87
 @lbl87
     jmp @lbl85
 @lbl88
-    %t59 =l loadl %t4
-    %t61 =l add %t59, 16
-    %t60 =l loadl %t61
-    storel %t60, %t62
-    %t63 =l loadl %t62
-    %t64 =w csgtl %t10, %t63
-    jnz %t64, @lbl98, @lbl99
+    %t58 =l loadl %t4
+    %t60 =l add %t58, 16
+    %t59 =l loadl %t60
+    storel %t59, %t61
+    %t62 =l loadl %t61
+    %t63 =w csgtl %t10, %t62
+    jnz %t63, @lbl98, @lbl99
 @lbl98
-    storel %t10, %t62
+    storel %t10, %t61
     jmp @lbl99
 @lbl99
-    %t65 =l loadl %t62
-    %t66 =l call $std__allocators__scoped_block_new(l %t67, l %t65)
-    %t68 =l loadl %t67
-    %t69 =w ceql %t68, 0
-    jnz %t69, @lbl101, @lbl102
+    %t64 =l loadl %t61
+    %t65 =l call $std__allocators__scoped_block_new(l %t66, l %t64)
+    %t67 =l loadl %t66
+    %t68 =w ceql %t67, 0
+    jnz %t68, @lbl101, @lbl102
 @lbl101
-    %t71 =l add %t67, 8
-    %t70 =l loadl %t71
-    %t72 =l loadl %t4
-    %t73 =l loadl %t72
-    %t74 =l copy %t73
-    %t75 =l add %t70, 24
-    storel %t74, %t75
-    %t76 =l copy %t70
-    %t77 =l loadl %t4
-    storel %t76, %t77
-    %t78 =l copy %t70
-    %t79 =l loadl %t4
-    %t80 =l add %t79, 8
-    storel %t78, %t80
-    %t82 =l loadl %t70
-    %t84 =l add %t70, 8
-    %t83 =l loadl %t84
-    %t81 =l add %t82, %t83
-    %t86 =l add %t70, 8
-    %t85 =l loadl %t86
-    %t87 =l add %t85, %t10
-    %t88 =l add %t70, 8
-    storel %t87, %t88
-    storel 1, %t89
-    %t90 =l add %t89, 8
-    storel %t81, %t90
-    call $memcpy(l %__ret, l %t89, l 16)
+    %t70 =l add %t66, 8
+    %t69 =l loadl %t70
+    %t71 =l loadl %t4
+    %t72 =l loadl %t71
+    %t73 =l copy %t72
+    %t74 =l add %t69, 24
+    storel %t73, %t74
+    %t75 =l copy %t69
+    %t76 =l loadl %t4
+    storel %t75, %t76
+    %t77 =l copy %t69
+    %t78 =l loadl %t4
+    %t79 =l add %t78, 8
+    storel %t77, %t79
+    %t81 =l loadl %t69
+    %t83 =l add %t69, 8
+    %t82 =l loadl %t83
+    %t80 =l add %t81, %t82
+    %t85 =l add %t69, 8
+    %t84 =l loadl %t85
+    %t86 =l add %t84, %t10
+    %t87 =l add %t69, 8
+    storel %t86, %t87
+    storel 1, %t88
+    %t89 =l add %t88, 8
+    storel %t80, %t89
+    call $memcpy(l %__ret, l %t88, l 16)
     ret %__ret
 @lbl102
-    storel 0, %t91
-    call $memcpy(l %__ret, l %t91, l 16)
+    storel 0, %t90
+    call $memcpy(l %__ret, l %t90, l 16)
     ret %__ret
 @lbl103
-    storel 0, %t92
-    call $memcpy(l %__ret, l %t92, l 16)
+    storel 0, %t91
+    call $memcpy(l %__ret, l %t91, l 16)
     ret %__ret
 }
 
@@ -1225,22 +1223,19 @@ export function w $std__allocators__ScopedArena__free(l %a) {
     %t21 =l loadl %t22
     %t24 =l loadl %t5
     %t25 =l loadl %t24
-    %t26 =l copy %t25
-    call $free(l %t26)
+    call $free(l %t25)
     %t23 =l copy 0
-    %t28 =l loadl %t5
-    %t29 =l copy %t28
-    call $free(l %t29)
-    %t27 =l copy 0
+    %t27 =l loadl %t5
+    call $free(l %t27)
+    %t26 =l copy 0
     storel %t21, %t5
     jmp @lbl122
 @lbl122
     jmp @lbl120
 @lbl123
-    %t31 =l loadl %t1
-    %t32 =l copy %t31
-    call $free(l %t32)
-    %t30 =l copy 0
+    %t29 =l loadl %t1
+    call $free(l %t29)
+    %t28 =l copy 0
     ret 0
 }
 
@@ -5336,7 +5331,9 @@ export function w $std__str__StringBuilder__free(l %sb) {
     %t0 =l loadl %t1
     call $free(l %t0)
     %t2 =l copy 0
-    %t3 =l copy %sb
+    %t3 =l call $malloc(l 24)
+    call $memset(l %t3, w 0, l 24)
+    call $memcpy(l %t3, l %sb, l 24)
     storel %t3, %t4
     %t6 =l loadl %t4
     call $free(l %t6)
@@ -8621,9 +8618,9 @@ function l $std__fmt__rewrite_fmt(l %fmt) {
     %t58 =l loadl %t21
     %t59 =l add %t58, 1
     storel %t59, %t21
-    %t60 =l loadl %t23
-    %t61 =l copy 2
-    %t62 =l add %t60, %t61
+    %t60 =l copy 2
+    %t61 =l loadl %t23
+    %t62 =l add %t61, %t60
     storel %t62, %t23
     jmp @lbl1272
 @lbl1273
@@ -292104,7 +292101,7 @@ data $__str365 = { b "spectre: precondition 'valid_second' violated in function 
 data $__str366 = { b "spectre: precondition 'valid_millis' violated in function 'std__time__DateTime__new'\n", b 0 }
 data $__str367 = { b "spectre: precondition 'non_negative' violated in function 'std__time__sleep_millis'\n", b 0 }
 data $__str368 = { b "v0.0.15", b 0 }
-data $__str369 = { b "6757750", b 0 }
+data $__str369 = { b "0710a95", b 0 }
 data $__str370 = { b "unknown", b 0 }
 data $__str371 = { b "usage:", b 0 }
 data $__str372 = { b "  spectre <command> [args] | <input.sx> [options]", b 0 }
@@ -292125,32 +292122,32 @@ data $__str386 = { b "  ref                  Generate the language reference in 
 data $__str387 = { b "  clean                Remove build artifacts", b 0 }
 data $__str388 = { b "  doctor               Show system and Spectre installation information", b 0 }
 data $__str389 = { b "options:", b 0 }
-data $__str390 = { b "  -ast                Print the AST in a unicode tree and exit", b 0 }
-data $__str391 = { b "  -syntax-check       Check validity of syntax given some program", b 0 }
-data $__str392 = { b "  -emit-ssa           Print QBE IR to stdout and exit", b 0 }
-data $__str393 = { b "  -emit-shim:<file>   Write the QBE shim alongside -emit-ssa", b 0 }
-data $__str394 = { b "  -emit-alt           Print alternative IR to stdout and exit", b 0 }
-data $__str395 = { b "  -emit-asm           Print assembly to stdout and exit", b 0 }
-data $__str396 = { b "  -src-target:<os>    Mock target OS for when-blocks in source output", b 0 }
-data $__str397 = { b "  -translate-c        Translate C input into a single .sx file", b 0 }
-data $__str398 = { b "  -inc-path:<dir>     Add an include search path for the alt backend", b 0 }
-data $__str399 = { b "  -show-cmd           Show the command used for linking", b 0 }
-data $__str400 = { b "  -test               Run the unit tests in the current file", b 0 }
-data $__str401 = { b "  -leak-check         Track allocations and enable the @dumpmemleaks intrinsic", b 0 }
-data $__str402 = { b "  -release            Build in release mode", b 0 }
-data $__str403 = { b "  -native             Optimize the alt backend for the host CPU", b 0 }
-data $__str404 = { b "  -unroll             Enable aggressive loop unrolling in the alt backend", b 0 }
-data $__str405 = { b "  -no-simd            Disable autovectorization (scalar fallback)", b 0 }
-data $__str406 = { b "  -dynamic            Link dynamically instead of statically", b 0 }
-data $__str407 = { b "  -dll                Build a shared library", b 0 }
-data $__str408 = { b "  -a, -alt            Compile with fallback backend", b 0 }
-data $__str409 = { b "  -b, -bootstrap      Display backend output on error", b 0 }
-data $__str410 = { b "  -c, -compile        Compile only to produce object file, without linking", b 0 }
-data $__str411 = { b "  -d:<NAME>=<value>   Define a compile-time environment variable", b 0 }
-data $__str412 = { b "  -o, -output <file>  Output path for binary or build artifact", b 0 }
-data $__str413 = { b "  -l, -loud           Show stages of compilation with verbose output", b 0 }
-data $__str414 = { b "  -v, -version        Show the version of the Spectre compiler", b 0 }
-data $__str415 = { b "  -h, -help           Print this help message", b 0 }
+data $__str390 = { b "  -ast                 Print the AST in a unicode tree and exit", b 0 }
+data $__str391 = { b "  -syntax-check        Check validity of syntax given some program", b 0 }
+data $__str392 = { b "  -emit-ssa            Print QBE IR to stdout and exit", b 0 }
+data $__str393 = { b "  -emit-shim:<file>    Write the QBE shim alongside -emit-ssa", b 0 }
+data $__str394 = { b "  -emit-alt            Print alternative IR to stdout and exit", b 0 }
+data $__str395 = { b "  -emit-asm            Print assembly to stdout and exit", b 0 }
+data $__str396 = { b "  -src-target:<os>     Mock target OS for when-blocks in source output", b 0 }
+data $__str397 = { b "  -translate-c         Translate C input into a single .sx file", b 0 }
+data $__str398 = { b "  -inc-path:<dir>      Add an include search path for the alt backend", b 0 }
+data $__str399 = { b "  -show-cmd            Show the command used for linking", b 0 }
+data $__str400 = { b "  -test                Run the unit tests in the current file", b 0 }
+data $__str401 = { b "  -leak-check          Track allocations and enable the @dumpmemleaks intrinsic", b 0 }
+data $__str402 = { b "  -release             Build in release mode", b 0 }
+data $__str403 = { b "  -native              Optimize the alt backend for the host CPU", b 0 }
+data $__str404 = { b "  -unroll              Enable aggressive loop unrolling in the alt backend", b 0 }
+data $__str405 = { b "  -no-simd             Disable autovectorization (scalar fallback)", b 0 }
+data $__str406 = { b "  -dynamic             Link dynamically instead of statically", b 0 }
+data $__str407 = { b "  -dll                 Build a shared library", b 0 }
+data $__str408 = { b "  -a, -alt             Compile with fallback backend", b 0 }
+data $__str409 = { b "  -b, -bootstrap       Display backend output on error", b 0 }
+data $__str410 = { b "  -c, -compile         Compile only to produce object file, without linking", b 0 }
+data $__str411 = { b "  -d:<NAME>=<value>    Define a compile-time environment variable", b 0 }
+data $__str412 = { b "  -o, -output <file>   Output path for binary or build artifact", b 0 }
+data $__str413 = { b "  -l, -loud            Show stages of compilation with verbose output", b 0 }
+data $__str414 = { b "  -v, -version         Show the version of the Spectre compiler", b 0 }
+data $__str415 = { b "  -h, -help            Print this help message", b 0 }
 data $__str416 = { b "Spectre %s (%s)\n(C) Navid Momtahen - GPL-3.0 - 2026\n", b 0 }
 data $__str417 = { b "%s\n\n  %s\n\nusage:\n  %s\n", b 0 }
 data $__str418 = { b "init", b 0 }

@@ -588,7 +588,7 @@ static char sx__str392[]="lib syntax for linking is not supported on this platfo
 static char sx__str393[]="could not resolve library '%s' with pkg-config";
 static char sx__str394[]="could not find library '%s' on this system";
 static char sx__str395[]="v0.0.15";
-static char sx__str396[]="6757750";
+static char sx__str396[]="0710a95";
 static char sx__str397[]="";
 static char sx__str398[]="unknown";
 static char sx__str399[]="usage:";
@@ -612,32 +612,32 @@ static char sx__str416[]="  clean                Remove build artifacts";
 static char sx__str417[]="  doctor               Show system and Spectre installation information";
 static char sx__str418[]="";
 static char sx__str419[]="options:";
-static char sx__str420[]="  -ast                Print the AST in a unicode tree and exit";
-static char sx__str421[]="  -syntax-check       Check validity of syntax given some program";
-static char sx__str422[]="  -emit-ssa           Print QBE IR to stdout and exit";
-static char sx__str423[]="  -emit-shim:<file>   Write the QBE shim alongside -emit-ssa";
-static char sx__str424[]="  -emit-alt           Print alternative IR to stdout and exit";
-static char sx__str425[]="  -emit-asm           Print assembly to stdout and exit";
-static char sx__str426[]="  -src-target:<os>    Mock target OS for when-blocks in source output";
-static char sx__str427[]="  -translate-c        Translate C input into a single .sx file";
-static char sx__str428[]="  -inc-path:<dir>     Add an include search path for the alt backend";
-static char sx__str429[]="  -show-cmd           Show the command used for linking";
-static char sx__str430[]="  -test               Run the unit tests in the current file";
-static char sx__str431[]="  -leak-check         Track allocations and enable the @dumpmemleaks intrinsic";
-static char sx__str432[]="  -release            Build in release mode";
-static char sx__str433[]="  -native             Optimize the alt backend for the host CPU";
-static char sx__str434[]="  -unroll             Enable aggressive loop unrolling in the alt backend";
-static char sx__str435[]="  -no-simd            Disable autovectorization (scalar fallback)";
-static char sx__str436[]="  -dynamic            Link dynamically instead of statically";
-static char sx__str437[]="  -dll                Build a shared library";
-static char sx__str438[]="  -a, -alt            Compile with fallback backend";
-static char sx__str439[]="  -b, -bootstrap      Display backend output on error";
-static char sx__str440[]="  -c, -compile        Compile only to produce object file, without linking";
-static char sx__str441[]="  -d:<NAME>=<value>   Define a compile-time environment variable";
-static char sx__str442[]="  -o, -output <file>  Output path for binary or build artifact";
-static char sx__str443[]="  -l, -loud           Show stages of compilation with verbose output";
-static char sx__str444[]="  -v, -version        Show the version of the Spectre compiler";
-static char sx__str445[]="  -h, -help           Print this help message";
+static char sx__str420[]="  -ast                 Print the AST in a unicode tree and exit";
+static char sx__str421[]="  -syntax-check        Check validity of syntax given some program";
+static char sx__str422[]="  -emit-ssa            Print QBE IR to stdout and exit";
+static char sx__str423[]="  -emit-shim:<file>    Write the QBE shim alongside -emit-ssa";
+static char sx__str424[]="  -emit-alt            Print alternative IR to stdout and exit";
+static char sx__str425[]="  -emit-asm            Print assembly to stdout and exit";
+static char sx__str426[]="  -src-target:<os>     Mock target OS for when-blocks in source output";
+static char sx__str427[]="  -translate-c         Translate C input into a single .sx file";
+static char sx__str428[]="  -inc-path:<dir>      Add an include search path for the alt backend";
+static char sx__str429[]="  -show-cmd            Show the command used for linking";
+static char sx__str430[]="  -test                Run the unit tests in the current file";
+static char sx__str431[]="  -leak-check          Track allocations and enable the @dumpmemleaks intrinsic";
+static char sx__str432[]="  -release             Build in release mode";
+static char sx__str433[]="  -native              Optimize the alt backend for the host CPU";
+static char sx__str434[]="  -unroll              Enable aggressive loop unrolling in the alt backend";
+static char sx__str435[]="  -no-simd             Disable autovectorization (scalar fallback)";
+static char sx__str436[]="  -dynamic             Link dynamically instead of statically";
+static char sx__str437[]="  -dll                 Build a shared library";
+static char sx__str438[]="  -a, -alt             Compile with fallback backend";
+static char sx__str439[]="  -b, -bootstrap       Display backend output on error";
+static char sx__str440[]="  -c, -compile         Compile only to produce object file, without linking";
+static char sx__str441[]="  -d:<NAME>=<value>    Define a compile-time environment variable";
+static char sx__str442[]="  -o, -output <file>   Output path for binary or build artifact";
+static char sx__str443[]="  -l, -loud            Show stages of compilation with verbose output";
+static char sx__str444[]="  -v, -version         Show the version of the Spectre compiler";
+static char sx__str445[]="  -h, -help            Print this help message";
 static char sx__str446[]="Spectre %s (%s)\n(C) Navid Momtahen - GPL-3.0 - 2026\n";
 static char sx__str447[]="%s\n\n  %s\n\nusage:\n  %s\n";
 static char sx__str448[]="";
@@ -11757,7 +11757,7 @@ if(((((t_node)==(0)))?(1):(((t_buf)==(0)))))
 {
 if(((t_node)!=(0)))
 {
-(void)((free((void*)(intptr_t)((int64_t)(t_node))),0));
+(void)((free((void*)(intptr_t)(t_node)),0));
 }
 int64_t sx__w0[3];sx__w0[0]=1;int64_t sx__sv0=(int64_t)((0));memcpy(&sx__w0[1],&sx__sv0,sizeof(sx__sv0));sx__w0[2]=0;
 memcpy(sx__ret,(void*)(intptr_t)(((int64_t)(intptr_t)sx__w0)),24);return 0;
@@ -11799,7 +11799,7 @@ if((((((*(uint64_t*)((char*)(intptr_t)(t_node)+8)))+(t_aligned)))<=((*(uint64_t*
 {
 int64_t t_ptr=(int64_t)((int64_t)(intptr_t)((char*)(intptr_t)((*(int64_t*)((char*)(intptr_t)(t_node)+0)))+((*(uint64_t*)((char*)(intptr_t)(t_node)+8)))));
 *(uint64_t*)(intptr_t)((int64_t)(intptr_t)((char*)(intptr_t)(t_node)+8))=(uint64_t)((((*(uint64_t*)((char*)(intptr_t)(t_node)+8)))+(t_aligned)));
-*(int64_t*)(intptr_t)((int64_t)(intptr_t)((char*)(intptr_t)(t_au)+8))=(int64_t)((int64_t)(t_node));
+*(int64_t*)(intptr_t)((int64_t)(intptr_t)((char*)(intptr_t)(t_au)+8))=(int64_t)(t_node);
 int64_t sx__w0[3];sx__w0[0]=1;int64_t sx__sv0=(int64_t)(t_ptr);memcpy(&sx__w0[1],&sx__sv0,sizeof(sx__sv0));sx__w0[2]=0;
 memcpy(sx__ret,(void*)(intptr_t)(((int64_t)(intptr_t)sx__w0)),24);return 0;
 }
@@ -11881,11 +11881,11 @@ if(((t_node)==(0)))
 break;
 }
 int64_t t_next_node=(int64_t)((*(int64_t*)((char*)(intptr_t)(t_node)+24)));
-(void)((free((void*)(intptr_t)((int64_t)((*(int64_t*)((char*)(intptr_t)(t_node)+0))))),0));
-(void)((free((void*)(intptr_t)((int64_t)(t_node))),0));
+(void)((free((void*)(intptr_t)((*(int64_t*)((char*)(intptr_t)(t_node)+0)))),0));
+(void)((free((void*)(intptr_t)(t_node)),0));
 t_node=(t_next_node);
 }
-(void)((free((void*)(intptr_t)((int64_t)(t_au))),0));
+(void)((free((void*)(intptr_t)(t_au)),0));
 return 0;
 }
 
@@ -13176,7 +13176,7 @@ return(int64_t)((int64_t)(t_out));
 static int32_t std__str__StringBuilder__free(int64_t t_sb){
 int64_t t_ptr=(int64_t)((*(int64_t*)(intptr_t)((int64_t)(t_sb))));
 (void)((free((void*)(intptr_t)(t_ptr)),0));
-int64_t t_hdr=(int64_t)((int64_t)(t_sb));
+int64_t t_hdr=(int64_t)(t_sb);
 (void)((free((void*)(intptr_t)(t_hdr)),0));
 return 0;
 }
@@ -14320,7 +14320,7 @@ if(((((t_next)==(INT64_C(123))))?(1):(((t_next)==(INT64_C(125))))))
 {
 (void)((*(uint8_t*)(intptr_t)((int64_t)(intptr_t)((char*)(intptr_t)(t_buf)+(t_out_i)))=(uint8_t)(t_next)));
 t_out_i++;
-t_i=(((t_i)+(INT64_C(2))));
+t_i+=(INT64_C(2));
 }else{
 (void)((*(uint8_t*)(intptr_t)((int64_t)(intptr_t)((char*)(intptr_t)(t_buf)+(t_out_i)))=(uint8_t)(t_c)));
 t_out_i++;
