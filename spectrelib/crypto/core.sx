@@ -534,7 +534,7 @@ pub fn sha1_raw[A: allocators.GeneralAllocator](
         }
     }
     if !sha1_compute(src_ptr, src_len, out) {
-        allocators.free_in[A](ac, out as ref void)
+        allocators.free_in[A](ac, out)
         return none
     }
     return some out

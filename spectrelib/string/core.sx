@@ -1098,7 +1098,7 @@ pub fn (StringBuilder) build(sb: self) String = trust {
 pub fn (StringBuilder) free(sb: self) void = trust {
     val ptr: ref void = @load(sb as ref void)
     @free(ptr)
-    val hdr: mut ref void = sb as ref void
+    val hdr: mut StringBuilder = sb
     @free(hdr)
 }
 

@@ -33,7 +33,7 @@ fn rewrite_fmt(fmt: ref u8) ref void = trust {
             if (next == 123 || next == 125) {
                 @store8(@ptradd(buf, out_i), next)
                 out_i++
-                i = i + 2
+                i += 2
             } else {
                 @store8(@ptradd(buf, out_i), c)
                 out_i++

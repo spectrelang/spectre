@@ -415,7 +415,7 @@ fn win_header_new(value: ref u8) ref void = trust {
     }
     node.next = none
     node.value = value
-    return node as ref void
+    return node
 }
 
 fn win_header_append(list: ref void, value: ref u8) ref void = trust {

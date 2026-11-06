@@ -393,7 +393,7 @@ fn scoped_block_new(block_size: usize) result[ref ScopedArenaBlock, AllocError] 
     val buf: ref void = @alloc(block_size)
     if node == none || buf == none {
         if node != none {
-            @free(node as ref void)
+            @free(node)
         }
         return err AllocError.OutOfMemory
     }
@@ -434,7 +434,7 @@ pub fn (ScopedArena) alloc(a: ScopedArenaAllocator, size: usize) option[ref void
         if node.offset + aligned <= node.cap {
             val ptr: ref void = @ptradd(node.buf, node.offset)
             node.offset = node.offset + aligned
-            au.cur = node as ref void
+            au.cur = node
             return some ptr
         }
         node = node.next
@@ -508,11 +508,11 @@ pub fn (ScopedArena) free(a: ScopedArenaAllocator) void = trust {
             break
         }
         val next_node: ref ScopedArenaBlock = node.next
-        @free(node.buf as ref void)
-        @free(node as ref void)
+        @free(node.buf)
+        @free(node)
         node = next_node
     }
-    @free(au as ref void)
+    @free(au)
 }
 
 /// A general allocator backed by a scoped arena.

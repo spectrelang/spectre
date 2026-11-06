@@ -472,7 +472,7 @@ fn huffman_build[A: allocators.GeneralAllocator](
             tree.table = raw_table
         }
         none => {
-            allocators.free_in[A](ac, tree as ref void)
+            allocators.free_in[A](ac, tree)
             return err DeflateError.OutOfMemory
         }
     }
@@ -599,7 +599,7 @@ fn huffman_free[A: allocators.GeneralAllocator](ac: A, tree: ref Huffman) void =
     if tree.table != none {
         allocators.free_in[A](ac, tree.table)
     }
-    allocators.free_in[A](ac, tree as ref void)
+    allocators.free_in[A](ac, tree)
 }
 
 fn fixed_litlen_lengths[A: allocators.GeneralAllocator](ac: A) list[i64] = {
@@ -659,7 +659,7 @@ fn inflate_block[A: allocators.GeneralAllocator](
                 return false
             }
             @store8(@ptradd(out, out_len.value), symbol as u8)
-            out_len.value = out_len.value + 1
+            out_len.value++
         } elif symbol == 256 {
             return true
         } else {
@@ -758,7 +758,7 @@ pub fn inflate_zlib[A: allocators.GeneralAllocator](
             br = raw as ref BitReader
         }
         none => {
-            allocators.free_in[A](ac, out as ref void)
+            allocators.free_in[A](ac, out)
             return err DeflateError.OutOfMemory
         }
     }
@@ -774,8 +774,8 @@ pub fn inflate_zlib[A: allocators.GeneralAllocator](
             out_len = raw as ref i64
         }
         none => {
-            allocators.free_in[A](ac, br as ref void)
-            allocators.free_in[A](ac, out as ref void)
+            allocators.free_in[A](ac, br)
+            allocators.free_in[A](ac, out)
             return err DeflateError.OutOfMemory
         }
     }
@@ -817,7 +817,7 @@ pub fn inflate_zlib[A: allocators.GeneralAllocator](
                     break
                 }
                 @store8(@ptradd(out, out_len.value), b as u8)
-                out_len.value = out_len.value + 1
+                out_len.value++
                 i++
             }
         } elif block_type == 1 {
@@ -1059,10 +1059,10 @@ pub fn inflate_zlib[A: allocators.GeneralAllocator](
     val deflate_bytes: i64 = (br.bit_pos + 7) / 8
     val consumed_len: i64 = 2 + deflate_bytes + 4
     val failed: bool = br.failed || out_len.value != expected_size || consumed_len > input_len
-    allocators.free_in[A](ac, out_len as ref void)
-    allocators.free_in[A](ac, br as ref void)
+    allocators.free_in[A](ac, out_len)
+    allocators.free_in[A](ac, br)
     if failed {
-        allocators.free_in[A](ac, out as ref void)
+        allocators.free_in[A](ac, out)
         return err DeflateError.InvalidData
     }
 
@@ -1090,7 +1090,7 @@ test {
             assert consumed == 13
             assert trust @load8(data) == 104
             assert trust @load8(@ptradd(data, 4)) == 111
-            trust allocators.free_in[allocators.HeapAllocator](ac, data as ref void)
+            trust allocators.free_in[allocators.HeapAllocator](ac, data)
         }
         err _ => {
             assert false
