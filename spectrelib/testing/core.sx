@@ -1,0 +1,73 @@
+/// Diagnostics returned by the @dumpmemleaks intrinsic when the compiler is
+/// built or run with -leak-check.
+///
+/// When leak checking is disabled, every field is zeroed except `enabled`,
+/// which remains 0.
+///
+/// SPDX-License-Identifier: GPL-3.0-only
+/// (C) Navid Momtahen - 2026
+
+val allocators = use("../allocators")
+val fmt        = use("../fmt")
+val stdio      = use("../stdio")
+val string     = use("../string")
+
+pub type LeakDiagnostics = {
+    enabled: i64
+    live_allocations: i64
+    live_bytes: i64
+    total_allocations: i64
+    total_frees: i64
+    peak_live_bytes: i64
+    invalid_frees: i64
+}
+
+/// Print a human-readable leak summary to stdout.
+pub fn (LeakDiagnostics) pprint(ld: self) void = {
+    if ld.enabled == 0 {
+        stdio.puts("LeakDiagnostics: leak checking disabled")
+        return
+    }
+    trust stdio.print(
+        "LeakDiagnostics: {d} live allocation(s), {d} byte(s) leaked; allocations={d} frees={d} peak={d} invalid_frees={d}\n",
+        {
+            ld.live_allocations,
+            ld.live_bytes,
+            ld.total_allocations,
+            ld.total_frees,
+            ld.peak_live_bytes,
+            ld.invalid_frees
+        }
+    )
+}
+
+/// Return the same summary as a heap-allocated String.
+pub fn (LeakDiagnostics) pprint_str(ld: self) string.String = {
+    if ld.enabled == 0 {
+        val disabled_arena: mut allocators.Arena = trust allocators.Arena.new(128 as usize)?
+        val disabled_text = trust fmt.format[allocators.Arena](
+            disabled_arena,
+            "LeakDiagnostics: leak checking disabled\n",
+            {}
+        )
+        val disabled_result = trust string.clone(disabled_text)
+        trust allocators.Arena.free(disabled_arena)
+        return disabled_result
+    }
+    val arena: mut allocators.Arena = trust allocators.Arena.new(512 as usize)?
+    val text = trust fmt.format[allocators.Arena](
+        arena,
+        "LeakDiagnostics: {d} live allocation(s), {d} byte(s) leaked; allocations={d} frees={d} peak={d} invalid_frees={d}\n",
+        {
+            ld.live_allocations,
+            ld.live_bytes,
+            ld.total_allocations,
+            ld.total_frees,
+            ld.peak_live_bytes,
+            ld.invalid_frees
+        }
+    )
+    val result = trust string.clone(text)
+    trust allocators.Arena.free(arena)
+    return result
+}

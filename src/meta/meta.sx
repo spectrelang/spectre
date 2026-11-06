@@ -49,6 +49,7 @@ pub fn print_usage() void = {
     stdio.puts("  -inc-path:<dir>     Add an include search path for the alt backend")
     stdio.puts("  -show-cmd           Show the command used for linking")
     stdio.puts("  -test               Run the unit tests in the current file")
+    stdio.puts("  -leak-check         Track allocations and enable the @dumpmemleaks intrinsic")
     stdio.puts("  -release            Build in release mode")
     stdio.puts("  -native             Optimize the alt backend for the host CPU")
     stdio.puts("  -unroll             Enable aggressive loop unrolling in the alt backend")
@@ -341,6 +342,15 @@ pub fn print_help(topic: ref u8) i32 = trust {
             "-test",
             "Run the unit tests in the current file.",
             "spectre <input.sx> -test"
+        )
+        return 0
+    }
+
+    if str.raw_cmp(topic, "-leak-check") == 0 {
+        print_flag_help(
+            "-leak-check",
+            "Route allocations made by @alloc through the leak tracker and enable the @dumpmemleaks intrinsic.",
+            "spectre <input.sx> -leak-check"
         )
         return 0
     }

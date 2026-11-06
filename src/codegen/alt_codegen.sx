@@ -59,6 +59,7 @@ pub type CCtx = {
     expr_arena: mut list[ref void]
     expr_arena_owned: mut list[bool]
     release_mode: mut bool
+    leak_check: mut bool
     current_ret_ctype: mut ref u8
     current_ret_is_void: mut bool
     current_ret_ty: mut ref parser.Node
@@ -139,6 +140,7 @@ fn cc_new() ref CCtx = trust {
     ctx.expr_arena = mem.new[ref void]()
     ctx.expr_arena_owned = mem.new[bool]()
     ctx.release_mode = false
+    ctx.leak_check = false
     ctx.current_ret_ctype = "int64_t"
     ctx.current_ret_is_void = false
     ctx.current_ret_unboxed = false
@@ -528,6 +530,11 @@ fn cc_infer_expr_ty(ctx: mut ref CCtx, expr: ref parser.Node) ref parser.Node = 
         if str.raw_cmp(bname, "embedlen") == 0 {
             val out: mut ref parser.Node = parser.make_node(ctx.arena, parser.TY_NAMED, expr.line)
             parser.node_store_slot[ref u8](@addr(out.d0), "i64")
+            return out
+        }
+        if str.raw_cmp(bname, "dumpmemleaks") == 0 {
+            val out: mut ref parser.Node = parser.make_node(ctx.arena, parser.TY_NAMED, expr.line)
+            parser.node_store_slot[ref u8](@addr(out.d0), "testing.LeakDiagnostics")
             return out
         }
         if str.raw_cmp(bname, "call") == 0 {
@@ -5276,36 +5283,112 @@ fn gen_builtin(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
     if str.raw_cmp(bname, "alloc") == 0 {
         val sz: ref u8 = get_arg(ctx, args, 0)
         val buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 128 as usize) as ref u8
-        @snprintf(
-            buf,
-            128,
-            "(int64_t)(intptr_t)calloc(1,(size_t)({s}))",
-            {sz}
-        )
+        if ctx.leak_check {
+            @snprintf(
+                buf,
+                128,
+                "(int64_t)(intptr_t)__sx_leak_calloc(1,(size_t)({s}))",
+                {sz}
+            )
+        } else {
+            @snprintf(
+                buf,
+                128,
+                "(int64_t)(intptr_t)calloc(1,(size_t)({s}))",
+                {sz}
+            )
+        }
         return cc_expr_track(ctx, buf)
     }
     if str.raw_cmp(bname, "free") == 0 {
         val ptr: ref u8 = get_arg(ctx, args, 0)
         val buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 128 as usize) as ref u8
-        @snprintf(
-            buf,
-            128,
-            "(free((void*)(intptr_t)({s})),0)",
-            {ptr}
-        )
+        if ctx.leak_check {
+            @snprintf(
+                buf,
+                128,
+                "(__sx_leak_free((void*)(intptr_t)({s})),0)",
+                {ptr}
+            )
+        } else {
+            @snprintf(
+                buf,
+                128,
+                "(free((void*)(intptr_t)({s})),0)",
+                {ptr}
+            )
+        }
         return cc_expr_track(ctx, buf)
     }
     if str.raw_cmp(bname, "realloc") == 0 {
         val p: ref u8 = get_arg(ctx, args, 0)
         val s: ref u8 = get_arg(ctx, args, 1)
         val buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 256 as usize) as ref u8
-        @snprintf(
-            buf,
-            256,
-            "(int64_t)(intptr_t)realloc((void*)(intptr_t)({s}),(size_t)({s}))",
-            {p, s}
-        )
+        if ctx.leak_check {
+            @snprintf(
+                buf,
+                256,
+                "(int64_t)(intptr_t)__sx_leak_realloc((void*)(intptr_t)({s}),(size_t)({s}))",
+                {p, s}
+            )
+        } else {
+            @snprintf(
+                buf,
+                256,
+                "(int64_t)(intptr_t)realloc((void*)(intptr_t)({s}),(size_t)({s}))",
+                {p, s}
+            )
+        }
         return cc_expr_track(ctx, buf)
+    }
+    if str.raw_cmp(bname, "dumpmemleaks") == 0 {
+        val diag_fields: mut ref void = none
+        val expected_diag: ref parser.Node = ctx.expected_ty as ref parser.Node
+        if expected_diag != none {
+            val expected_struct: ref parser.Node = cc_expected_struct_ty(ctx, expected_diag)
+            if expected_struct != none {
+                diag_fields = cc_lookup_struct(ctx, expected_struct.d0 as ref u8)
+            }
+        }
+        if diag_fields == none {
+            diag_fields = cc_lookup_struct(ctx, "testing.LeakDiagnostics")
+        }
+        if diag_fields == none {
+            diag_fields = cc_lookup_struct(ctx, "LeakDiagnostics")
+        }
+        val diag_size: mut i64 = 56
+        if diag_fields != none {
+            diag_size = struct_size_bytes(ctx, diag_fields)
+        }
+        if diag_size < 56 {
+            diag_size = 56
+        }
+        val t: i64 = fresh_tmp(ctx)
+        val decl: ref u8 = allocators.ScopedArena.alloc_or_none(
+            ctx.arena,
+            256 as usize
+        ) as ref u8
+        @snprintf(
+            decl,
+            256,
+            "int64_t* sx__ld{lld}=(int64_t*)calloc(1,{lld});\n",
+            {t, diag_size}
+        )
+        emit(ctx, decl)
+        if ctx.leak_check {
+            val fill: ref u8 = allocators.ScopedArena.alloc_or_none(
+                ctx.arena,
+                128 as usize
+            ) as ref u8
+            @snprintf(fill, 128, "__sx_leak_fill((long long*)sx__ld{lld});\n", {t})
+            emit(ctx, fill)
+        }
+        val res: ref u8 = allocators.ScopedArena.alloc_or_none(
+            ctx.arena,
+            64 as usize
+        ) as ref u8
+        @snprintf(res, 64, "(int64_t)(intptr_t)sx__ld{lld}", {t})
+        return cc_expr_track(ctx, res)
     }
     if str.raw_cmp(bname, "sizeof") == 0 {
         if args != none {
@@ -9622,6 +9705,9 @@ fn emit_c_preamble(ctx: ref CCtx) void = trust {
         ctx,
         "static char* sx__rt_fmt(const char* f, int64_t* p){char* b=(char*)malloc(4096);if(!p){strcpy(b,f);return b;} snprintf(b,4096,f,p[0],p[1],p[2],p[3],p[4],p[5],p[6],p[7],p[8],p[9],p[10],p[11],p[12],p[13],p[14],p[15]);return b;}"
     )
+    if ctx.leak_check {
+        emitln_fwd(ctx, codegen.leak_runtime_c_source())
+    }
 }
 
 fn emit_c_panic_handler(ctx: ref CCtx) void = trust {
@@ -9989,13 +10075,15 @@ pub fn gen_module_c_test(
     extra_includes: list[ref u8],
     src_target: ref u8,
     emit_line_directives: bool,
-    simd_backend: i64
+    simd_backend: i64,
+    leak_check: bool
 ) ref u8 = trust {
     val ctx: mut ref CCtx = cc_new()
     defer {
         allocators.ScopedArena.free(ctx.arena)
     }
     ctx.release_mode = release_mode
+    ctx.leak_check = leak_check
     ctx.src_target = src_target
     ctx.simd_backend = simd_backend
     val out_prefixes: mut list[ref u8] = mem.new[ref u8]()
@@ -10120,13 +10208,15 @@ pub fn gen_module_c(
     extra_includes: list[ref u8],
     src_target: ref u8,
     emit_line_directives: bool,
-    simd_backend: i64
+    simd_backend: i64,
+    leak_check: bool
 ) ref u8 = trust {
     val ctx: mut ref CCtx = cc_new()
     defer {
         allocators.ScopedArena.free(ctx.arena)
     }
     ctx.release_mode = release_mode
+    ctx.leak_check = leak_check
     ctx.src_target = src_target
     ctx.simd_backend = simd_backend
     val out_prefixes: mut list[ref u8] = mem.new[ref u8]()

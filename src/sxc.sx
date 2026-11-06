@@ -348,6 +348,7 @@ pub fn main() i32 = trust {
     val emit_alt: mut bool = false
     val show_cmd: mut bool = false
     val test_mode: mut bool = false
+    val leak_check: mut bool = false
     val release_mode: mut bool = false
     val native_mode: mut bool = false
     val unroll_mode: mut bool = false
@@ -529,6 +530,9 @@ pub fn main() i32 = trust {
                 arg_i++
             } elif string.raw_cmp(arg, "-test") == 0 {
                 test_mode = true
+                arg_i++
+            } elif string.raw_cmp(arg, "-leak-check") == 0 {
+                leak_check = true
                 arg_i++
             } elif string.raw_cmp(arg, "-loud") == 0 || string.raw_cmp(arg, "-l") == 0 {
                 quiet = false
@@ -772,7 +776,8 @@ pub fn main() i32 = trust {
                 extra_includes,
                 src_target,
                 emit_ld,
-                simd_backend
+                simd_backend,
+                leak_check
             )
         } else {
             c_ir = alt_codegen.gen_module_c(
@@ -781,7 +786,8 @@ pub fn main() i32 = trust {
                 extra_includes,
                 src_target,
                 emit_ld,
-                simd_backend
+                simd_backend,
+                leak_check
             )
         }
 
@@ -1053,11 +1059,21 @@ pub fn main() i32 = trust {
     val c_shim_source: mut ref u8 = ""
 
     if test_mode {
-        val cg_out = codegen.gen_module_resolved_test(root_mod, release_mode, src_target)
+        val cg_out = codegen.gen_module_resolved_test(
+            root_mod,
+            release_mode,
+            src_target,
+            leak_check
+        )
         qbe_ir = cg_out.qbe
         c_shim_source = cg_out.shim
     } else {
-        val cg_out = codegen.gen_module_resolved(root_mod, release_mode, src_target)
+        val cg_out = codegen.gen_module_resolved(
+            root_mod,
+            release_mode,
+            src_target,
+            leak_check
+        )
         qbe_ir = cg_out.qbe
         c_shim_source = cg_out.shim
     }

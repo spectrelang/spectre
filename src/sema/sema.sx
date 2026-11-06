@@ -467,6 +467,7 @@ fn is_known_builtin(name: ref u8) bool = trust {
     @append(builtins, "strcmp")
     @append(builtins, "atoi")
     @append(builtins, "staticerror")
+    @append(builtins, "dumpmemleaks")
     @append(builtins, "flush")
     @append(builtins, "bitcast")
     @append(builtins, "embed")
@@ -3666,6 +3667,12 @@ fn infer_expr_scope_type_name(ctx: ref SemaCtx, node: ref parser.Node) ref u8 = 
     if k == parser.NK_CAST {
         return extract_type_name(node.d1 as ref parser.Node)
     }
+    if k == parser.NK_BUILTIN {
+        val bname: ref u8 = node.d0 as ref u8
+        if str_eq(bname, "dumpmemleaks") {
+            return "testing.LeakDiagnostics"
+        }
+    }
     return ""
 }
 
@@ -5661,6 +5668,29 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
                 ) as ref u8
                 @snprintf(ebuf, 512, "{s}:{lld}: builtin '@listalloc' requires exactly 1 argument, got {lld}",
                     {filename, line, actual_argc})
+                add_error(ctx, ebuf)
+                return
+            }
+        }
+
+        if str_eq(bname, "dumpmemleaks") {
+            if type_argc != 0 {
+                val ebuf: ref u8 = allocators.ScopedArena.alloc_or_none(
+                    ctx.arena,
+                    (512) as usize
+                ) as ref u8
+                @snprintf(ebuf, 512, "{s}:{lld}: builtin '@dumpmemleaks' does not take type arguments",
+                    {filename, line})
+                add_error(ctx, ebuf)
+                return
+            }
+            if actual_argc != 0 {
+                val ebuf: ref u8 = allocators.ScopedArena.alloc_or_none(
+                    ctx.arena,
+                    (512) as usize
+                ) as ref u8
+                @snprintf(ebuf, 512, "{s}:{lld}: builtin '@dumpmemleaks' takes no arguments",
+                    {filename, line})
                 add_error(ctx, ebuf)
                 return
             }

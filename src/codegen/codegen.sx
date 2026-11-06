@@ -80,6 +80,7 @@ pub type CgCtx = {
     c_const_index: mut ref void
     global_inits: mut list[ref GlobalInit]
     release_mode: mut bool
+    leak_check: mut bool
     src_target: mut ref u8
     inv_tnames: mut list[ref u8]
     inv_tlists: mut list[ref void]
@@ -203,6 +204,7 @@ fn cg_new() ref CgCtx = trust {
     ctx.c_const_index = collections.RawIndexMap.new(32 as usize)
     ctx.global_inits = mem.new[ref GlobalInit]()
     ctx.release_mode = false
+    ctx.leak_check = false
     ctx.src_target = ""
     ctx.inv_tnames = mem.new[ref u8]()
     ctx.inv_tlists = mem.new[ref void]()
@@ -1907,15 +1909,111 @@ fn cg_alloc_runtime_c_source() ref u8 = trust {
     \\
 }
 
+/// C runtime used by -leak-check. This is only emitted when the flag is set.
+pub fn leak_runtime_c_source() ref u8 = trust {
+    return \\
+    \\#include <stdint.h>
+    \\#include <stdlib.h>
+    \\#include <string.h>
+    \\typedef struct sx_leak_block {
+    \\    struct sx_leak_block* prev;
+    \\    struct sx_leak_block* next;
+    \\    unsigned long long size;
+    \\    unsigned long long magic;
+    \\} sx_leak_block;
+    \\#define SX_LEAK_MAGIC 0x534C4B42ULL
+    \\static sx_leak_block* sx_leak_head = 0;
+    \\static long long sx_leak_live_allocations = 0;
+    \\static long long sx_leak_live_bytes = 0;
+    \\static long long sx_leak_total_allocations = 0;
+    \\static long long sx_leak_total_frees = 0;
+    \\static long long sx_leak_peak_live_bytes = 0;
+    \\static long long sx_leak_invalid_frees = 0;
+    \\static void sx_leak_unlink(sx_leak_block* b) {
+    \\    if (b->prev) b->prev->next = b->next;
+    \\    if (b->next) b->next->prev = b->prev;
+    \\    if (sx_leak_head == b) sx_leak_head = b->next;
+    \\}
+    \\void* __sx_leak_alloc(unsigned long long size) {
+    \\    if (size == 0) size = 1;
+    \\    sx_leak_block* b = (sx_leak_block*)malloc(sizeof(sx_leak_block) + (size_t)size);
+    \\    if (!b) return 0;
+    \\    b->prev = 0;
+    \\    b->next = sx_leak_head;
+    \\    if (sx_leak_head) sx_leak_head->prev = b;
+    \\    sx_leak_head = b;
+    \\    b->size = size;
+    \\    b->magic = SX_LEAK_MAGIC;
+    \\    sx_leak_live_allocations++;
+    \\    sx_leak_live_bytes += (long long)size;
+    \\    sx_leak_total_allocations++;
+    \\    if (sx_leak_live_bytes > sx_leak_peak_live_bytes) sx_leak_peak_live_bytes = sx_leak_live_bytes;
+    \\    return (void*)(b + 1);
+    \\}
+    \\void* __sx_leak_calloc(unsigned long long count, unsigned long long size) {
+    \\    unsigned long long total = count * size;
+    \\    void* p = __sx_leak_alloc(total);
+    \\    if (p) memset(p, 0, (size_t)total);
+    \\    return p;
+    \\}
+    \\void __sx_leak_free(void* ptr) {
+    \\    if (!ptr) return;
+    \\    sx_leak_block* b = ((sx_leak_block*)ptr) - 1;
+    \\    if (b->magic != SX_LEAK_MAGIC) {
+    \\        sx_leak_invalid_frees++;
+    \\        return;
+    \\    }
+    \\    b->magic = 0;
+    \\    sx_leak_unlink(b);
+    \\    sx_leak_live_allocations--;
+    \\    sx_leak_live_bytes -= (long long)b->size;
+    \\    sx_leak_total_frees++;
+    \\    memset(ptr, 0xDD, (size_t)b->size);
+    \\    free(b);
+    \\}
+    \\void* __sx_leak_realloc(void* ptr, unsigned long long size) {
+    \\    if (!ptr) return __sx_leak_alloc(size);
+    \\    if (size == 0) {
+    \\        __sx_leak_free(ptr);
+    \\        return 0;
+    \\    }
+    \\    sx_leak_block* b = ((sx_leak_block*)ptr) - 1;
+    \\    if (b->magic != SX_LEAK_MAGIC) {
+    \\        sx_leak_invalid_frees++;
+    \\        return 0;
+    \\    }
+    \\    unsigned long long old_size = b->size;
+    \\    void* next = __sx_leak_alloc(size);
+    \\    if (!next) return 0;
+    \\    memcpy(next, ptr, (size_t)(old_size < size ? old_size : size));
+    \\    __sx_leak_free(ptr);
+    \\    return next;
+    \\}
+    \\void __sx_leak_fill(long long* out) {
+    \\    if (!out) return;
+    \\    out[0] = 1;
+    \\    out[1] = sx_leak_live_allocations;
+    \\    out[2] = sx_leak_live_bytes;
+    \\    out[3] = sx_leak_total_allocations;
+    \\    out[4] = sx_leak_total_frees;
+    \\    out[5] = sx_leak_peak_live_bytes;
+    \\    out[6] = sx_leak_invalid_frees;
+    \\}
+    \\
+}
+
 /// Build the C translation unit that exposes C header constants to QBE.
 fn cg_build_c_shim(ctx: ref CgCtx) ref u8 = trust {
     val n_consts: i64 = @len(ctx.c_consts) as i64
     val n_adapters: i64 = @len(ctx.alloc_adapter_lines as list[ref u8]) as i64
-    if n_consts == 0 && !ctx.alloc_runtime && n_adapters == 0 {
+    if n_consts == 0 && !ctx.alloc_runtime && n_adapters == 0 && !ctx.leak_check {
         return ""
     }
 
     val sb: ref void = str.StringBuilder.new()
+    if ctx.leak_check {
+        str.StringBuilder.append_cstr(sb, leak_runtime_c_source())
+    }
     if ctx.alloc_runtime {
         str.StringBuilder.append_cstr(sb, cg_alloc_runtime_c_source())
     }
@@ -4225,6 +4323,9 @@ fn infer_type_annotation(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = tru
         }
         if str.raw_cmp(bname, "embedlen") == 0 {
             return "i64"
+        }
+        if str.raw_cmp(bname, "dumpmemleaks") == 0 {
+            return "testing.LeakDiagnostics"
         }
     }
 
@@ -11148,17 +11249,59 @@ fn gen_builtin(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
         emit(ctx, buf)
     } elif str.raw_cmp(name, "alloc") == 0 {
         val sz: ref u8 = get_arg(ctx, args, 0)
-        @snprintf(buf, 512, "    %%t{lld} =l call $malloc(l {s})\n", {tmp, sz})
+        if ctx.leak_check {
+            @snprintf(buf, 512, "    %%t{lld} =l call $__sx_leak_alloc(l {s})\n", {tmp, sz})
+        } else {
+            @snprintf(buf, 512, "    %%t{lld} =l call $malloc(l {s})\n", {tmp, sz})
+        }
         emit(ctx, buf)
     } elif str.raw_cmp(name, "free") == 0 {
         val ptr: ref u8 = get_arg(ctx, args, 0)
-        @snprintf(buf, 512, "    call $free(l {s})\n    %%t{lld} =l copy 0\n", {ptr, tmp})
+        if ctx.leak_check {
+            @snprintf(buf, 512, "    call $__sx_leak_free(l {s})\n    %%t{lld} =l copy 0\n", {ptr, tmp})
+        } else {
+            @snprintf(buf, 512, "    call $free(l {s})\n    %%t{lld} =l copy 0\n", {ptr, tmp})
+        }
         emit(ctx, buf)
     } elif str.raw_cmp(name, "realloc") == 0 {
         val ptr2: ref u8 = get_arg(ctx, args, 0)
         val sz2: ref u8 = get_arg(ctx, args, 1)
-        @snprintf(buf, 512, "    %%t{lld} =l call $realloc(l {s}, l {s})\n", {tmp, ptr2, sz2})
+        if ctx.leak_check {
+            @snprintf(buf, 512, "    %%t{lld} =l call $__sx_leak_realloc(l {s}, l {s})\n", {tmp, ptr2, sz2})
+        } else {
+            @snprintf(buf, 512, "    %%t{lld} =l call $realloc(l {s}, l {s})\n", {tmp, ptr2, sz2})
+        }
         emit(ctx, buf)
+    } elif str.raw_cmp(name, "dumpmemleaks") == 0 {
+        val diag_fields: mut ref void = none
+        val expected_diag: ref parser.Node = ctx.expected_ty as ref parser.Node
+        if expected_diag != none {
+            diag_fields = cg_struct_fields_for_type(ctx, expected_diag)
+        }
+        if diag_fields == none {
+            diag_fields = cg_lookup_struct(ctx, "testing.LeakDiagnostics")
+        }
+        if diag_fields == none {
+            diag_fields = cg_lookup_struct(ctx, "LeakDiagnostics")
+        }
+        val diag_size: mut i64 = 56
+        if diag_fields != none {
+            diag_size = struct_size(ctx, diag_fields)
+        }
+        if diag_size < 56 {
+            diag_size = 56
+        }
+        @snprintf(
+            buf,
+            512,
+            "    %%t{lld} =l call $calloc(l 1, l {lld})\n",
+            {tmp, diag_size}
+        )
+        emit(ctx, buf)
+        if ctx.leak_check {
+            @snprintf(buf, 512, "    call $__sx_leak_fill(l %%t{lld})\n", {tmp})
+            emit(ctx, buf)
+        }
     } elif str.raw_cmp(name, "memcpy") == 0 {
         val dst: ref u8 = get_arg(ctx, args, 0)
         val src: ref u8 = get_arg(ctx, args, 1)
@@ -18198,13 +18341,15 @@ fn cg_finish_qbe(ctx: mut ref CgCtx) ref u8 = trust {
 pub fn gen_module_resolved(
     root: ref module.ResolvedModule,
     release_mode: bool,
-    src_target: ref u8
+    src_target: ref u8,
+    leak_check: bool
 ) ref CgOutput = trust {
     val ctx: mut ref CgCtx = cg_new()
     defer {
         allocators.ScopedArena.free(ctx.arena)
     }
     ctx.release_mode = release_mode
+    ctx.leak_check = leak_check
     ctx.src_target = src_target
     ctx.current_filename = module.module_filename(root)
     emit_runtime_helpers(ctx)
@@ -18534,13 +18679,15 @@ fn gen_test_main(
 pub fn gen_module_resolved_test(
     root: ref module.ResolvedModule,
     release_mode: bool,
-    src_target: ref u8
+    src_target: ref u8,
+    leak_check: bool
 ) ref CgOutput = trust {
     val ctx: mut ref CgCtx = cg_new()
     defer {
         allocators.ScopedArena.free(ctx.arena)
     }
     ctx.release_mode = release_mode
+    ctx.leak_check = leak_check
     ctx.src_target = src_target
     ctx.current_filename = module.module_filename(root)
     emit_runtime_helpers(ctx)
