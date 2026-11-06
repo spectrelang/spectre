@@ -9423,7 +9423,7 @@ fn emit_c_preamble(ctx: ref CCtx) void = trust {
     )
     emitln_fwd(
         ctx,
-        "static void sx__rt_list_free(int64_t* h){if(!h)return;int64_t buf=h[0];sx__alloc_desc* d=(sx__alloc_desc*)(intptr_t)h[3];if(d){if(buf)d->free(d->ctx,buf);d->free(d->ctx,(int64_t)(intptr_t)d);d->free(d->ctx,(int64_t)(intptr_t)h);}else{if(buf)free((void*)(intptr_t)buf);free(h);}}"
+        "static void sx__rt_list_free(int64_t* h){if(!h)return;int64_t buf=h[0];sx__alloc_desc* d=(sx__alloc_desc*)(intptr_t)h[3];if(d){if(buf)d->free(d->ctx,buf);d->free(d->ctx,(int64_t)(intptr_t)h);d->free(d->ctx,(int64_t)(intptr_t)d);}else{if(buf)free((void*)(intptr_t)buf);free(h);}}"
     )
     emitln_fwd(
         ctx,
