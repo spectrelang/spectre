@@ -606,7 +606,7 @@ static char sx__str392[]="lib syntax for linking is not supported on this platfo
 static char sx__str393[]="could not resolve library '%s' with pkg-config";
 static char sx__str394[]="could not find library '%s' on this system";
 static char sx__str395[]="v0.0.14";
-static char sx__str396[]="GIT_HASH";
+static char sx__str396[]="39629a3";
 static char sx__str397[]="";
 static char sx__str398[]="unknown";
 static char sx__str399[]="usage:";
@@ -26523,7 +26523,7 @@ return(int64_t)(((int64_t)(intptr_t)sx__str395));
 }
 
 static int64_t meta__get_commit_hash(void){
-int64_t t_hash=(int64_t)(std__env__get(((int64_t)(intptr_t)sx__str396)));
+int64_t t_hash=(int64_t)(((int64_t)(intptr_t)sx__str396));
 if(((std__str__raw_cmp(t_hash,((int64_t)(intptr_t)sx__str397)))==(INT64_C(0))))
 {
 return(int64_t)(((int64_t)(intptr_t)sx__str398));
