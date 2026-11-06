@@ -6875,7 +6875,7 @@ fn translate_function_decl(
         if is_static {
             fn_kw = "fn"
         }
-        line = trust @fmtalloc("{s} {s}({s}) {s} = ", {fn_kw, name, params_text, return_type})
+        line = trust @fmtalloc("{s} {s}({s}) {s} = trust ", {fn_kw, name, params_text, return_type})
         append_open_block_line(out, indent, line)
         if is_main {
             val body_lines = split_lines(body_src)
