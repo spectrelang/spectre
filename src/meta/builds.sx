@@ -469,6 +469,15 @@ pub fn append_debug_runtime_links(
     compiler: ref u8,
     arena: ref allocators.Arena
 ) void = trust {
+    val platform: ref u8 = reflection.current_platform_name[allocators.Arena](arena)
+    val kind: ref u8 = alt_compiler_kind(compiler)
+    if string.raw_cmp(platform, "windows") == 0 {
+        if compiler_uses_msvc_flags(kind) {
+            @append(links, "bcrypt.lib")
+        } else {
+            @append(links, "-lbcrypt")
+        }
+    }
     if release_mode {
         return
     }
@@ -482,13 +491,11 @@ pub fn append_debug_runtime_links(
             stdio.print("warning: panic_handler.o not found at: {s}\n", {panic_o})
         }
     }
-    val platform: ref u8 = reflection.current_platform_name[allocators.Arena](arena)
     if string.raw_cmp(platform, "windows") == 0 {
-        val kind: ref u8 = alt_compiler_kind(compiler)
         if compiler_uses_msvc_flags(kind) {
             @append(links, "Dbghelp.lib")
         } else {
-            @append(links, "-lDbgHelp")
+            @append(links, "-lDbghelp")
         }
     }
 }

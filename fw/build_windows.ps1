@@ -47,14 +47,19 @@ try {
 } catch {
 }
 
+Write-Host "Building runtime objects..."
+clang -O2 -c spectrelib/csources/panic_handler.c -o spectrelib/csources/panic_handler.o
+clang -O2 -I (Join-Path $YyjsonDir "src") -c spectrelib/csources/yyjson_shim.c -o spectrelib/csources/yyjson_shim.o
+
 Write-Host "Building Windows bootstrap compiler..."
-clang -O3 -Wno-everything `
+clang -O3 -Wno-everything -Wno-error=int-conversion `
     bootstrap/sxcw.c `
     spectrelib/csources/panic_handler.c `
     spectrelib/csources/yyjson_shim.c `
     -I (Join-Path $YyjsonDir "src") `
     $YyjsonLib `
     -lDbghelp `
+    -lbcrypt `
     -o stage0.exe
 if (-not (Test-Path "stage0.exe")) {
     throw "bootstrap compiler build failed"

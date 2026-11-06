@@ -22,14 +22,8 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
-      - name: Install Spectre toolchain
-        run: curl -fsSL https://spectrelang.org/get.sh | sh
-
-      - name: Add Spectre to PATH
-        run: echo "${HOME}/.local/bin" >> "$GITHUB_PATH"
-
-      - name: Build spectre-dev
-        run: ./fw/build.sh
+      - name: Build bootstrap and spectre-dev
+        run: ./fw/build_posix_bootstrap.sh
 
       - name: Verify SIMD backends
         run: ./fw/test_simd.sh
@@ -39,21 +33,15 @@ jobs:
 
   macos:
     name: macOS SIMD
-    runs-on: macos-14
+    runs-on: macos-15
     timeout-minutes: 60
 
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
 
-      - name: Install Spectre toolchain
-        run: curl -fsSL https://spectrelang.org/get.sh | sh
-
-      - name: Add Spectre to PATH
-        run: echo "${HOME}/.local/bin" >> "$GITHUB_PATH"
-
-      - name: Build spectre-dev
-        run: ./fw/build.sh
+      - name: Build bootstrap and spectre-dev
+        run: ./fw/build_posix_bootstrap.sh
 
       - name: Verify SIMD backends
         run: ./fw/test_simd.sh
@@ -119,6 +107,6 @@ jobs:
           SPECTRE: ./spectre-dev.exe
         run: |
           set -o pipefail
-          ./fw/test_simd.sh | tee simd-test.log
+          bash ./fw/test_simd.sh | tee simd-test.log
           grep -q "SIMD mode: clang-cl" simd-test.log
           grep -q "SIMD mode: msvc" simd-test.log
