@@ -1,0 +1,16 @@
+/// Regression: a local parameter must shadow a module global with the same
+/// name even when the global belongs to another module.
+val state_mod = use("state_mod.sx")
+val input     = use("input.sx")
+
+pub fn main() i32 = {
+    val value: mut input.Input = {
+        buttons: 0 as i64
+    }
+
+    input.update(value)
+
+    assert value.buttons == (42 as i64)
+    assert state_mod.value() == (0 as i64)
+    return 0 as i32
+}

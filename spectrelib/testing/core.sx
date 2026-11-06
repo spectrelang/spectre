@@ -7,10 +7,8 @@
 /// SPDX-License-Identifier: GPL-3.0-only
 /// (C) Navid Momtahen - 2026
 
-val allocators = use("../allocators")
-val fmt        = use("../fmt")
-val stdio      = use("../stdio")
-val string     = use("../string")
+val stdio  = use("../stdio")
+val string = use("../string")
 
 /// One live allocation reported by -leak-check.
 pub type LeakRecord = {
@@ -32,15 +30,14 @@ pub type LeakDiagnostics = {
     record_count: i64
 }
 
-val LEAK_TABLE_FMT: ref u8 = \\
-\\metric              {12s}
-\\enabled             {12d}
-\\live allocations    {12d}
-\\live bytes          {12d}
-\\allocations         {12d}
-\\frees               {12d}
-\\peak bytes          {12d}
-\\invalid frees       {12d}
+val LEAK_TABLE_FMT: ref u8 = \\metric              %12s
+\\enabled             %12lld
+\\live allocations    %12lld
+\\live bytes          %12lld
+\\allocations         %12lld
+\\frees               %12lld
+\\peak bytes          %12lld
+\\invalid frees       %12lld
 \\
 
 fn leak_record_at(records: ref LeakRecord, index: i64) ref LeakRecord = {
@@ -50,94 +47,70 @@ fn leak_record_at(records: ref LeakRecord, index: i64) ref LeakRecord = {
 
 /// Print a readable leak summary to stdout.
 pub fn (LeakDiagnostics) pprint(ld: self) void = {
-    val sb = string.StringBuilder.new()
-
-    val arena: allocators.Arena = trust allocators.Arena.new(2048 as usize)?
-    val summary = trust fmt.format[allocators.Arena](arena, LEAK_TABLE_FMT, {
-        "value",
-        ld.enabled,
-        ld.live_allocations,
-        ld.live_bytes,
-        ld.total_allocations,
-        ld.total_frees,
-        ld.peak_live_bytes,
-        ld.invalid_frees
-    })
-    val summary_raw: ref u8 = trust @load(summary as ref void) as ref u8
-    trust string.StringBuilder.append_cstr(sb, summary_raw)
-    val arena_buf: mut ref void = trust @load(arena as ref void)
-    val arena_hdr: mut allocators.Arena = arena
-    trust @free(arena_buf)
-    trust @free(arena_hdr)
+    val summary: mut ref u8 = @alloc(4096 as usize) as ref u8
+    @snprintf(summary, 4096, LEAK_TABLE_FMT, {
+            "value",
+            ld.enabled,
+            ld.live_allocations,
+            ld.live_bytes,
+            ld.total_allocations,
+            ld.total_frees,
+            ld.peak_live_bytes,
+            ld.invalid_frees
+        })
+    trust stdio.print("{s}", {summary})
+    trust @free(summary as ref void)
 
     if ld.record_count > (0 as i64) && ld.records != none {
-        trust string.StringBuilder.append_cstr(sb, "\nleaked allocations\n        size  location\n")
+        stdio.puts("\nleaked allocations\n        size  location")
         val index: mut i64 = 0 as i64
         for index < ld.record_count {
             val record = leak_record_at(ld.records, index)
-            val row_arena: allocators.Arena = trust allocators.Arena.new(1024 as usize)?
-            val row = trust fmt.format[allocators.Arena](row_arena, "{12d}  {s}:{d}\n", {
-                record.size,
-                record.file,
-                record.line
-            })
-            val row_raw: ref u8 = trust @load(row as ref void) as ref u8
-            trust string.StringBuilder.append_cstr(sb, row_raw)
-            val row_buf: mut ref void = trust @load(row_arena as ref void)
-            val row_hdr: mut allocators.Arena = row_arena
-            trust @free(row_buf)
-            trust @free(row_hdr)
+            val row: mut ref u8 = @alloc(1024 as usize) as ref u8
+            @snprintf(row, 1024, "{12d}  {s}:{d}\n", {
+                    record.size,
+                    record.file,
+                    record.line
+                })
+            trust stdio.print("{s}", {row})
+            trust @free(row as ref void)
             index = index + (1 as i64)
         }
     }
-
-    val raw: ref u8 = trust @load(sb as ref void) as ref u8
-    trust stdio.print("{s}", {raw})
-    trust string.StringBuilder.free(sb)
 }
 
 /// Return the same summary as a heap-allocated String.
 pub fn (LeakDiagnostics) pprint_str(ld: self) string.String = {
     val sb = string.StringBuilder.new()
 
-    val arena: allocators.Arena = trust allocators.Arena.new(2048 as usize)?
-    val summary = trust fmt.format[allocators.Arena](arena, LEAK_TABLE_FMT, {
-        "value",
-        ld.enabled,
-        ld.live_allocations,
-        ld.live_bytes,
-        ld.total_allocations,
-        ld.total_frees,
-        ld.peak_live_bytes,
-        ld.invalid_frees
-    })
-    val summary_raw: ref u8 = trust @load(summary as ref void) as ref u8
-    trust string.StringBuilder.append_cstr(sb, summary_raw)
-    val arena_buf: mut ref void = trust @load(arena as ref void)
-    val arena_hdr: mut allocators.Arena = arena
-    trust @free(arena_buf)
-    trust @free(arena_hdr)
+    val summary: mut ref u8 = @alloc(4096 as usize) as ref u8
+    @snprintf(summary, 4096, LEAK_TABLE_FMT, {
+            "value",
+            ld.enabled,
+            ld.live_allocations,
+            ld.live_bytes,
+            ld.total_allocations,
+            ld.total_frees,
+            ld.peak_live_bytes,
+            ld.invalid_frees
+        })
+    trust string.StringBuilder.append_cstr(sb, summary)
+    trust @free(summary as ref void)
 
     if ld.record_count > (0 as i64) && ld.records != none {
         trust string.StringBuilder.append_cstr(sb, "\nleaked allocations\n        size  location\n")
         val index: mut i64 = 0 as i64
         for index < ld.record_count {
             val record = leak_record_at(ld.records, index)
-            val row_arena: allocators.Arena = trust allocators.Arena.new(1024 as usize)?
-            val row = trust fmt.format[allocators.Arena](row_arena, "{12d}  {s}:{d}\n", {
-                record.size,
-                record.file,
-                record.line
-            })
-            val row_raw: ref u8 = trust @load(row as ref void) as ref u8
-            trust string.StringBuilder.append_cstr(sb, row_raw)
-            val row_buf: mut ref void = trust @load(row_arena as ref void)
-            val row_hdr: mut allocators.Arena = row_arena
-            trust {
-                @free(row_buf)
-                @free(row_hdr)
-            }
-            index += (1 as i64)
+            val row: mut ref u8 = @alloc(1024 as usize) as ref u8
+            @snprintf(row, 1024, "{12d}  {s}:{d}\n", {
+                    record.size,
+                    record.file,
+                    record.line
+                })
+            trust string.StringBuilder.append_cstr(sb, row)
+            trust @free(row as ref void)
+            index += 1
         }
     }
 

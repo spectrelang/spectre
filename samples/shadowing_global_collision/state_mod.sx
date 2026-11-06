@@ -1,0 +1,17 @@
+/// A module-level mutable global named `state`.
+pub type State = {
+    value: mut i64
+}
+
+val state: mut State = {
+    value: 0 as i64
+}
+
+pub fn bump() i64 = {
+    state.value = state.value + (1 as i64)
+    return state.value
+}
+
+pub fn value() i64 = {
+    return state.value
+}

@@ -1561,10 +1561,10 @@ fn normalize_deref_incdec_stmt(text: ref u8) ref u8 = {
             if string.raw_starts_with(inner, "*")
             && (string.raw_cmp(tail, "++") == 0 || string.raw_cmp(tail, "--") == 0) {
                 val target: ref u8 = trim_raw(unwrap_outer_parens(trim_raw(trust string.substr(
-                            inner,
-                            1,
-                            string.len_raw(inner) - 1
-                        ))))
+                                inner,
+                                1,
+                                string.len_raw(inner) - 1
+                            ))))
                 if is_ident_text(target) {
                     val op: mut ref u8 = "+"
                     if string.raw_cmp(tail, "--") == 0 {
@@ -1591,10 +1591,10 @@ fn normalize_deref_incdec_stmt(text: ref u8) ref u8 = {
                 val inner2: ref u8 = trim_raw(trust string.substr(rest, 1, rest_len - 2))
                 if string.raw_starts_with(inner2, "*") {
                     val target2: ref u8 = trim_raw(unwrap_outer_parens(trim_raw(trust string.substr(
-                                inner2,
-                                1,
-                                string.len_raw(inner2) - 1
-                            ))))
+                                    inner2,
+                                    1,
+                                    string.len_raw(inner2) - 1
+                                ))))
                     if is_ident_text(target2) {
                         val op2: mut ref u8 = "+"
                         if first == 45 {

@@ -6064,7 +6064,7 @@ fn cg_register_globals_as_locals(ctx: mut ref CgCtx) void = trust {
                 256 as usize
             ) as ref u8
             val found: bool = cg_lookup_global(ctx, gn as ref u8, glbl_buf, gqt_buf, gann_buf)
-            if found {
+            if found && cg_lookup_local_var(ctx, gn as ref u8) == "" {
                 val dollar_label: ref u8 = allocators.ScopedArena.alloc_or_none(
                     ctx.arena,
                     260 as usize
@@ -11300,7 +11300,12 @@ fn gen_builtin(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
     } elif str.raw_cmp(name, "free") == 0 {
         val ptr: ref u8 = get_arg(ctx, args, 0)
         if ctx.leak_check {
-            @snprintf(buf, 512, "    call $__sx_leak_free(l {s})\n    %%t{lld} =l copy 0\n", {ptr, tmp})
+            @snprintf(
+                buf,
+                512,
+                "    call $__sx_leak_free(l {s})\n    %%t{lld} =l copy 0\n",
+                {ptr, tmp}
+            )
         } else {
             @snprintf(buf, 512, "    call $free(l {s})\n    %%t{lld} =l copy 0\n", {ptr, tmp})
         }
@@ -16899,7 +16904,7 @@ fn gen_fn_prefixed(ctx: mut ref CgCtx, fn_node: ref parser.Node, mod_prefix: ref
                 256 as usize
             ) as ref u8
             val found: bool = cg_lookup_global(ctx, gn as ref u8, glbl_buf, gqt_buf, gann_buf)
-            if found {
+            if found && cg_lookup_local_var(ctx, gn as ref u8) == "" {
                 val dollar_label: ref u8 = allocators.ScopedArena.alloc_or_none(
                     ctx.arena,
                     260 as usize
@@ -18623,7 +18628,7 @@ fn gen_test_fn(ctx: mut ref CgCtx, body_stmts: ref parser.Node, test_id: i64) vo
                 256 as usize
             ) as ref u8
             val found: bool = cg_lookup_global(ctx, gn as ref u8, glbl_buf, gqt_buf, gann_buf)
-            if found {
+            if found && cg_lookup_local_var(ctx, gn as ref u8) == "" {
                 val dollar_label: ref u8 = allocators.ScopedArena.alloc_or_none(
                     ctx.arena,
                     260 as usize

@@ -1,0 +1,8 @@
+/// The parameter name intentionally collides with `state_mod.state`.
+pub type Input = {
+    buttons: mut i64
+}
+
+pub fn update(state: mut Input) void = {
+    state.buttons = 42 as i64
+}
