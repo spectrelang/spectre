@@ -1920,9 +1920,19 @@ pub fn leak_runtime_c_source() ref u8 = trust {
     \\    struct sx_leak_block* next;
     \\    unsigned long long size;
     \\    unsigned long long magic;
+    \\    const char* file;
+    \\    long long line;
     \\} sx_leak_block;
+    \\typedef struct {
+    \\    void* address;
+    \\    unsigned long long size;
+    \\    long long line;
+    \\    const char* file;
+    \\} sx_leak_record;
     \\#define SX_LEAK_MAGIC 0x534C4B42ULL
     \\static sx_leak_block* sx_leak_head = 0;
+    \\static sx_leak_record* sx_leak_records = 0;
+    \\static long long sx_leak_records_cap = 0;
     \\static long long sx_leak_live_allocations = 0;
     \\static long long sx_leak_live_bytes = 0;
     \\static long long sx_leak_total_allocations = 0;
@@ -1934,7 +1944,7 @@ pub fn leak_runtime_c_source() ref u8 = trust {
     \\    if (b->next) b->next->prev = b->prev;
     \\    if (sx_leak_head == b) sx_leak_head = b->next;
     \\}
-    \\void* __sx_leak_alloc(unsigned long long size) {
+    \\void* __sx_leak_alloc(unsigned long long size, const char* file, long long line) {
     \\    if (size == 0) size = 1;
     \\    sx_leak_block* b = (sx_leak_block*)malloc(sizeof(sx_leak_block) + (size_t)size);
     \\    if (!b) return 0;
@@ -1944,15 +1954,17 @@ pub fn leak_runtime_c_source() ref u8 = trust {
     \\    sx_leak_head = b;
     \\    b->size = size;
     \\    b->magic = SX_LEAK_MAGIC;
+    \\    b->file = file;
+    \\    b->line = line;
     \\    sx_leak_live_allocations++;
     \\    sx_leak_live_bytes += (long long)size;
     \\    sx_leak_total_allocations++;
     \\    if (sx_leak_live_bytes > sx_leak_peak_live_bytes) sx_leak_peak_live_bytes = sx_leak_live_bytes;
     \\    return (void*)(b + 1);
     \\}
-    \\void* __sx_leak_calloc(unsigned long long count, unsigned long long size) {
+    \\void* __sx_leak_calloc(unsigned long long count, unsigned long long size, const char* file, long long line) {
     \\    unsigned long long total = count * size;
-    \\    void* p = __sx_leak_alloc(total);
+    \\    void* p = __sx_leak_alloc(total, file, line);
     \\    if (p) memset(p, 0, (size_t)total);
     \\    return p;
     \\}
@@ -1971,8 +1983,8 @@ pub fn leak_runtime_c_source() ref u8 = trust {
     \\    memset(ptr, 0xDD, (size_t)b->size);
     \\    free(b);
     \\}
-    \\void* __sx_leak_realloc(void* ptr, unsigned long long size) {
-    \\    if (!ptr) return __sx_leak_alloc(size);
+    \\void* __sx_leak_realloc(void* ptr, unsigned long long size, const char* file, long long line) {
+    \\    if (!ptr) return __sx_leak_alloc(size, file, line);
     \\    if (size == 0) {
     \\        __sx_leak_free(ptr);
     \\        return 0;
@@ -1983,14 +1995,36 @@ pub fn leak_runtime_c_source() ref u8 = trust {
     \\        return 0;
     \\    }
     \\    unsigned long long old_size = b->size;
-    \\    void* next = __sx_leak_alloc(size);
+    \\    void* next = __sx_leak_alloc(size, file, line);
     \\    if (!next) return 0;
     \\    memcpy(next, ptr, (size_t)(old_size < size ? old_size : size));
     \\    __sx_leak_free(ptr);
     \\    return next;
     \\}
+    \\static long long sx_leak_collect_records(void) {
+    \\    long long count = sx_leak_live_allocations;
+    \\    if (count > sx_leak_records_cap) {
+    \\        long long cap = count < 8 ? 8 : count;
+    \\        sx_leak_record* next = (sx_leak_record*)realloc(sx_leak_records, (size_t)cap * sizeof(sx_leak_record));
+    \\        if (!next) return 0;
+    \\        sx_leak_records = next;
+    \\        sx_leak_records_cap = cap;
+    \\    }
+    \\    long long index = 0;
+    \\    sx_leak_block* b = sx_leak_head;
+    \\    while (b) {
+    \\        sx_leak_records[index].address = (void*)(b + 1);
+    \\        sx_leak_records[index].size = b->size;
+    \\        sx_leak_records[index].line = b->line;
+    \\        sx_leak_records[index].file = b->file;
+    \\        index++;
+    \\        b = b->next;
+    \\    }
+    \\    return index;
+    \\}
     \\void __sx_leak_fill(long long* out) {
     \\    if (!out) return;
+    \\    long long record_count = sx_leak_collect_records();
     \\    out[0] = 1;
     \\    out[1] = sx_leak_live_allocations;
     \\    out[2] = sx_leak_live_bytes;
@@ -1998,6 +2032,8 @@ pub fn leak_runtime_c_source() ref u8 = trust {
     \\    out[4] = sx_leak_total_frees;
     \\    out[5] = sx_leak_peak_live_bytes;
     \\    out[6] = sx_leak_invalid_frees;
+    \\    out[7] = (long long)(intptr_t)sx_leak_records;
+    \\    out[8] = record_count;
     \\}
     \\
 }
@@ -11250,7 +11286,13 @@ fn gen_builtin(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
     } elif str.raw_cmp(name, "alloc") == 0 {
         val sz: ref u8 = get_arg(ctx, args, 0)
         if ctx.leak_check {
-            @snprintf(buf, 512, "    %%t{lld} =l call $__sx_leak_alloc(l {s})\n", {tmp, sz})
+            val file_index: i64 = intern_string(ctx, ctx.current_filename)
+            @snprintf(
+                buf,
+                512,
+                "    %%t{lld} =l call $__sx_leak_alloc(l {s}, l $__str{lld}, l {lld})\n",
+                {tmp, sz, file_index, expr.line}
+            )
         } else {
             @snprintf(buf, 512, "    %%t{lld} =l call $malloc(l {s})\n", {tmp, sz})
         }
@@ -11267,7 +11309,13 @@ fn gen_builtin(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
         val ptr2: ref u8 = get_arg(ctx, args, 0)
         val sz2: ref u8 = get_arg(ctx, args, 1)
         if ctx.leak_check {
-            @snprintf(buf, 512, "    %%t{lld} =l call $__sx_leak_realloc(l {s}, l {s})\n", {tmp, ptr2, sz2})
+            val file_index: i64 = intern_string(ctx, ctx.current_filename)
+            @snprintf(
+                buf,
+                512,
+                "    %%t{lld} =l call $__sx_leak_realloc(l {s}, l {s}, l $__str{lld}, l {lld})\n",
+                {tmp, ptr2, sz2, file_index, expr.line}
+            )
         } else {
             @snprintf(buf, 512, "    %%t{lld} =l call $realloc(l {s}, l {s})\n", {tmp, ptr2, sz2})
         }
@@ -11284,12 +11332,12 @@ fn gen_builtin(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
         if diag_fields == none {
             diag_fields = cg_lookup_struct(ctx, "LeakDiagnostics")
         }
-        val diag_size: mut i64 = 56
+        val diag_size: mut i64 = 72
         if diag_fields != none {
             diag_size = struct_size(ctx, diag_fields)
         }
-        if diag_size < 56 {
-            diag_size = 56
+        if diag_size < 72 {
+            diag_size = 72
         }
         @snprintf(
             buf,
@@ -18356,12 +18404,14 @@ pub fn gen_module_resolved(
 
     val out_prefixes: mut list[ref u8] = mem.new[ref u8]()
     val out_items: mut list[ref void] = mem.new[ref void]()
+    val out_filenames: mut list[ref u8] = mem.new[ref u8]()
     val seen: mut list[String] = mem.new[String]()
 
-    module.flatten_modules(ctx.arena,
+    module.flatten_modules_with_files(ctx.arena,
         root, "",
         out_prefixes,
         out_items,
+        out_filenames,
         seen
     )
 
@@ -18441,6 +18491,12 @@ pub fn gen_module_resolved(
         if pfx_opt is some pfx {
             if items_opt is some items_ptr {
                 val items: list[ref parser.Node] = items_ptr as list[ref parser.Node]
+                val fname_opt = @get(out_filenames, li2 as usize)
+                if fname_opt is some fname {
+                    ctx.current_filename = fname as ref u8
+                } else {
+                    ctx.current_filename = ""
+                }
                 val is_root2: bool = str.raw_cmp(pfx as ref u8, "") == 0
                 val is_used2: bool = cg_is_prefix_used(ctx, pfx as ref u8)
                 val has_links: bool = items_have_external_links(items)
@@ -18694,12 +18750,14 @@ pub fn gen_module_resolved_test(
 
     val out_prefixes: mut list[ref u8] = mem.new[ref u8]()
     val out_items: mut list[ref void] = mem.new[ref void]()
+    val out_filenames: mut list[ref u8] = mem.new[ref u8]()
     val seen: mut list[String] = mem.new[String]()
 
-    module.flatten_modules(ctx.arena,
+    module.flatten_modules_with_files(ctx.arena,
         root, "",
         out_prefixes,
         out_items,
+        out_filenames,
         seen
     )
 
@@ -18811,6 +18869,12 @@ pub fn gen_module_resolved_test(
         val pfx_opt = @get(out_prefixes, li2 as usize)
         val items_opt = @get(out_items, li2 as usize)
         if pfx_opt is some pfx {
+            val fname_opt = @get(out_filenames, li2 as usize)
+            if fname_opt is some fname {
+                ctx.current_filename = fname as ref u8
+            } else {
+                ctx.current_filename = ""
+            }
             val is_root: bool = str.raw_cmp(pfx as ref u8, "") == 0
             val is_used: bool = cg_is_prefix_used(ctx, pfx as ref u8)
 

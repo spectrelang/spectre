@@ -5282,13 +5282,14 @@ fn gen_builtin(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
     }
     if str.raw_cmp(bname, "alloc") == 0 {
         val sz: ref u8 = get_arg(ctx, args, 0)
-        val buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 128 as usize) as ref u8
+        val buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 256 as usize) as ref u8
         if ctx.leak_check {
+            val file_index: i64 = intern_string(ctx, ctx.current_src_file)
             @snprintf(
                 buf,
-                128,
-                "(int64_t)(intptr_t)__sx_leak_calloc(1,(size_t)({s}))",
-                {sz}
+                256,
+                "(int64_t)(intptr_t)__sx_leak_calloc(1,(size_t)({s}),sx__str{lld},{lld})",
+                {sz, file_index, expr.line}
             )
         } else {
             @snprintf(
@@ -5323,13 +5324,14 @@ fn gen_builtin(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
     if str.raw_cmp(bname, "realloc") == 0 {
         val p: ref u8 = get_arg(ctx, args, 0)
         val s: ref u8 = get_arg(ctx, args, 1)
-        val buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 256 as usize) as ref u8
+        val buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 384 as usize) as ref u8
         if ctx.leak_check {
+            val file_index: i64 = intern_string(ctx, ctx.current_src_file)
             @snprintf(
                 buf,
-                256,
-                "(int64_t)(intptr_t)__sx_leak_realloc((void*)(intptr_t)({s}),(size_t)({s}))",
-                {p, s}
+                384,
+                "(int64_t)(intptr_t)__sx_leak_realloc((void*)(intptr_t)({s}),(size_t)({s}),sx__str{lld},{lld})",
+                {p, s, file_index, expr.line}
             )
         } else {
             @snprintf(
@@ -5356,12 +5358,12 @@ fn gen_builtin(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
         if diag_fields == none {
             diag_fields = cc_lookup_struct(ctx, "LeakDiagnostics")
         }
-        val diag_size: mut i64 = 56
+        val diag_size: mut i64 = 72
         if diag_fields != none {
             diag_size = struct_size_bytes(ctx, diag_fields)
         }
-        if diag_size < 56 {
-            diag_size = 56
+        if diag_size < 72 {
+            diag_size = 72
         }
         val t: i64 = fresh_tmp(ctx)
         val decl: ref u8 = allocators.ScopedArena.alloc_or_none(

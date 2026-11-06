@@ -12,6 +12,14 @@ val fmt        = use("../fmt")
 val stdio      = use("../stdio")
 val string     = use("../string")
 
+/// One live allocation reported by -leak-check.
+pub type LeakRecord = {
+    address: ref void
+    size: i64
+    line: i64
+    file: ref u8
+}
+
 pub type LeakDiagnostics = {
     enabled: i64
     live_allocations: i64
@@ -20,9 +28,25 @@ pub type LeakDiagnostics = {
     total_frees: i64
     peak_live_bytes: i64
     invalid_frees: i64
+    records: ref LeakRecord
+    record_count: i64
 }
 
-val LEAK_TABLE_FMT: ref u8 = "LeakDiagnostics\nmetric              {12s}\nenabled             {12d}\nlive allocations    {12d}\nlive bytes          {12d}\nallocations         {12d}\nfrees               {12d}\npeak bytes          {12d}\ninvalid frees       {12d}\n"
+val LEAK_TABLE_FMT: ref u8 = \\
+\\metric              {12s}
+\\enabled             {12d}
+\\live allocations    {12d}
+\\live bytes          {12d}
+\\allocations         {12d}
+\\frees               {12d}
+\\peak bytes          {12d}
+\\invalid frees       {12d}
+\\
+
+fn leak_record_at(records: ref LeakRecord, index: i64) ref LeakRecord = {
+    val offset: usize = (index as usize) * @sizeof(LeakRecord)
+    return trust @ptradd(records, offset)
+}
 
 /// Print a readable leak summary to stdout.
 pub fn (LeakDiagnostics) pprint(ld: self) void = {
@@ -33,22 +57,39 @@ pub fn (LeakDiagnostics) pprint(ld: self) void = {
 
 /// Return the same summary as a heap-allocated String.
 pub fn (LeakDiagnostics) pprint_str(ld: self) string.String = {
-    val arena: mut allocators.Arena = trust allocators.Arena.new(512 as usize)?
-    val text = trust fmt.format[allocators.Arena](
-        arena,
-        LEAK_TABLE_FMT,
-        {
-            "value",
-            ld.enabled,
-            ld.live_allocations,
-            ld.live_bytes,
-            ld.total_allocations,
-            ld.total_frees,
-            ld.peak_live_bytes,
-            ld.invalid_frees
-        }
-    )
-    val result = trust string.clone(text)
+    val arena: mut allocators.Arena = trust allocators.Arena.new(2048 as usize)?
+    val summary = trust fmt.format[allocators.Arena](arena, LEAK_TABLE_FMT, {
+        "value",
+        ld.enabled,
+        ld.live_allocations,
+        ld.live_bytes,
+        ld.total_allocations,
+        ld.total_frees,
+        ld.peak_live_bytes,
+        ld.invalid_frees
+    })
+
+    val sb = string.StringBuilder.new()
+    trust string.StringBuilder.append(sb, summary)
     trust allocators.Arena.free(arena)
+
+    if ld.record_count > (0 as i64) && ld.records != none {
+        trust string.StringBuilder.append_cstr(sb, "\nleaked allocations\n        size  location\n")
+        val index: mut i64 = 0 as i64
+        for index < ld.record_count {
+            val record = leak_record_at(ld.records, index)
+            val row: mut ref u8 = trust @fmtalloc("{12d}  {s}:{d}\n", {
+                record.size,
+                record.file,
+                record.line
+            })
+            trust string.StringBuilder.append_cstr(sb, row)
+            trust @free(row as ref void)
+            index = index + (1 as i64)
+        }
+    }
+
+    val result = trust string.StringBuilder.build(sb)
+    trust string.StringBuilder.free(sb)
     return result
 }
