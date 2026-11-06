@@ -1,0 +1,63 @@
+// Repro: the alt backend miscompiles an inline struct literal passed directly
+// to `@append`. The appended element has all-zero / wrong field values.
+//
+// Hoisting the literal into a local variable first works around the bug.
+//
+// Run:
+//   spectre samples/repro_alt_append_inline_struct.sx -alt
+//
+// Expected: bad x=1.5 y=2.5 label=7
+// Actual:   bad x=0.0 y=0.0 label=2   (values vary; fields are garbage/zero)
+
+pub type Item = {
+    x: f32
+    y: f32
+    label: i32
+}
+
+pub type Container = {
+    items: mut list[Item]
+}
+
+pub fn add_inline(c: mut Container, x: f32, y: f32) void = {
+    @append(c.items, {
+        x: x,
+        y: y,
+        label: 7
+    })
+}
+
+pub fn add_hoisted(c: mut Container, x: f32, y: f32) void = {
+    val item: Item = {
+        x: x,
+        y: y,
+        label: 9
+    }
+    @append(c.items, item)
+}
+
+pub fn main() i32 = {
+    val container: mut Container = { items: [] }
+    add_inline(container, 1.5 as f32, 2.5 as f32)
+    add_hoisted(container, 3.5 as f32, 4.5 as f32)
+
+    if @get(container.items, 0 as usize) is some inline_item {
+        trust @print(
+            "bad x={f} y={f} label={d}\n",
+            {inline_item.x, inline_item.y, inline_item.label}
+        )
+    }
+    if @get(container.items, 1 as usize) is some hoisted_item {
+        trust @print(
+            "good x={f} y={f} label={d}\n",
+            {hoisted_item.x, hoisted_item.y, hoisted_item.label}
+        )
+    }
+
+    if @get(container.items, 0 as usize) is some result {
+        if result.x == (1.5 as f32) && result.y == (2.5 as f32) && result.label == (7 as i32) {
+            return 0 as i32
+        }
+    }
+    return 1 as i32
+}

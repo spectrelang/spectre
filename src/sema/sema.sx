@@ -4313,6 +4313,28 @@ fn check_generic_call_arg_types(ctx: ref SemaCtx, fn_found: ref parser.Node, cal
                                         }
                                         ck++
                                     }
+                                    val generic_int_const_arg_ok: bool =
+                                    expected_tname != none &&
+                                    !str_eq(expected_tname, "") &&
+                                    !expected_is_tparam &&
+                                    sema_int_const_arg_compatible(
+                                        ctx,
+                                        expected_tname,
+                                        arg_node,
+                                        filename,
+                                        line
+                                    )
+                                    val generic_float_const_arg_ok: bool =
+                                    expected_tname != none &&
+                                    !str_eq(expected_tname, "") &&
+                                    !expected_is_tparam &&
+                                    sema_float_const_arg_compatible(
+                                        ctx,
+                                        expected_tname,
+                                        arg_node,
+                                        filename,
+                                        line
+                                    )
                                     if expected_tname != none && !str_eq(expected_tname, "") &&
                                     !expected_is_tparam &&
                                     arg_tname != none && !str_eq(arg_tname, "") &&
@@ -4321,7 +4343,8 @@ fn check_generic_call_arg_types(ctx: ref SemaCtx, fn_found: ref parser.Node, cal
                                         expected_tname,
                                         arg_tname,
                                         arg_node
-                                    ) {
+                                    ) && !generic_int_const_arg_ok &&
+                                    !generic_float_const_arg_ok {
                                         val ebuf: ref u8 = allocators.ScopedArena.alloc_or_none(
                                             ctx.arena,
                                             (512) as usize
@@ -5162,6 +5185,23 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
                                     val type_mismatch: mut bool = false
                                     val param_expects_ref: bool = pty.kind == parser.TY_REF || (pty.kind == parser.TY_MUT && pty.d0 != none && (pty.d0 as ref parser.Node).kind == parser.TY_REF)
 
+                                    val int_const_arg_ok: bool = !param_expects_ref &&
+                                    sema_int_const_arg_compatible(
+                                        ctx,
+                                        param_type_name,
+                                        arg_node,
+                                        filename,
+                                        line
+                                    )
+                                    val float_const_arg_ok: bool = !param_expects_ref &&
+                                    sema_float_const_arg_compatible(
+                                        ctx,
+                                        param_type_name,
+                                        arg_node,
+                                        filename,
+                                        line
+                                    )
+
                                     if param_expects_ref && str_eq(param_type_name, "u8") {
                                         if arg_node.kind == parser.NK_INT_LIT || arg_node.kind == parser.NK_FLOAT_LIT || arg_node.kind == parser.NK_BOOL {
                                             type_mismatch = true
@@ -5186,20 +5226,22 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
                                             param_type_name,
                                             arg_type_name
                                         ) {
-                                            val union_def: ref parser.Node = sema_lookup_uniondef(
-                                                ctx,
-                                                param_type_name
-                                            )
-                                            if union_def != none {
-                                                if !type_matches_union_variant(
+                                            if !int_const_arg_ok && !float_const_arg_ok {
+                                                val union_def: ref parser.Node = sema_lookup_uniondef(
                                                     ctx,
-                                                    union_def,
-                                                    arg_type_name
-                                                ) {
+                                                    param_type_name
+                                                )
+                                                if union_def != none {
+                                                    if !type_matches_union_variant(
+                                                        ctx,
+                                                        union_def,
+                                                        arg_type_name
+                                                    ) {
+                                                        type_mismatch = true
+                                                    }
+                                                } else {
                                                     type_mismatch = true
                                                 }
-                                            } else {
-                                                type_mismatch = true
                                             }
                                         }
                                     }
@@ -6138,6 +6180,55 @@ fn sema_const_unknown() SemaConstVal = trust {
     return r
 }
 
+/// Parse the text of an integer literal, including hexadecimal literals.
+/// Returns an unknown value if the literal does not fit in i64.
+fn sema_parse_int_lit_text(text: ref u8) SemaConstVal = trust {
+    if text == none {
+        return sema_const_unknown()
+    }
+    if @load8(text) == 48 {
+        val marker: i64 = @load8(@ptradd(text, 1)) as i64
+        if marker == 120 || marker == 88 {
+            val acc: mut i64 = 0
+            val i: mut i64 = 2
+            val digits: mut i64 = 0
+            for {
+                val c: i64 = @load8(@ptradd(text, i)) as i64
+                if c == 0 {
+                    break
+                }
+                val digit: mut i64 = c - 48
+                if c >= 97 && c <= 102 {
+                    digit = c - 87
+                } elif c >= 65 && c <= 70 {
+                    digit = c - 55
+                } elif c < 48 || c > 57 {
+                    return sema_const_unknown()
+                }
+                if acc > (9223372036854775807 - digit) / 16 {
+                    return sema_const_unknown()
+                }
+                acc = acc * 16 + digit
+                digits++
+                i++
+            }
+            if digits == 0 {
+                return sema_const_unknown()
+            }
+            return sema_const_known(acc)
+        }
+    }
+    val parse_res = fmt.string_to_i64(text)
+    match parse_res {
+        ok parsed => {
+            return sema_const_known(parsed)
+        }
+        err _ => {
+            return sema_const_unknown()
+        }
+    }
+}
+
 /// Constant-fold a simple comparison/boolean expression.
 /// field_names and field_vals are parallel lists of (ref u8, i64) containing
 /// only values known at compile time. The result records whether the expression
@@ -6153,15 +6244,7 @@ fn sema_const_eval(
     val k: i64 = expr.kind
     if k == parser.NK_INT_LIT {
         val s: ref u8 = expr.d0 as ref u8
-        val parse_res = fmt.string_to_i64(s)
-        match parse_res {
-            ok parsed => {
-                return sema_const_known(parsed)
-            }
-            err _ => {
-                return sema_const_unknown()
-            }
-        }
+        return sema_parse_int_lit_text(s)
     }
     if k == parser.NK_BOOL {
         return sema_const_known(expr.d0 as i64)
@@ -6385,6 +6468,291 @@ fn sema_is_int_type_name(name: ref u8) bool = trust {
     || str_eq(name, "u64") || str_eq(name, "usize")
 }
 
+/// Returns true if `expr` is a compile-time integer constant expression.
+/// Restricting implicit integer conversions to constants keeps runtime values
+/// type-safe: a variable of one integer type still needs an explicit cast.
+fn sema_is_int_const_expr(expr: ref parser.Node) bool = trust {
+    val cur: ref parser.Node = sema_unwrap_trust_expr(expr)
+    if cur == none {
+        return false
+    }
+    val k: i64 = cur.kind
+    if k == parser.NK_INT_LIT {
+        return true
+    }
+    if k == parser.NK_UNOP {
+        val op: i64 = parser.unop_op(cur)
+        if op != parser.UOP_NEG && op != parser.UOP_BNOT {
+            return false
+        }
+        return sema_is_int_const_expr(parser.unop_inner(cur))
+    }
+    if k == parser.NK_BINOP {
+        val op: i64 = parser.binop_op(cur)
+        if op == parser.OP_ADD || op == parser.OP_SUB || op == parser.OP_MUL ||
+        op == parser.OP_DIV || op == parser.OP_REM || op == parser.OP_BAND ||
+        op == parser.OP_BOR || op == parser.OP_BXOR || op == parser.OP_SHL ||
+        op == parser.OP_SHR {
+            return sema_is_int_const_expr(parser.binop_left(cur)) &&
+            sema_is_int_const_expr(parser.binop_right(cur))
+        }
+        return false
+    }
+    return false
+}
+
+/// Returns true when an integer constant expression can be passed directly to
+/// a parameter of `type_name` without an explicit cast. Values that are known
+/// but out of range are reported here as well.
+fn sema_int_const_arg_compatible(
+    ctx: ref SemaCtx,
+    type_name: ref u8,
+    expr: ref parser.Node,
+    filename: ref u8,
+    line: i64
+) bool = trust {
+    if type_name == none || expr == none {
+        return false
+    }
+    val tn: ref u8 = unqualified_type_name(type_name)
+    if !sema_is_int_type_name(tn) || !sema_is_int_const_expr(expr) {
+        return false
+    }
+    if sema_expr_casts_to(expr, tn) {
+        return true
+    }
+    val value: SemaConstVal = sema_const_eval_no_fields(expr)
+    if !value.known {
+        if str_eq(tn, "u64") || str_eq(tn, "usize") {
+            val lit: ref u8 = sema_direct_int_lit_text(expr)
+            if string.raw_cmp(lit, "") != 0 {
+                val is_hex: bool = @load8(lit) == 48 &&
+                (@load8(@ptradd(lit, 1)) == 120 || @load8(@ptradd(lit, 1)) == 88)
+                if is_hex {
+                    if !sema_hex_gt(lit, "FFFFFFFFFFFFFFFF") {
+                        return true
+                    }
+                    sema_emit_int_overflow_error(
+                        ctx,
+                        filename,
+                        line,
+                        lit,
+                        tn,
+                        "0",
+                        "18446744073709551615"
+                    )
+                    return true
+                }
+                if !sema_decimal_gt(lit, "18446744073709551615") {
+                    return true
+                }
+                sema_check_int_literal_range(ctx, tn, expr, filename, line)
+                return true
+            }
+        }
+        sema_check_int_literal_range(ctx, tn, expr, filename, line)
+        return false
+    }
+    val lo: i64 = sema_int_type_lo(tn)
+    val hi: i64 = sema_int_type_hi(tn)
+    if value.value < lo || value.value > hi {
+        sema_check_int_literal_range(ctx, tn, expr, filename, line)
+        return true
+    }
+    return true
+}
+
+/// Returns true if `expr` is a compile-time float constant expression.
+fn sema_is_float_const_expr(expr: ref parser.Node) bool = trust {
+    val cur: ref parser.Node = sema_unwrap_trust_expr(expr)
+    if cur == none {
+        return false
+    }
+    if cur.kind == parser.NK_FLOAT_LIT {
+        return true
+    }
+    if cur.kind == parser.NK_UNOP && parser.unop_op(cur) == parser.UOP_NEG {
+        return sema_is_float_const_expr(parser.unop_inner(cur))
+    }
+    return false
+}
+
+/// Returns 1 if a float literal text fits in f32, 0 if it is too large, and
+/// -1 if the literal could not be parsed. This compares the decimal
+/// representation directly so very large exponents never overflow.
+fn sema_f32_lit_range_status(ctx: ref SemaCtx, text: ref u8) i64 = trust {
+    val len: i64 = string.len_raw(text)
+    val epos: mut i64 = -1
+    val i: mut i64 = 0
+    for {
+        if i >= len {
+            break
+        }
+        val c: i64 = @load8(@ptradd(text, i)) as i64
+        if c == 101 || c == 69 {
+            epos = i
+            break
+        }
+        i++
+    }
+    val mant_end: mut i64 = len
+    if epos >= 0 {
+        mant_end = epos
+    }
+
+    val digits_buf: ref u8 = allocators.ScopedArena.alloc_or_none(
+        ctx.arena,
+        (len + 1) as usize
+    ) as ref u8
+    val digits: mut i64 = 0
+    val dec_pos: mut i64 = 0
+    val seen_dot: mut bool = false
+    val mi: mut i64 = 0
+    for {
+        if mi >= mant_end {
+            break
+        }
+        val c: i64 = @load8(@ptradd(text, mi)) as i64
+        if c == 46 {
+            if seen_dot {
+                return -1
+            }
+            seen_dot = true
+            mi++
+            continue
+        }
+        if c < 48 || c > 57 {
+            return -1
+        }
+        if !seen_dot {
+            dec_pos++
+        }
+        @store8(@ptradd(digits_buf, digits), c as u8)
+        digits++
+        mi++
+    }
+    if digits == 0 {
+        return -1
+    }
+    @store8(@ptradd(digits_buf, digits), 0)
+
+    val exponent: mut i64 = 0
+    if epos >= 0 {
+        val et: mut ref u8 = @ptradd(text, epos + 1) as ref u8
+        if @load8(et) == 43 {
+            et = @ptradd(et, 1) as ref u8
+        }
+        if @load8(et) == 0 {
+            return -1
+        }
+        match fmt.string_to_i64(et) {
+            ok parsed => {
+                exponent = parsed
+            }
+            err _ => {
+                return -1
+            }
+        }
+        if exponent > 100000 {
+            exponent = 100000
+        } elif exponent < -100000 {
+            exponent = -100000
+        }
+    }
+
+    val leading_zeros: mut i64 = 0
+    for {
+        if leading_zeros >= digits {
+            break
+        }
+        if @load8(@ptradd(digits_buf, leading_zeros)) != 48 {
+            break
+        }
+        leading_zeros++
+    }
+    if leading_zeros == digits {
+        return 1
+    }
+    val sci_exp: i64 = (dec_pos - leading_zeros - 1) + exponent
+    if sci_exp < 38 {
+        return 1
+    }
+    if sci_exp > 38 {
+        return 0
+    }
+
+    val max_digits: ref u8 = "340282346638528859811704183484516925440"
+    val max_len: i64 = string.len_raw(max_digits)
+    val di: mut i64 = 0
+    for {
+        if di >= max_len {
+            break
+        }
+        val sig_len: i64 = digits - leading_zeros
+        val digit: mut i64 = 48
+        if di < sig_len {
+            digit = @load8(@ptradd(digits_buf, leading_zeros + di)) as i64
+        }
+        val max_digit: i64 = @load8(@ptradd(max_digits, di)) as i64
+        if digit < max_digit {
+            return 1
+        }
+        if digit > max_digit {
+            return 0
+        }
+        di++
+    }
+    return 1
+}
+
+/// Returns true when a float constant expression can be passed directly to a
+/// parameter of `type_name` without an explicit cast.
+fn sema_float_const_arg_compatible(
+    ctx: ref SemaCtx,
+    type_name: ref u8,
+    expr: ref parser.Node,
+    filename: ref u8,
+    line: i64
+) bool = trust {
+    if type_name == none || expr == none {
+        return false
+    }
+    val tn: ref u8 = unqualified_type_name(type_name)
+    if !str_eq(tn, "f32") && !str_eq(tn, "f64") {
+        return false
+    }
+    if !sema_is_float_const_expr(expr) {
+        return false
+    }
+    if str_eq(tn, "f64") {
+        return true
+    }
+    val lit: mut ref parser.Node = sema_unwrap_trust_expr(expr)
+    if lit.kind == parser.NK_UNOP {
+        lit = parser.unop_inner(lit)
+    }
+    if lit == none || lit.kind != parser.NK_FLOAT_LIT {
+        return false
+    }
+    val text: ref u8 = parser.float_lit_text(lit)
+    val range_status: i64 = sema_f32_lit_range_status(ctx, text)
+    if range_status < 0 {
+        return false
+    }
+    if range_status == 0 {
+        sema_emit_int_overflow_error(
+            ctx,
+            filename,
+            line,
+            text,
+            "f32",
+            "-3.4028235e38",
+            "3.4028235e38"
+        )
+    }
+    return true
+}
+
 fn sema_int_type_lo(name: ref u8) i64 = trust {
     if str_eq(name, "i8") {
         return -128
@@ -6489,6 +6857,51 @@ fn sema_decimal_gt(text: ref u8, max_text: ref u8) bool = trust {
             return false
         }
         if a > b {
+            return true
+        }
+        i++
+    }
+    return false
+}
+
+/// Compare the magnitude of a hexadecimal literal (which may not fit in i64)
+/// against a hexadecimal limit, ignoring leading zeros and letter case.
+fn sema_hex_gt(text: ref u8, max_text: ref u8) bool = trust {
+    val len: i64 = string.len_raw(text)
+    val start: mut i64 = 2
+    for {
+        if start >= len {
+            break
+        }
+        if @load8(@ptradd(text, start)) != 48 {
+            break
+        }
+        start++
+    }
+    val max_len: i64 = string.len_raw(max_text)
+    val digits: i64 = len - start
+    if digits != max_len {
+        return digits > max_len
+    }
+    val i: mut i64 = 0
+    for {
+        if i >= digits {
+            break
+        }
+        val a: i64 = @load8(@ptradd(text, start + i)) as i64
+        val b: i64 = @load8(@ptradd(max_text, i)) as i64
+        val al: mut i64 = a
+        val bl: mut i64 = b
+        if a >= 97 && a <= 102 {
+            al = a - 32
+        }
+        if b >= 97 && b <= 102 {
+            bl = b - 32
+        }
+        if al < bl {
+            return false
+        }
+        if al > bl {
             return true
         }
         i++

@@ -1,0 +1,74 @@
+// Repro: the alt backend fails during C emission when `@append` receives a
+// nested function call with this argument shape (two `as ref void` casts among
+// five arguments).
+//
+// The same program compiles with the default QBE backend.
+//
+// Run:
+//   spectre samples/repro_alt_nested_append_call.sx -alt
+//
+// Expected: compiles.
+// Actual:
+//   repro_alt_nested_append_call.sx:42:520: error: expected ')'
+//   ... too many errors emitted, stopping now
+
+pub type Mesh = {
+    raw: ref void
+    index_count: i32
+}
+
+pub type Geometry = {
+    vertices: ref f32
+    vertex_float_count: usize
+    indices: ref u32
+    index_count: i32
+}
+
+pub type Instance = {
+    geometry: Geometry
+}
+
+pub type Resources = {
+    custom: mut list[Mesh]
+}
+
+pub fn upload_mesh(
+    runtime: ref void,
+    vertices: ref void,
+    vertex_float_count: usize,
+    indices: ref void,
+    index_count: i32
+) Mesh = {
+    if runtime == none {
+    }
+    if vertices == none {
+    }
+    if vertex_float_count == (0 as usize) {
+    }
+    if indices == none {
+    }
+    return { raw: runtime, index_count: index_count }
+}
+
+pub fn load(runtime: ref void, instances: list[Instance]) Resources = {
+    val resources: mut Resources = { custom: [] }
+    for instance in instances {
+        @append(resources.custom, upload_mesh(
+                runtime,
+                instance.geometry.vertices as ref void,
+                instance.geometry.vertex_float_count,
+                instance.geometry.indices as ref void,
+                instance.geometry.index_count
+            ))
+    }
+    return resources
+}
+
+pub fn main() i32 = {
+    val instances: list[Instance] = []
+    val resources = load(none as ref void, instances)
+    if @len(resources.custom) == (0 as usize) {
+        return 0 as i32
+    }
+    return 1 as i32
+}

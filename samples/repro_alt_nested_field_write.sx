@@ -1,0 +1,57 @@
+// Repro: the alt backend drops assignments to fields nested three or more
+// levels deep.
+//
+// `scene.mid.inner.value` and `scene.mid.inner.enabled` are silently ignored,
+// while the two-level `scene.mid.other` assignment works.
+//
+// Run:
+//   spectre samples/repro_alt_nested_field_write.sx -alt
+//
+// Expected: value=42 enabled=1 other=7
+// Actual:   value=0  enabled=0 other=7
+
+pub type Inner = {
+    value: f32
+    enabled: bool
+}
+
+pub type Mid = {
+    inner: Inner
+    other: f32
+}
+
+pub type Outer = {
+    mid: Mid
+}
+
+pub fn main() i32 = {
+    val outer: mut Outer = {
+        mid: {
+            inner: {
+                value: 1.0 as f32,
+                enabled: false
+            },
+            other: 2.0 as f32
+        }
+    }
+
+    outer.mid.inner.value = 42.0 as f32
+    outer.mid.inner.enabled = true
+    outer.mid.other = 7.0 as f32
+
+    trust @print(
+        "value={f} enabled={d} other={f}\n",
+        {
+            outer.mid.inner.value,
+            outer.mid.inner.enabled as i64,
+            outer.mid.other
+        }
+    )
+
+    if outer.mid.inner.value == (42.0 as f32)
+        && outer.mid.inner.enabled
+        && outer.mid.other == (7.0 as f32) {
+        return 0 as i32
+    }
+    return 1 as i32
+}
