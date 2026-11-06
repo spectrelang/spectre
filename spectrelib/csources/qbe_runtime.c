@@ -27,6 +27,12 @@ static void* sxqbe_wrap_alloc(void* af,long long ctx,long long size){return sxqb
 long long sxqbe_some_alloc(void* af,long long ctx,long long value){void* p=sxqbe_raw_alloc_call((sxqbe_raw_alloc_fn)af,ctx,8);if(!p)return 0;*(long long*)p=value;return (long long)(intptr_t)p+1;}
 long long sxqbe_ok_alloc(void* af,long long ctx,long long value){long long* p=(long long*)sxqbe_raw_alloc_call((sxqbe_raw_alloc_fn)af,ctx,16);if(!p)return 0;p[0]=0;p[1]=value;return (long long)(intptr_t)p;}
 long long sxqbe_err_alloc(void* af,long long ctx,long long value){long long* p=(long long*)sxqbe_raw_alloc_call((sxqbe_raw_alloc_fn)af,ctx,16);if(!p)return 0;p[0]=1;p[1]=value;return (long long)(intptr_t)p;}
+extern void std__allocators__HeapAllocator__alloc(long long*,long long,unsigned long long);
+extern int std__allocators__HeapAllocator__free(long long,long long);
+extern void std__allocators__HeapAllocator__realloc(long long*,long long,long long,unsigned long long);
+long long sx__allocadapt_allocators__HeapAllocator_alloc(long long ctx,unsigned long long size){long long r[3]={0,0,0};std__allocators__HeapAllocator__alloc(r,ctx,size);return (r[0]!=0&&r[1]!=0)?r[1]+1:0;}
+int sx__allocadapt_allocators__HeapAllocator_free(long long ctx,long long ptr){std__allocators__HeapAllocator__free(ctx,ptr);return 0;}
+long long sx__allocadapt_allocators__HeapAllocator_realloc(long long ctx,long long ptr,unsigned long long size){long long r[3]={0,0,0};std__allocators__HeapAllocator__realloc(r,ctx,ptr,size);return (r[0]!=0&&r[1]!=0)?r[1]+1:0;}
 extern void std__allocators__ListArena__alloc(long long*,long long,unsigned long long);
 extern int std__allocators__ListArena__free(long long,long long);
 extern void std__allocators__ListArena__realloc(long long*,long long,long long,unsigned long long);
