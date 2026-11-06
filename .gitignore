@@ -8,7 +8,7 @@ spectre
 sxc
 /target
 /s-out
-/docs-out
+/docs-out*
 std__*
 out
 .DS_Store

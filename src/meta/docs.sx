@@ -262,7 +262,7 @@ fn collect_sx_files(dir: ref u8, rel_dir: ref u8, out: mut list[ref u8]) void = 
             if is_hidden_name(entry) {
                 continue
             }
-            if str_eq(entry, "docs-out") {
+            if str.raw_starts_with(entry, "docs-out") {
                 continue
             }
             val child_path = path.join(dir, entry)
@@ -2587,6 +2587,17 @@ fn maybe_root_rel_for_dir() ref u8 = trust {
     return ""
 }
 
+fn output_dir_for_target(target: ref u8, target_is_dir: bool) ref u8 = trust {
+    if target_is_dir {
+        val clean = trim_trailing_slash(target)
+        val name = path_basename(clean)
+        if !str_eq(name, "") && !str_eq(name, ".") && !str_eq(name, "..") {
+            return @fmtalloc("./docs-out-{s}", {name})
+        }
+    }
+    return "./docs-out"
+}
+
 pub fn cmd_doc(target: ref u8, markdown: bool) i32 = trust {
     val parse_arena: allocators.ScopedArenaAllocator = allocators.ScopedArena.new(
         67108864 as usize
@@ -2598,12 +2609,13 @@ pub fn cmd_doc(target: ref u8, markdown: bool) i32 = trust {
         stdio.puts("error: doc requires a file or directory target")
         return 1
     }
-    val out_dir: ref u8 = "./docs-out"
+    val target_is_dir: bool = dir_exists(target)
+    val out_dir: ref u8 = output_dir_for_target(target, target_is_dir)
     if !ensure_dir(out_dir) {
         stdio.print("error: could not create '{s}'\n", {out_dir})
         return 1
     }
-    if dir_exists(target) {
+    if target_is_dir {
         val clean_target = trim_trailing_slash(target)
         val files: mut list[ref u8] = mem.new[ref u8]()
         collect_sx_files(clean_target, "", files)
@@ -2629,7 +2641,7 @@ pub fn cmd_doc(target: ref u8, markdown: bool) i32 = trust {
         if markdown {
             index_rel = "index.md"
         }
-        val index_path = path.join("docs-out", index_rel)
+        val index_path = path.join(out_dir, index_rel)
         val readme = load_directory_readme(clean_target)
         if !write_page(
             index_path,
@@ -2640,7 +2652,7 @@ pub fn cmd_doc(target: ref u8, markdown: bool) i32 = trust {
         }
 
         for mod in modules {
-            val full_path = path.join("docs-out", mod.output_path)
+            val full_path = path.join(out_dir, mod.output_path)
             val content: mut ref u8 = ""
             if markdown {
                 content = render_module_page_md(mod, modules)

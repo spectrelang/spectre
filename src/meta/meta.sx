@@ -24,7 +24,7 @@ pub fn print_usage() void = {
     stdio.puts("  critic  <path>       Point out antipatterns in .sx files")
     stdio.puts("  build   <config>     Build using a config from sx.mod")
     stdio.puts("  run     <input.sx>   Compile and immediately run a program")
-    stdio.puts("  doc     <path>       Generate docs for a given .sx into ./docs-out/")
+    stdio.puts("  doc     <path>       Generate docs into ./docs-out-<name>/ for a directory")
     stdio.puts("  add     <git-url>    Clone a git dependency into ./lib/ and record it")
     stdio.puts("  remove  <dep-name>   Remove a dependency by repository name")
     stdio.puts("  upgrade <dep-name>   Upgrade dependencies in ./lib/ to their latest HEAD")
@@ -162,8 +162,9 @@ pub fn print_help(topic: ref u8) i32 = trust {
         stdio.puts("  -md         Generate Markdown instead of HTML")
         stdio.puts("  -h, -help   Show this help message")
         stdio.puts("")
-        stdio.puts("The path defaults to the current directory. Output is written to")
-        stdio.puts("./docs-out/.")
+        stdio.puts("The path defaults to the current directory. A directory target is")
+        stdio.puts("written to ./docs-out-<name>/, where <name> is the last path")
+        stdio.puts("component. A single .sx target is written to ./docs-out/.")
         return 0
     }
 
