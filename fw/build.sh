@@ -67,11 +67,14 @@ if [ -z "$STAGE0" ]; then
 	fi
 fi
 
+# Optional backend flag, e.g. "-alt" for bootstrap environments without QBE.
+BACKEND_FLAG="${SPECTRE_BUILD_BACKEND:-}"
+
 echo "Building spectre stage 1..."
-"$STAGE0" ./src/sxc.sx -o ./spectre-stage1 || exit 1
+"$STAGE0" ./src/sxc.sx $BACKEND_FLAG -o ./spectre-stage1 || exit 1
 
 echo "Building spectre-dev..."
-./spectre-stage1 -d:GIT_HASH="$GIT_HASH" ./src/sxc.sx -o spectre-dev || exit 1
+./spectre-stage1 -d:GIT_HASH="$GIT_HASH" ./src/sxc.sx $BACKEND_FLAG -o spectre-dev || exit 1
 rm -f ./spectre-stage1
 
 if [ $DO_BOOTSTRAP -eq 1 ]; then

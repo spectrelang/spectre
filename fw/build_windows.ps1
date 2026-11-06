@@ -6,39 +6,21 @@ Set-Location $Root
 if (-not (Get-Command clang -ErrorAction SilentlyContinue)) {
     throw "clang is required to build the Windows bootstrap compiler"
 }
-if (-not (Get-Command cmake -ErrorAction SilentlyContinue)) {
-    throw "cmake is required to build yyjson"
-}
 
 $TempRoot = if ($env:RUNNER_TEMP) { $env:RUNNER_TEMP } else { $env:TEMP }
 if (-not $TempRoot) {
     $TempRoot = Join-Path $Root ".tmp"
 }
 $YyjsonDir = if ($env:YYJSON_DIR) { $env:YYJSON_DIR } else { Join-Path $TempRoot "yyjson" }
-$YyjsonLib = Join-Path $YyjsonDir "build\Release\yyjson.lib"
+$YyjsonSrc = Join-Path $YyjsonDir "src"
 
-if (-not (Test-Path $YyjsonLib)) {
+if (-not (Test-Path (Join-Path $YyjsonSrc "yyjson.c"))) {
     if (-not (Test-Path $YyjsonDir)) {
         git clone --depth 1 https://github.com/ibireme/yyjson.git $YyjsonDir
     }
-    cmake -S $YyjsonDir -B (Join-Path $YyjsonDir "build") `
-        -DCMAKE_BUILD_TYPE=Release `
-        -DBUILD_SHARED_LIBS=OFF `
-        -DYYJSON_BUILD_TESTS=OFF `
-        -DYYJSON_BUILD_FUZZER=OFF `
-        -DYYJSON_BUILD_MISC=OFF `
-        -DYYJSON_BUILD_DOC=OFF
-    cmake --build (Join-Path $YyjsonDir "build") --config Release
 }
-
-if (-not (Test-Path $YyjsonLib)) {
-    $found = Get-ChildItem -Path $YyjsonDir -Filter yyjson.lib -Recurse | Select-Object -First 1
-    if ($found) {
-        $YyjsonLib = $found.FullName
-    }
-}
-if (-not (Test-Path $YyjsonLib)) {
-    throw "could not find yyjson.lib under $YyjsonDir"
+if (-not (Test-Path (Join-Path $YyjsonSrc "yyjson.c"))) {
+    throw "could not find yyjson.c under $YyjsonDir"
 }
 
 $Hash = "unknown"
@@ -48,16 +30,16 @@ try {
 }
 
 Write-Host "Building runtime objects..."
-clang -O2 -c spectrelib/csources/panic_handler.c -o spectrelib/csources/panic_handler.o
-clang -O2 -I (Join-Path $YyjsonDir "src") -c spectrelib/csources/yyjson_shim.c -o spectrelib/csources/yyjson_shim.o
+clang -O2 -Wno-error=int-conversion -c spectrelib/csources/panic_handler.c -o spectrelib/csources/panic_handler.o
+clang -O2 -Wno-error=int-conversion -I $YyjsonSrc -c spectrelib/csources/yyjson_shim.c -o spectrelib/csources/yyjson_shim.o
 
 Write-Host "Building Windows bootstrap compiler..."
 clang -O3 -Wno-everything -Wno-error=int-conversion `
     bootstrap/sxcw.c `
     spectrelib/csources/panic_handler.c `
     spectrelib/csources/yyjson_shim.c `
-    -I (Join-Path $YyjsonDir "src") `
-    $YyjsonLib `
+    (Join-Path $YyjsonSrc "yyjson.c") `
+    -I $YyjsonSrc `
     -lDbghelp `
     -lbcrypt `
     -o stage0.exe

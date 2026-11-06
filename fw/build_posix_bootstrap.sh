@@ -42,10 +42,12 @@ cc -O2 \
 	-I "$YYJSON_DIR/src" \
 	"$YYJSON_DIR/build/libyyjson.a" \
 	-w \
+	-Wno-error=int-conversion \
 	-o spectre-stage0
 chmod +x spectre-stage0
 
 echo "Building spectre-dev with stage0..."
 YYJSON_INC="-I$YYJSON_DIR/src" \
 	SPECTRE_STAGE0="$ROOT/spectre-stage0" \
+	SPECTRE_BUILD_BACKEND="-alt" \
 	./fw/build.sh
