@@ -1,24 +1,25 @@
-val string = use("../string")
+val string     = use("../string")
+val allocators = use("../allocators")
 
 extern (C) fn isdigit(c: i32) i32 = "isdigit"
 
 /// Generic sort (radix for numeric integers, insertion sort otherwise).
-pub fn sort[T](input: list[T]) list[T] = {
+pub fn sort[A: allocators.GeneralAllocator, T](ac: A, input: list[T]) list[T] = {
     val n: usize = @len(input)
 
     when T is i64 {
-        return trust sort_radix_i64(input)
+        return trust sort_radix_i64[A](ac, input)
     }
 
     when T is u64 {
-        return trust sort_radix_u64(input)
+        return trust sort_radix_u64[A](ac, input)
     }
 
     when T in (i8, i16, i32, i64, isize, u8, u16, u32, u64, usize) {
-        return sort_numeric_radix[T](input)
+        return sort_numeric_radix[A, T](ac, input)
     }
 
-    val sorted: mut list[T] = []
+    val sorted: mut list[T] = @listalloc[A, T](ac)?
     val i: mut usize = 0
     for {
         if i >= n {
@@ -100,17 +101,20 @@ pub fn sort[T](input: list[T]) list[T] = {
 }
 
 /// General numeric sort (radix)
-pub fn sort_numeric_radix[T](input: list[T]) list[T] = {
+pub fn sort_numeric_radix[A: allocators.GeneralAllocator, T](
+    ac: A,
+    input: list[T]
+) list[T] = {
     when T is i64 {
-        return trust sort_radix_i64(input)
+        return trust sort_radix_i64[A](ac, input)
     }
 
     when T is u64 {
-        return trust sort_radix_u64(input)
+        return trust sort_radix_u64[A](ac, input)
     }
 
     when T in (i8, i16, i32, i64, isize) {
-        val raw: mut list[i64] = []
+        val raw: mut list[i64] = @listalloc[A, i64](ac)?
         val ri: mut usize = 0
         for {
             if ri >= @len(input) {
@@ -122,8 +126,8 @@ pub fn sort_numeric_radix[T](input: list[T]) list[T] = {
             }
             ri++
         }
-        val sorted64: list[i64] = trust sort_radix_i64(raw)
-        val sorted: mut list[T] = []
+        val sorted64: list[i64] = trust sort_radix_i64[A](ac, raw)
+        val sorted: mut list[T] = @listalloc[A, T](ac)?
         for v in sorted64 {
             @append(sorted, v as T)
         }
@@ -131,7 +135,7 @@ pub fn sort_numeric_radix[T](input: list[T]) list[T] = {
     }
 
     when T in (u8, u16, u32, u64, usize) {
-        val rawu: mut list[u64] = []
+        val rawu: mut list[u64] = @listalloc[A, u64](ac)?
         val ui: mut usize = 0
         for {
             if ui >= @len(input) {
@@ -143,8 +147,8 @@ pub fn sort_numeric_radix[T](input: list[T]) list[T] = {
             }
             ui++
         }
-        val sortedu: list[u64] = trust sort_radix_u64(rawu)
-        val sortedu_out: mut list[T] = []
+        val sortedu: list[u64] = trust sort_radix_u64[A](ac, rawu)
+        val sortedu_out: mut list[T] = @listalloc[A, T](ac)?
         for v in sortedu {
             @append(sortedu_out, v as T)
         }
@@ -245,7 +249,10 @@ fn radix_sort_i64_raw(src: ref void, n: usize, signed: bool) ref void = trust {
 ///
 /// This implementation works directly on the list backing buffer, avoiding the
 /// per-element boxing overhead of `@get`/`@set` in the generic path.
-pub fn sort_radix_i64(input: list[i64]) list[i64] = trust {
+pub fn sort_radix_i64[A: allocators.GeneralAllocator](
+    ac: A,
+    input: list[i64]
+) list[i64] = trust {
     val n: usize = @load(@ptradd(input, 8)) as usize
     if n <= 1 {
         return input
@@ -254,7 +261,7 @@ pub fn sort_radix_i64(input: list[i64]) list[i64] = trust {
     val src: ref void = @load(input)
     val sorted: ref void = radix_sort_i64_raw(src, n, true)
 
-    val out: mut list[i64] = []
+    val out: mut list[i64] = @listalloc[A, i64](ac)?
     @append(out, @load(sorted) as i64)
     @reserve(out, n)
     val out_buf: ref void = @load(out)
@@ -265,7 +272,10 @@ pub fn sort_radix_i64(input: list[i64]) list[i64] = trust {
 }
 
 /// Fast radix sort for unsigned u64 values (ascending).
-pub fn sort_radix_u64(input: list[u64]) list[u64] = trust {
+pub fn sort_radix_u64[A: allocators.GeneralAllocator](
+    ac: A,
+    input: list[u64]
+) list[u64] = trust {
     val n: usize = @load(@ptradd(input, 8)) as usize
     if n <= 1 {
         return input
@@ -274,7 +284,7 @@ pub fn sort_radix_u64(input: list[u64]) list[u64] = trust {
     val src: ref void = @load(input)
     val sorted: ref void = radix_sort_i64_raw(src, n, false)
 
-    val out: mut list[u64] = []
+    val out: mut list[u64] = @listalloc[A, u64](ac)?
     @append(out, @load(sorted) as u64)
     @reserve(out, n)
     val out_buf: ref void = @load(out)
@@ -322,9 +332,12 @@ fn parse_leading_num(name: ref u8) i64 = {
 }
 
 /// Insertion-sort a list of ref u8 by their leading number (ascending).
-pub fn sort_by_num(files: list[ref u8]) list[ref u8] = {
+pub fn sort_by_num[A: allocators.GeneralAllocator](
+    ac: A,
+    files: list[ref u8]
+) list[ref u8] = {
     val n: usize = @len(files)
-    val sorted: mut list[ref u8] = []
+    val sorted: mut list[ref u8] = @listalloc[A, ref u8](ac)?
     val ci: mut usize = 0
     for {
         if ci >= n {
@@ -378,14 +391,14 @@ pub fn sort_by_num(files: list[ref u8]) list[ref u8] = {
 }
 
 /// Fast radix sort for signed i64 values (ascending).
-pub fn sort_i64(input: list[i64]) list[i64] = {
-    return sort_numeric_radix[i64](input)
+pub fn sort_i64[A: allocators.GeneralAllocator](ac: A, input: list[i64]) list[i64] = {
+    return sort_numeric_radix[A, i64](ac, input)
 }
 
 /// Insertion-sort a list of f64 (ascending).
-pub fn sort_f64(input: list[f64]) list[f64] = {
+pub fn sort_f64[A: allocators.GeneralAllocator](ac: A, input: list[f64]) list[f64] = {
     val n: usize = @len(input)
-    val sorted: mut list[f64] = []
+    val sorted: mut list[f64] = @listalloc[A, f64](ac)?
     val i: mut usize = 0
     for {
         if i >= n {
@@ -486,9 +499,12 @@ fn intern_strcmp(a: ref u8, b: ref u8) i32 = {
 }
 
 /// Sort some list of raw strings alphabetically.
-pub fn sort_alpha(files: list[ref u8]) list[ref u8] = {
+pub fn sort_alpha[A: allocators.GeneralAllocator](
+    ac: A,
+    files: list[ref u8]
+) list[ref u8] = {
     val n: usize = @len(files)
-    val sorted: mut list[ref u8] = []
+    val sorted: mut list[ref u8] = @listalloc[A, ref u8](ac)?
     val ci: mut usize = 0
 
     for {
@@ -548,44 +564,46 @@ pub fn sort_alpha(files: list[ref u8]) list[ref u8] = {
 }
 
 test {
-    val all: list[ref u8] = ["1 - hi", "2 - hello", "0 hey", "5 :)", "3 :D"]
-    val sorted: list[ref u8] = sort_by_num(all)
+    val sa: allocators.ScopedArenaAllocator = trust allocators.ScopedArena.new(65536 as usize)?
+    val la: allocators.ListArena = {arena: sa}
+    val all: list[ref u8] = @list(la, "1 - hi", "2 - hello", "0 hey", "5 :)", "3 :D")?
+    val sorted: list[ref u8] = sort_by_num[allocators.ListArena](la, all)
 
     for s in sorted {
         trust @print("{s}\n", {s})
     }
 
     @puts("ok1")
-    val int_lst: list[i64] = [5, 2, 6, 1, 9, 10345, 234, 235]
+    val int_lst: list[i64] = @list(la, 5, 2, 6, 1, 9, 10345, 234, 235)?
 
     @puts("ok2")
-    val il_sorted = sort_i64(int_lst)
+    val il_sorted = sort_i64[allocators.ListArena](la, int_lst)
 
     @puts("ok3")
     for il in il_sorted {
         trust @print("{d}\n", {il})
     }
 
-    val alpha_all = ["asdsad", "bosdfo", "asda", "pogkdsf", "pog pog pogu", "asdf"]
-    val alpha_sorted = sort_alpha(alpha_all)
+    val alpha_all = @list(la, "asdsad", "bosdfo", "asda", "pogkdsf", "pog pog pogu", "asdf")?
+    val alpha_sorted = sort_alpha[allocators.ListArena](la, alpha_all)
 
     for a in alpha_sorted {
         trust @print("{s}\n", {a})
     }
 
-    val numlist = [1, 532, 12, 124, 12]
+    val numlist = @list(la, 1, 532, 12, 124, 12)?
     trust @print("len of numlist: {d}\n", {@len(numlist)})
 
-    val sorted_numlist = sort[i32](numlist)
+    val sorted_numlist = sort[allocators.ListArena, i32](la, numlist)
     trust @print("len of sorted_numlist: {d}\n", {@len(sorted_numlist)})
 
     for s in sorted_numlist {
         trust @print("Sorted: {d}\n", {s})
     }
 
-    val fast_i64: list[i64] = [42, -7, 0, 19, -1024, 8]
-    val fast_i64_expected: list[i64] = [-1024, -7, 0, 8, 19, 42]
-    val fast_i64_sorted = sort_i64(fast_i64)
+    val fast_i64: list[i64] = @list(la, 42, -7, 0, 19, -1024, 8)?
+    val fast_i64_expected: list[i64] = @list(la, -1024, -7, 0, 8, 19, 42)?
+    val fast_i64_sorted = sort_i64[allocators.ListArena](la, fast_i64)
     assert @len(fast_i64_sorted) == @len(fast_i64_expected)
     val fi: mut usize = 0
     for {
@@ -602,9 +620,9 @@ test {
         fi++
     }
 
-    val fast_u64: list[u64] = [3, 0, 2, 9, 1]
-    val fast_u64_expected: list[u64] = [0, 1, 2, 3, 9]
-    val fast_u64_sorted = sort[u64](fast_u64)
+    val fast_u64: list[u64] = @list(la, 3, 0, 2, 9, 1)?
+    val fast_u64_expected: list[u64] = @list(la, 0, 1, 2, 3, 9)?
+    val fast_u64_sorted = sort[allocators.ListArena, u64](la, fast_u64)
     assert @len(fast_u64_sorted) == @len(fast_u64_expected)
     val fj: mut usize = 0
     for {
@@ -620,4 +638,5 @@ test {
         }
         fj++
     }
+    trust allocators.ScopedArena.free(sa)
 }

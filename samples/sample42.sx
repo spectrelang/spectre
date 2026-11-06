@@ -1,4 +1,5 @@
-val stdio = use("std/stdio")
+val stdio      = use("std/stdio")
+val allocators = use("std/allocators")
 
 type String = {
     cstr: ref u8
@@ -14,13 +15,16 @@ union SomeUnion = {
 }
 
 pub fn main() void = trust {
-    val examples: list[SomeUnion] = [
+    val sa: allocators.ScopedArenaAllocator = allocators.ScopedArena.new(4096 as usize)?
+    val la: allocators.ListArena = {arena: sa}
+    val examples: list[SomeUnion] = @list(
+        la,
         Int32(42 as i32),
         Int64(1234567890123),
         ChrPtr("hello"),
         Str({ cstr: "world", len: 5 }),
         Pair(5 as i32, 10 as i32)
-    ]
+    )?
 
     for x in examples {
         match x {
@@ -54,4 +58,5 @@ pub fn main() void = trust {
             }
         }
     }
+    allocators.ScopedArena.free(sa)
 }

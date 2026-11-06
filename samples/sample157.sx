@@ -1,3 +1,5 @@
+val allocators = use("std/allocators")
+
 type Vec3 = {
     x: f32
     y: f32
@@ -45,9 +47,10 @@ fn make_particle(
     }
 }
 
-fn build_demo() Demo = {
+fn build_demo[A: allocators.GeneralAllocator](ac: A) Demo = {
     return {
-        particles: [
+        particles: @list(
+            ac,
             make_particle(
                 make_vec3(
                     -1.55 as f32,
@@ -90,12 +93,15 @@ fn build_demo() Demo = {
                 0.66 as f32,
                 0.30 as f32
             )
-        ]
+        )?
     }
 }
 
 pub fn main() i32 = {
-    val d: Demo = build_demo()
+    val sa: allocators.ScopedArenaAllocator = trust allocators.ScopedArena.new(8192 as usize)?
+    val la: allocators.ListArena = {arena: sa}
+    val d: Demo = build_demo[allocators.ListArena](la)
     trust @print("{p}\n", {d})
+    trust allocators.ScopedArena.free(sa)
     return 0
 }

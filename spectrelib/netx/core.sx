@@ -171,7 +171,7 @@ pub fn (WebServer) new_with_capacity[A: allocators.GeneralAllocator](
         return none
     }
 
-    val loop = net.EventLoop.new()
+    val loop = net.EventLoop.new[A](ac)?
     server.loop = loop as ref void
     net.EventLoop.watch(loop, server.listen_fd, net.POLL_READ)
     return server
@@ -688,7 +688,7 @@ pub fn (WebServer) free[A: allocators.GeneralAllocator](
         net.TcpServer.close[A](ac, server.handle)
     }
     if server.loop != none {
-        net.EventLoop.free(server.loop as mut net.EventLoop)
+        net.EventLoop.free[A](ac, server.loop as mut net.EventLoop)
     }
     if server.routes != none {
         allocators.free_in[A](ac, server.routes)

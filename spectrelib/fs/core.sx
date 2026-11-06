@@ -440,7 +440,8 @@ pub fn rmdir_path(path: ref u8) bool = trust {
 /// Remove a file or directory tree recursively.
 /// Returns true when the path no longer exists.
 pub fn remove_dir_all(path: ref u8) bool = trust {
-    val entries_opt = walk_dir_raw(path)
+    val heap: allocators.HeapAllocator = @zeroed
+    val entries_opt = walk_dir_raw[allocators.HeapAllocator](heap, path)
     match entries_opt {
         none => {
             // Not a directory: fall back to unlinking it as a file.
@@ -457,6 +458,7 @@ pub fn remove_dir_all(path: ref u8) bool = trust {
                     delete(child)
                 }
             }
+            @listfree(entries)
             return rmdir_path(path)
         }
     }
@@ -763,7 +765,8 @@ test {
     trust write_all("test_walk_dir/a.txt", "a")
     trust write_all("test_walk_dir/b.txt", "b")
 
-    val entries_opt = trust walk_dir[allocators.Arena](arena, dpath)
+    val walk_heap: allocators.HeapAllocator = @zeroed
+    val entries_opt = trust walk_dir[_](walk_heap, dpath)
     match entries_opt {
         none => {
             assert false
@@ -796,10 +799,11 @@ test {
             assert count == 2
             assert seen_a == 1
             assert seen_b == 1
+            @listfree(entries)
         }
     }
 
-    val bad_opt = trust walk_dir[allocators.Arena](arena, "__no_such_dir__")
+    val bad_opt = trust walk_dir[_](walk_heap, "__no_such_dir__")
     match bad_opt {
         none => {}
         some _ => {
@@ -849,13 +853,16 @@ test {
 ///   for entry in entries {
 ///       std.stdio.print("{s}\n", {entry})
 ///   }
-pub fn walk_dir[A: allocators.Allocator](ac: A, path: ref u8) option[list[ref u8]] = trust {
+pub fn walk_dir[A: allocators.GeneralAllocator](
+    ac: A,
+    path: ref u8
+) option[list[ref u8]] = trust {
     val dir: ref void = opendir(path)
     if (dir == none) {
         return none
     }
 
-    val result: mut list[ref u8] = []
+    val result: mut list[ref u8] = @listalloc[A, ref u8](ac)?
 
     for {
         val entry: ref Dirent = readdir(dir)
@@ -878,6 +885,7 @@ pub fn walk_dir[A: allocators.Allocator](ac: A, path: ref u8) option[list[ref u8
                         val copy: ref u8 = copy_dirent_name[A](ac, entry)
                         if copy == none {
                             closedir(dir)
+                            @listfree(result)
                             return none
                         }
                         @append(result, copy)
@@ -886,6 +894,7 @@ pub fn walk_dir[A: allocators.Allocator](ac: A, path: ref u8) option[list[ref u8
                     val copy: ref u8 = copy_dirent_name[A](ac, entry)
                     if copy == none {
                         closedir(dir)
+                        @listfree(result)
                         return none
                     }
                     @append(result, copy)
@@ -895,6 +904,7 @@ pub fn walk_dir[A: allocators.Allocator](ac: A, path: ref u8) option[list[ref u8
             val copy: ref u8 = copy_dirent_name[A](ac, entry)
             if copy == none {
                 closedir(dir)
+                @listfree(result)
                 return none
             }
             @append(result, copy)
@@ -905,13 +915,16 @@ pub fn walk_dir[A: allocators.Allocator](ac: A, path: ref u8) option[list[ref u8
     return some result
 }
 
-pub fn walk_dir_raw(path: ref u8) option[list[ref u8]] = trust {
+pub fn walk_dir_raw[A: allocators.GeneralAllocator](
+    ac: A,
+    path: ref u8
+) option[list[ref u8]] = trust {
     val dir: ref void = opendir(path)
     if (dir == none) {
         return none
     }
 
-    val result: mut list[ref u8] = []
+    val result: mut list[ref u8] = @listalloc[A, ref u8](ac)?
 
     for {
         val entry: ref Dirent = readdir(dir)
@@ -932,6 +945,7 @@ pub fn walk_dir_raw(path: ref u8) option[list[ref u8]] = trust {
                         val copy: ref u8 = raw_copy_dirent_name(entry)
                         if copy == none {
                             closedir(dir)
+                            @listfree(result)
                             return none
                         }
                         @append(result, copy)
@@ -940,6 +954,7 @@ pub fn walk_dir_raw(path: ref u8) option[list[ref u8]] = trust {
                     val copy: ref u8 = raw_copy_dirent_name(entry)
                     if copy == none {
                         closedir(dir)
+                        @listfree(result)
                         return none
                     }
                     @append(result, copy)
@@ -949,6 +964,7 @@ pub fn walk_dir_raw(path: ref u8) option[list[ref u8]] = trust {
             val copy: ref u8 = raw_copy_dirent_name(entry)
             if copy == none {
                 closedir(dir)
+                @listfree(result)
                 return none
             }
             @append(result, copy)

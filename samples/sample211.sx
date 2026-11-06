@@ -1,3 +1,5 @@
+val allocators = use("std/allocators")
+
 type Inner = {
     a: mut list[i32]
     b: mut list[i32]
@@ -9,7 +11,15 @@ type Outer = {
 }
 
 pub fn main() i32 = {
-    val o: mut Outer = { inner: { a: [], b: [], c: [] } }
+    val sa: allocators.ScopedArenaAllocator = trust allocators.ScopedArena.new(4096 as usize)?
+    val la: allocators.ListArena = {arena: sa}
+    val o: mut Outer = {
+        inner: {
+            a: @listalloc[allocators.ListArena, i32](la)?,
+            b: @listalloc[allocators.ListArena, i32](la)?,
+            c: @listalloc[allocators.ListArena, i32](la)?
+        }
+    }
     @append(o.inner.a, 1 as i32)
     @append(o.inner.a, 2 as i32)
     @append(o.inner.b, 3 as i32)
@@ -19,5 +29,6 @@ pub fn main() i32 = {
     assert @len(o.inner.a) == (2 as usize)
     assert @len(o.inner.b) == (1 as usize)
     assert @len(o.inner.c) == (3 as usize)
+    trust allocators.ScopedArena.free(sa)
     return 0 as i32
 }

@@ -1,4 +1,5 @@
-val str = use("std/string")
+val str        = use("std/string")
+val allocators = use("std/allocators")
 
 type Vec2 = {
     x: f64
@@ -26,12 +27,15 @@ pub fn sum[T](items: list[T]) T = {
 }
 
 pub fn main() void = {
-    val nums = [1, 2, 3, 4]
-    val words = ["hello ", "world"]
-    val points: list[Vec2] = [
+    val sa: allocators.ScopedArenaAllocator = trust allocators.ScopedArena.new(4096 as usize)?
+    val la: allocators.ListArena = {arena: sa}
+    val nums = @list(la, 1, 2, 3, 4)?
+    val words = @list(la, "hello ", "world")?
+    val points: list[Vec2] = @list(
+        la,
         {x: 1.0, y: 2.0},
         {x: 3.0, y: 4.0}
-    ]
+    )?
 
     @puts("ok")
     val a = sum[i64](nums)
@@ -45,4 +49,5 @@ pub fn main() void = {
     trust @print("sum = {d}\n", {a})
     trust @print("{s}\n", {b})
     trust @print("vec = ({f}, {f})\n", {c.x, c.y})
+    trust allocators.ScopedArena.free(sa)
 }

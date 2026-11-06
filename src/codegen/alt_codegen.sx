@@ -6437,6 +6437,10 @@ fn gen_struct_lit(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
 }
 
 fn gen_list_lit(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
+    stdio.eprint(
+        "warning: {s}:{lld}: implicit dynamic list allocation; use an allocator-backed list such as @list(ac, ...) or @listalloc[Alloc, T](ac)\n",
+        {ctx.current_src_file, expr.line}
+    )
     val elems: ref void = expr.d0 as ref void
     val elen: mut i64 = 0
     if elems != none {
@@ -9612,7 +9616,7 @@ fn emit_string_data(ctx: ref CCtx) void = trust {
     }
 }
 
-val libc_fn_names: list[ref u8] = [
+val libc_fn_names: [140]ref u8 = [
     "malloc", "free", "realloc", "calloc", "memset", "memcpy",
     "strlen", "strcmp", "puts", "printf", "dprintf", "getchar", "fgets",
     "exit", "abort", "abs", "getenv", "fopen", "fclose", "fread", "fwrite",
@@ -9626,9 +9630,11 @@ val libc_fn_names: list[ref u8] = [
 ]
 
 fn is_libc_fn(name: ref u8) bool = trust {
-    for fun in libc_fn_names {
-        if str.raw_cmp(name, fun) == 0 {
-            return true
+    for i = 0, i < 140, i++ {
+        if @get(libc_fn_names, i) is some fun {
+            if str.raw_cmp(name, fun as ref u8) == 0 {
+                return true
+            }
         }
     }
     return false

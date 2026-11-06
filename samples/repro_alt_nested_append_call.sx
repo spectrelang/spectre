@@ -12,6 +12,8 @@
 //   repro_alt_nested_append_call.sx:42:520: error: expected ')'
 //   ... too many errors emitted, stopping now
 
+val allocators = use("std/allocators")
+
 pub type Mesh = {
     raw: ref void
     index_count: i32
@@ -50,8 +52,14 @@ pub fn upload_mesh(
     return { raw: runtime, index_count: index_count }
 }
 
-pub fn load(runtime: ref void, instances: list[Instance]) Resources = {
-    val resources: mut Resources = { custom: [] }
+pub fn load[A: allocators.GeneralAllocator](
+    ac: A,
+    runtime: ref void,
+    instances: list[Instance]
+) Resources = {
+    val resources: mut Resources = {
+        custom: @listalloc[A, Mesh](ac)?
+    }
     for instance in instances {
         @append(resources.custom, upload_mesh(
                 runtime,
@@ -65,10 +73,14 @@ pub fn load(runtime: ref void, instances: list[Instance]) Resources = {
 }
 
 pub fn main() i32 = {
-    val instances: list[Instance] = []
-    val resources = load(none as ref void, instances)
+    val sa: allocators.ScopedArenaAllocator = trust allocators.ScopedArena.new(4096 as usize)?
+    val la: allocators.ListArena = {arena: sa}
+    val instances: list[Instance] = @listalloc[allocators.ListArena, Instance](la)?
+    val resources = load[allocators.ListArena](la, none as ref void, instances)
     if @len(resources.custom) == (0 as usize) {
+        trust allocators.ScopedArena.free(sa)
         return 0 as i32
     }
+    trust allocators.ScopedArena.free(sa)
     return 1 as i32
 }

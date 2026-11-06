@@ -1,7 +1,12 @@
+val allocators = use("std/allocators")
+
 pub fn main() void = {
-    val x: list[i32] = [1, 2, 3, 4, 5]
+    val sa: allocators.ScopedArenaAllocator = trust allocators.ScopedArena.new(4096 as usize)?
+    val la: allocators.ListArena = {arena: sa}
+    val x: list[i32] = @list(la, 1, 2, 3, 4, 5)?
     @insert(x, 1, 10)
     for xs in x {
         trust @print("{d}\n", {xs})
     }
+    trust allocators.ScopedArena.free(sa)
 }

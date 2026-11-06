@@ -2422,30 +2422,35 @@ fn collect_files(
     explicit: bool
 ) i32 = trust {
     if is_directory(target) {
-        val entries_opt = fs.walk_dir[allocators.Arena](arena, target)
+        val walk_arena: allocators.ScopedArenaAllocator = allocators.ScopedArena.new(
+            65536 as usize
+        )?
+        val walk_list_arena: allocators.ListArena = {arena: walk_arena}
+        val entries_opt = fs.walk_dir[allocators.ListArena](walk_list_arena, target)
         match entries_opt {
             none => {
                 stdio.print("error: could not read directory '{s}'\n", {target})
+                allocators.ScopedArena.free(walk_arena)
                 return 1
             }
             some list_val => {
-                val entries: mut list[ref u8] = list_val
+                val entries: list[ref u8] = list_val
                 for entry in entries {
                     val child: ref u8 = join_path(arena, target, entry)
                     if child == none {
                         stdio.print("error: out of memory while walking '{s}'\n", {target})
-                        free_list[ref u8](entries)
+                        allocators.ScopedArena.free(walk_arena)
                         return 1
                     }
                     val code: i32 = collect_files(arena, child, out, false)
                     if code != 0 {
-                        free_list[ref u8](entries)
+                        allocators.ScopedArena.free(walk_arena)
                         return code
                     }
                 }
-                free_list[ref u8](entries)
             }
         }
+        allocators.ScopedArena.free(walk_arena)
         return 0
     }
 

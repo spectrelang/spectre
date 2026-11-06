@@ -13274,6 +13274,10 @@ fn gen_fixed_arr_lit(
 }
 
 fn gen_list_lit(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
+    stdio.eprint(
+        "warning: {s}:{lld}: implicit dynamic list allocation; use an allocator-backed list such as @list(ac, ...) or @listalloc[Alloc, T](ac)\n",
+        {ctx.current_filename, expr.line}
+    )
     val elems: ref void = expr.d0 as ref void
     val elen: mut i64 = 0
     if elems != none {
@@ -18037,6 +18041,7 @@ pub fn gen_module_resolved(
     }
     ctx.release_mode = release_mode
     ctx.src_target = src_target
+    ctx.current_filename = module.module_filename(root)
     emit_runtime_helpers(ctx)
 
     val out_prefixes: mut list[ref u8] = mem.new[ref u8]()
@@ -18372,6 +18377,7 @@ pub fn gen_module_resolved_test(
     }
     ctx.release_mode = release_mode
     ctx.src_target = src_target
+    ctx.current_filename = module.module_filename(root)
     emit_runtime_helpers(ctx)
 
     val out_prefixes: mut list[ref u8] = mem.new[ref u8]()

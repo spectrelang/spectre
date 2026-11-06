@@ -3,12 +3,13 @@
 /// SPDX-License-Identifier: GPL-3.0-only
 /// (C) Navid Momtahen - 2026
 
-val str   = use("std/string")
-val mem   = use("mem.sx")
-val fs    = use("std/fs")
-val path  = use("std/path")
-val stdio = use("std/stdio")
-val lexer = use("../ast/lexer.sx")
+val str        = use("std/string")
+val mem        = use("mem.sx")
+val fs         = use("std/fs")
+val path       = use("std/path")
+val stdio      = use("std/stdio")
+val allocators = use("std/allocators")
+val lexer      = use("../ast/lexer.sx")
 
 type Buf = {
     ptr: mut ref u8
@@ -3965,7 +3966,8 @@ fn format_file(file: ref u8, to_stdout: bool) i32 = trust {
 
 fn collect_files(target: ref u8, out: mut list[ref u8], explicit: bool) i32 = trust {
     if is_directory(target) {
-        val entries_opt = fs.walk_dir_raw(target)
+        val heap: allocators.HeapAllocator = @zeroed
+        val entries_opt = fs.walk_dir_raw[_](heap, target)
         match entries_opt {
             none => {
                 stdio.print("error: could not read directory '{s}'\n", {target})
@@ -3976,9 +3978,11 @@ fn collect_files(target: ref u8, out: mut list[ref u8], explicit: bool) i32 = tr
                     val child: ref u8 = path.join(target, entry)
                     val code: i32 = collect_files(child, out, false)
                     if code != 0 {
+                        @listfree(entries)
                         return code
                     }
                 }
+                @listfree(entries)
             }
         }
         return 0

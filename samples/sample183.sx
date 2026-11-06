@@ -3,11 +3,13 @@ val alc        = use("std/allocators")
 val algorithms = use("std/algorithms")
 
 pub fn main() void = trust {
-    val arena: alc.Arena = alc.Arena.new(10240 as usize)?
-    val files = fs.walk_dir[alc.Arena](arena, ".")
+    val arena: alc.ScopedArenaAllocator = alc.ScopedArena.new(10240 as usize)?
+    val la: alc.ListArena = {arena: arena}
+    val files = fs.walk_dir[alc.ListArena](la, ".")
     if files is some f {
-        for fls in algorithms.sort[ref u8](f) {
+        for fls in algorithms.sort[alc.ListArena, ref u8](la, f) {
             @print("-> {s}\n", {fls})
         }
     }
+    alc.ScopedArena.free(arena)
 }

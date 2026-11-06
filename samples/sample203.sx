@@ -152,10 +152,10 @@ pub fn main() void = trust {
         return
     }
 
-    val loop = net.EventLoop.new()
+    val loop = net.EventLoop.new[allocators.HeapAllocator](ac)?
     net.EventLoop.watch(loop, listen_fd, net.POLL_READ)
 
-    val clients: mut list[ref Client] = []
+    val clients: mut list[ref Client] = @listalloc[allocators.HeapAllocator, ref Client](ac)?
     stdio.print("Async API listening on port {d}\n", {net.TcpServer.port(server)})
 
     for {

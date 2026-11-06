@@ -1,14 +1,19 @@
+val allocators = use("std/allocators")
+
 pub type Node = {
     x: i32
     y: i32
 }
 
 pub fn main() void = {
+    val sa: allocators.ScopedArenaAllocator = trust allocators.ScopedArena.new(4096 as usize)?
+    val la: allocators.ListArena = {arena: sa}
     val node: mut Node = {x: 10, y: 30}
     val ptr1: ref Node = @addr(node)
-    val xs: list[ref Node] = [ptr1]
+    val xs: list[ref Node] = @list(la, ptr1)?
     for x in xs {
         trust @print("{p}\n", {x})
         trust @print("{d} {d}\n", {@deref(x).x, @deref(x).y})
     }
+    trust allocators.ScopedArena.free(sa)
 }

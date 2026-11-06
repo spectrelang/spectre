@@ -479,7 +479,7 @@ fn huffman_build[A: allocators.GeneralAllocator](
     tree.max_bits = max_bits
     @memset(tree.table, 0, (table_size * 8) as usize)
 
-    val counts: mut list[i64] = []
+    val counts: mut list[i64] = @listalloc[A, i64](ac)?
     @reserve(counts, 16)
     val c: mut i64 = 0
     for {
@@ -510,7 +510,7 @@ fn huffman_build[A: allocators.GeneralAllocator](
         i++
     }
 
-    val next_code: mut list[i64] = []
+    val next_code: mut list[i64] = @listalloc[A, i64](ac)?
     @reserve(next_code, 16)
     c = 0
     for {
@@ -602,8 +602,8 @@ fn huffman_free[A: allocators.GeneralAllocator](ac: A, tree: ref Huffman) void =
     allocators.free_in[A](ac, tree as ref void)
 }
 
-fn fixed_litlen_lengths() list[i64] = {
-    val lengths: mut list[i64] = []
+fn fixed_litlen_lengths[A: allocators.GeneralAllocator](ac: A) list[i64] = {
+    val lengths: mut list[i64] = @listalloc[A, i64](ac)?
     @reserve(lengths, 288)
     val i: mut i64 = 0
     for {
@@ -622,8 +622,8 @@ fn fixed_litlen_lengths() list[i64] = {
     return lengths
 }
 
-fn fixed_dist_lengths() list[i64] = {
-    val lengths: mut list[i64] = []
+fn fixed_dist_lengths[A: allocators.GeneralAllocator](ac: A) list[i64] = {
+    val lengths: mut list[i64] = @listalloc[A, i64](ac)?
     @reserve(lengths, 32)
     val i: mut i64 = 0
     for {
@@ -636,7 +636,8 @@ fn fixed_dist_lengths() list[i64] = {
     return lengths
 }
 
-fn inflate_block(
+fn inflate_block[A: allocators.GeneralAllocator](
+    ac: A,
     br: mut ref BitReader,
     out: ref u8,
     out_cap: i64,
@@ -820,8 +821,8 @@ pub fn inflate_zlib[A: allocators.GeneralAllocator](
                 i++
             }
         } elif block_type == 1 {
-            val lit_lengths: list[i64] = fixed_litlen_lengths()
-            val dist_lengths: list[i64] = fixed_dist_lengths()
+            val lit_lengths: list[i64] = fixed_litlen_lengths[A](ac)
+            val dist_lengths: list[i64] = fixed_dist_lengths[A](ac)
             val litres = huffman_build[A](ac, lit_lengths, 288)
             val litres_ok: mut bool = true
             val lit: mut ref Huffman = none
@@ -854,7 +855,7 @@ pub fn inflate_zlib[A: allocators.GeneralAllocator](
                 br.failed = true
                 break
             }
-            if !inflate_block(br, out, expected_size, out_len, lit, dtree) {
+            if !inflate_block[A](ac, br, out, expected_size, out_len, lit, dtree) {
                 br.failed = true
             }
             huffman_free[A](ac, lit)
@@ -867,7 +868,7 @@ pub fn inflate_zlib[A: allocators.GeneralAllocator](
                 break
             }
 
-            val cl_lengths: mut list[i64] = []
+            val cl_lengths: mut list[i64] = @listalloc[A, i64](ac)?
             @reserve(cl_lengths, 19)
             val ci: mut i64 = 0
             for {
@@ -908,7 +909,7 @@ pub fn inflate_zlib[A: allocators.GeneralAllocator](
             }
 
             val total: i64 = hlit + hdist
-            val lengths: mut list[i64] = []
+            val lengths: mut list[i64] = @listalloc[A, i64](ac)?
             @reserve(lengths, total)
             val li: mut i64 = 0
             for {
@@ -981,8 +982,8 @@ pub fn inflate_zlib[A: allocators.GeneralAllocator](
                 break
             }
 
-            val lit_lengths: mut list[i64] = []
-            val dist_lengths: mut list[i64] = []
+            val lit_lengths: mut list[i64] = @listalloc[A, i64](ac)?
+            val dist_lengths: mut list[i64] = @listalloc[A, i64](ac)?
             @reserve(lit_lengths, hlit)
             @reserve(dist_lengths, hdist)
             li = 0
@@ -1044,7 +1045,7 @@ pub fn inflate_zlib[A: allocators.GeneralAllocator](
                 br.failed = true
                 break
             }
-            if !inflate_block(br, out, expected_size, out_len, lit, dtree) {
+            if !inflate_block[A](ac, br, out, expected_size, out_len, lit, dtree) {
                 br.failed = true
             }
             huffman_free[A](ac, lit)

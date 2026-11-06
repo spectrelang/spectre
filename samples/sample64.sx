@@ -1,3 +1,5 @@
+val allocators = use("std/allocators")
+
 pub union Kind = {
     Foo()
     | Bar(i64)
@@ -13,7 +15,9 @@ fn get_kind(items: list[ref Kind], i: i64) Kind = trust {
 }
 
 pub fn main() i64 = trust {
-    val items: list[ref Kind] = []
+    val sa: allocators.ScopedArenaAllocator = allocators.ScopedArena.new(4096 as usize)?
+    val la: allocators.ListArena = {arena: sa}
+    val items: list[ref Kind] = @listalloc[allocators.ListArena, ref Kind](la)?
     val k = get_kind(items, 0)
     match k {
         Foo() => {
@@ -23,5 +27,6 @@ pub fn main() i64 = trust {
             @puts("bar")
         }
     }
+    allocators.ScopedArena.free(sa)
     return 0
 }

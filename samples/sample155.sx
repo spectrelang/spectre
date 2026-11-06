@@ -1,3 +1,5 @@
+val allocators = use("std/allocators")
+
 type Pair = {
     x: f32
     y: f32
@@ -13,17 +15,22 @@ fn make_pair(x: f32, y: f32) Pair = {
 }
 
 pub fn main() i32 = {
+    val sa: allocators.ScopedArenaAllocator = trust allocators.ScopedArena.new(4096 as usize)?
+    val la: allocators.ListArena = {arena: sa}
     val d: Demo = {
-        stars: [
+        stars: @list(
+            la,
             make_pair(0.1 as f32, 0.2 as f32)
-        ],
-        particles: [
+        )?,
+        particles: @list(
+            la,
             make_pair(1.2 as f32, 1.4 as f32),
             make_pair(0.5 as f32, 0.3 as f32),
             make_pair(2.1 as f32, 0.6 as f32),
             make_pair(2.4 as f32, 0.7 as f32)
-        ]
+        )?
     }
     trust @print("{p}\n", {d})
+    trust allocators.ScopedArena.free(sa)
     return 0
 }

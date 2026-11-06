@@ -413,65 +413,64 @@ fn resolve_embed_builtin(
 }
 
 fn is_known_builtin(name: ref u8) bool = trust {
-    val builtins: list[ref u8] = [
-        "alloc",
-        "free",
-        "realloc",
-        "sizeof",
-        "memcpy",
-        "memset",
-        "memmove",
-        "ptradd",
-        "fgets",
-        "stdin",
-        "stderr",
-        "load",
-        "load64",
-        "load8",
-        "load16",
-        "load32",
-        "addr",
-        "deref",
-        "store",
-        "store64",
-        "store8",
-        "store16",
-        "store32",
-        "append",
-        "remove",
-        "insert",
-        "get",
-        "getref",
-        "getmut",
-        "set",
-        "len",
-        "reserve",
-        "capacity",
-        "fmtalloc",
-        "argsalloc",
-        "listalloc",
-        "list",
-        "listfree",
-        "snprintf",
-        "print",
-        "dprintf",
-        "puts",
-        "args",
-        "call",
-        "stdin",
-        "stdout",
-        "stderr",
-        "fgets",
-        "getchar",
-        "strlen",
-        "strcmp",
-        "atoi",
-        "staticerror",
-        "flush",
-        "bitcast",
-        "embed",
-        "embedlen"
-    ]
+    val builtins: mut list[ref u8] = mem.new[ref u8]()
+    @append(builtins, "alloc")
+    @append(builtins, "free")
+    @append(builtins, "realloc")
+    @append(builtins, "sizeof")
+    @append(builtins, "memcpy")
+    @append(builtins, "memset")
+    @append(builtins, "memmove")
+    @append(builtins, "ptradd")
+    @append(builtins, "fgets")
+    @append(builtins, "stdin")
+    @append(builtins, "stderr")
+    @append(builtins, "load")
+    @append(builtins, "load64")
+    @append(builtins, "load8")
+    @append(builtins, "load16")
+    @append(builtins, "load32")
+    @append(builtins, "addr")
+    @append(builtins, "deref")
+    @append(builtins, "store")
+    @append(builtins, "store64")
+    @append(builtins, "store8")
+    @append(builtins, "store16")
+    @append(builtins, "store32")
+    @append(builtins, "append")
+    @append(builtins, "remove")
+    @append(builtins, "insert")
+    @append(builtins, "get")
+    @append(builtins, "getref")
+    @append(builtins, "getmut")
+    @append(builtins, "set")
+    @append(builtins, "len")
+    @append(builtins, "reserve")
+    @append(builtins, "capacity")
+    @append(builtins, "fmtalloc")
+    @append(builtins, "argsalloc")
+    @append(builtins, "listalloc")
+    @append(builtins, "list")
+    @append(builtins, "listfree")
+    @append(builtins, "snprintf")
+    @append(builtins, "print")
+    @append(builtins, "dprintf")
+    @append(builtins, "puts")
+    @append(builtins, "args")
+    @append(builtins, "call")
+    @append(builtins, "stdin")
+    @append(builtins, "stdout")
+    @append(builtins, "stderr")
+    @append(builtins, "fgets")
+    @append(builtins, "getchar")
+    @append(builtins, "strlen")
+    @append(builtins, "strcmp")
+    @append(builtins, "atoi")
+    @append(builtins, "staticerror")
+    @append(builtins, "flush")
+    @append(builtins, "bitcast")
+    @append(builtins, "embed")
+    @append(builtins, "embedlen")
 
     for builtin in builtins {
         if str_eq(name, builtin) {
@@ -9158,7 +9157,7 @@ fn stmts_use_import_alias(stmts: ref void, import_name: ref u8) bool = trust {
                 return true
             }
             if s.d3 as ref parser.Node != none && stmts_use_import_alias(
-                [s.d3 as ref parser.Node],
+                mem.from1[ref parser.Node](s.d3 as ref parser.Node),
                 import_name
             ) {
                 return true

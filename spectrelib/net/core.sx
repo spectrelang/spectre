@@ -145,12 +145,14 @@ pub type EventLoop = {
 }
 
 /// Create a new event loop.
-pub fn (EventLoop) new() EventLoop = trust {
+pub fn (EventLoop) new[A: allocators.GeneralAllocator](
+    ac: A
+) result[EventLoop, allocators.AllocError] = trust {
     val loop: mut ref EventLoop = @alloc(@sizeof(EventLoop)) as mut ref EventLoop
-    loop.fds = []
-    loop.events = []
-    loop.revents = []
-    return loop as EventLoop
+    loop.fds = @listalloc[A, i64](ac)?
+    loop.events = @listalloc[A, i64](ac)?
+    loop.revents = @listalloc[A, i64](ac)?
+    return ok (loop as EventLoop)
 }
 
 /// Add or update a descriptor and the events to watch.
@@ -309,20 +311,33 @@ pub fn (EventLoop) wait(loop: self, timeout_ms: i32) i32 = trust {
     return ready
 }
 
+/// Free the backing storage of a list embedded directly in a struct.
+///
+/// The 32-byte list header lives inside the struct, so only its buffer and
+/// allocator descriptor are released here; the header itself is freed with the
+/// owning struct.
+fn free_list_storage[A: allocators.GeneralAllocator](
+    ac: A,
+    header: ref u8
+) void = trust {
+    val buf: ref void = @load(header) as ref void
+    val desc: ref void = @load(@ptradd(header, 24)) as ref void
+    if buf != none {
+        allocators.free_in[A](ac, buf)
+    }
+    if desc != none {
+        allocators.free_in[A](ac, desc)
+    }
+}
+
 /// Free an event loop and its internal lists.
-pub fn (EventLoop) free(loop: mut self) void = trust {
-    val fds_buffer: mut ref void = @load(@addr(loop.fds))
-    val events_buffer: mut ref void = @load(@addr(loop.events))
-    val revents_buffer: mut ref void = @load(@addr(loop.revents))
-    if fds_buffer != none {
-        @free(fds_buffer)
-    }
-    if events_buffer != none {
-        @free(events_buffer)
-    }
-    if revents_buffer != none {
-        @free(revents_buffer)
-    }
+pub fn (EventLoop) free[A: allocators.GeneralAllocator](
+    ac: A,
+    loop: mut self
+) void = trust {
+    free_list_storage[A](ac, @addr(loop.fds) as ref u8)
+    free_list_storage[A](ac, @addr(loop.events) as ref u8)
+    free_list_storage[A](ac, @addr(loop.revents) as ref u8)
     @free(loop)
 }
 
@@ -575,7 +590,7 @@ pub fn (TcpServer) fd(server: ref ServerHandle) i64 = {
 test {
     val ac: allocators.HeapAllocator = @zeroed
 
-    val loop = trust EventLoop.new()
+    val loop = trust EventLoop.new[allocators.HeapAllocator](ac)?
     trust EventLoop.watch(loop, 42 as i64, POLL_READ)
     assert EventLoop.count(loop) == 1
     assert trust EventLoop.fd_at(loop, 0) == 42
@@ -587,9 +602,9 @@ test {
     trust EventLoop.unwatch(loop, 42)
     assert EventLoop.count(loop) == 0
 
-    val free_loop: mut EventLoop = trust EventLoop.new()
+    val free_loop: mut EventLoop = trust EventLoop.new[allocators.HeapAllocator](ac)?
     trust EventLoop.watch(free_loop, 43 as i64, POLL_READ)
-    trust EventLoop.free(free_loop)
+    trust EventLoop.free[allocators.HeapAllocator](ac, free_loop)
 
     val server: ref ServerHandle = trust TcpServer.listen[_](ac, 8080 as i32)
     assert server != none

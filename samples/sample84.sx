@@ -1,5 +1,6 @@
-val str   = use("std/string")
-val stdio = use("std/stdio")
+val str        = use("std/string")
+val stdio      = use("std/stdio")
+val allocators = use("std/allocators")
 
 pub type LLCtx = {
     fn_names: mut list[ref u8]
@@ -28,9 +29,15 @@ fn ll_lookup_fn_params(ctx: ref LLCtx, name: ref u8) ref void = trust {
 }
 
 pub fn main() i64 = {
+    val sa: allocators.ScopedArenaAllocator = trust allocators.ScopedArena.new(4096 as usize)?
+    val la: allocators.ListArena = {arena: sa}
     val ctx: LLCtx = {
-        fn_names: ["test_fn", "another_fn"],
-        fn_params: [trust @bitcast(1, ref void), trust @bitcast(2, ref void)]
+        fn_names: @list(la, "test_fn", "another_fn")?,
+        fn_params: @list(
+            la,
+            trust @bitcast(1, ref void),
+            trust @bitcast(2, ref void)
+        )?
     }
     val ctx_ptr: ref LLCtx = @alloc(@sizeof(LLCtx)) as ref LLCtx
     trust @store(ctx_ptr as ref void, ctx)
@@ -38,8 +45,10 @@ pub fn main() i64 = {
     val result = trust ll_lookup_fn_params(ctx_ptr, "test_fn")
     if result == none {
         trust stdio.print("FAIL: lookup returned null\n", {})
+        trust allocators.ScopedArena.free(sa)
         return 1
     }
     trust stdio.print("PASS: lookup succeeded\n", {})
+    trust allocators.ScopedArena.free(sa)
     return 0
 }

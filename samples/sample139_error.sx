@@ -1,9 +1,13 @@
-pub val algo = use("std/algorithms")
+pub val algo       = use("std/algorithms")
+val allocators     = use("std/allocators")
 
 pub fn main() void = {
-    val hi = [123123, 12, 124]
-    val sorted = algo.sort[i64](hi)
+    val sa: allocators.ScopedArenaAllocator = trust allocators.ScopedArena.new(4096 as usize)?
+    val la: allocators.ListArena = {arena: sa}
+    val hi = @list(la, 123123, 12, 124)?
+    val sorted = algo.sort[allocators.ListArena, i64](la, hi)
     for s in sorted {
         trust @print("{d}\n", {s})
     }
+    trust allocators.ScopedArena.free(sa)
 }

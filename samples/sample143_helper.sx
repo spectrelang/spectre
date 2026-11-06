@@ -18,7 +18,7 @@ pub fn cwd_len[A: allocators.Allocator](ac: A) i64 = trust {
     }
 }
 
-pub fn walk_count[A: allocators.Allocator](ac: A, path: ref u8) i64 = trust {
+pub fn walk_count[A: allocators.GeneralAllocator](ac: A, path: ref u8) i64 = trust {
     if fs.walk_dir[A](ac, path) is some entries {
         val count: mut i64 = 0
         for _ in entries {

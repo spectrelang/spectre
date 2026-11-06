@@ -4,6 +4,10 @@ val helper     = use("./sample143_helper.sx")
 
 pub fn main() void = trust {
     val arena: mut allocators.Arena = allocators.Arena.new(32768 as usize)?
+    val walk_arena: allocators.ScopedArenaAllocator = allocators.ScopedArena.new(
+        32768 as usize
+    )?
+    val walk_list_arena: allocators.ListArena = {arena: walk_arena}
 
     val read_len = helper.read_len[allocators.Arena](arena, "sx.mod")
     stdio.print("read_len={d}\n", {read_len})
@@ -11,7 +15,7 @@ pub fn main() void = trust {
     val cwd_len = helper.cwd_len[allocators.Arena](arena)
     stdio.print("cwd_len={d}\n", {cwd_len})
 
-    val walk_count = helper.walk_count[allocators.Arena](arena, ".")
+    val walk_count = helper.walk_count[allocators.ListArena](walk_list_arena, ".")
     stdio.print("walk_count={d}\n", {walk_count})
 
     if helper.passthrough_read[allocators.Arena](arena, "sx.mod") is some text {
@@ -21,4 +25,5 @@ pub fn main() void = trust {
     }
 
     allocators.Arena.free(arena)
+    allocators.ScopedArena.free(walk_arena)
 }

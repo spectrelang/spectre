@@ -1,8 +1,12 @@
-val stdio = use("std/stdio")
+val stdio      = use("std/stdio")
+val allocators = use("std/allocators")
 
 pub fn main() void = trust {
-    val xs = ["hello", "world", "this", "is", "a", "test"]
+    val sa: allocators.ScopedArenaAllocator = allocators.ScopedArena.new(4096 as usize)?
+    val la: allocators.ListArena = {arena: sa}
+    val xs = @list(la, "hello", "world", "this", "is", "a", "test")?
     for x in xs {
         stdio.print("{s}\n", {x})
     }
+    allocators.ScopedArena.free(sa)
 }

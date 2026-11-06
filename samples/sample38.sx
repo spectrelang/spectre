@@ -1,4 +1,5 @@
-val stdio = use("std/stdio")
+val stdio      = use("std/stdio")
+val allocators = use("std/allocators")
 
 pub fn (Stack) push(s: mut self, vl: i64) void = {
     pre {
@@ -40,7 +41,12 @@ pub fn (Stack) print_top(s: self) void = {
 }
 
 pub fn main() void = trust {
-    val s: mut Stack = {data: [], len: 0}
+    val sa: allocators.ScopedArenaAllocator = allocators.ScopedArena.new(4096 as usize)?
+    val la: allocators.ListArena = {arena: sa}
+    val s: mut Stack = {
+        data: @listalloc[allocators.ListArena, i64](la)?,
+        len: 0
+    }
     @reserve(s.data, 10)
     Stack.push(s, 10)
     Stack.push(s, 20)
@@ -49,4 +55,5 @@ pub fn main() void = trust {
     assert Stack.pop(s) == some 30
     assert Stack.pop(s) == some 20
     assert Stack.pop(s) == some 10
+    allocators.ScopedArena.free(sa)
 }

@@ -1,6 +1,11 @@
+val allocators = use("std/allocators")
+
 pub fn main() void = {
-    val emojis = ["😆", "😆", "😆"]
+    val sa: allocators.ScopedArenaAllocator = trust allocators.ScopedArena.new(4096 as usize)?
+    val la: allocators.ListArena = {arena: sa}
+    val emojis = @list(la, "😆", "😆", "😆")?
     for emoji in emojis {
         trust @print("{s}", {emoji})
     }
+    trust allocators.ScopedArena.free(sa)
 }

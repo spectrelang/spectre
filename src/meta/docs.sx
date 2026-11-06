@@ -250,8 +250,9 @@ fn is_hidden_name(name: ref u8) bool = trust {
 }
 
 fn collect_sx_files(dir: ref u8, rel_dir: ref u8, out: mut list[ref u8]) void = trust {
-    val walk_arena: mut allocators.Arena = allocators.Arena.new(65536 as usize)?
-    val entries_opt = fs.walk_dir[allocators.Arena](walk_arena, dir)
+    val walk_arena: allocators.ScopedArenaAllocator = allocators.ScopedArena.new(65536 as usize)?
+    val walk_list_arena: allocators.ListArena = {arena: walk_arena}
+    val entries_opt = fs.walk_dir[allocators.ListArena](walk_list_arena, dir)
     if entries_opt is some entries {
         val sorted = entries as list[ref u8]
         for entry in sorted {
@@ -276,7 +277,7 @@ fn collect_sx_files(dir: ref u8, rel_dir: ref u8, out: mut list[ref u8]) void = 
             }
         }
     }
-    allocators.Arena.free(walk_arena)
+    allocators.ScopedArena.free(walk_arena)
 }
 
 fn is_doc_target_line(line: ref u8) bool = trust {
@@ -1420,7 +1421,7 @@ fn append_sorted_module_nav_html(
     for mod in modules {
         @append(keys, nav_key(mod.module_name, mod.output_path))
     }
-    val sorted = algo.sort_alpha(keys)
+    val sorted = algo.sort_alpha[allocators.ListArena](mem.allocator(), keys)
     for key in sorted {
         val target_output = nav_key_tail(key)
         for mod in modules {
@@ -1447,7 +1448,7 @@ fn append_sorted_entry_nav_html(sb: ref void, entries: list[ref DocEntry]) void 
     for entry in entries {
         @append(keys, nav_key(entry.nav_name, entry.anchor))
     }
-    val sorted = algo.sort_alpha(keys)
+    val sorted = algo.sort_alpha[allocators.ListArena](mem.allocator(), keys)
     for key in sorted {
         val target_anchor = nav_key_tail(key)
         for entry in entries {

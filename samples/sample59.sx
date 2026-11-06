@@ -1,24 +1,31 @@
-val stdio = use("std/stdio")
+val stdio      = use("std/stdio")
+val allocators = use("std/allocators")
 
 type Node = {
     x: i32
     y: i32
 }
 
-pub fn make_list() result[list[Node], ref u8] = trust {
-    val a: mut list[Node] = []
+pub fn make_list[A: allocators.GeneralAllocator](
+    ac: A
+) result[list[Node], ref u8] = trust {
+    val a: mut list[Node] = @listalloc[A, Node](ac)?
     @append(a, {x: 1, y: 2})
     @append(a, {x: 3, y: 4})
     return ok a
 }
 
-pub fn wrap() result[result[list[Node], ref u8], ref u8] = trust {
-    val r = make_list()
+pub fn wrap[A: allocators.GeneralAllocator](
+    ac: A
+) result[result[list[Node], ref u8], ref u8] = trust {
+    val r = make_list[A](ac)
     return ok r
 }
 
 pub fn main() void = trust {
-    val r2 = wrap()
+    val sa: allocators.ScopedArenaAllocator = allocators.ScopedArena.new(4096 as usize)?
+    val la: allocators.ListArena = {arena: sa}
+    val r2 = wrap[allocators.ListArena](la)
 
     match r2 {
         ok inner => {
@@ -51,4 +58,5 @@ pub fn main() void = trust {
             stdio.print("outer err: {s}\n", {e})
         }
     }
+    allocators.ScopedArena.free(sa)
 }

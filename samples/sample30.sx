@@ -1,17 +1,20 @@
-val stdio = use("std/stdio")
+val stdio      = use("std/stdio")
+val allocators = use("std/allocators")
 
 pub fn some_function() void = trust {
-    val xs: mut list[i32] = [1, 2, 3, 4]
+    val sa: allocators.ScopedArenaAllocator = allocators.ScopedArena.new(4096 as usize)?
+    val la: allocators.ListArena = {arena: sa}
+    val xs: mut list[i32] = @list(la, 1, 2, 3, 4)?
     for x in xs {
         stdio.print("{d}\n", {x})
     }
 
-    val ys: list[ref u8] = ["hello", "world"]
+    val ys: list[ref u8] = @list(la, "hello", "world")?
     for y in ys {
         stdio.print("{s}\n", {y})
     }
 
-    val zs: mut list[i64] = []
+    val zs: mut list[i64] = @listalloc[allocators.ListArena, i64](la)?
 
     @append(zs, 20)
 
@@ -30,6 +33,7 @@ pub fn some_function() void = trust {
     val cap: usize = @capacity(xs)
 
     stdio.print("{d}\n", {cap})
+    allocators.ScopedArena.free(sa)
 }
 
 pub fn main() i32 = trust {

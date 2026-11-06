@@ -1,7 +1,11 @@
+val allocators = use("std/allocators")
 val MAP_SIZE = 10
 
 pub fn main() void = {
-    val lst0: list[list[ref u8]] = [["hello"]]
+    val sa: allocators.ScopedArenaAllocator = trust allocators.ScopedArena.new(4096 as usize)?
+    val la: allocators.ListArena = {arena: sa}
+    val inner: list[ref u8] = @list(la, "hello")?
+    val lst0: list[list[ref u8]] = @list(la, inner)?
     for i in lst0 {
         for y in i {
             trust @print("{s}\n", {y})
@@ -20,4 +24,5 @@ pub fn main() void = {
     ]
 
     trust @print("\n{p}", {lst_again})
+    trust allocators.ScopedArena.free(sa)
 }

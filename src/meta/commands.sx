@@ -1241,13 +1241,15 @@ pub fn cmd_ref() i32 = {
                 \\ ## List Type
                 \\
                 \\ ```
-                \\ val xs: mut list[i64] = []
+                \\ val ac: allocators.HeapAllocator = @zeroed
+                \\ val xs: mut list[i64] = @listalloc[allocators.HeapAllocator, i64](ac)?
                 \\ @append(xs, 1)
                 \\ @append(xs, 2)
                 \\ val n: usize = @len(xs)
                 \\ val opt = @get(xs, 0)        // returns option[i64]
                 \\ @remove(xs, 0)
                 \\ @reserve(xs, 64)
+                \\ @listfree(xs)
                 \\ ```
                 \\
             )

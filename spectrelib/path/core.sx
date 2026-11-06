@@ -136,7 +136,11 @@ pub fn canonicalize_path(path: ref u8) ref u8 = trust {
     val keep_dot_prefix: bool = len >= 2 &&
     @load8(@ptradd(path, 0)) == 46 &&
     @load8(@ptradd(path, 1)) == 47
-    val segs: mut list[ref u8] = []
+    val heap: allocators.HeapAllocator = @zeroed
+    val segs: mut list[ref u8] = @listalloc[allocators.HeapAllocator, ref u8](heap)?
+    defer {
+        @listfree(segs)
+    }
     val i: mut i64 = 0
     for {
         if i >= len {

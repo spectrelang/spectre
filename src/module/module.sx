@@ -1793,7 +1793,7 @@ pub fn collect_links_filtered(
                 continue
             }
             if str.equals(s, m.filename) {
-                return ok []
+                return ok mem.new[ref u8]()
             }
         }
         si++
@@ -1887,7 +1887,7 @@ pub fn collect_links_all(
                 continue
             }
             if str.equals(s, m.filename) {
-                return ok []
+                return ok mem.new[ref u8]()
             }
         }
         si++
@@ -3552,7 +3552,7 @@ fn collect_used_links_recursive(
                 continue
             }
             if str.equals(s, m.filename) {
-                return ok []
+                return ok mem.new[ref u8]()
             }
         }
         si++

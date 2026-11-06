@@ -9,6 +9,8 @@
 // Expected: bad x=1.5 y=2.5 label=7
 // Actual:   bad x=0.0 y=0.0 label=2   (values vary; fields are garbage/zero)
 
+val allocators = use("std/allocators")
+
 pub type Item = {
     x: f32
     y: f32
@@ -37,7 +39,11 @@ pub fn add_hoisted(c: mut Container, x: f32, y: f32) void = {
 }
 
 pub fn main() i32 = {
-    val container: mut Container = { items: [] }
+    val sa: allocators.ScopedArenaAllocator = trust allocators.ScopedArena.new(4096 as usize)?
+    val la: allocators.ListArena = {arena: sa}
+    val container: mut Container = {
+        items: @listalloc[allocators.ListArena, Item](la)?
+    }
     add_inline(container, 1.5 as f32, 2.5 as f32)
     add_hoisted(container, 3.5 as f32, 4.5 as f32)
 
@@ -56,8 +62,10 @@ pub fn main() i32 = {
 
     if @get(container.items, 0 as usize) is some result {
         if result.x == (1.5 as f32) && result.y == (2.5 as f32) && result.label == (7 as i32) {
+            trust allocators.ScopedArena.free(sa)
             return 0 as i32
         }
     }
+    trust allocators.ScopedArena.free(sa)
     return 1 as i32
 }

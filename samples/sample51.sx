@@ -1,3 +1,5 @@
+val allocators = use("std/allocators")
+
 pub union TokenKind = {
     Fn() | Val() | Ident(ref u8) | Eof()
 }
@@ -6,8 +8,11 @@ pub type Token = {
     kind: mut TokenKind
 }
 
-pub fn tokenize_simple(_: ref u8) list[ref Token] = trust {
-    val tokens: mut list[ref Token] = []
+pub fn tokenize_simple[A: allocators.GeneralAllocator](
+    ac: A,
+    _: ref u8
+) list[ref Token] = trust {
+    val tokens: mut list[ref Token] = @listalloc[A, ref Token](ac)?
 
     val t1: mut ref Token = @alloc(@sizeof(Token)) as ref Token
     t1.kind = Fn()
@@ -34,8 +39,10 @@ pub fn tok_kind_simple(tokens: list[ref Token], i: i64) TokenKind = trust {
 }
 
 pub fn main() void = trust {
+    val sa: allocators.ScopedArenaAllocator = allocators.ScopedArena.new(4096 as usize)?
+    val la: allocators.ListArena = {arena: sa}
     @puts("Simple test 1")
-    val toks = tokenize_simple("dummy")
+    val toks = tokenize_simple[allocators.ListArena](la, "dummy")
     @puts("Simple test 2")
 
     val opt0 = @get(toks, 0 as usize)
@@ -62,4 +69,5 @@ pub fn main() void = trust {
     }
 
     @puts("Simple test 7 - all passed")
+    allocators.ScopedArena.free(sa)
 }
