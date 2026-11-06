@@ -1,0 +1,41 @@
+val stdio = use("std/stdio")
+
+val N: i64 = 1024
+val ITERS: i64 = 1000
+
+/// Small autovectorization smoke test used by fw/test_simd.sh.
+///
+/// The loop is element-wise and contains a vector select, so it exercises the
+/// GNU/Clang vector path and the MSVC intrinsics path.
+pub fn main() void = trust {
+    val a: ref void = @alloc((N * 4) as usize)
+    val b: ref void = @alloc((N * 4) as usize)
+    val c: ref void = @alloc((N * 4) as usize)
+
+    for i = 0, i < N, i++ {
+        @store32(@ptradd(a, i * 4), (i % 97 + 1) as i32)
+        @store32(@ptradd(b, i * 4), (i % 89 + 3) as i32)
+        @store32(@ptradd(c, i * 4), (i % 83 + 5) as i32)
+    }
+
+    for it = 0, it < ITERS, it++ {
+        for i = 0, i < N, i++ {
+            val x: u32 = @load32(@ptradd(a, i * 4)) as u32
+            val y: u32 = @load32(@ptradd(b, i * 4)) as u32
+            val z: u32 = @load32(@ptradd(c, i * 4)) as u32
+
+            if x > y {
+                @store32(@ptradd(c, i * 4), z + x * y)
+            } else {
+                @store32(@ptradd(c, i * 4), z - x * y)
+            }
+        }
+    }
+
+    val sum: mut u64 = 0
+    for i = 0, i < N, i++ {
+        sum += (@load32(@ptradd(c, i * 4)) as u32) as u64
+    }
+
+    stdio.print("Checksum: {d}\n", {sum})
+}

@@ -52,6 +52,7 @@ pub fn print_usage() void = {
     stdio.puts("  -release            Build in release mode")
     stdio.puts("  -native             Optimize the alt backend for the host CPU")
     stdio.puts("  -unroll             Enable aggressive loop unrolling in the alt backend")
+    stdio.puts("  -no-simd            Disable autovectorization (scalar fallback)")
     stdio.puts("  -dynamic            Link dynamically instead of statically")
     stdio.puts("  -dll                Build a shared library")
     when posix {
@@ -370,6 +371,15 @@ pub fn print_help(topic: ref u8) i32 = trust {
         return 0
     }
 
+    if str.raw_cmp(topic, "-no-simd") == 0 {
+        print_flag_help(
+            "-no-simd",
+            "Disable autovectorization and emit scalar loops. Useful for debugging and for platforms without a supported SIMD backend.",
+            "spectre <input.sx> -release -alt -no-simd"
+        )
+        return 0
+    }
+
     if str.raw_cmp(topic, "-dynamic") == 0 {
         print_flag_help(
             "-dynamic",
@@ -387,8 +397,8 @@ pub fn print_help(topic: ref u8) i32 = trust {
     if str.raw_cmp(topic, "-a") == 0 || str.raw_cmp(topic, "-alt") == 0 {
         print_flag_help(
             "-a, -alt",
-            "Compile with the fallback backend.",
-            "spectre <input.sx> -alt"
+            "Compile with the fallback backend. Use -alt:<cc> to force a driver such as clang, clang-cl, cl, or tcc.",
+            "spectre <input.sx> -alt:clang-cl"
         )
         return 0
     }

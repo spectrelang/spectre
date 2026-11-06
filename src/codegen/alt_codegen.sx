@@ -84,6 +84,7 @@ pub type CCtx = {
     alloc_adapters: mut list[ref u8]
     current_ret_unboxed: mut bool
     autovec_plan: mut ref autovec.Plan
+    simd_backend: mut i64
 }
 
 fn cc_new() ref CCtx = trust {
@@ -162,6 +163,7 @@ fn cc_new() ref CCtx = trust {
     ctx.embed_count = 0
     ctx.alloc_adapters = mem.new[ref u8]()
     ctx.autovec_plan = none
+    ctx.simd_backend = 0
     return ctx
 }
 
@@ -3845,10 +3847,81 @@ fn cc_option_inner_ty_node(
     return none
 }
 
+fn msvc_vec_binop_suffix(op: i64) ref u8 = {
+    if op == parser.OP_ADD {
+        return "add"
+    }
+    if op == parser.OP_SUB {
+        return "sub"
+    }
+    if op == parser.OP_MUL {
+        return "mul"
+    }
+    if op == parser.OP_BAND {
+        return "and"
+    }
+    if op == parser.OP_BOR {
+        return "or"
+    }
+    if op == parser.OP_BXOR {
+        return "xor"
+    }
+    if op == parser.OP_SHL {
+        return "shl"
+    }
+    if op == parser.OP_EQ {
+        return "cmp_eq"
+    }
+    if op == parser.OP_NE {
+        return "cmp_ne"
+    }
+    if op == parser.OP_LT {
+        return "cmp_lt"
+    }
+    if op == parser.OP_GT {
+        return "cmp_gt"
+    }
+    if op == parser.OP_LE {
+        return "cmp_le"
+    }
+    if op == parser.OP_GE {
+        return "cmp_ge"
+    }
+    return ""
+}
+
 fn gen_binop(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
     val op: i64 = parser.binop_op(expr)
     val lhs_expr: ref parser.Node = parser.binop_left(expr)
     val rhs_expr: ref parser.Node = parser.binop_right(expr)
+
+    if ctx.autovec_plan != none && ctx.simd_backend == 1 {
+        val plan: ref autovec.Plan = ctx.autovec_plan as ref autovec.Plan
+        if plan.elem_size == 4 {
+            val suffix: ref u8 = msvc_vec_binop_suffix(op)
+            if str.len_raw(suffix) > 0 {
+                val saved_expected_vec: ref parser.Node = ctx.expected_ty
+                ctx.expected_ty = none
+                val lhs: ref u8 = gen_expr(ctx, lhs_expr)
+                val rhs: ref u8 = gen_expr(ctx, rhs_expr)
+                ctx.expected_ty = saved_expected_vec
+                val vec_cap: i64 = str.len_raw(lhs) + str.len_raw(rhs)
+                    + str.len_raw(suffix) + 96
+                val vec_buf: ref u8 = allocators.ScopedArena.alloc_or_none(
+                    ctx.arena,
+                    vec_cap as usize
+                ) as ref u8
+                @snprintf(
+                    vec_buf,
+                    vec_cap,
+                    "sx__v{s}_i32(({s}),({s}))",
+                    {suffix, lhs, rhs}
+                )
+                return cc_expr_track(ctx, vec_buf)
+            }
+        }
+    }
+
     val saved_expected_bin: ref parser.Node = ctx.expected_ty
     ctx.expected_ty = none
 
@@ -3977,6 +4050,28 @@ fn gen_binop(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
 fn gen_unop(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
     val op: i64 = parser.unop_op(expr)
     val inner: ref u8 = gen_expr(ctx, parser.unop_inner(expr))
+
+    if ctx.autovec_plan != none && ctx.simd_backend == 1 {
+        val plan: ref autovec.Plan = ctx.autovec_plan as ref autovec.Plan
+        if plan.elem_size == 4 {
+            val suffix: mut ref u8 = ""
+            if op == parser.UOP_NEG {
+                suffix = "neg"
+            } elif op == parser.UOP_BNOT {
+                suffix = "not"
+            }
+            if str.len_raw(suffix) > 0 {
+                val vec_cap: i64 = str.len_raw(inner) + 96
+                val vec_buf: ref u8 = allocators.ScopedArena.alloc_or_none(
+                    ctx.arena,
+                    vec_cap as usize
+                ) as ref u8
+                @snprintf(vec_buf, vec_cap, "sx__v{s}_i32(({s}))", {suffix, inner})
+                return cc_expr_track(ctx, vec_buf)
+            }
+        }
+    }
+
     val buf_cap: i64 = str.len_raw(inner) + 16
     val buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, (buf_cap) as usize) as ref u8
     if op == parser.UOP_NOT {
@@ -7564,7 +7659,6 @@ fn cc_autovec_select(
     val base_node: ref parser.Node = autovec.Plan.ptr_base(plan, ptr)
     val base: ref u8 = gen_expr(ctx, base_node)
     val off: ref u8 = cc_autovec_offset(ctx, plan)
-    val t: i64 = fresh_tmp(ctx)
     val suffix: mut ref u8 = "i32"
     if plan.elem_size != 4 {
         suffix = "i64"
@@ -7575,21 +7669,18 @@ fn cc_autovec_select(
     @snprintf(
         buf,
         cap,
-        "{s} sx__vm{lld}=({s})({s});\nsx__vstore_{s}((void*)(intptr_t)((char*)(intptr_t)({s})+({s})),(((({s})({s}))&sx__vm{lld})|((({s})({s}))&(~sx__vm{lld}))));\n",
+        "sx__vstore_{s}((void*)(intptr_t)((char*)(intptr_t)({s})+({s})),sx__vselect_{s}(({s})({s}),({s})({s}),({s})({s})));\n",
         {
-            plan.vec_type,
-            t,
-            plan.vec_type,
-            cond,
             suffix,
             base,
             off,
+            suffix,
+            plan.vec_type,
+            cond,
             plan.vec_type,
             then_value,
-            t,
             plan.vec_type,
-            else_value,
-            t
+            else_value
         }
     )
     emit(ctx, buf)
@@ -7604,8 +7695,10 @@ fn cc_gen_autovec_vector(
     val end_src: ref u8 = gen_expr(ctx, plan.end_expr)
     val end_tmp: i64 = fresh_tmp(ctx)
     val lane_macro: mut ref u8 = "SX__VLANES_I64"
+    val guard_macro: mut ref u8 = "SX__HAVE_VECTOR_I64"
     if plan.elem_size == 4 {
         lane_macro = "SX__VLANES_I32"
+        guard_macro = "SX__HAVE_VECTOR_I32"
     }
     val head_cap: i64 = str.len_raw(end_src) + 256
     val head: ref u8 = allocators.ScopedArena.alloc_or_none(
@@ -7615,8 +7708,8 @@ fn cc_gen_autovec_vector(
     @snprintf(
         head,
         head_cap,
-        "#if SX__HAVE_VECTOR_I64\n\{int64_t sx__ve{lld}=({s});for(;((t_{s})+{s})<=(sx__ve{lld});t_{s}+={s})\n\{\n",
-        {end_tmp, end_src, plan.index, lane_macro, end_tmp, plan.index, lane_macro}
+        "#if {s}\n\{int64_t sx__ve{lld}=({s});for(;((t_{s})+{s})<=(sx__ve{lld});t_{s}+={s})\n\{\n",
+        {guard_macro, end_tmp, end_src, plan.index, lane_macro, end_tmp, plan.index, lane_macro}
     )
     emit(ctx, head)
     cc_expr_drain(ctx)
@@ -7668,7 +7761,11 @@ fn gen_for_stmt(ctx: mut ref CCtx, stmt: ref parser.Node) void = trust {
         trailing_increment: false
     }
     if autovec.detect(stmt, @addr(plan)) {
-        cc_gen_autovec_vector(ctx, @addr(plan), stmt)
+        val can_vectorize: bool = ctx.simd_backend == 0
+            || (ctx.simd_backend == 1 && plan.elem_size == 4)
+        if can_vectorize {
+            cc_gen_autovec_vector(ctx, @addr(plan), stmt)
+        }
     }
 
     if cond_node != none {
@@ -9225,7 +9322,7 @@ fn emit_c_preamble(ctx: ref CCtx) void = trust {
     }
     emitln_fwd(
         ctx,
-        "/* Autovectorization lane types: 4 x int64_t or 8 x int32_t in a 32-byte\n   vector on AVX2; 2 x int64_t or 4 x int32_t in a 16-byte vector otherwise.\n   SSE2/NEON remain the portable baseline. */\n#if defined(__GNUC__) && !defined(__TINYC__)\n#if defined(__AVX2__)\ntypedef int64_t sx__vi64 __attribute__((vector_size(32)));\ntypedef int32_t sx__vi32 __attribute__((vector_size(32)));\n#define SX__VLANES_I64 4\n#define SX__VLANES_I32 8\n#else\ntypedef int64_t sx__vi64 __attribute__((vector_size(16)));\ntypedef int32_t sx__vi32 __attribute__((vector_size(16)));\n#define SX__VLANES_I64 2\n#define SX__VLANES_I32 4\n#endif\nstatic inline sx__vi64 sx__vload_i64(const void*p){sx__vi64 v;__builtin_memcpy(&v,p,sizeof(v));return v;}\nstatic inline void sx__vstore_i64(void*p,sx__vi64 v){__builtin_memcpy(p,&v,sizeof(v));}\nstatic inline sx__vi32 sx__vload_i32(const void*p){sx__vi32 v;__builtin_memcpy(&v,p,sizeof(v));return v;}\nstatic inline void sx__vstore_i32(void*p,sx__vi32 v){__builtin_memcpy(p,&v,sizeof(v));}\n#if defined(__AVX2__)\nstatic inline sx__vi64 sx__vbroadcast_i64(int64_t x){return (sx__vi64){x,x,x,x};}\nstatic inline sx__vi32 sx__vbroadcast_i32(int32_t x){return (sx__vi32){x,x,x,x,x,x,x,x};}\n#else\nstatic inline sx__vi64 sx__vbroadcast_i64(int64_t x){return (sx__vi64){x,x};}\nstatic inline sx__vi32 sx__vbroadcast_i32(int32_t x){return (sx__vi32){x,x,x,x};}\n#endif\n#define SX__HAVE_VECTOR_I64 1\n#else\n#define SX__HAVE_VECTOR_I64 0\n#endif"
+        "/* Autovectorization lane types. GNU/Clang uses vector extensions;\n   MSVC uses AVX2 intrinsics on x86_64 and NEON intrinsics on ARM64.\n   The MSVC backend currently vectorizes 32-bit loops only; 64-bit loops\n   fall back to the scalar path. */\n#if (defined(__clang__) || defined(__GNUC__)) && !defined(__TINYC__)\n#if defined(__AVX2__)\ntypedef int64_t sx__vi64 __attribute__((vector_size(32)));\ntypedef int32_t sx__vi32 __attribute__((vector_size(32)));\n#define SX__VLANES_I64 4\n#define SX__VLANES_I32 8\n#else\ntypedef int64_t sx__vi64 __attribute__((vector_size(16)));\ntypedef int32_t sx__vi32 __attribute__((vector_size(16)));\n#define SX__VLANES_I64 2\n#define SX__VLANES_I32 4\n#endif\nstatic inline sx__vi64 sx__vload_i64(const void*p){sx__vi64 v;__builtin_memcpy(&v,p,sizeof(v));return v;}\nstatic inline void sx__vstore_i64(void*p,sx__vi64 v){__builtin_memcpy(p,&v,sizeof(v));}\nstatic inline sx__vi32 sx__vload_i32(const void*p){sx__vi32 v;__builtin_memcpy(&v,p,sizeof(v));return v;}\nstatic inline void sx__vstore_i32(void*p,sx__vi32 v){__builtin_memcpy(p,&v,sizeof(v));}\n#if defined(__AVX2__)\nstatic inline sx__vi64 sx__vbroadcast_i64(int64_t x){return (sx__vi64){x,x,x,x};}\nstatic inline sx__vi32 sx__vbroadcast_i32(int32_t x){return (sx__vi32){x,x,x,x,x,x,x,x};}\n#else\nstatic inline sx__vi64 sx__vbroadcast_i64(int64_t x){return (sx__vi64){x,x};}\nstatic inline sx__vi32 sx__vbroadcast_i32(int32_t x){return (sx__vi32){x,x,x,x};}\n#endif\nstatic inline sx__vi64 sx__vselect_i64(sx__vi64 m,sx__vi64 a,sx__vi64 b){return (a&m)|(b&(~m));}\nstatic inline sx__vi32 sx__vselect_i32(sx__vi32 m,sx__vi32 a,sx__vi32 b){return (a&m)|(b&(~m));}\n#define SX__HAVE_VECTOR_I32 1\n#define SX__HAVE_VECTOR_I64 1\n#elif defined(_MSC_VER)\n#if defined(_M_ARM64)\n#include <arm64_neon.h>\ntypedef int32x4_t sx__vi32;\n#define SX__VLANES_I32 4\nstatic inline sx__vi32 sx__vload_i32(const void*p){return vld1q_s32((const int32_t*)p);}\nstatic inline void sx__vstore_i32(void*p,sx__vi32 v){vst1q_s32((int32_t*)p,v);}\nstatic inline sx__vi32 sx__vbroadcast_i32(int32_t x){return vdupq_n_s32(x);}\nstatic inline sx__vi32 sx__vadd_i32(sx__vi32 a,sx__vi32 b){return vaddq_s32(a,b);}\nstatic inline sx__vi32 sx__vsub_i32(sx__vi32 a,sx__vi32 b){return vsubq_s32(a,b);}\nstatic inline sx__vi32 sx__vmul_i32(sx__vi32 a,sx__vi32 b){return vmulq_s32(a,b);}\nstatic inline sx__vi32 sx__vand_i32(sx__vi32 a,sx__vi32 b){return vandq_s32(a,b);}\nstatic inline sx__vi32 sx__vor_i32(sx__vi32 a,sx__vi32 b){return vorrq_s32(a,b);}\nstatic inline sx__vi32 sx__vxor_i32(sx__vi32 a,sx__vi32 b){return veorq_s32(a,b);}\nstatic inline sx__vi32 sx__vshl_i32(sx__vi32 a,sx__vi32 b){return vshlq_s32(a,b);}\nstatic inline sx__vi32 sx__vneg_i32(sx__vi32 a){return vnegq_s32(a);}\nstatic inline sx__vi32 sx__vnot_i32(sx__vi32 a){return vmvnq_s32(a);}\nstatic inline sx__vi32 sx__vcmp_eq_i32(sx__vi32 a,sx__vi32 b){return (sx__vi32)vceqq_s32(a,b);}\nstatic inline sx__vi32 sx__vcmp_ne_i32(sx__vi32 a,sx__vi32 b){return vmvnq_s32((sx__vi32)vceqq_s32(a,b));}\nstatic inline sx__vi32 sx__vcmp_gt_i32(sx__vi32 a,sx__vi32 b){return (sx__vi32)vcgtq_s32(a,b);}\nstatic inline sx__vi32 sx__vcmp_lt_i32(sx__vi32 a,sx__vi32 b){return (sx__vi32)vcltq_s32(a,b);}\nstatic inline sx__vi32 sx__vcmp_le_i32(sx__vi32 a,sx__vi32 b){return (sx__vi32)vcleq_s32(a,b);}\nstatic inline sx__vi32 sx__vcmp_ge_i32(sx__vi32 a,sx__vi32 b){return (sx__vi32)vcgeq_s32(a,b);}\nstatic inline sx__vi32 sx__vselect_i32(sx__vi32 m,sx__vi32 a,sx__vi32 b){return vbslq_s32((uint32x4_t)m,a,b);}\n#define SX__HAVE_VECTOR_I32 1\n#define SX__HAVE_VECTOR_I64 0\n#elif defined(_M_X64)\n#if defined(__AVX2__)\n#include <immintrin.h>\ntypedef __m256i sx__vi32;\n#define SX__VLANES_I32 8\n#define SX__MM_SET1 _mm256_set1_epi32\n#define SX__MM_LOADU _mm256_loadu_si256\n#define SX__MM_STOREU _mm256_storeu_si256\n#define SX__MM_ADD _mm256_add_epi32\n#define SX__MM_SUB _mm256_sub_epi32\n#define SX__MM_MUL _mm256_mullo_epi32\n#define SX__MM_AND _mm256_and_si256\n#define SX__MM_OR _mm256_or_si256\n#define SX__MM_XOR _mm256_xor_si256\n#define SX__MM_ANDNOT _mm256_andnot_si256\n#define SX__MM_CMPEQ _mm256_cmpeq_epi32\n#define SX__MM_CMPGT _mm256_cmpgt_epi32\nstatic inline sx__vi32 sx__vload_i32(const void*p){return SX__MM_LOADU((const sx__vi32*)p);}\nstatic inline void sx__vstore_i32(void*p,sx__vi32 v){SX__MM_STOREU((sx__vi32*)p,v);}\nstatic inline sx__vi32 sx__vbroadcast_i32(int32_t x){return SX__MM_SET1(x);}\nstatic inline sx__vi32 sx__vadd_i32(sx__vi32 a,sx__vi32 b){return SX__MM_ADD(a,b);}\nstatic inline sx__vi32 sx__vsub_i32(sx__vi32 a,sx__vi32 b){return SX__MM_SUB(a,b);}\nstatic inline sx__vi32 sx__vmul_i32(sx__vi32 a,sx__vi32 b){return SX__MM_MUL(a,b);}\nstatic inline sx__vi32 sx__vand_i32(sx__vi32 a,sx__vi32 b){return SX__MM_AND(a,b);}\nstatic inline sx__vi32 sx__vor_i32(sx__vi32 a,sx__vi32 b){return SX__MM_OR(a,b);}\nstatic inline sx__vi32 sx__vxor_i32(sx__vi32 a,sx__vi32 b){return SX__MM_XOR(a,b);}\nstatic inline sx__vi32 sx__vshl_i32(sx__vi32 a,sx__vi32 b){return _mm256_sll_epi32(a,_mm256_castsi256_si128(b));}\nstatic inline sx__vi32 sx__vneg_i32(sx__vi32 a){return SX__MM_SUB(SX__MM_SET1(0),a);}\nstatic inline sx__vi32 sx__vnot_i32(sx__vi32 a){return SX__MM_XOR(a,SX__MM_SET1(-1));}\nstatic inline sx__vi32 sx__vcmp_eq_i32(sx__vi32 a,sx__vi32 b){return SX__MM_CMPEQ(a,b);}\nstatic inline sx__vi32 sx__vcmp_ne_i32(sx__vi32 a,sx__vi32 b){return SX__MM_XOR(SX__MM_CMPEQ(a,b),SX__MM_SET1(-1));}\nstatic inline sx__vi32 sx__vcmp_gt_i32(sx__vi32 a,sx__vi32 b){return SX__MM_CMPGT(a,b);}\nstatic inline sx__vi32 sx__vcmp_lt_i32(sx__vi32 a,sx__vi32 b){return SX__MM_CMPGT(b,a);}\nstatic inline sx__vi32 sx__vcmp_le_i32(sx__vi32 a,sx__vi32 b){return SX__MM_XOR(SX__MM_CMPGT(a,b),SX__MM_SET1(-1));}\nstatic inline sx__vi32 sx__vcmp_ge_i32(sx__vi32 a,sx__vi32 b){return SX__MM_XOR(SX__MM_CMPGT(b,a),SX__MM_SET1(-1));}\nstatic inline sx__vi32 sx__vselect_i32(sx__vi32 m,sx__vi32 a,sx__vi32 b){return SX__MM_OR(SX__MM_AND(m,a),SX__MM_ANDNOT(m,b));}\n#define SX__HAVE_VECTOR_I32 1\n#define SX__HAVE_VECTOR_I64 0\n#else\n#define SX__HAVE_VECTOR_I32 0\n#define SX__HAVE_VECTOR_I64 0\n#endif\n#else\n#define SX__HAVE_VECTOR_I32 0\n#define SX__HAVE_VECTOR_I64 0\n#endif\n#else\n#define SX__HAVE_VECTOR_I32 0\n#define SX__HAVE_VECTOR_I64 0\n#endif"
     )
     emitln_fwd(
         ctx,
@@ -9667,7 +9764,8 @@ pub fn gen_module_c_test(
     release_mode: bool,
     extra_includes: list[ref u8],
     src_target: ref u8,
-    emit_line_directives: bool
+    emit_line_directives: bool,
+    simd_backend: i64
 ) ref u8 = trust {
     val ctx: mut ref CCtx = cc_new()
     defer {
@@ -9675,6 +9773,7 @@ pub fn gen_module_c_test(
     }
     ctx.release_mode = release_mode
     ctx.src_target = src_target
+    ctx.simd_backend = simd_backend
     val out_prefixes: mut list[ref u8] = mem.new[ref u8]()
     val out_items: mut list[ref void] = mem.new[ref void]()
     val out_filenames: mut list[ref u8] = mem.new[ref u8]()
@@ -9796,7 +9895,8 @@ pub fn gen_module_c(
     release_mode: bool,
     extra_includes: list[ref u8],
     src_target: ref u8,
-    emit_line_directives: bool
+    emit_line_directives: bool,
+    simd_backend: i64
 ) ref u8 = trust {
     val ctx: mut ref CCtx = cc_new()
     defer {
@@ -9804,6 +9904,7 @@ pub fn gen_module_c(
     }
     ctx.release_mode = release_mode
     ctx.src_target = src_target
+    ctx.simd_backend = simd_backend
     val out_prefixes: mut list[ref u8] = mem.new[ref u8]()
     val out_items: mut list[ref void] = mem.new[ref void]()
     val out_filenames: mut list[ref u8] = mem.new[ref u8]()

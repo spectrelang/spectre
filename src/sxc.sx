@@ -351,6 +351,7 @@ pub fn main() i32 = trust {
     val release_mode: mut bool = false
     val native_mode: mut bool = false
     val unroll_mode: mut bool = false
+    val simd_disabled: mut bool = false
     val output_name: mut ref u8 = ""
     val build_dll: mut bool = false
     val compile_obj: mut bool = false
@@ -541,6 +542,9 @@ pub fn main() i32 = trust {
             } elif string.raw_cmp(arg, "-unroll") == 0 {
                 unroll_mode = true
                 arg_i++
+            } elif string.raw_cmp(arg, "-no-simd") == 0 {
+                simd_disabled = true
+                arg_i++
             } elif string.raw_cmp(arg, "-dynamic") == 0 {
                 dynamic_linking = true
                 arg_i++
@@ -700,6 +704,65 @@ pub fn main() i32 = trust {
     }
 
     if use_alt || emit_alt {
+        val platform_alt: ref u8 = reflection.current_platform_name[allocators.Arena](arena)
+        val arch_alt: ref u8 = reflection.current_arch_name[allocators.Arena](arena)
+        val target_platform: mut ref u8 = platform_alt
+        if string.raw_cmp(src_target, "") != 0 {
+            target_platform = src_target
+        }
+
+        val static_flag_alt: mut ref u8 = ""
+        val strip_flag_alt: mut ref u8 = ""
+        if !compile_obj && !build_dll {
+            static_flag_alt = builds.static_link_flag(platform_alt, dynamic_linking)
+        }
+
+        val selected_compiler: mut ref u8 = builds.pick_alt_backend(
+            alt_compiler,
+            release_mode,
+            input,
+            root_mod.items,
+            arena
+        )
+        if string.raw_cmp(
+            static_flag_alt,
+            ""
+        ) != 0 && !builds.compiler_supports_static_linking(selected_compiler) {
+            if string.raw_cmp(alt_compiler, "") == 0 {
+                if builds.is_compiler_available("clang") {
+                    selected_compiler = "clang"
+                } elif builds.is_compiler_available("cc") {
+                    selected_compiler = "cc"
+                } else {
+                    static_flag_alt = ""
+                }
+            } else {
+                if !quiet {
+                    stdio.puts("warning: tcc does not support static linking, thus, linking dynamically")
+                }
+                static_flag_alt = ""
+            }
+        }
+
+        val compiler_kind: ref u8 = builds.alt_compiler_kind(selected_compiler)
+        if builds.compiler_uses_msvc_flags(compiler_kind) {
+            static_flag_alt = ""
+        }
+        if !compile_obj && !build_dll {
+            strip_flag_alt = builds.compiler_strip_flag(compiler_kind, release_mode)
+            if string.raw_cmp(platform_alt, "windows") == 0 {
+                strip_flag_alt = ""
+            }
+        }
+        val simd_backend: mut i64 = 2
+        if !simd_disabled {
+            simd_backend = builds.alt_simd_backend(
+                selected_compiler,
+                target_platform,
+                arch_alt
+            )
+        }
+
         val c_ir: mut ref u8 = ""
         val emit_ld: bool = !bootstrap_mode
         if test_mode {
@@ -708,7 +771,8 @@ pub fn main() i32 = trust {
                 release_mode,
                 extra_includes,
                 src_target,
-                emit_ld
+                emit_ld,
+                simd_backend
             )
         } else {
             c_ir = alt_codegen.gen_module_c(
@@ -716,7 +780,8 @@ pub fn main() i32 = trust {
                 release_mode,
                 extra_includes,
                 src_target,
-                emit_ld
+                emit_ld,
+                simd_backend
             )
         }
 
@@ -751,43 +816,8 @@ pub fn main() i32 = trust {
         if output_specified_alt != 0 {
             final_output_alt = binary_name_alt
         } else {
-            os.exec("mkdir -p ./s-out")
+            fs.mkdir_path("./s-out")
             final_output_alt = @fmtalloc("./s-out/{s}", {binary_name_alt})
-        }
-
-        val platform_alt: ref u8 = reflection.current_platform_name[allocators.Arena](arena)
-        val static_flag_alt: mut ref u8 = ""
-        val strip_flag_alt: mut ref u8 = ""
-        if !compile_obj && !build_dll {
-            static_flag_alt = builds.static_link_flag(platform_alt, dynamic_linking)
-            strip_flag_alt = builds.strip_link_flag(release_mode)
-        }
-
-        val selected_compiler: mut ref u8 = builds.pick_alt_backend(
-            alt_compiler,
-            release_mode,
-            input,
-            root_mod.items,
-            arena
-        )
-        if string.raw_cmp(
-            static_flag_alt,
-            ""
-        ) != 0 && !builds.compiler_supports_static_linking(selected_compiler) {
-            if string.raw_cmp(alt_compiler, "") == 0 {
-                if builds.is_compiler_available("clang") {
-                    selected_compiler = "clang"
-                } elif builds.is_compiler_available("cc") {
-                    selected_compiler = "cc"
-                } else {
-                    static_flag_alt = ""
-                }
-            } else {
-                if !quiet {
-                    stdio.puts("warning: tcc does not support static linking, thus, linking dynamically")
-                }
-                static_flag_alt = ""
-            }
         }
 
         val links_alt_result = module.collect_used_links(
@@ -807,7 +837,14 @@ pub fn main() i32 = trust {
                 return 1
             }
         }
-        builds.append_debug_runtime_links(links_alt, exe_dir, quiet, release_mode, arena)
+        builds.append_debug_runtime_links(
+            links_alt,
+            exe_dir,
+            quiet,
+            release_mode,
+            selected_compiler,
+            arena
+        )
         val link_flags_alt: mut ref u8 = ""
         if string.raw_cmp(static_flag_alt, "") != 0 {
             link_flags_alt = @fmtalloc(" {s}", {static_flag_alt})
@@ -816,31 +853,62 @@ pub fn main() i32 = trust {
             link_flags_alt = @fmtalloc("{s} {s}", {link_flags_alt, strip_flag_alt})
         }
         for link_flag in links_alt {
-            link_flags_alt = @fmtalloc("{s} {s}", {link_flags_alt, link_flag})
+            val translated_link: ref u8 = builds.translate_link_flag(
+                compiler_kind,
+                link_flag
+            )
+            if string.len_raw(translated_link) > 0 {
+                link_flags_alt = @fmtalloc("{s} {s}", {link_flags_alt, translated_link})
+            }
         }
         val include_flags_alt: mut ref u8 = ""
         for inc_path in inc_paths {
-            include_flags_alt = @fmtalloc("{s} -I{s}", {include_flags_alt, inc_path})
+            include_flags_alt = @fmtalloc(
+                "{s} {s}",
+                {include_flags_alt, builds.compiler_include_flag(compiler_kind, inc_path)}
+            )
         }
 
         val warn_flag: ref u8 = builds.compiler_warn_flag(selected_compiler)
         val perf_flags: mut ref u8 = ""
         if string.raw_cmp(selected_compiler, "tcc") != 0 {
-            if native_mode {
-                perf_flags = @fmtalloc("{s} -march=native", {perf_flags})
+            val native_flags: ref u8 = builds.compiler_native_flags(
+                compiler_kind,
+                platform_alt,
+                arch_alt,
+                native_mode
+            )
+            if string.len_raw(native_flags) > 0 {
+                perf_flags = @fmtalloc("{s} {s}", {perf_flags, native_flags})
             }
-            if unroll_mode {
-                perf_flags = @fmtalloc("{s} -funroll-loops", {perf_flags})
+            val unroll_flags: ref u8 = builds.compiler_unroll_flag(
+                compiler_kind,
+                unroll_mode
+            )
+            if string.len_raw(unroll_flags) > 0 {
+                perf_flags = @fmtalloc("{s} {s}", {perf_flags, unroll_flags})
             }
         }
-        val cc_flags_alt: mut ref u8 = @fmtalloc(
-            "-std=c99 {s} -O3 -Wno-error=int-conversion{s}",
-            {warn_flag, perf_flags}
-        )
-        if !release_mode {
+        val cc_flags_alt: mut ref u8 = ""
+        if builds.compiler_uses_msvc_flags(compiler_kind) {
             cc_flags_alt = @fmtalloc(
-                "-std=c99 {s} -g -Wno-error=int-conversion{s}",
-                {warn_flag, perf_flags}
+                "/nologo {s} {s} {s}{s}",
+                {
+                    builds.compiler_std_flag(compiler_kind),
+                    warn_flag,
+                    builds.compiler_opt_flag(compiler_kind, release_mode),
+                    perf_flags
+                }
+            )
+        } else {
+            cc_flags_alt = @fmtalloc(
+                "{s} {s} {s} -Wno-error=int-conversion{s}",
+                {
+                    builds.compiler_std_flag(compiler_kind),
+                    warn_flag,
+                    builds.compiler_opt_flag(compiler_kind, release_mode),
+                    perf_flags
+                }
             )
         }
         val test_output_alt: ref u8 = builds.get_unique_tmp_path("spectre_test_bin_alt")
@@ -860,6 +928,31 @@ pub fn main() i32 = trust {
                 alt_cmd = @fmtalloc(
                     "tcc {s} -o {s} -w -std=c99{s} {s} 2>&1",
                     {c_file, final_output_alt, include_flags_alt, link_flags_alt}
+                )
+            }
+        } elif builds.compiler_uses_msvc_flags(compiler_kind) {
+            if compile_obj {
+                alt_cmd = @fmtalloc(
+                    "{s} {s}{s} /c {s} /Fo:{s} 2>&1",
+                    {
+                        selected_compiler,
+                        cc_flags_alt,
+                        include_flags_alt,
+                        c_file,
+                        compile_output
+                    }
+                )
+            } else {
+                alt_cmd = @fmtalloc(
+                    "{s} {s}{s} {s} /Fe:{s} {s} 2>&1",
+                    {
+                        selected_compiler,
+                        cc_flags_alt,
+                        include_flags_alt,
+                        c_file,
+                        compile_output,
+                        link_flags_alt
+                    }
                 )
             }
         } else {
@@ -895,7 +988,10 @@ pub fn main() i32 = trust {
             ok v => {
                 val vstr: ref u8 = string.cstr(v)
                 val error_prefix = string.from[allocators.Arena](arena, "error:")
+                val msvc_error = string.from[allocators.Arena](arena, "error")
                 val has_error: bool = string.contains(v, error_prefix)
+                    || (builds.compiler_uses_msvc_flags(compiler_kind)
+                        && string.contains(v, msvc_error))
                 if has_error {
                     val display: mut ref u8 = vstr
                     if !bootstrap_mode {
@@ -1085,7 +1181,7 @@ pub fn main() i32 = trust {
             return 1
         }
     }
-    builds.append_debug_runtime_links(links, exe_dir, quiet, release_mode, arena)
+    builds.append_debug_runtime_links(links, exe_dir, quiet, release_mode, "cc", arena)
 
     val output_specified: bool = string.raw_cmp(output_name, "") != 0
     val cc_cmd: mut ref u8 = ""
@@ -1244,7 +1340,7 @@ pub fn main() i32 = trust {
         }
         success_msg = @fmtalloc("Compiled: {s}\n", {final_output})
     } else {
-        os.exec("mkdir -p ./s-out")
+        fs.mkdir_path("./s-out")
         val final_output: mut ref u8 = @fmtalloc("./s-out/{s}", {binary_name})
         if string.raw_cmp(output_ext, "") != 0 {
             final_output = @fmtalloc("./s-out/{s}{s}", {binary_name, output_ext})

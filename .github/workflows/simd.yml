@@ -1,0 +1,124 @@
+name: SIMD
+
+on:
+  push:
+    branches: [simd-optimizations]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  linux:
+    name: Linux SIMD
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install Spectre toolchain
+        run: curl -fsSL https://spectrelang.org/get.sh | sh
+
+      - name: Add Spectre to PATH
+        run: echo "${HOME}/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Build spectre-dev
+        run: ./fw/build.sh
+
+      - name: Verify SIMD backends
+        run: ./fw/test_simd.sh
+
+      - name: Bootstrap self-host check
+        run: ./fw/test_alt.sh -bs
+
+  macos:
+    name: macOS SIMD
+    runs-on: macos-14
+    timeout-minutes: 60
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install Spectre toolchain
+        run: curl -fsSL https://spectrelang.org/get.sh | sh
+
+      - name: Add Spectre to PATH
+        run: echo "${HOME}/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Build spectre-dev
+        run: ./fw/build.sh
+
+      - name: Verify SIMD backends
+        run: ./fw/test_simd.sh
+
+  windows:
+    name: Windows SIMD
+    runs-on: windows-2022
+    timeout-minutes: 60
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Ensure LLVM is available
+        shell: pwsh
+        run: |
+          if (-not (Get-Command clang -ErrorAction SilentlyContinue)) {
+            $llvm = "C:\Program Files\LLVM\bin"
+            if (Test-Path (Join-Path $llvm "clang.exe")) {
+              $llvm | Out-File -Append -Encoding utf8 $env:GITHUB_PATH
+            } elseif (Get-Command choco -ErrorAction SilentlyContinue) {
+              choco install llvm -y --no-progress
+              $llvm | Out-File -Append -Encoding utf8 $env:GITHUB_PATH
+            }
+          }
+          if (-not (Get-Command clang -ErrorAction SilentlyContinue) -and
+              -not (Test-Path "C:\Program Files\LLVM\bin\clang.exe")) {
+            throw "clang.exe not found"
+          }
+
+      - name: Set up MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Verify toolchains
+        shell: pwsh
+        run: |
+          if (-not (Get-Command cl -ErrorAction SilentlyContinue)) {
+            throw "cl.exe not found after MSVC setup"
+          }
+          if (-not (Get-Command clang -ErrorAction SilentlyContinue)) {
+            $llvm = "C:\Program Files\LLVM\bin"
+            if (Test-Path (Join-Path $llvm "clang.exe")) {
+              $llvm | Out-File -Append -Encoding utf8 $env:GITHUB_PATH
+            } else {
+              throw "clang.exe not found after MSVC setup"
+            }
+          }
+          cl 2>&1 | Select-Object -First 1
+
+      - name: Build spectre-dev
+        shell: pwsh
+        run: pwsh -NoProfile -ExecutionPolicy Bypass -File ./fw/build_windows.ps1
+
+      - name: Show compiler version
+        shell: pwsh
+        run: ./spectre-dev.exe -v
+
+      - name: Verify SIMD backends
+        shell: bash
+        env:
+          SPECTRE: ./spectre-dev.exe
+        run: |
+          set -o pipefail
+          ./fw/test_simd.sh | tee simd-test.log
+          grep -q "SIMD mode: clang-cl" simd-test.log
+          grep -q "SIMD mode: msvc" simd-test.log

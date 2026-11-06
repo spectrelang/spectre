@@ -79,7 +79,18 @@ pub fn get_unique_tmp_path(name: ref u8) ref u8 = trust {
 }
 
 pub fn is_compiler_available(compiler: ref u8) bool = {
-    return trust os.in_path(compiler)
+    if trust os.in_path(compiler) {
+        return true
+    }
+    when windows {
+        if !string.raw_ends_with(compiler, ".exe") {
+            val exe_name: ref u8 = trust @fmtalloc("{s}.exe", {compiler})
+            val found: bool = trust os.in_path(exe_name)
+            trust @free(exe_name)
+            return found
+        }
+    }
+    return false
 }
 
 pub fn select_alt_compiler(requested: ref u8) ref u8 = {
@@ -95,11 +106,164 @@ pub fn select_alt_compiler(requested: ref u8) ref u8 = {
     return "cc"
 }
 
+/// Classify an alternative-backend C compiler driver.
+///
+/// "gnu" covers GCC, Clang, MinGW and Apple Clang. "clang-cl" is Clang's
+/// MSVC-compatible driver. "msvc" is cl.exe. "tcc" is TinyCC.
+pub fn alt_compiler_kind(compiler: ref u8) ref u8 = {
+    if string.len_raw(compiler) == 0 {
+        return "unknown"
+    }
+    if string.raw_cmp(compiler, "tcc") == 0
+    || string.raw_ends_with(compiler, "tcc.exe") {
+        return "tcc"
+    }
+    if string.raw_cmp(compiler, "clang-cl") == 0
+    || string.raw_ends_with(compiler, "clang-cl.exe") {
+        return "clang-cl"
+    }
+    if string.raw_cmp(compiler, "cl") == 0
+    || string.raw_ends_with(compiler, "\\cl.exe")
+    || string.raw_ends_with(compiler, "/cl.exe") {
+        return "msvc"
+    }
+    return "gnu"
+}
+
+pub fn compiler_uses_msvc_flags(kind: ref u8) bool = {
+    return string.raw_cmp(kind, "msvc") == 0
+        || string.raw_cmp(kind, "clang-cl") == 0
+}
+
+pub fn compiler_uses_gnu_vectors(kind: ref u8) bool = {
+    return string.raw_cmp(kind, "gnu") == 0
+        || string.raw_cmp(kind, "clang-cl") == 0
+}
+
+/// Return the SIMD backend to use for the alt code generator.
+///
+/// 0 = GNU/Clang vector extensions, 1 = MSVC intrinsics, 2 = scalar only.
+pub fn alt_simd_backend(compiler: ref u8, platform: ref u8, arch: ref u8) i64 = {
+    if string.raw_cmp(platform, "windows") != 0
+    && string.raw_cmp(platform, "linux") != 0
+    && string.raw_cmp(platform, "darwin") != 0 {
+        return 2
+    }
+    if string.raw_cmp(arch, "x86_64") != 0
+    && string.raw_cmp(arch, "aarch64") != 0 {
+        return 2
+    }
+    val kind: ref u8 = alt_compiler_kind(compiler)
+    if compiler_uses_gnu_vectors(kind) {
+        return 0
+    }
+    if string.raw_cmp(kind, "msvc") == 0 {
+        return 1
+    }
+    return 2
+}
+
+pub fn compiler_std_flag(kind: ref u8) ref u8 = {
+    if string.raw_cmp(kind, "msvc") == 0 {
+        return "/std:c11"
+    }
+    if string.raw_cmp(kind, "clang-cl") == 0 {
+        return "-std=c11"
+    }
+    return "-std=c99"
+}
+
+pub fn compiler_opt_flag(kind: ref u8, release_mode: bool) ref u8 = {
+    if compiler_uses_msvc_flags(kind) {
+        if release_mode {
+            return "/O2"
+        }
+        return "/Od /Zi"
+    }
+    if release_mode {
+        return "-O3"
+    }
+    return "-g"
+}
+
 pub fn compiler_warn_flag(compiler: ref u8) ref u8 = {
+    val kind: ref u8 = alt_compiler_kind(compiler)
+    if compiler_uses_msvc_flags(kind) {
+        return "/W0"
+    }
     if string.raw_cmp(compiler, "clang") == 0 {
         return "-Wno-everything"
     }
     return "-w"
+}
+
+pub fn compiler_native_flags(
+    kind: ref u8,
+    platform: ref u8,
+    arch: ref u8,
+    native_mode: bool
+) ref u8 = {
+    if !native_mode {
+        return ""
+    }
+    if compiler_uses_msvc_flags(kind) {
+        if string.raw_cmp(arch, "x86_64") == 0 {
+            return "/arch:AVX2"
+        }
+        return ""
+    }
+    if string.raw_cmp(kind, "gnu") != 0 {
+        return ""
+    }
+    if string.raw_cmp(platform, "darwin") == 0
+    && string.raw_cmp(arch, "aarch64") == 0 {
+        return ""
+    }
+    if string.raw_cmp(arch, "x86_64") == 0 {
+        return "-march=native"
+    }
+    if string.raw_cmp(arch, "aarch64") == 0 {
+        return "-mcpu=native"
+    }
+    return ""
+}
+
+pub fn compiler_unroll_flag(kind: ref u8, unroll_mode: bool) ref u8 = {
+    if unroll_mode && string.raw_cmp(kind, "gnu") == 0 {
+        return "-funroll-loops"
+    }
+    return ""
+}
+
+pub fn compiler_include_flag(kind: ref u8, path: ref u8) ref u8 = trust {
+    if compiler_uses_msvc_flags(kind) {
+        return @fmtalloc("/I{s}", {path})
+    }
+    return @fmtalloc("-I{s}", {path})
+}
+
+pub fn compiler_strip_flag(kind: ref u8, release_mode: bool) ref u8 = {
+    if !release_mode {
+        return ""
+    }
+    if compiler_uses_msvc_flags(kind) {
+        return ""
+    }
+    return "-s"
+}
+
+pub fn translate_link_flag(kind: ref u8, flag: ref u8) ref u8 = trust {
+    if !compiler_uses_msvc_flags(kind) {
+        return flag
+    }
+    if string.raw_cmp(flag, "-pthread") == 0 {
+        return ""
+    }
+    if string.raw_starts_with(flag, "-l") {
+        val name: ref u8 = string.substr(flag, 2, string.len_raw(flag) - 2)
+        return @fmtalloc("{s}.lib", {name})
+    }
+    return flag
 }
 
 /// Returns true when the host platform can produce a completely statically
@@ -267,6 +431,17 @@ pub fn pick_alt_backend(
         if is_compiler_available("clang") {
             return "clang"
         }
+        when windows {
+            if is_compiler_available("clang-cl") {
+                return "clang-cl"
+            }
+            if is_compiler_available("cl") {
+                return "cl"
+            }
+            if is_compiler_available("gcc") {
+                return "gcc"
+            }
+        }
         if is_compiler_available("tcc") {
             return "tcc"
         }
@@ -291,6 +466,7 @@ pub fn append_debug_runtime_links(
     exe_dir: ref u8,
     quiet: bool,
     release_mode: bool,
+    compiler: ref u8,
     arena: ref allocators.Arena
 ) void = trust {
     if release_mode {
@@ -308,7 +484,12 @@ pub fn append_debug_runtime_links(
     }
     val platform: ref u8 = reflection.current_platform_name[allocators.Arena](arena)
     if string.raw_cmp(platform, "windows") == 0 {
-        @append(links, "-lDbgHelp")
+        val kind: ref u8 = alt_compiler_kind(compiler)
+        if compiler_uses_msvc_flags(kind) {
+            @append(links, "Dbghelp.lib")
+        } else {
+            @append(links, "-lDbgHelp")
+        }
     }
 }
 
