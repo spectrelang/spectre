@@ -22,7 +22,7 @@ pub type LeakDiagnostics = {
     invalid_frees: i64
 }
 
-/// Print a human-readable leak summary to stdout.
+/// Print a readable leak summary to stdout.
 pub fn (LeakDiagnostics) pprint(ld: self) void = {
     if ld.enabled == 0 {
         stdio.puts("LeakDiagnostics: leak checking disabled")
