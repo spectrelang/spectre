@@ -1,5 +1,5 @@
-pub val algo       = use("std/algorithms")
-val allocators     = use("std/allocators")
+pub val algo   = use("std/algorithms")
+val allocators = use("std/allocators")
 
 pub fn main() void = {
     val sa: allocators.ScopedArenaAllocator = trust allocators.ScopedArena.new(4096 as usize)?
