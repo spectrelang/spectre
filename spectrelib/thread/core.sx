@@ -242,7 +242,10 @@ pub type Mutex = {
 }
 
 when posix {
-    extern (C, header) fn pthread_mutex_init(mutex: ref void, attr: ref void) i32 = "pthread_mutex_init"
+    extern (C, header) fn pthread_mutex_init(
+        mutex: ref void,
+        attr: ref void
+    ) i32 = "pthread_mutex_init"
     extern (C, header) fn pthread_mutex_destroy(mutex: ref void) i32 = "pthread_mutex_destroy"
     extern (C, header) fn pthread_mutex_lock(mutex: ref void) i32 = "pthread_mutex_lock"
     extern (C, header) fn pthread_mutex_unlock(mutex: ref void) i32 = "pthread_mutex_unlock"
