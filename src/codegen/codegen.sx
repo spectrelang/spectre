@@ -1667,6 +1667,8 @@ fn monomorphize_generic_fn(ctx: mut ref CgCtx, gfn_node: ref parser.Node, gfn_pr
         val saved_dqtypes = cg_clone_char_list(ctx.dqtypes)
         val saved_defer_stack = cg_clone_void_list(ctx.defer_stack)
         val saved_module_prefix = ctx.current_module_prefix
+        val saved_stack_agg_values = cg_clone_char_list(ctx.stack_agg_values)
+        val saved_aggregate_heap = ctx.aggregate_heap
 
         val temp_mono_sb: ref void = str.StringBuilder.new()
         ctx.sb = temp_mono_sb
@@ -1693,6 +1695,8 @@ fn monomorphize_generic_fn(ctx: mut ref CgCtx, gfn_node: ref parser.Node, gfn_pr
         ctx.dqtypes = saved_dqtypes
         ctx.defer_stack = saved_defer_stack
         ctx.current_module_prefix = saved_module_prefix
+        ctx.stack_agg_values = saved_stack_agg_values
+        ctx.aggregate_heap = saved_aggregate_heap
         val temp_built: ref void = str.StringBuilder.build(temp_mono_sb)
         str.StringBuilder.append_cstr(ctx.mono_sb, str.cstr(temp_built))
         str.StringBuilder.free(temp_mono_sb)
