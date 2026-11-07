@@ -26,6 +26,7 @@ pub fn print_usage() void = {
     stdio.puts("  run     <input.sx>   Compile and immediately run a program")
     stdio.puts("  doc     <path>       Generate docs for a file or directory")
     stdio.puts("  add     <git-url>    Clone a git dependency into ./lib/ and record it")
+    stdio.puts("  install <git-url>    Build and install a Spectre project from a repository")
     stdio.puts("  remove  <dep-name>   Remove a dependency by repository name")
     stdio.puts("  upgrade <dep-name>   Upgrade dependencies in ./lib/ to their latest HEAD")
     stdio.puts("  help    <topic>      Show detailed help for a command or flag")
@@ -142,6 +143,37 @@ pub fn print_help(topic: ref u8) i32 = trust {
         stdio.puts("sx.mod must contain a spectre_version that matches the installed")
         stdio.puts("compiler, or the build is rejected. A build configuration may also")
         stdio.puts("define compile-time environment variables with an env { } block.")
+        return 0
+    }
+
+    if str.raw_cmp(topic, "install") == 0 {
+        stdio.puts("install - Build and install a Spectre project from a repository")
+        stdio.puts("")
+        stdio.puts("usage:")
+        stdio.puts("  spectre install <git-url> [-config <name>] [-shell <shell>]")
+        stdio.puts("                [-bin-dir <dir>]")
+        stdio.puts("")
+        stdio.puts("options:")
+        stdio.puts("  -config <name>  Build configuration to use (default: prod, then")
+        stdio.puts("                  production, release, default, dev, then the first")
+        stdio.puts("                  configuration in sx.mod)")
+        stdio.puts("  -shell <shell>  Shell to configure PATH for (bash, zsh, fish,")
+        stdio.puts("                  nushell, elvish, powershell, sh, ksh, tcsh, ...)")
+        stdio.puts("                  Use 'all' to write every supported integration.")
+        stdio.puts("  -bin-dir <dir>  Override the install directory")
+        stdio.puts("  -h, -help       Show this help message")
+        stdio.puts("")
+        stdio.puts("The repository is cloned to a temporary directory, built with the")
+        stdio.puts("installed Spectre compiler, and the resulting executable is copied")
+        stdio.puts("into a Spectre-owned binary directory:")
+        when windows {
+            stdio.puts("  %LOCALAPPDATA%\\Spectre\\bin")
+        }
+        when posix {
+            stdio.puts("  ~/.local/share/spectre/bin")
+        }
+        stdio.puts("")
+        stdio.puts("That directory is then added to PATH for the selected shell.")
         return 0
     }
 

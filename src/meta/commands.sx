@@ -194,7 +194,7 @@ fn ctx_read_env_value(ctx: mut ref ParseCtx) ref u8 = trust {
     return result
 }
 
-fn new_build_rule(platform: ref u8, arch: ref u8) ref SxBuildRule = trust {
+pub fn new_build_rule(platform: ref u8, arch: ref u8) ref SxBuildRule = trust {
     val rule: mut ref SxBuildRule = @alloc(@sizeof(SxBuildRule)) as mut ref SxBuildRule
     @memset(rule, 0, @sizeof(SxBuildRule))
     rule.platform = platform
@@ -505,7 +505,7 @@ fn load_sxlock() option[list[ref SxLockDep]] = {
     }
 }
 
-fn load_sxmod_at(dir: ref u8) option[ref SxMod] = trust {
+pub fn load_sxmod_at(dir: ref u8) option[ref SxMod] = trust {
     val mod_path: ref u8 = path.join(dir, "sx.mod")
     val size_opt = fs.file_size(mod_path)
     val arena_cap: mut i64 = 4096
@@ -739,7 +739,7 @@ fn apply_build_rule(target: mut ref SxBuildRule, source: ref SxBuildRule) void =
     }
 }
 
-fn resolve_build_rule(cfg: ref SxBuildConfig, target: mut ref SxBuildRule) void = trust {
+pub fn resolve_build_rule(cfg: ref SxBuildConfig, target: mut ref SxBuildRule) void = trust {
     target.platform = ""
     target.arch = ""
     target.action = ""
@@ -813,7 +813,7 @@ fn basename_of(path: ref u8) ref u8 = {
     return buf
 }
 
-fn repo_name_from_url(url: ref u8) ref u8 = trust {
+pub fn repo_name_from_url(url: ref u8) ref u8 = trust {
     val base: ref u8 = basename_of(url)
     val blen: i64 = str.len_raw(base)
     if blen > 4 {
@@ -1270,7 +1270,10 @@ pub fn cmd_build(config_name: ref u8, exe_path: ref u8) i32 = {
             }
             val cmd: ref u8 = trust build_config_cmd(resolved, exe_path, entry)
             val exit_code: i32 = trust os.run(cmd)
-            return exit_code
+            if exit_code != 0 {
+                return 1
+            }
+            return 0
         }
     }
 }
@@ -1607,7 +1610,7 @@ pub fn cmd_graph() i32 = trust {
     return 0
 }
 
-fn shell_quote(s: ref u8) ref u8 = trust {
+pub fn shell_quote(s: ref u8) ref u8 = trust {
     val sb: ref void = str.StringBuilder.new()
     str.StringBuilder.append_char(sb, 39)
     val n: i64 = str.len_raw(s)

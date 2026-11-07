@@ -26,6 +26,7 @@ val formatter   = use("meta/fmt.sx")
 val critic      = use("meta/critic.sx")
 val c_translate = use("translate/c_translate.sx")
 val builds      = use("meta/builds.sx")
+val install     = use("meta/install.sx")
 
 when windows {
     extern (C, header) fn SetConsoleOutputCP(codepage_id: u32) bool = "SetConsoleOutputCP"
@@ -312,6 +313,97 @@ pub fn main() i32 = trust {
             config_name = v as ref u8
         }
         val code: i32 = commands.cmd_build(config_name, exe_path)
+        allocators.Arena.free(arena)
+        return code
+    }
+
+    if string.raw_cmp(input, "install") == 0 {
+        val install_url: mut ref u8 = ""
+        val install_config: mut ref u8 = ""
+        val install_shell: mut ref u8 = ""
+        val install_bin_dir: mut ref u8 = ""
+        val install_arg_i: mut i64 = 2
+        for {
+            val install_arg_opt = @get(args, install_arg_i)
+            if install_arg_opt is some iv {
+                val arg: ref u8 = iv as ref u8
+                if string.raw_cmp(arg, "-h") == 0 || string.raw_cmp(arg, "-help") == 0 {
+                    val code: i32 = meta.print_help("install")
+                    allocators.Arena.free(arena)
+                    return code
+                } elif string.raw_cmp(arg, "-config") == 0
+                || string.raw_cmp(arg, "--config") == 0
+                || string.raw_cmp(arg, "-build") == 0 {
+                    val next_i: i64 = install_arg_i + 1
+                    val next_opt = @get(args, next_i)
+                    if next_opt is some nv {
+                        install_config = nv as ref u8
+                        install_arg_i = next_i
+                    } else {
+                        stdio.puts("error: -config requires a build configuration name")
+                        allocators.Arena.free(arena)
+                        return 1
+                    }
+                } elif string.raw_starts_with(arg, "-config:") {
+                    install_config = string.substr(arg, 8, string.len_raw(arg) - 8)
+                } elif string.raw_cmp(arg, "-shell") == 0
+                || string.raw_cmp(arg, "--shell") == 0 {
+                    val next_i: i64 = install_arg_i + 1
+                    val next_opt = @get(args, next_i)
+                    if next_opt is some nv {
+                        install_shell = nv as ref u8
+                        install_arg_i = next_i
+                    } else {
+                        stdio.puts("error: -shell requires a shell name")
+                        allocators.Arena.free(arena)
+                        return 1
+                    }
+                } elif string.raw_starts_with(arg, "-shell:") {
+                    install_shell = string.substr(arg, 7, string.len_raw(arg) - 7)
+                } elif string.raw_cmp(arg, "-bin-dir") == 0
+                || string.raw_cmp(arg, "--bin-dir") == 0 {
+                    val next_i: i64 = install_arg_i + 1
+                    val next_opt = @get(args, next_i)
+                    if next_opt is some nv {
+                        install_bin_dir = nv as ref u8
+                        install_arg_i = next_i
+                    } else {
+                        stdio.puts("error: -bin-dir requires a directory")
+                        allocators.Arena.free(arena)
+                        return 1
+                    }
+                } elif string.raw_starts_with(arg, "-bin-dir:") {
+                    install_bin_dir = string.substr(arg, 9, string.len_raw(arg) - 9)
+                } elif string.raw_starts_with(arg, "-") {
+                    stdio.print("error: unknown install option '{s}'\n", {arg})
+                    allocators.Arena.free(arena)
+                    return 1
+                } else {
+                    if string.len_raw(install_url) == 0 {
+                        install_url = arg
+                    } else {
+                        stdio.puts("error: install accepts a single repository URL")
+                        allocators.Arena.free(arena)
+                        return 1
+                    }
+                }
+            } else {
+                break
+            }
+            install_arg_i++
+        }
+        if string.len_raw(install_url) == 0 {
+            stdio.puts("error: install requires a git repository URL")
+            stdio.puts("usage: spectre install <git-url> [-config <name>] [-shell <shell>]")
+            allocators.Arena.free(arena)
+            return 1
+        }
+        val code: i32 = install.cmd_install(
+            install_url,
+            install_config,
+            install_shell,
+            install_bin_dir
+        )
         allocators.Arena.free(arena)
         return code
     }

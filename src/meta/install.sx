@@ -1,0 +1,901 @@
+/// SPDX-License-Identifier: GPL-3.0-only
+/// (C) Navid Momtahen - 2026
+
+val str        = use("std/string")
+val fs         = use("std/fs")
+val os         = use("std/os")
+val path       = use("std/path")
+val stdio      = use("std/stdio")
+val allocators = use("std/allocators")
+val reflection = use("std/reflection")
+val random     = use("std/crypto/random")
+val mem        = use("mem.sx")
+val commands   = use("commands.sx")
+
+fn marker_start() ref u8 = {
+    return "# >>> spectre install >>>"
+}
+
+fn marker_end() ref u8 = {
+    return "# <<< spectre install <<<"
+}
+
+fn is_path_sep(c: u8) bool = {
+    return c == 47 || c == 92
+}
+
+fn is_alpha(c: u8) bool = {
+    return (c >= 65 && c <= 90) || (c >= 97 && c <= 122)
+}
+
+fn path_sep() u8 = {
+    when windows {
+        return ';'
+    }
+    return ':'
+}
+
+/// Return the last component of a path, accepting both '/' and '\\'.
+fn base_name(p: ref u8) ref u8 = trust {
+    val len: i64 = str.len_raw(p)
+    if len == 0 {
+        return ""
+    }
+
+    val end: mut i64 = len
+    for {
+        if end <= 1 {
+            break
+        }
+        val c: u8 = @load8(@ptradd(p, end - 1)) as u8
+        if is_path_sep(c) {
+            end--
+        } else {
+            break
+        }
+    }
+
+    val i: mut i64 = end - 1
+    for {
+        if i < 0 {
+            break
+        }
+        val c: u8 = @load8(@ptradd(p, i)) as u8
+        if is_path_sep(c) {
+            return str.substr(p, i + 1, end - i - 1)
+        }
+        i--
+    }
+    return str.substr(p, 0, end)
+}
+
+fn normalize_shell(name: ref u8) ref u8 = trust {
+    val base: ref u8 = base_name(name)
+    val len: i64 = str.len_raw(base)
+    val trimmed: mut ref u8 = base
+    if len > 4 && str.raw_ends_with(base, ".exe") {
+        trimmed = str.substr(base, 0, len - 4)
+    }
+
+    val lower: ref u8 = @alloc(str.len_raw(trimmed) + 1) as ref u8
+    val i: mut i64 = 0
+    for {
+        if i >= str.len_raw(trimmed) {
+            break
+        }
+        val c: u8 = @load8(@ptradd(trimmed, i)) as u8
+        val v: mut u8 = c
+        if c >= 65 && c <= 90 {
+            v = (c + 32) as u8
+        }
+        @store8(@ptradd(lower, i), v)
+        i++
+    }
+    @store8(@ptradd(lower, i), 0)
+    return lower
+}
+
+fn detect_shell(explicit: ref u8) ref u8 = trust {
+    if str.len_raw(explicit) > 0 {
+        return normalize_shell(explicit)
+    }
+
+    val override = os.env("SPECTRE_SHELL")
+    if override is some v {
+        return normalize_shell(v as ref u8)
+    }
+
+    when windows {
+        return "cmd"
+    }
+
+    val login_shell = os.env("SHELL")
+    if login_shell is some v {
+        return normalize_shell(v as ref u8)
+    }
+    return "sh"
+}
+
+fn raw_contains(haystack: ref u8, needle: ref u8) bool = trust {
+    val hlen: i64 = str.len_raw(haystack)
+    val nlen: i64 = str.len_raw(needle)
+    if nlen == 0 {
+        return true
+    }
+    if nlen > hlen {
+        return false
+    }
+    val limit: i64 = hlen - nlen
+    val i: mut i64 = 0
+    for {
+        if i > limit {
+            break
+        }
+        val j: mut i64 = 0
+        val matched: mut bool = true
+        for {
+            if j >= nlen {
+                break
+            }
+            val x: u8 = @load8(@ptradd(haystack, i + j)) as u8
+            val y: u8 = @load8(@ptradd(needle, j)) as u8
+            if x != y {
+                matched = false
+                break
+            }
+            j++
+        }
+        if matched {
+            return true
+        }
+        i++
+    }
+    return false
+}
+
+fn path_contains_dir(dir: ref u8) bool = trust {
+    val env_opt = os.env("PATH")
+    val p: mut ref u8 = ""
+    match env_opt {
+        none => {
+            return false
+        }
+        some value => {
+            p = value
+        }
+    }
+    val len: i64 = str.len_raw(p)
+    val sep: u8 = path_sep()
+    val start: mut i64 = 0
+    val i: mut i64 = 0
+    for {
+        if i > len {
+            break
+        }
+        val at_end: bool = i == len
+        val c: mut u8 = 0
+        if !at_end {
+            c = @load8(@ptradd(p, i)) as u8
+        }
+        if at_end || c == sep {
+            val part: ref u8 = str.substr(p, start, i - start)
+            if str.len_raw(part) > 0 && str.raw_cmp(part, dir) == 0 {
+                return true
+            }
+            start = i + 1
+        }
+        if at_end {
+            break
+        }
+        i++
+    }
+    return false
+}
+
+fn ensure_dir(dir: ref u8) bool = trust {
+    val len: i64 = str.len_raw(dir)
+    if len == 0 {
+        return false
+    }
+    if fs.is_directory(dir) {
+        return true
+    }
+
+    val i: mut i64 = 1
+    for {
+        if i >= len {
+            break
+        }
+        val c: u8 = @load8(@ptradd(dir, i)) as u8
+        if is_path_sep(c) {
+            val parent: ref u8 = str.substr(dir, 0, i)
+            if str.len_raw(parent) > 0 && !fs.is_directory(parent) {
+                fs.mkdir_path(parent)
+            }
+        }
+        i++
+    }
+
+    if fs.is_directory(dir) {
+        return true
+    }
+    return fs.mkdir_path(dir)
+}
+
+fn tool_available(name: ref u8) bool = trust {
+    if os.in_path(name) {
+        return true
+    }
+    when windows {
+        if !str.raw_ends_with(name, ".exe") {
+            return os.in_path(@fmtalloc("{s}.exe", {name}))
+        }
+    }
+    return false
+}
+
+fn home_dir() ref u8 = trust {
+    val h = fs.home_dir_raw()
+    match h {
+        none => {
+            return ""
+        }
+        some value => {
+            return value
+        }
+    }
+}
+
+fn config_home() ref u8 = trust {
+    val xdg = os.env("XDG_CONFIG_HOME")
+    if xdg is some v {
+        return v as ref u8
+    }
+    val home: ref u8 = home_dir()
+    if str.len_raw(home) == 0 {
+        return ".config"
+    }
+    return path.join(home, ".config")
+}
+
+/// The directory where installed Spectre programs live.
+pub fn default_bin_dir() ref u8 = trust {
+    val override = os.env("SPECTRE_BIN_DIR")
+    if override is some v {
+        return v as ref u8
+    }
+
+    when windows {
+        val local = os.env("LOCALAPPDATA")
+        if local is some v {
+            return path.join(v as ref u8, "Spectre/bin")
+        }
+        val home: ref u8 = home_dir()
+        if str.len_raw(home) == 0 {
+            return "Spectre/bin"
+        }
+        return path.join(home, "AppData/Local/Spectre/bin")
+    }
+
+    val data = os.env("XDG_DATA_HOME")
+    if data is some v {
+        return path.join(v as ref u8, "spectre/bin")
+    }
+    val home: ref u8 = home_dir()
+    if str.len_raw(home) == 0 {
+        return ".local/share/spectre/bin"
+    }
+    return path.join(home, ".local/share/spectre/bin")
+}
+
+/// Check whether a path is absolute on the current platform.
+fn is_absolute(p: ref u8) bool = trust {
+    val len: i64 = str.len_raw(p)
+    if len == 0 {
+        return false
+    }
+    val c0: u8 = @load8(@ptradd(p, 0)) as u8
+
+    when windows {
+        if c0 == 47 || c0 == 92 {
+            return true
+        }
+        if len >= 2 {
+            val c1: u8 = @load8(@ptradd(p, 1)) as u8
+            if c1 == 58 && is_alpha(c0) {
+                return true
+            }
+        }
+        return false
+    }
+
+    return c0 == 47
+}
+
+fn join_project(root: ref u8, value: ref u8) ref u8 = trust {
+    if is_absolute(value) {
+        return value
+    }
+    return path.join(root, value)
+}
+
+fn strip_extension(name: ref u8) ref u8 = trust {
+    val len: i64 = str.len_raw(name)
+    val dot: mut i64 = -1
+    val i: mut i64 = 0
+    for {
+        if i >= len {
+            break
+        }
+        val c: u8 = @load8(@ptradd(name, i)) as u8
+        if c == 46 {
+            dot = i
+        }
+        i++
+    }
+    if dot > 0 {
+        return str.substr(name, 0, dot)
+    }
+    return name
+}
+
+fn installed_name(repo: ref u8) ref u8 = trust {
+    when windows {
+        if str.raw_ends_with(repo, ".exe") {
+            return repo
+        }
+        return @fmtalloc("{s}.exe", {repo})
+    }
+    return repo
+}
+
+fn find_artifact(candidate: ref u8) ref u8 = trust {
+    if os.exists(candidate) {
+        return candidate
+    }
+    when windows {
+        val with_ext: ref u8 = @fmtalloc("{s}.exe", {candidate})
+        if os.exists(with_ext) {
+            return with_ext
+        }
+    }
+    return candidate
+}
+
+fn find_build_config(m: ref commands.SxMod, name: ref u8) ref commands.SxBuildConfig = trust {
+    for cfg in m.builds {
+        if str.raw_cmp(cfg.name, name) == 0 {
+            return cfg
+        }
+    }
+    return none
+}
+
+fn list_build_configs(m: ref commands.SxMod) void = trust {
+    stdio.puts("available build configurations:")
+    for cfg in m.builds {
+        stdio.print("  - {s}\n", {cfg.name})
+    }
+}
+
+fn choose_build_config(
+    m: ref commands.SxMod,
+    requested: ref u8
+) ref commands.SxBuildConfig = trust {
+    if str.len_raw(requested) > 0 {
+        val found: ref commands.SxBuildConfig = find_build_config(m, requested)
+        if found == none {
+            stdio.print("error: build config '{s}' not found in sx.mod\n", {requested})
+            list_build_configs(m)
+            return none
+        }
+        return found
+    }
+
+    val preferred: mut list[ref u8] = mem.new[ref u8]()
+    @append(preferred, "prod")
+    @append(preferred, "production")
+    @append(preferred, "release")
+    @append(preferred, "default")
+    @append(preferred, "dev")
+
+    for name in preferred {
+        val cfg: ref commands.SxBuildConfig = find_build_config(m, name)
+        if cfg != none {
+            return cfg
+        }
+    }
+
+    val first = @get(m.builds, 0)
+    if first is some value {
+        return value
+    }
+
+    stdio.puts("error: sx.mod does not define any build configurations")
+    return none
+}
+
+fn build_in_dir(
+    project_dir: ref u8,
+    exe_path: ref u8,
+    config_name: ref u8
+) i32 = trust {
+    when windows {
+        return os.run(@fmtalloc(
+                "cd /d \"{s}\" && \"{s}\" build \"{s}\"",
+                {project_dir, exe_path, config_name}
+            ))
+    }
+    when posix {
+        return os.run(@fmtalloc(
+                "cd {s} && {s} build {s}",
+                {
+                    commands.shell_quote(project_dir),
+                    commands.shell_quote(exe_path),
+                    commands.shell_quote(config_name)
+                }
+            ))
+    }
+    return 1
+}
+
+fn quote_for_shell(shell: ref u8, value: ref u8) ref u8 = trust {
+    if str.raw_cmp(shell, "fish") == 0
+    || str.raw_cmp(shell, "nushell") == 0
+    || str.raw_cmp(shell, "nu") == 0
+    || str.raw_cmp(shell, "elvish") == 0
+    || str.raw_cmp(shell, "powershell") == 0
+    || str.raw_cmp(shell, "pwsh") == 0
+    || str.raw_cmp(shell, "xonsh") == 0
+    || str.raw_cmp(shell, "tcsh") == 0
+    || str.raw_cmp(shell, "csh") == 0 {
+        return @fmtalloc("\"{s}\"", {value})
+    }
+    return commands.shell_quote(value)
+}
+
+fn snippet_for(shell: ref u8, bin_dir: ref u8) ref u8 = trust {
+    val q: ref u8 = quote_for_shell(shell, bin_dir)
+
+    if str.raw_cmp(shell, "fish") == 0 {
+        return @fmtalloc(
+            "if not contains {s} $PATH\n    set -gx PATH {s} $PATH\nend",
+            {q, q}
+        )
+    }
+    if str.raw_cmp(shell, "nushell") == 0 || str.raw_cmp(shell, "nu") == 0 {
+        return @fmtalloc("$env.PATH = ($env.PATH | prepend {s})", {q})
+    }
+    if str.raw_cmp(shell, "elvish") == 0 {
+        return @fmtalloc("set paths = [{s} $@paths]", {q})
+    }
+    if str.raw_cmp(shell, "powershell") == 0 || str.raw_cmp(shell, "pwsh") == 0 {
+        return @fmtalloc(
+            "$env:Path = {s} + [IO.Path]::PathSeparator + $env:Path",
+            {q}
+        )
+    }
+    if str.raw_cmp(shell, "xonsh") == 0 {
+        return @fmtalloc("$PATH.insert(0, {s})", {q})
+    }
+    if str.raw_cmp(shell, "tcsh") == 0 || str.raw_cmp(shell, "csh") == 0 {
+        return @fmtalloc("set path = ( {s} $path )", {q})
+    }
+
+    return @fmtalloc("export PATH={s}:$PATH", {q})
+}
+
+fn add_if_exists(out: mut list[ref u8], file: ref u8) void = {
+    if os.exists(file) {
+        @append(out, file)
+    }
+}
+
+fn rc_files_for(shell: ref u8) list[ref u8] = trust {
+    val out: mut list[ref u8] = mem.new[ref u8]()
+    val home: ref u8 = home_dir()
+    val cfg: ref u8 = config_home()
+
+    if str.raw_cmp(shell, "bash") == 0 {
+        @append(out, path.join(home, ".bashrc"))
+        add_if_exists(out, path.join(home, ".bash_profile"))
+        add_if_exists(out, path.join(home, ".bash_login"))
+        @append(out, path.join(home, ".profile"))
+    } elif str.raw_cmp(shell, "zsh") == 0 {
+        @append(out, path.join(home, ".zshrc"))
+        add_if_exists(out, path.join(home, ".zprofile"))
+    } elif str.raw_cmp(shell, "fish") == 0 {
+        @append(out, path.join(cfg, "fish/config.fish"))
+    } elif str.raw_cmp(shell, "nushell") == 0 || str.raw_cmp(shell, "nu") == 0 {
+        @append(out, path.join(cfg, "nushell/config.nu"))
+    } elif str.raw_cmp(shell, "elvish") == 0 {
+        @append(out, path.join(cfg, "elvish/rc.elv"))
+    } elif str.raw_cmp(shell, "powershell") == 0 || str.raw_cmp(shell, "pwsh") == 0 {
+        @append(out, path.join(cfg, "powershell/profile.ps1"))
+    } elif str.raw_cmp(shell, "xonsh") == 0 {
+        @append(out, path.join(cfg, "xonsh/rc.xsh"))
+    } elif str.raw_cmp(shell, "tcsh") == 0 || str.raw_cmp(shell, "csh") == 0 {
+        add_if_exists(out, path.join(home, ".tcshrc"))
+        add_if_exists(out, path.join(home, ".cshrc"))
+        if (@len(out) as i64) == 0 {
+            @append(out, path.join(home, ".tcshrc"))
+        }
+    } elif str.raw_cmp(shell, "ksh") == 0 {
+        @append(out, path.join(home, ".profile"))
+        add_if_exists(out, path.join(home, ".kshrc"))
+    } elif str.raw_cmp(shell, "cmd") == 0 {
+        return out
+    } else {
+        @append(out, path.join(home, ".profile"))
+    }
+
+    return out
+}
+
+/// Append a managed PATH block to a startup file.
+/// Returns 1 when the file was changed, 0 when it already had the block, and
+/// -1 when the file could not be updated.
+fn append_managed_block(file: ref u8, shell: ref u8, bin_dir: ref u8) i32 = trust {
+    if os.exists(file) {
+        val content_opt = fs.read_all_raw(file)
+        val already: mut bool = false
+        match content_opt {
+            none => {
+                already = false
+            }
+            some content => {
+                val text: ref u8 = content as ref u8
+                already = raw_contains(text, marker_start())
+                @free(content)
+            }
+        }
+        if already {
+            return 0
+        }
+    }
+
+    val parent: ref u8 = path.dir(file)
+    if !ensure_dir(parent) {
+        return -1
+    }
+
+    val block: ref u8 = @fmtalloc(
+        "\n{s}\n{s}\n{s}\n",
+        {marker_start(), snippet_for(shell, bin_dir), marker_end()}
+    )
+    if !fs.append_all(file, block) {
+        return -1
+    }
+    return 1
+}
+
+fn ps_escape(value: ref u8) ref u8 = trust {
+    val len: i64 = str.len_raw(value)
+    val buf: ref u8 = @alloc(len * 2 + 1) as ref u8
+    val j: mut i64 = 0
+    val i: mut i64 = 0
+    for {
+        if i >= len {
+            break
+        }
+        val c: u8 = @load8(@ptradd(value, i)) as u8
+        @store8(@ptradd(buf, j), c)
+        j++
+        if c == 39 {
+            @store8(@ptradd(buf, j), 39)
+            j++
+        }
+        i++
+    }
+    @store8(@ptradd(buf, j), 0)
+    return buf
+}
+
+fn windows_add_user_path(_bin_dir: ref u8) bool = trust {
+    if str.len_raw(_bin_dir) == 0 {
+        return false
+    }
+    when windows {
+        val bin_dir: ref u8 = _bin_dir
+        val escaped: ref u8 = ps_escape(bin_dir)
+        val check_cmd: ref u8 = "powershell -NoProfile -Command \"[Environment]::GetEnvironmentVariable('Path','User')\""
+        val check_res = os.exec(check_cmd)
+        match check_res {
+            ok value => {
+                if raw_contains(str.cstr(value), bin_dir) {
+                    return true
+                }
+            }
+            err _ => {}
+        }
+
+        val set_cmd: ref u8 = @fmtalloc(
+            "powershell -NoProfile -Command \"[Environment]::SetEnvironmentVariable('Path','{s};' + [Environment]::GetEnvironmentVariable('Path','User'),'User')\"",
+            {escaped}
+        )
+        if os.run(set_cmd) == 0 {
+            return true
+        }
+
+        val pwsh_cmd: ref u8 = @fmtalloc(
+            "pwsh -NoProfile -Command \"[Environment]::SetEnvironmentVariable('Path','{s};' + [Environment]::GetEnvironmentVariable('Path','User'),'User')\"",
+            {escaped}
+        )
+        if os.run(pwsh_cmd) == 0 {
+            return true
+        }
+    }
+    return false
+}
+
+fn print_manual_path_instructions(bin_dir: ref u8) void = trust {
+    stdio.print("Add this directory to PATH manually:\n  {s}\n", {bin_dir})
+    when windows {
+        stdio.puts("PowerShell:")
+        stdio.print(
+            "  [Environment]::SetEnvironmentVariable('Path', '{s};' + [Environment]::GetEnvironmentVariable('Path','User'), 'User')\n",
+            {bin_dir}
+        )
+        stdio.puts("Command Prompt:")
+        stdio.print("  setx PATH \"{s};%PATH%\"\n", {bin_dir})
+    }
+    when posix {
+        stdio.puts("POSIX shells (bash, zsh, sh, ...):")
+        stdio.print("  export PATH=\"{s}:$PATH\"\n", {bin_dir})
+        stdio.puts("fish:")
+        stdio.print("  set -gx PATH \"{s}\" $PATH\n", {bin_dir})
+        stdio.puts("Nushell:")
+        stdio.print("  $env.PATH = ($env.PATH | prepend \"{s}\")\n", {bin_dir})
+    }
+}
+
+fn integrate_path_for_shell(bin_dir: ref u8, shell: ref u8) bool = trust {
+    val files: list[ref u8] = rc_files_for(shell)
+    if (@len(files) as i64) == 0 {
+        stdio.print(
+            "warning: could not determine a startup file for shell '{s}'\n",
+            {shell}
+        )
+        print_manual_path_instructions(bin_dir)
+        return false
+    }
+
+    val all_ok: mut bool = true
+    for file in files {
+        val status: i32 = append_managed_block(file, shell, bin_dir)
+        if status < 0 {
+            stdio.print("warning: could not update {s}\n", {file})
+            all_ok = false
+        } elif status > 0 {
+            stdio.print("Added {s} to PATH via {s}\n", {bin_dir, file})
+        }
+    }
+    return all_ok
+}
+
+fn all_shells() list[ref u8] = trust {
+    val out: mut list[ref u8] = mem.new[ref u8]()
+    @append(out, "bash")
+    @append(out, "zsh")
+    @append(out, "fish")
+    @append(out, "nushell")
+    @append(out, "elvish")
+    @append(out, "powershell")
+    @append(out, "xonsh")
+    @append(out, "sh")
+    @append(out, "ksh")
+    @append(out, "tcsh")
+    return out
+}
+
+fn integrate_path(bin_dir: ref u8, shell: ref u8) bool = trust {
+    when windows {
+        return windows_add_user_path(bin_dir)
+    }
+
+    if path_contains_dir(bin_dir) {
+        return true
+    }
+
+    if str.raw_cmp(shell, "all") == 0 {
+        val shells: list[ref u8] = all_shells()
+        val all_ok: mut bool = true
+        for item in shells {
+            if !integrate_path_for_shell(bin_dir, item) {
+                all_ok = false
+            }
+        }
+        return all_ok
+    }
+
+    return integrate_path_for_shell(bin_dir, shell)
+}
+
+fn install_artifact(artifact: ref u8, destination: ref u8) bool = trust {
+    if !os.exists(artifact) {
+        return false
+    }
+    if str.raw_cmp(artifact, destination) != 0 {
+        if !ensure_dir(path.dir(destination)) {
+            return false
+        }
+        if !os.copy_file(artifact, destination) {
+            return false
+        }
+    }
+
+    when posix {
+        if os.run(@fmtalloc(
+                "chmod 755 {s}",
+                {commands.shell_quote(destination)}
+            )) != 0 {
+            return false
+        }
+    }
+
+    return true
+}
+
+fn cleanup(dir: ref u8) void = trust {
+    if str.len_raw(dir) > 0 && os.exists(dir) {
+        fs.remove_dir_all(dir)
+    }
+}
+
+pub fn cmd_install(
+    url: ref u8,
+    config_arg: ref u8,
+    shell_arg: ref u8,
+    bin_dir_arg: ref u8
+) i32 = trust {
+    if str.len_raw(url) == 0 {
+        stdio.puts("error: install requires a git repository URL")
+        stdio.puts("usage: spectre install <git-url> [-config <name>] [-shell <shell>]")
+        return 1
+    }
+
+    if !tool_available("git") {
+        stdio.puts("error: git is required to install a Spectre project")
+        return 1
+    }
+
+    val repo: ref u8 = commands.repo_name_from_url(url)
+    if str.len_raw(repo) == 0
+    || str.raw_cmp(repo, ".") == 0
+    || str.raw_cmp(repo, "..") == 0 {
+        stdio.print("error: could not determine a command name from '{s}'\n", {url})
+        return 1
+    }
+
+    val clone_dir: ref u8 = path.join(
+        fs.temp_dir_raw(),
+        @fmtalloc("spectre-install-{s}", {random.random_uuid()})
+    )
+
+    if !ensure_dir(clone_dir) {
+        stdio.print("error: could not create temporary directory {s}\n", {clone_dir})
+        return 1
+    }
+
+    stdio.print("Cloning {s}...\n", {url})
+    val clone_cmd: mut ref u8 = ""
+    when windows {
+        clone_cmd = @fmtalloc("git clone \"{s}\" \"{s}\"", {url, clone_dir})
+    }
+    when posix {
+        clone_cmd = @fmtalloc(
+            "git clone {s} {s}",
+            {commands.shell_quote(url), commands.shell_quote(clone_dir)}
+        )
+    }
+    if os.run(clone_cmd) != 0 {
+        stdio.print("error: git clone failed for {s}\n", {url})
+        cleanup(clone_dir)
+        return 1
+    }
+
+    val mod_opt = commands.load_sxmod_at(clone_dir)
+    val m: mut ref commands.SxMod = none
+    match mod_opt {
+        none => {
+            stdio.print("error: {s} does not contain an sx.mod\n", {url})
+            cleanup(clone_dir)
+            return 1
+        }
+        some value => {
+            m = value
+        }
+    }
+
+    if (@len(m.builds) as i64) == 0 {
+        stdio.print("error: sx.mod in {s} has no build configurations\n", {url})
+        cleanup(clone_dir)
+        return 1
+    }
+
+    val cfg: ref commands.SxBuildConfig = choose_build_config(m, config_arg)
+    if cfg == none {
+        cleanup(clone_dir)
+        return 1
+    }
+
+    val rule: mut ref commands.SxBuildRule = commands.new_build_rule("", "")
+    commands.resolve_build_rule(cfg, rule)
+
+    val entry: mut ref u8 = rule.entry
+    if str.len_raw(entry) == 0 {
+        entry = m.entry
+    }
+
+    if str.len_raw(rule.action) == 0 && str.len_raw(entry) == 0 {
+        stdio.print("error: build config '{s}' does not define an entry file\n", {cfg.name})
+        cleanup(clone_dir)
+        return 1
+    }
+
+    if str.len_raw(rule.action) > 0 && str.len_raw(rule.output) == 0 {
+        stdio.print(
+            "error: build config '{s}' uses an action but does not declare an output\n",
+            {cfg.name}
+        )
+        stdio.puts("Add an 'output' field to the build configuration so the binary can be installed")
+        cleanup(clone_dir)
+        return 1
+    }
+
+    val arena: allocators.Arena = allocators.Arena.new(4096 as usize)?
+    val exe_path_raw: ref u8 = reflection.get_exe_path[allocators.Arena](arena)
+    val exe_path: mut ref u8 = exe_path_raw
+    if str.len_raw(exe_path) == 0 || str.raw_cmp(exe_path, ".") == 0 {
+        exe_path = "spectre"
+    }
+
+    stdio.print("Building with configuration '{s}'...\n", {cfg.name})
+    val build_code: i32 = build_in_dir(clone_dir, exe_path, cfg.name)
+    allocators.Arena.free(arena)
+    if build_code != 0 {
+        stdio.print("error: build failed for {s}\n", {url})
+        stdio.print("  source left at: {s}\n", {clone_dir})
+        return 1
+    }
+
+    val artifact: mut ref u8 = ""
+    if str.len_raw(rule.output) > 0 {
+        artifact = find_artifact(join_project(clone_dir, rule.output))
+    } else {
+        val entry_name: ref u8 = strip_extension(base_name(entry))
+        artifact = find_artifact(path.join(clone_dir, @fmtalloc("s-out/{s}", {entry_name})))
+    }
+
+    if !os.exists(artifact) {
+        stdio.print("error: build did not produce an executable at {s}\n", {artifact})
+        stdio.print("  source left at: {s}\n", {clone_dir})
+        return 1
+    }
+
+    val bin_dir: mut ref u8 = bin_dir_arg
+    if str.len_raw(bin_dir) == 0 {
+        bin_dir = default_bin_dir()
+    }
+
+    val destination: ref u8 = path.join(bin_dir, installed_name(repo))
+    if !install_artifact(artifact, destination) {
+        stdio.print("error: could not install {s} to {s}\n", {artifact, destination})
+        cleanup(clone_dir)
+        return 1
+    }
+
+    val shell: ref u8 = detect_shell(shell_arg)
+    val path_ready: bool = integrate_path(bin_dir, shell)
+
+    stdio.print("Installed {s} -> {s}\n", {repo, destination})
+    if path_ready {
+        stdio.puts("Open a new terminal (or restart your shell) to use it.")
+    } else {
+        stdio.print("warning: {s} is not on PATH yet\n", {bin_dir})
+        print_manual_path_instructions(bin_dir)
+    }
+
+    cleanup(clone_dir)
+    return 0
+}
