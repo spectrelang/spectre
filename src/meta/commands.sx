@@ -1016,7 +1016,7 @@ fn upgrade_dir(
         val lib_path: ref u8 = @fmtalloc("{s}/{s}", {lib_dir, name})
 
         if dep_name_matches(dep_url, dep_name) {
-            if !is_directory(lib_path) {
+            if !fs.is_directory(lib_path) {
                 stdio.print("error: dependency '{s}' is not present at {s}\n", {dep_url, lib_path})
                 stdio.puts("run 'spectre restore' first")
                 return 1
@@ -1101,15 +1101,6 @@ fn add_stdlib_candidate(candidates: mut list[ref u8], dir: ref u8) void = trust 
     @append(candidates, dir)
 }
 
-fn is_directory(dir: ref u8) bool = trust {
-    val handle: ref void = fs.opendir(dir)
-    if handle == none {
-        return false
-    }
-    fs.closedir(handle)
-    return true
-}
-
 fn copy_current_stdlib(snapshot_dir: ref u8) bool = trust {
     val arena: mut allocators.Arena = allocators.Arena.new(4096 as usize)?
     val exe_path = reflection.get_exe_path[allocators.Arena](arena)
@@ -1136,7 +1127,7 @@ fn copy_current_stdlib(snapshot_dir: ref u8) bool = trust {
 
     val std_dir: mut ref u8 = ""
     for candidate in candidates {
-        if is_directory(candidate) {
+        if fs.is_directory(candidate) {
             std_dir = candidate
             break
         }
