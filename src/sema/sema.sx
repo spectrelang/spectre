@@ -38,6 +38,8 @@ type SemaCtx = {
     spec_names: mut list[ref u8]
     spec_impls: mut list[ref u8]
     global_names: mut list[ref u8]
+    use_names: mut list[ref u8]
+    use_lines: mut list[i64]
     scopes: mut list[ref void]
     type_defs: mut list[ref void]
     fn_defs: mut list[ref void]
@@ -8794,6 +8796,12 @@ fn register_named_item(ctx: ref SemaCtx, item: ref parser.Node) void = trust {
             @append(ctx.fn_names, item.d1 as ref u8)
         }
     }
+    if k == parser.NK_USE {
+        if item.d1 != 0 as i64 {
+            @append(ctx.use_names, item.d1 as ref u8)
+            @append(ctx.use_lines, item.line)
+        }
+    }
     if k == parser.NK_CONST || k == parser.NK_USE {
         if item.d1 != 0 as i64 {
             @append(ctx.global_names, item.d1 as ref u8)
@@ -9575,7 +9583,7 @@ fn check_unused_imports(
     }
 }
 
-/// Check for duplicate function/type names.
+/// Check for duplicate function names and import aliases.
 fn check_duplicates(ctx: ref SemaCtx, filename: ref u8) void = trust {
     val fnlen: i64 = @len(ctx.fn_names) as i64
     val fi: mut i64 = 0
@@ -9610,6 +9618,48 @@ fn check_duplicates(ctx: ref SemaCtx, filename: ref u8) void = trust {
             }
         }
         fi++
+    }
+
+    val use_len: i64 = @len(ctx.use_names) as i64
+    val ui: mut i64 = 1
+    for {
+        if ui >= use_len {
+            break
+        }
+        val use_opt = @get(ctx.use_names, ui as usize)
+        if use_opt is some use_name {
+            val pi: mut i64 = 0
+            for {
+                if pi >= ui {
+                    break
+                }
+                val prev_opt = @get(ctx.use_names, pi as usize)
+                if prev_opt is some prev_name {
+                    if string.str_eql(use_name as ref u8, prev_name as ref u8) {
+                        val cur_line_opt = @get(ctx.use_lines, ui as usize)
+                        val prev_line_opt = @get(ctx.use_lines, pi as usize)
+                        if cur_line_opt is some cur_line {
+                            if prev_line_opt is some prev_line {
+                                val buf: ref u8 = allocators.ScopedArena.alloc_or_none(
+                                    ctx.arena,
+                                    (256) as usize
+                                ) as ref u8
+                                @snprintf(
+                                    buf,
+                                    256,
+                                    "{s}:{lld}: duplicate import '{s}' (previously imported at line {lld})",
+                                    {filename, cur_line, use_name as ref u8, prev_line}
+                                )
+                                add_error(ctx, buf)
+                            }
+                        }
+                        break
+                    }
+                }
+                pi++
+            }
+        }
+        ui++
     }
 }
 

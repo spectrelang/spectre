@@ -1,0 +1,6 @@
+val str = use("std/string")
+val str = use("std/string")
+
+pub fn main() void = trust {
+    @print("{d}\n", {str.len_raw("hello")})
+}
