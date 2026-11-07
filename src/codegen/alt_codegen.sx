@@ -10206,7 +10206,7 @@ fn gen_test_main_c(
         }
         ti++
     }
-    val ok_idx: i64 = intern_format_string(ctx, "all tests passed\n")
+    val ok_idx: i64 = intern_format_string(ctx, "[note] all tests passed\n")
     val ok_buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 64 as usize) as ref u8
     @snprintf(ok_buf, 64, "printf(sx__str{lld});", {ok_idx})
     emitln(ctx, ok_buf)

@@ -2471,7 +2471,7 @@ fn format_file(file: ref u8, fix_mode: bool) i32 = trust {
     // All per-file allocations (source, context, diagnostics and edits) come
     // from this arena, so they are released in one operation on every exit.
     val arena_cap: usize = (size * 4 + 65536) as usize
-    val arena: mut allocators.Arena = allocators.Arena.new(arena_cap)?
+    val arena: allocators.Arena = allocators.Arena.new(arena_cap)?
     defer {
         allocators.Arena.free(arena)
     }
@@ -2511,7 +2511,7 @@ fn format_file(file: ref u8, fix_mode: bool) i32 = trust {
                 return -1
             }
             stdio.print("{s}: fixed\n", {file})
-            val after_arena: mut allocators.Arena = allocators.Arena.new(arena_cap)?
+            val after_arena: allocators.Arena = allocators.Arena.new(arena_cap)?
             val after: mut ref Ctx = analyze_ctx(after_arena, fixed, file, false)
             if after == none {
                 allocators.Arena.free(after_arena)
@@ -2541,7 +2541,7 @@ pub fn cmd_critic(targets: list[ref u8], fix_mode: bool) i32 = trust {
     }
 
     val paths_cap: usize = (n_targets * 4096 + 65536) as usize
-    val paths_arena: mut allocators.Arena = allocators.Arena.new(paths_cap)?
+    val paths_arena: allocators.Arena = allocators.Arena.new(paths_cap)?
     defer {
         allocators.Arena.free(paths_arena)
     }

@@ -54,12 +54,13 @@ pub fn (Arena) new(capacity: usize) result[Allocator, AllocError] = trust {
 }
 
 /// Free the entire arena and its backing block.
-pub fn (Arena) free(arena: mut self) void = trust {
-    val buf: mut ref void = @load(arena)
-    @free(buf)
-    val hdr: mut ref void = arena as ref void
-    @free(hdr)
-    arena = arena
+pub fn (Arena) free(arena: self) void = trust {
+    val au: mut ref Arena = arena as ref Arena
+    val buf: mut ref void = @load(au)
+    if buf != none {
+        @free(buf)
+    }
+    @free(au as ref void)
 }
 
 /// Allocate `size` bytes from the arena.
@@ -144,7 +145,7 @@ pub fn (Arena) reset(arena: self) void = trust {
 }
 
 test "arena allocates and tracks usage" {
-    val arena: mut Arena = trust Arena.new(64 as usize)?
+    val arena: Arena = trust Arena.new(64 as usize)?
 
     stdio.puts("done making new arena")
     assert Arena.cap(arena) == 64
@@ -230,14 +231,17 @@ pub fn (Stack) restore(stack: self, checkpoint: usize) void = {
 }
 
 /// Free the underlying memory.
-pub fn (Stack) free(stack: mut self) void = trust {
-    val buf: mut ref void = @load(stack)
-    @free(buf)
-    @free(stack)
+pub fn (Stack) free(stack: self) void = trust {
+    val su: mut ref Stack = stack as ref Stack
+    val buf: mut ref void = @load(su)
+    if buf != none {
+        @free(buf)
+    }
+    @free(su as ref void)
 }
 
 test "stack allocator saves and restores markers" {
-    val stack: mut Stack = trust Stack.new(1024 as usize)?
+    val stack: Stack = trust Stack.new(1024 as usize)?
     val marker = Stack.save(stack)
     val tmp1 = Stack.alloc(stack, 200 as usize)
 

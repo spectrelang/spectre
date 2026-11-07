@@ -4,7 +4,7 @@ val fmt        = use("std/fmt")
 val allocators = use("std/allocators")
 
 pub fn main() void = trust {
-    val arena: mut allocators.Arena = allocators.Arena.new(4096 as usize)?
+    val arena = allocators.Arena.new(4096 as usize)?
 
     val formatted = fmt.format[allocators.Arena](
         arena,

@@ -362,7 +362,7 @@ fn cg_is_prefix_used(ctx: ref CgCtx, prefix: ref u8) bool = trust {
 /// platform (or the real host platform when src_target is "").
 /// Supports platform names, architecture names, and platform.architecture.
 pub fn platform_matches_with_target(name: ref u8, src_target: ref u8) bool = trust {
-    val arena: mut allocators.Arena = allocators.Arena.new(256 as usize)?
+    val arena: allocators.Arena = allocators.Arena.new(256 as usize)?
     val cur: mut ref u8 = reflection.current_platform_name[allocators.Arena](arena)
     if str.raw_cmp(src_target, "") != 0 {
         cur = src_target
@@ -18773,7 +18773,7 @@ fn gen_test_main(
         }
         ti++
     }
-    val ok_idx: i64 = intern_string(ctx, "all tests passed\n")
+    val ok_idx: i64 = intern_string(ctx, "[note] all tests passed\n")
     val ok_tmp: i64 = fresh_tmp(ctx)
     val ok_buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 128 as usize) as ref u8
     @snprintf(ok_buf, 128, "    %%t{lld} =l copy $__str{lld}\n    call $printf(l %%t{lld})\n    ret 0\n}\n\n",

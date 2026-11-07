@@ -206,132 +206,128 @@ fn substr(
     return buf
 }
 
-fn str_eq(a: ref u8, b: ref u8) bool = trust {
-    return string.raw_cmp(a, b) == 0
-}
-
 fn keyword_kind(s: ref u8) TokenKind = trust {
-    if str_eq(s, "fn") {
+    if string.str_eql(s, "fn") {
         return Fn()
     }
-    if str_eq(s, "spec") {
+    if string.str_eql(s, "spec") {
         return Spec()
     }
-    if str_eq(s, "val") {
+    if string.str_eql(s, "val") {
         return Val()
     }
-    if str_eq(s, "mut") {
+    if string.str_eql(s, "mut") {
         return Mut()
     }
-    if str_eq(s, "pub") {
+    if string.str_eql(s, "pub") {
         return Pub()
     }
-    if str_eq(s, "type") {
+    if string.str_eql(s, "type") {
         return Type()
     }
-    if str_eq(s, "pre") {
+    if string.str_eql(s, "pre") {
         return Pre()
     }
-    if str_eq(s, "post") {
+    if string.str_eql(s, "post") {
         return Post()
     }
-    if str_eq(s, "return") {
+    if string.str_eql(s, "return") {
         return Return()
     }
-    if str_eq(s, "if") {
+    if string.str_eql(s, "if") {
         return If()
     }
-    if str_eq(s, "else") {
+    if string.str_eql(s, "else") {
         return Else()
     }
-    if str_eq(s, "elif") {
+    if string.str_eql(s, "elif") {
         return Elif()
     }
-    if str_eq(s, "trust") {
+    if string.str_eql(s, "trust") {
         return Trust()
     }
-    if str_eq(s, "inline") {
+    if string.str_eql(s, "inline") {
         return Inline()
     }
-    if str_eq(s, "use") {
+    if string.str_eql(s, "use") {
         return Use()
     }
-    if str_eq(s, "ref") {
+    if string.str_eql(s, "ref") {
         return Ref()
     }
-    if str_eq(s, "for") {
+    if string.str_eql(s, "for") {
         return For()
     }
-    if str_eq(s, "in") {
+    if string.str_eql(s, "in") {
         return In()
     }
-    if str_eq(s, "some") {
+    if string.str_eql(s, "some") {
         return Some()
     }
-    if str_eq(s, "none") {
+    if string.str_eql(s, "none") {
         return None()
     }
-    if str_eq(s, "ok") {
+    if string.str_eql(s, "ok") {
         return Ok()
     }
-    if str_eq(s, "err") {
+    if string.str_eql(s, "err") {
         return Err()
     }
-    if str_eq(s, "match") {
+    if string.str_eql(s, "match") {
         return Match()
     }
-    if str_eq(s, "true") {
+    if string.str_eql(s, "true") {
         return True()
     }
-    if str_eq(s, "false") {
+    if string.str_eql(s, "false") {
         return False()
     }
-    if str_eq(s, "defer") {
+    if string.str_eql(s, "defer") {
         return Defer()
     }
-    if str_eq(s, "break") {
+    if string.str_eql(s, "break") {
         return Break()
     }
-    if str_eq(s, "continue") {
+    if string.str_eql(s, "continue") {
         return Continue()
     }
-    if str_eq(s, "as") {
+    if string.str_eql(s, "as") {
         return As()
     }
-    if str_eq(s, "assert") {
+    if string.str_eql(s, "assert") {
         return Assert()
     }
-    if str_eq(s, "when") {
+    if string.str_eql(s, "when") {
         return When()
     }
-    if str_eq(s, "union") {
+    if string.str_eql(s, "union") {
         return Union()
     }
-    if str_eq(s, "enum") {
+    if string.str_eql(s, "enum") {
         return Enum()
     }
-    if str_eq(s, "extern") {
+    if string.str_eql(s, "extern") {
         return Extern()
     }
-    if str_eq(s, "link") {
+    if string.str_eql(s, "link") {
         return Link()
     }
-    if str_eq(s, "lib") {
+    if string.str_eql(s, "lib") {
         return Lib()
     }
-    if str_eq(s, "guarded") {
+    if string.str_eql(s, "guarded") {
         return Guarded()
     }
-    if str_eq(s, "not") {
+    if string.str_eql(s, "not") {
         return Not()
     }
-    if str_eq(s, "test") {
+    if string.str_eql(s, "test") {
         return Test()
     }
-    if str_eq(s, "guard") {
+    if string.str_eql(s, "guard") {
         return Guard()
     }
-    if str_eq(s, "invariant") {
+    if string.str_eql(s, "invariant") {
         return Invariant()
     }
     return Ident(s)

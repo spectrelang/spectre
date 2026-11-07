@@ -647,7 +647,10 @@ pub fn hash_string(key: ref u8) usize = {
 }
 
 /// Compare two null-terminated C strings for equality.
-fn str_eq(a: ref u8, b: ref u8) bool = trust {
+///
+/// This is intentionally local to the collections module: `collections` is a
+/// dependency of `string`, so importing `std/string` here would create a cycle.
+fn cstr_eq(a: ref u8, b: ref u8) bool = trust {
     val i: mut i64 = 0
     for {
         val ca: u8 = @load8(@ptradd(a, i))
@@ -696,7 +699,7 @@ pub fn (StringMap) set[A: allocators.GeneralAllocator](
         }
         if (state == MAP_BUCKET_LIVE) {
             val existing_key: ref u8 = @load(@ptradd(slot, 8)) as ref u8
-            if (str_eq(existing_key, key)) {
+            if (cstr_eq(existing_key, key)) {
                 @store(@ptradd(slot, 16), value)
                 return
             }
@@ -731,7 +734,7 @@ pub fn (StringMap) get(map: self, key: ref u8) option[usize] = {
         }
         if (state == MAP_BUCKET_LIVE) {
             val existing_key: ref u8 = trust @load(@ptradd(slot, 8)) as ref u8
-            if (trust str_eq(existing_key, key)) {
+            if (trust cstr_eq(existing_key, key)) {
                 return some (trust @load(@ptradd(slot, 16)) as usize)
             }
         }
@@ -777,7 +780,7 @@ pub fn (StringMap) delete[A: allocators.GeneralAllocator](
         }
         if (state == MAP_BUCKET_LIVE) {
             val existing_key: ref u8 = @load(@ptradd(slot, 8)) as ref u8
-            if (str_eq(existing_key, key)) {
+            if (cstr_eq(existing_key, key)) {
                 allocators.free_in[A](ac, existing_key)
                 @store(slot, MAP_BUCKET_DEAD)
                 @store(@ptradd(header, 8), @load(@ptradd(header, 8)) - 1)
@@ -995,7 +998,7 @@ pub fn (IndexMap) delete[A: allocators.GeneralAllocator](
                 some p => {
                     if p != 0 {
                         val k: ref u8 = p as ref u8
-                        if str_eq(k, key) {
+                        if cstr_eq(k, key) {
                             allocators.free_in[A](ac, k)
                             PtrList.set(keys, i, 0 as usize)
                             break
@@ -1219,7 +1222,7 @@ test "index map preserves insertion order" {
 
     match IndexMap.key_at(m, 0 as usize) {
         some k => {
-            assert trust str_eq(k, "c")
+            assert trust cstr_eq(k, "c")
         }
         none => {
             assert false
@@ -1227,7 +1230,7 @@ test "index map preserves insertion order" {
     }
     match IndexMap.key_at(m, 1 as usize) {
         some k => {
-            assert trust str_eq(k, "a")
+            assert trust cstr_eq(k, "a")
         }
         none => {
             assert false
@@ -1235,7 +1238,7 @@ test "index map preserves insertion order" {
     }
     match IndexMap.key_at(m, 2 as usize) {
         some k => {
-            assert trust str_eq(k, "b")
+            assert trust cstr_eq(k, "b")
         }
         none => {
             assert false
@@ -1249,7 +1252,7 @@ test "index map preserves insertion order" {
 
     match IndexMap.key_at(m, 0 as usize) {
         some k => {
-            assert trust str_eq(k, "c")
+            assert trust cstr_eq(k, "c")
         }
         none => {
             assert false
@@ -1257,7 +1260,7 @@ test "index map preserves insertion order" {
     }
     match IndexMap.key_at(m, 1 as usize) {
         some k => {
-            assert trust str_eq(k, "b")
+            assert trust cstr_eq(k, "b")
         }
         none => {
             assert false

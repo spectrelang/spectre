@@ -15,7 +15,8 @@ test "docs generator does not leak" {
         val code: i32 = docs.cmd_doc(
             "./fw/harness/fixtures/smoke.sx",
             false,
-            "./s-out/checkmem-docs"
+            "./s-out/checkmem-docs",
+            ""
         )
         os.run("rm -rf ./s-out/checkmem-docs")
         mem.close()

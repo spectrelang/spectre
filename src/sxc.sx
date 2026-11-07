@@ -31,7 +31,7 @@ when windows {
 }
 
 pub fn main() i32 = trust {
-    val arena: mut allocators.Arena = allocators.Arena.new(65536 as usize)?
+    val arena: allocators.Arena = allocators.Arena.new(65536 as usize)?
     val frontend_arena: allocators.ScopedArenaAllocator = allocators.ScopedArena.new(
         67108864 as usize
     )?
@@ -1216,7 +1216,7 @@ pub fn main() i32 = trust {
             allocators.Arena.free(arena)
             return 1
         }
-        val asm_arena: mut allocators.Arena = allocators.Arena.new((asm_arena_cap + 8) as usize)?
+        val asm_arena: allocators.Arena = allocators.Arena.new((asm_arena_cap + 8) as usize)?
         val asm_opt = fs.read_all[allocators.Arena](asm_arena, asm_file)
         if asm_opt is some asm_content {
             stdio.puts(asm_content as ref u8)
@@ -1371,13 +1371,10 @@ pub fn main() i32 = trust {
         val cc_res2 = os.exec(cc_cmd)
         match cc_res2 {
             ok _ => {
-                if !quiet && !emit_qbe {
-                    stdio.print("[spectre] running tests for: {s}\n", {input})
-                }
                 val run_res = os.run(test_bin)
                 if run_res != 0 {
                     if !quiet && !emit_qbe {
-                        stdio.print("[spectre] test binary exited with: {s}\n", {"non-zero exit"})
+                        stdio.print("warning: test binary exited with: {s}\n", {"non-zero exit"})
                     }
                     exit_code = 1
                 }

@@ -136,11 +136,14 @@ pub fn canonicalize_path(path: ref u8) ref u8 = trust {
     val keep_dot_prefix: bool = len >= 2 &&
     @load8(@ptradd(path, 0)) == 46 &&
     @load8(@ptradd(path, 1)) == 47
-    val heap: allocators.HeapAllocator = @zeroed
-    val segs: mut list[ref u8] = @listalloc[allocators.HeapAllocator, ref u8](heap)?
+    val list_arena: allocators.ScopedArenaAllocator = allocators.ScopedArena.new(
+        (len * 16 + 1024) as usize
+    )?
     defer {
-        @listfree(segs)
+        allocators.ScopedArena.free(list_arena)
     }
+    val list_ac: allocators.ListArena = {arena: list_arena}
+    val segs: mut list[ref u8] = @listalloc[allocators.ListArena, ref u8](list_ac)?
     val i: mut i64 = 0
     for {
         if i >= len {
@@ -203,6 +206,16 @@ pub fn canonicalize_path(path: ref u8) ref u8 = trust {
         }
         @append(segs, seg)
     }
+    if @len(segs) as i64 == 0 {
+        val leaf: ref u8 = @alloc(2) as ref u8
+        if is_abs {
+            @store8(leaf, 47)
+        } else {
+            @store8(leaf, 46)
+        }
+        @store8(@ptradd(leaf, 1), 0)
+        return leaf
+    }
     val sb: ref void = str.StringBuilder.new()
     if is_abs {
         str.StringBuilder.append_char(sb, 47 as u8)
@@ -216,6 +229,8 @@ pub fn canonicalize_path(path: ref u8) ref u8 = trust {
         if s_opt is some s {
             if si > 0 {
                 str.StringBuilder.append_char(sb, 47 as u8)
+            } elif keep_dot_prefix && !is_abs {
+                str.StringBuilder.append_cstr(sb, "./")
             }
             str.StringBuilder.append_cstr(sb, s as ref u8)
         }
@@ -240,11 +255,6 @@ pub fn canonicalize_path(path: ref u8) ref u8 = trust {
             return "/"
         }
         return "."
-    }
-    if keep_dot_prefix && @load8(@ptradd(out, 0)) != 46 {
-        val prefixed: ref u8 = @fmtalloc("./{s}", {out})
-        @free(out as ref void)
-        return prefixed
     }
     return out
 }

@@ -38,6 +38,12 @@ pub fn allocator() ref allocators.ListArena = {
     return state
 }
 
+/// Allocate raw bytes from the compiler-wide scoped arena.
+pub fn alloc(size: usize) ref void = {
+    val ac: ref allocators.ListArena = allocator()
+    return allocators.ScopedArena.alloc_or_none(ac.arena, size)
+}
+
 /// Return a new allocator-backed list.
 pub fn new[T]() list[T] = {
     val ac: ref allocators.ListArena = allocator()

@@ -294,7 +294,7 @@ pub fn get_exe_path[T: allocators.Allocator](ac: T) ref u8 = trust {
 }
 
 test "reflection returns platform and executable path" {
-    val arena: mut allocators.Arena = trust allocators.Arena.new(10240 as usize)?
+    val arena: allocators.Arena = trust allocators.Arena.new(10240 as usize)?
 
     stdio.puts("calling get_current_platform")
     val platform = trust get_current_platform[allocators.Arena](arena)

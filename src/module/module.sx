@@ -41,6 +41,30 @@ pub fn new_resolved(
     return m
 }
 
+/// Copy a C string into an arena-backed `String`.
+fn arena_string(arena: allocators.ScopedArenaAllocator, src: ref u8) String = trust {
+    val len: i64 = str.len_raw(src)
+    val buf: ref void = allocators.ScopedArena.alloc_or_none(arena, (len + 1) as usize)
+    if buf == none {
+        return none
+    }
+    if len > 0 {
+        @memcpy(buf, src, len as usize)
+    }
+    @store8(@ptradd(buf, len), 0)
+    val out: ref void = allocators.ScopedArena.alloc_or_none(
+        arena,
+        @sizeof(String) as usize
+    )
+    if out == none {
+        return none
+    }
+    @store(out, buf)
+    @store(@ptradd(out, 8), len)
+    @store(@ptradd(out, 16), len + 1)
+    return out as String
+}
+
 /// Check if a file exists by trying to open it.
 fn file_exists(path: ref u8) bool = trust {
     val f = fs.open(path, "r")
@@ -62,20 +86,56 @@ fn find_workspace_root(start_dir: ref u8) ref u8 = trust {
             break
         }
         limit--
-        val spectre_mod = path.join(cur, "sx.mod")
-        if file_exists(spectre_mod) && commands.is_project_sxmod_at(cur) {
+        val spectre_mod: mut ref u8 = path.join(cur, "sx.mod")
+        val found_here: bool = file_exists(spectre_mod) &&
+        commands.is_project_sxmod_at(cur)
+        @free(spectre_mod as ref void)
+        if found_here {
             return cur
         }
-        val parent = path.dir(cur)
+        val parent: mut ref u8 = path.dir(cur)
         if str.raw_cmp(parent, cur) == 0 {
+            if str.raw_cmp(parent, ".") != 0 {
+                @free(parent as ref void)
+            }
             break
         }
         if str.raw_cmp(parent, ".") == 0 {
             break
         }
+        if cur != start_dir {
+            @free(cur as ref void)
+        }
         cur = parent
     }
     return start_dir
+}
+
+/// Join a candidate suffix onto `base`, taking ownership of `suffix`.
+fn join_owned_suffix(base: ref u8, suffix: ref u8) ref u8 = trust {
+    val joined = path.join(base, suffix)
+    @free(suffix as ref void)
+    return joined
+}
+
+/// Return the canonical form of an existing candidate, or none.
+fn resolve_existing_candidate(base: ref u8, suffix: ref u8) ref u8 = trust {
+    val joined: mut ref u8 = join_owned_suffix(base, suffix)
+    if !file_exists(joined) {
+        @free(joined as ref void)
+        return none
+    }
+    val resolved = path.canonicalize_path(joined)
+    @free(joined as ref void)
+    return resolved
+}
+
+/// Return the canonical form of a candidate even if it does not exist.
+fn canonical_candidate(base: ref u8, suffix: ref u8) ref u8 = trust {
+    val joined: mut ref u8 = join_owned_suffix(base, suffix)
+    val resolved = path.canonicalize_path(joined)
+    @free(joined as ref void)
+    return resolved
 }
 
 /// Resolve a use-path string relative to the current file's directory.
@@ -86,8 +146,15 @@ pub fn resolve_use_path(
     exe_dir: ref u8,
     workspace: ref u8
 ) ref u8 = trust {
+    val owned_use: mut ref u8 = none
     if str.raw_starts_with(use_path, "std/") {
-        use_path = @fmtalloc("spectrelib/{s}", {@ptradd(use_path, 4) as ref u8})
+        owned_use = @fmtalloc("spectrelib/{s}", {@ptradd(use_path, 4) as ref u8})
+        use_path = owned_use
+    }
+    defer {
+        if owned_use != none {
+            @free(owned_use as ref void)
+        }
     }
     val plen: i64 = str.len_raw(use_path)
 
@@ -96,7 +163,10 @@ pub fn resolve_use_path(
         val c1: u8 = @load8(@ptradd(use_path, plen - 2))
         val c2: u8 = @load8(@ptradd(use_path, plen - 1))
         if c0 == 46 && c1 == 115 && c2 == 120 {
-            return path.canonicalize_path(path.join(file_dir, use_path))
+            val joined: mut ref u8 = path.join(file_dir, use_path)
+            val resolved = path.canonicalize_path(joined)
+            @free(joined as ref void)
+            return resolved
         }
     }
     val has_slash: mut bool = false
@@ -115,44 +185,68 @@ pub fn resolve_use_path(
     }
 
     if has_slash {
-        val core_exe = path.join(exe_dir, @fmtalloc("{s}/core.sx", {use_path}))
-        if file_exists(core_exe) {
-            return path.canonicalize_path(core_exe)
+        val core_exe = resolve_existing_candidate(
+            exe_dir,
+            @fmtalloc("{s}/core.sx", {use_path})
+        )
+        if core_exe != none {
+            return core_exe
         }
-        val core_ws = path.join(workspace, @fmtalloc("{s}/core.sx", {use_path}))
-        if file_exists(core_ws) {
-            return path.canonicalize_path(core_ws)
+        val core_ws = resolve_existing_candidate(
+            workspace,
+            @fmtalloc("{s}/core.sx", {use_path})
+        )
+        if core_ws != none {
+            return core_ws
         }
 
-        val candidate_exe = path.join(exe_dir, @fmtalloc("{s}.sx", {use_path}))
-        if file_exists(candidate_exe) {
-            return path.canonicalize_path(candidate_exe)
+        val candidate_exe = resolve_existing_candidate(
+            exe_dir,
+            @fmtalloc("{s}.sx", {use_path})
+        )
+        if candidate_exe != none {
+            return candidate_exe
         }
-        val candidate_ws = path.join(workspace, @fmtalloc("{s}.sx", {use_path}))
-        if file_exists(candidate_ws) {
-            return path.canonicalize_path(candidate_ws)
+        val candidate_ws = resolve_existing_candidate(
+            workspace,
+            @fmtalloc("{s}.sx", {use_path})
+        )
+        if candidate_ws != none {
+            return candidate_ws
         }
-        return path.canonicalize_path(candidate_ws)
+        return canonical_candidate(workspace, @fmtalloc("{s}.sx", {use_path}))
     }
 
-    val core1_exe = path.join(exe_dir, @fmtalloc("{s}/core.sx", {use_path}))
-    if file_exists(core1_exe) {
-        return path.canonicalize_path(core1_exe)
+    val core1_exe = resolve_existing_candidate(
+        exe_dir,
+        @fmtalloc("{s}/core.sx", {use_path})
+    )
+    if core1_exe != none {
+        return core1_exe
     }
-    val core1_ws = path.join(workspace, @fmtalloc("{s}/core.sx", {use_path}))
-    if file_exists(core1_ws) {
-        return path.canonicalize_path(core1_ws)
+    val core1_ws = resolve_existing_candidate(
+        workspace,
+        @fmtalloc("{s}/core.sx", {use_path})
+    )
+    if core1_ws != none {
+        return core1_ws
     }
 
-    val candidate2_exe = path.join(exe_dir, @fmtalloc("{s}/{s}.sx", {use_path, use_path}))
-    if file_exists(candidate2_exe) {
-        return path.canonicalize_path(candidate2_exe)
+    val candidate2_exe = resolve_existing_candidate(
+        exe_dir,
+        @fmtalloc("{s}/{s}.sx", {use_path, use_path})
+    )
+    if candidate2_exe != none {
+        return candidate2_exe
     }
-    val candidate2_ws = path.join(workspace, @fmtalloc("{s}/{s}.sx", {use_path, use_path}))
-    if file_exists(candidate2_ws) {
-        return path.canonicalize_path(candidate2_ws)
+    val candidate2_ws = resolve_existing_candidate(
+        workspace,
+        @fmtalloc("{s}/{s}.sx", {use_path, use_path})
+    )
+    if candidate2_ws != none {
+        return candidate2_ws
     }
-    return path.canonicalize_path(candidate2_ws)
+    return canonical_candidate(workspace, @fmtalloc("{s}/{s}.sx", {use_path, use_path}))
 }
 
 fn in_progress_contains(in_progress: list[ref u8], path: ref u8) bool = trust {
@@ -1115,7 +1209,7 @@ fn resolve_module_impl(
     } else {
         return err @fmtalloc("cannot read module: {s}", {canonical_path})
     }
-    val src_arena: mut allocators.Arena = allocators.Arena.new((src_arena_cap + 8) as usize)?
+    val src_arena: allocators.Arena = allocators.Arena.new((src_arena_cap + 8) as usize)?
     val src_opt = fs.read_all[allocators.Arena](src_arena, canonical_path)
     val src: mut ref u8 = ""
     if src_opt is some s {
@@ -1149,12 +1243,14 @@ fn resolve_module_impl(
         }
     }
 
-    val file_dir = str.new()
-    str.push_cstr(file_dir, path.dir(canonical_path))
+    val dir_part: mut ref u8 = path.dir(canonical_path)
+    val file_dir = arena_string(arena, dir_part)
+    if str.raw_cmp(dir_part, ".") != 0 {
+        @free(dir_part as ref void)
+    }
     val file_dir_c = str.cstr(file_dir)
     val workspace = find_workspace_root(file_dir_c)
-    val module_path = str.new()
-    str.push_cstr(module_path, canonical_path)
+    val module_path = arena_string(arena, canonical_path)
     val m: ref ResolvedModule = new_resolved(arena, items, module_path, file_dir)
 
     val cur_progress: mut list[ref u8] = in_progress
@@ -1255,7 +1351,7 @@ pub fn resolve_module(
 ) result[ref ResolvedModule, ref u8] = trust {
     val cache_keys: mut list[ref u8] = mem.new[ref u8]()
     val cache_vals: mut list[ref void] = mem.new[ref void]()
-    return resolve_module_impl(
+    val resolved = resolve_module_impl(
         arena,
         path,
         in_progress,
@@ -1264,6 +1360,19 @@ pub fn resolve_module(
         cache_keys,
         cache_vals
     )
+    val key_count: i64 = @len(cache_keys) as i64
+    val ki: mut i64 = 0
+    for ki < key_count {
+        val key_opt = @get(cache_keys, ki as usize)
+        if key_opt is some key {
+            val key_ptr: mut ref u8 = key as ref u8
+            if key_ptr != path {
+                @free(key_ptr as ref void)
+            }
+        }
+        ki++
+    }
+    return resolved
 }
 
 /// Look up a direct import of `m` by its alias name.
@@ -1670,7 +1779,7 @@ fn collect_links_with_root(
     exe_dir: ref u8,
     static_link: bool
 ) result[list[ref u8], ref u8] = trust {
-    val arena: mut allocators.Arena = allocators.Arena.new(256 as usize)?
+    val arena: allocators.Arena = allocators.Arena.new(256 as usize)?
     val links: mut list[ref u8] = mem.new[ref u8]()
     val p: i64 = reflection.get_current_platform[allocators.Arena](arena) as i64
     val platform: mut ref u8 = "unknown"
@@ -2061,7 +2170,7 @@ fn normalize_arch_name(name: ref u8) ref u8 = trust {
 
 /// Check whether an architecture selector matches the host architecture.
 pub fn arch_matches(name: ref u8) bool = trust {
-    val arena: mut allocators.Arena = allocators.Arena.new(256 as usize)?
+    val arena: allocators.Arena = allocators.Arena.new(256 as usize)?
     val current: ref u8 = reflection.current_arch_name[allocators.Arena](arena)
     val matched: bool = str.raw_cmp(normalize_arch_name(name), normalize_arch_name(current)) == 0
     allocators.Arena.free(arena)

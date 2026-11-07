@@ -132,6 +132,20 @@ pub fn raw_cmp(a: ref u8, b: ref u8) i64 = {
     return trust strcmp(a, b)
 }
 
+/// Compare two null-terminated C strings for equality.
+///
+/// Null is tolerated: two null pointers compare equal, while a null pointer
+/// never equals a non-null string.
+pub fn str_eql(a: ref u8, b: ref u8) bool = {
+    guard (a != none && b != none) else {
+        return a == b
+    }
+    if a == b {
+        return true
+    }
+    return trust strcmp(a, b) == 0
+}
+
 /// Compare a string or raw with a string or raw
 pub fn compare[A, B](a: A, b: B) i64 = trust {
     val aptr = as_raw[A](a)
@@ -1138,7 +1152,13 @@ pub fn copy(dst: ref u8, dst_off: i64, src: ref u8) void = trust {
 }
 
 test "string operations build, search and transform" {
-    val arena: mut allocators.Arena = trust allocators.Arena.new(32768 as usize)?
+    assert str_eql("abc", "abc")
+    assert !str_eql("abc", "abd")
+    val no_string: ref u8 = none
+    assert str_eql(no_string, none)
+    assert !str_eql("", none)
+    assert !str_eql(none, "")
+    val arena: allocators.Arena = trust allocators.Arena.new(32768 as usize)?
     val empty = trust new()
     assert len(empty) == 0
 
@@ -1371,10 +1391,16 @@ test "string operations build, search and transform" {
 
     val built = trust StringBuilder.build(sb)
     assert equals(built, trust from[allocators.Arena](arena, "hello world!"))
+    trust @free(@load(built))
+    val built_hdr: mut ref void = built as ref void
+    trust @free(built_hdr)
 
     trust StringBuilder.clear(sb)
     val built2 = trust StringBuilder.build(sb)
     assert equals(built2, trust from[allocators.Arena](arena, ""))
+    trust @free(@load(built2))
+    val built2_hdr: mut ref void = built2 as ref void
+    trust @free(built2_hdr)
 
     trust StringBuilder.free(sb)
 

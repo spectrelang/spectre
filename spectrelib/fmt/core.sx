@@ -476,7 +476,7 @@ pub fn string_to_f64(s: ref u8) result[f64, ParseFloatError] = {
 }
 
 fn test_i64_roundtrip(x: i64) void = trust {
-    val arena: mut allocators.Arena = allocators.Arena.new(64 as usize)?
+    val arena: allocators.Arena = allocators.Arena.new(64 as usize)?
     val s: mut ref u8 = i64_to_string[allocators.Arena](arena, x)
     val parsed = string_to_i64(s)
     assert parsed == ok x
@@ -484,7 +484,7 @@ fn test_i64_roundtrip(x: i64) void = trust {
 }
 
 fn test_f64_roundtrip(x: f64) void = trust {
-    val arena: mut allocators.Arena = allocators.Arena.new(128 as usize)?
+    val arena: allocators.Arena = allocators.Arena.new(128 as usize)?
     val s: mut ref u8 = f64_to_string[allocators.Arena](arena, x)
     val parsed = string_to_f64(s)
     assert parsed == ok x
@@ -492,7 +492,7 @@ fn test_f64_roundtrip(x: f64) void = trust {
 }
 
 test "integer, float and format string helpers roundtrip" {
-    val arena: mut allocators.Arena = trust allocators.Arena.new(4096 as usize)?
+    val arena: allocators.Arena = trust allocators.Arena.new(4096 as usize)?
     val s: mut ref u8 = ""
 
     s = trust i64_to_string[allocators.Arena](arena, 0)
@@ -558,7 +558,7 @@ test "integer, float and format string helpers roundtrip" {
     trust test_f64_roundtrip(-2.75)
     trust test_f64_roundtrip(123.000001)
 
-    val fmt_arena: mut allocators.Arena = trust allocators.Arena.new(16384 as usize)?
+    val fmt_arena: allocators.Arena = trust allocators.Arena.new(16384 as usize)?
     val basic = trust format[allocators.Arena](fmt_arena, "hello {d}", {1})
     assert string.raw_cmp(trust string.cstr(basic), "hello 1") == 0
 
@@ -594,7 +594,7 @@ test "integer, float and format string helpers roundtrip" {
     assert string.len(long) == 5000
     assert trust @load8(@ptradd(string.cstr(long), 4999)) == 55
 
-    val tiny: mut allocators.Arena = trust allocators.Arena.new(1 as usize)?
+    val tiny: allocators.Arena = trust allocators.Arena.new(1 as usize)?
     val failed = trust format[allocators.Arena](tiny, "{d}", {1})
     assert failed == none
     trust allocators.Arena.free(tiny)

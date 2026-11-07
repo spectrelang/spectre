@@ -587,7 +587,7 @@ pub fn is_known_platform(name: ref u8) bool = {
 /// Returns true when the given platform selector matches the current platform.
 /// Accepts every concrete platform name plus the groups "posix"/"unix" and "bsd".
 pub fn platform_matches_with_target(name: ref u8, src_target: ref u8) bool = trust {
-    val arena: mut allocators.Arena = allocators.Arena.new(256 as usize)?
+    val arena: allocators.Arena = allocators.Arena.new(256 as usize)?
     val cur: mut ref u8 = reflection.current_platform_name[allocators.Arena](arena)
     if string.raw_cmp(src_target, "") != 0 {
         cur = src_target
@@ -608,7 +608,7 @@ pub fn platform_matches_with_target(name: ref u8, src_target: ref u8) bool = tru
 
 /// Returns true when the given architecture name matches the current process.
 pub fn arch_matches(name: ref u8) bool = trust {
-    val arena: mut allocators.Arena = allocators.Arena.new(256 as usize)?
+    val arena: allocators.Arena = allocators.Arena.new(256 as usize)?
     val current: ref u8 = reflection.current_arch_name[allocators.Arena](arena)
     val wanted: mut ref u8 = name
     if string.raw_cmp(wanted, "amd64") == 0 {

@@ -432,7 +432,7 @@ pub fn load_sxmod() option[ref SxMod] = {
     } else {
         return none
     }
-    val arena: mut allocators.Arena = trust allocators.Arena.new((arena_cap + 8) as usize)?
+    val arena: allocators.Arena = trust allocators.Arena.new((arena_cap + 8) as usize)?
     val content_opt = trust fs.read_all[allocators.Arena](arena, "sx.mod")
     match content_opt {
         none => {
@@ -490,7 +490,7 @@ fn load_sxlock() option[list[ref SxLockDep]] = {
     } else {
         return none
     }
-    val arena: mut allocators.Arena = trust allocators.Arena.new((arena_cap + 8) as usize)?
+    val arena: allocators.Arena = trust allocators.Arena.new((arena_cap + 8) as usize)?
     val content_opt = trust fs.read_all[allocators.Arena](arena, "sx.lock")
     match content_opt {
         none => {
@@ -516,7 +516,7 @@ fn load_sxmod_at(dir: ref u8) option[ref SxMod] = trust {
     } else {
         return none
     }
-    val arena: mut allocators.Arena = allocators.Arena.new((arena_cap + 8) as usize)?
+    val arena: allocators.Arena = allocators.Arena.new((arena_cap + 8) as usize)?
     val content_opt = fs.read_all[allocators.Arena](arena, mod_path)
     match content_opt {
         none => {
@@ -683,7 +683,7 @@ fn load_sxlock_at(dir: ref u8) option[list[ref SxLockDep]] = trust {
     } else {
         return none
     }
-    val arena: mut allocators.Arena = allocators.Arena.new((arena_cap + 8) as usize)?
+    val arena: allocators.Arena = allocators.Arena.new((arena_cap + 8) as usize)?
     val content_opt = fs.read_all[allocators.Arena](arena, lock_path)
     match content_opt {
         none => {
@@ -879,7 +879,7 @@ fn drop_dep_lines(filepath: ref u8, needle: ref u8) void = trust {
     } else {
         return
     }
-    val arena: mut allocators.Arena = allocators.Arena.new((arena_cap + 8) as usize)?
+    val arena: allocators.Arena = allocators.Arena.new((arena_cap + 8) as usize)?
     val content_opt = fs.read_all[allocators.Arena](arena, filepath)
     match content_opt {
         none => {
@@ -1102,7 +1102,7 @@ fn add_stdlib_candidate(candidates: mut list[ref u8], dir: ref u8) void = trust 
 }
 
 fn copy_current_stdlib(snapshot_dir: ref u8) bool = trust {
-    val arena: mut allocators.Arena = allocators.Arena.new(4096 as usize)?
+    val arena: allocators.Arena = allocators.Arena.new(4096 as usize)?
     val exe_path = reflection.get_exe_path[allocators.Arena](arena)
     val exe_dir = path.dir(exe_path)
     val candidates: mut list[ref u8] = mem.new[ref u8]()
@@ -1195,7 +1195,7 @@ pub fn cmd_init(name_arg: ref u8) i32 = {
 
     val proj_name: mut ref u8 = name_arg
     if str.raw_cmp(proj_name, "") == 0 {
-        val cwd_arena: mut allocators.Arena = trust allocators.Arena.new(4096 as usize)?
+        val cwd_arena: allocators.Arena = trust allocators.Arena.new(4096 as usize)?
         val cwd_opt = trust fs.cwd[allocators.Arena](cwd_arena)
         if cwd_opt is some cwd {
             proj_name = basename_of(cwd)
@@ -1573,7 +1573,7 @@ pub fn cmd_graph() i32 = trust {
         }
     }
 
-    val cwd_arena: mut allocators.Arena = allocators.Arena.new(4096 as usize)?
+    val cwd_arena: allocators.Arena = allocators.Arena.new(4096 as usize)?
     val cwd_opt = fs.cwd[allocators.Arena](cwd_arena)
     val proj_name: mut ref u8 = "project"
     if cwd_opt is some cwd {
@@ -1671,7 +1671,7 @@ pub fn cmd_doctor() i32 = {
 
     val qbe_ver: ref u8 = tool_version("qbe -d 2>&1")
     val qbe_installed_str: mut ref u8 = "installed"
-    val arena: mut allocators.Arena = trust allocators.Arena.new(256 as usize)?
+    val arena: allocators.Arena = trust allocators.Arena.new(256 as usize)?
     val qbe_ver_string = trust str.from[allocators.Arena](arena, qbe_ver)
     val not_found = trust str.from[allocators.Arena](arena, "not found")
     if str.contains(qbe_ver_string, not_found) {
@@ -1686,7 +1686,7 @@ pub fn cmd_doctor() i32 = {
     val git_ver: ref u8 = tool_version("git -version 2>&1")
     trust stdio.print("git:     {s}\n", {git_ver})
 
-    val cwd_arena: mut allocators.Arena = trust allocators.Arena.new(4096 as usize)?
+    val cwd_arena: allocators.Arena = trust allocators.Arena.new(4096 as usize)?
     val cwd_opt = trust fs.cwd[allocators.Arena](cwd_arena)
     if cwd_opt is some cwd {
         trust stdio.print("cwd:     {s}\n", {cwd})

@@ -592,10 +592,6 @@ pub fn val_bulk_items(n: ref Node) list[ref Node] = {
     return n.d0 as list[ref Node]
 }
 
-fn str_eq(a: ref u8, b: ref u8) bool = trust {
-    return string.raw_cmp(a, b) == 0
-}
-
 type Parser = {
     tokens: mut list[ref lexer.Token]
     pos: mut i64
@@ -1488,13 +1484,13 @@ pub fn parse_type(p: mut ref Parser) result[ref Node, ref u8] = trust {
 
     if kind_is_ident(p_peek_kind(p)) {
         val name: ref u8 = p_advance_text(p)
-        if str_eq(name, "void") {
+        if string.str_eql(name, "void") {
             return ok make_node(p.arena, TY_VOID, line)
         }
-        if str_eq(name, "argspack") {
+        if string.str_eql(name, "argspack") {
             return ok make_node(p.arena, TY_ARGSPACK, line)
         }
-        if str_eq(name, "option") {
+        if string.str_eql(name, "option") {
             p_expect_lbracket(p)?
             val inner5 = parse_type(p)?
             p_expect_rbracket(p)?
@@ -1502,7 +1498,7 @@ pub fn parse_type(p: mut ref Parser) result[ref Node, ref u8] = trust {
             node_store_slot[ref Node](@addr(no.d0), inner5)
             return ok no
         }
-        if str_eq(name, "result") {
+        if string.str_eql(name, "result") {
             p_expect_lbracket(p)?
             val ok_ty = parse_type(p)?
             p_expect_comma(p)?
@@ -1513,7 +1509,7 @@ pub fn parse_type(p: mut ref Parser) result[ref Node, ref u8] = trust {
             node_store_slot[ref Node](@addr(nr.d1), err_ty)
             return ok nr
         }
-        if str_eq(name, "list") {
+        if string.str_eql(name, "list") {
             p_expect_lbracket(p)?
             val inner6 = parse_type(p)?
             p_expect_rbracket(p)?
@@ -1554,7 +1550,7 @@ fn substitute_self_type(ty: ref Node, self_name: ref u8) ref Node = trust {
         return ty
     }
     if ty.kind == TY_NAMED {
-        if str_eq(ty.d0 as ref u8, "self") {
+        if string.str_eql(ty.d0 as ref u8, "self") {
             node_store_slot[ref u8](@addr(ty.d0), self_name)
         }
         return ty
@@ -1914,7 +1910,7 @@ fn parse_postfix(p: mut ref Parser) result[ref Node, ref u8] = trust {
                     break
                 }
                 val ta: mut ref Node = none
-                if kind_is_ident(p_peek_kind(p)) && str_eq(lexer.tok_text(p.tokens, p.pos), "_") {
+                if kind_is_ident(p_peek_kind(p)) && string.str_eql(lexer.tok_text(p.tokens, p.pos), "_") {
                     p_advance(p)
                     ta = make_node(p.arena, TY_INFER, line)
                 } else {
@@ -2093,7 +2089,7 @@ fn parse_primary(p: mut ref Parser) result[ref Node, ref u8] = trust {
                     break
                 }
                 val bta: mut ref Node = none
-                if kind_is_ident(p_peek_kind(p)) && str_eq(lexer.tok_text(p.tokens, p.pos), "_") {
+                if kind_is_ident(p_peek_kind(p)) && string.str_eql(lexer.tok_text(p.tokens, p.pos), "_") {
                     p_advance(p)
                     bta = make_node(p.arena, TY_INFER, line)
                 } else {
@@ -2106,7 +2102,7 @@ fn parse_primary(p: mut ref Parser) result[ref Node, ref u8] = trust {
             }
             p_expect_rbracket(p)?
         }
-        if str_eq(bname, "zeroed") {
+        if string.str_eql(bname, "zeroed") {
             if !lexer.kind_is_lparen(p_peek_kind(p)) {
                 val nz0: mut ref Node = make_node(p.arena, NK_ZERO_INIT, line)
                 node_store_slot[ref u8](@addr(nz0.d0), bname)
@@ -2114,27 +2110,27 @@ fn parse_primary(p: mut ref Parser) result[ref Node, ref u8] = trust {
             }
         }
         p_expect_lparen(p)?
-        if str_eq(bname, "zeroed") {
+        if string.str_eql(bname, "zeroed") {
             p_expect_rparen(p)?
             val nz1: mut ref Node = make_node(p.arena, NK_ZERO_INIT, line)
             node_store_slot[ref u8](@addr(nz1.d0), bname)
             return ok nz1
         }
-        if str_eq(bname, "addr") {
+        if string.str_eql(bname, "addr") {
             val inner2 = parse_expr(p)?
             p_expect_rparen(p)?
             val na2: mut ref Node = make_node(p.arena, NK_ADDR, line)
             node_store_slot[ref Node](@addr(na2.d0), inner2)
             return ok na2
         }
-        if str_eq(bname, "deref") {
+        if string.str_eql(bname, "deref") {
             val inner3 = parse_expr(p)?
             p_expect_rparen(p)?
             val nd: mut ref Node = make_node(p.arena, NK_DEREF, line)
             node_store_slot[ref Node](@addr(nd.d0), inner3)
             return ok nd
         }
-        if str_eq(bname, "sizeof") {
+        if string.str_eql(bname, "sizeof") {
             val ty = parse_type(p)?
             p_expect_rparen(p)?
             val nb: mut ref Node = make_node(p.arena, NK_BUILTIN, line)
@@ -2145,7 +2141,7 @@ fn parse_primary(p: mut ref Parser) result[ref Node, ref u8] = trust {
             node_store_slot[list[ref Node]](@addr(nb.d4), btype_args)
             return ok nb
         }
-        if str_eq(bname, "bitcast") {
+        if string.str_eql(bname, "bitcast") {
             val source_expr = parse_expr(p)?
             p_expect_comma(p)?
             val target_ty = parse_type(p)?
@@ -2355,7 +2351,7 @@ pub fn parse_stmt(p: mut ref Parser) result[ref Node, ref u8] = trust {
         if lexer.kind_is_ident(p_peek_kind(p)) {
             val ptxt: ref u8 = lexer.tok_text(p.tokens, p.pos)
             if ptxt != none {
-                if str_eq(ptxt, "is") {
+                if string.str_eql(ptxt, "is") {
                     if kind_is_some(p_peek2_kind(p)) {
                         peek_next_some = true
                     } elif kind_is_none(p_peek2_kind(p)) {
@@ -2947,7 +2943,7 @@ pub fn parse_stmt(p: mut ref Parser) result[ref Node, ref u8] = trust {
 
         if kind_is_ident(next_k) {
             val next_txt: ref u8 = lexer.tok_text(p.tokens, p.pos)
-            if str_eq(next_txt, "is") {
+            if string.str_eql(next_txt, "is") {
                 val gconds2: mut list[ref Node] = mem.new[ref Node]()
                 val cur_tparam: mut ref u8 = ident_text
                 for {
@@ -2973,7 +2969,7 @@ pub fn parse_stmt(p: mut ref Parser) result[ref Node, ref u8] = trust {
                         break
                     }
                     val nis_txt: ref u8 = lexer.tok_text(p.tokens, p.pos)
-                    if !str_eq(nis_txt, "is") {
+                    if !string.str_eql(nis_txt, "is") {
                         break
                     }
                 }
@@ -2989,7 +2985,7 @@ pub fn parse_stmt(p: mut ref Parser) result[ref Node, ref u8] = trust {
             }
         }
 
-        if str_eq(ident_text, "_") {
+        if string.str_eql(ident_text, "_") {
             p_expect_lbrace(p)?
             val gwb3 = parse_stmts(p)?
             p_expect_rbrace(p)?
@@ -3018,7 +3014,7 @@ pub fn parse_stmt(p: mut ref Parser) result[ref Node, ref u8] = trust {
                 break
             }
             val txt: ref u8 = lexer.tok_text(p.tokens, p.pos)
-            if !str_eq(txt, "or") {
+            if !string.str_eql(txt, "or") {
                 break
             }
             val k3: lexer.TokenKind = p_peek2_kind(p)
@@ -3041,7 +3037,7 @@ pub fn parse_stmt(p: mut ref Parser) result[ref Node, ref u8] = trust {
         val k4: lexer.TokenKind = p_peek_kind(p)
         if kind_is_ident(k4) {
             val txt2: ref u8 = lexer.tok_text(p.tokens, p.pos)
-            if str_eq(txt2, "otherwise") {
+            if string.str_eql(txt2, "otherwise") {
                 p_advance(p)
                 p_expect_lbrace(p)?
                 val ow2 = parse_stmts(p)?
@@ -3763,7 +3759,7 @@ fn parse_extern_fn_item(p: mut ref Parser, public: i64) result[ref Node, ref u8]
         }
         p_expect_comma(p)?
         val modifier = p_expect_ident(p)?
-        if str_eq(modifier, "header") {
+        if string.str_eql(modifier, "header") {
             use_header_decl = 1
         } else {
             return err arenafmt.format(p.arena,
@@ -3941,7 +3937,7 @@ pub fn parse_item(p: mut ref Parser) result[ref Node, ref u8] = trust {
                 break
             }
             val txt: ref u8 = lexer.tok_text(p.tokens, p.pos)
-            if !str_eq(txt, "or") {
+            if !string.str_eql(txt, "or") {
                 break
             }
             val k3: lexer.TokenKind = p_peek2_kind(p)
@@ -3971,7 +3967,7 @@ pub fn parse_item(p: mut ref Parser) result[ref Node, ref u8] = trust {
         val k4: lexer.TokenKind = p_peek_kind(p)
         if kind_is_ident(k4) {
             val txt2: ref u8 = lexer.tok_text(p.tokens, p.pos)
-            if str_eq(txt2, "otherwise") {
+            if string.str_eql(txt2, "otherwise") {
                 p_advance(p)
                 p_expect_lbrace(p)?
                 for {
