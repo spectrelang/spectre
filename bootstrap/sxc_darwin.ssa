@@ -119937,97 +119937,109 @@ function l $codegen__monomorphize_generic_fn(l %ctx, l %gfn_node, l %gfn_prefix,
     %t387 =l loadl %t0
     %t389 =l add %t387, 1248
     %t388 =l loadl %t389
-    %t390 =l call $std__str__StringBuilder__new()
-    %t391 =l loadl %t0
-    storel %t390, %t391
-    %t392 =l loadl %t0
-    %t393 =l add %t392, 1248
-    storel %gfn_prefix, %t393
-    %t394 =l loadl %t0
-    %t395 =l loadl %t282
-    %t396 =l copy $__str57
-    %t397 =w call $codegen__gen_fn_prefixed(l %t394, l %t395, l %t396)
+    %t390 =l loadl %t0
+    %t391 =l add %t390, 1936
+    %t392 =l call $codegen__cg_clone_char_list(l %t391)
+    %t393 =l loadl %t0
+    %t395 =l add %t393, 1928
+    %t394 =l loadl %t395
+    %t396 =l call $std__str__StringBuilder__new()
+    %t397 =l loadl %t0
+    storel %t396, %t397
     %t398 =l loadl %t0
-    storel %t332, %t398
-    %t399 =l loadl %t0
-    %t400 =l add %t399, 24
-    storel %t334, %t400
-    %t401 =l loadl %t0
-    %t402 =l add %t401, 32
-    storel %t337, %t402
-    %t403 =l loadl %t0
-    %t404 =l add %t403, 40
-    storel %t340, %t404
+    %t399 =l add %t398, 1248
+    storel %gfn_prefix, %t399
+    %t400 =l loadl %t0
+    %t401 =l loadl %t282
+    %t402 =l copy $__str57
+    %t403 =w call $codegen__gen_fn_prefixed(l %t400, l %t401, l %t402)
+    %t404 =l loadl %t0
+    storel %t332, %t404
     %t405 =l loadl %t0
-    %t406 =l add %t405, 48
-    storel %t343, %t406
+    %t406 =l add %t405, 24
+    storel %t334, %t406
     %t407 =l loadl %t0
-    %t408 =l add %t407, 56
-    storel %t346, %t408
+    %t408 =l add %t407, 32
+    storel %t337, %t408
     %t409 =l loadl %t0
-    %t410 =l add %t409, 64
-    storel %t349, %t410
+    %t410 =l add %t409, 40
+    storel %t340, %t410
     %t411 =l loadl %t0
-    %t412 =l add %t411, 1916
-    storew %t352, %t412
+    %t412 =l add %t411, 48
+    storel %t343, %t412
     %t413 =l loadl %t0
-    %t414 =l add %t413, 1920
-    storel %t355, %t414
+    %t414 =l add %t413, 56
+    storel %t346, %t414
     %t415 =l loadl %t0
-    %t416 =l add %t415, 72
-    storel %t358, %t416
+    %t416 =l add %t415, 64
+    storel %t349, %t416
     %t417 =l loadl %t0
-    %t418 =l add %t417, 960
-    call $memcpy(l %t418, l %t362, l 32)
+    %t418 =l add %t417, 1916
+    storew %t352, %t418
     %t419 =l loadl %t0
-    %t420 =l add %t419, 992
-    call $memcpy(l %t420, l %t365, l 32)
+    %t420 =l add %t419, 1920
+    storel %t355, %t420
     %t421 =l loadl %t0
-    %t422 =l add %t421, 1024
-    call $memcpy(l %t422, l %t368, l 32)
+    %t422 =l add %t421, 72
+    storel %t358, %t422
     %t423 =l loadl %t0
-    %t424 =l add %t423, 1056
-    call $memcpy(l %t424, l %t371, l 32)
+    %t424 =l add %t423, 960
+    call $memcpy(l %t424, l %t362, l 32)
     %t425 =l loadl %t0
-    %t426 =l add %t425, 344
-    call $memcpy(l %t426, l %t374, l 32)
+    %t426 =l add %t425, 992
+    call $memcpy(l %t426, l %t365, l 32)
     %t427 =l loadl %t0
-    %t428 =l add %t427, 376
-    call $memcpy(l %t428, l %t377, l 32)
+    %t428 =l add %t427, 1024
+    call $memcpy(l %t428, l %t368, l 32)
     %t429 =l loadl %t0
-    %t430 =l add %t429, 184
-    call $memcpy(l %t430, l %t380, l 32)
+    %t430 =l add %t429, 1056
+    call $memcpy(l %t430, l %t371, l 32)
     %t431 =l loadl %t0
-    %t432 =l add %t431, 216
-    call $memcpy(l %t432, l %t383, l 32)
+    %t432 =l add %t431, 344
+    call $memcpy(l %t432, l %t374, l 32)
     %t433 =l loadl %t0
-    %t434 =l add %t433, 928
-    call $memcpy(l %t434, l %t386, l 32)
+    %t434 =l add %t433, 376
+    call $memcpy(l %t434, l %t377, l 32)
     %t435 =l loadl %t0
-    %t436 =l add %t435, 1248
-    storel %t388, %t436
-    %t437 =l call $std__str__StringBuilder__build(l %t390)
-    %t438 =l loadl %t0
-    %t440 =l add %t438, 16
-    %t439 =l loadl %t440
-    %t441 =l call $std__str__cstr(l %t437)
-    %t442 =w call $std__str__StringBuilder__append_cstr(l %t439, l %t441)
-    %t443 =w call $std__str__StringBuilder__free(l %t390)
-    %t445 =l loadl %t437
-    call $free(l %t445)
-    %t444 =l copy 0
-    call $free(l %t437)
-    %t446 =l copy 0
+    %t436 =l add %t435, 184
+    call $memcpy(l %t436, l %t380, l 32)
+    %t437 =l loadl %t0
+    %t438 =l add %t437, 216
+    call $memcpy(l %t438, l %t383, l 32)
+    %t439 =l loadl %t0
+    %t440 =l add %t439, 928
+    call $memcpy(l %t440, l %t386, l 32)
+    %t441 =l loadl %t0
+    %t442 =l add %t441, 1248
+    storel %t388, %t442
+    %t443 =l loadl %t0
+    %t444 =l add %t443, 1936
+    call $memcpy(l %t444, l %t392, l 32)
+    %t445 =l loadl %t0
+    %t446 =l add %t445, 1928
+    storel %t394, %t446
+    %t447 =l call $std__str__StringBuilder__build(l %t396)
+    %t448 =l loadl %t0
+    %t450 =l add %t448, 16
+    %t449 =l loadl %t450
+    %t451 =l call $std__str__cstr(l %t447)
+    %t452 =w call $std__str__StringBuilder__append_cstr(l %t449, l %t451)
+    %t453 =w call $std__str__StringBuilder__free(l %t396)
+    %t455 =l loadl %t447
+    call $free(l %t455)
+    %t454 =l copy 0
+    call $free(l %t447)
+    %t456 =l copy 0
     jmp @lbl22188
 @lbl22188
-    %t447 =l loadl %t75
-    %t448 =l loadl %t0
-    %t449 =l add %t448, 1760
-    call $memcpy(l %t449, l %t447, l 32)
-    %t450 =l loadl %t101
-    %t451 =l loadl %t0
-    %t452 =l add %t451, 1792
-    call $memcpy(l %t452, l %t450, l 32)
+    %t457 =l loadl %t75
+    %t458 =l loadl %t0
+    %t459 =l add %t458, 1760
+    call $memcpy(l %t459, l %t457, l 32)
+    %t460 =l loadl %t101
+    %t461 =l loadl %t0
+    %t462 =l add %t461, 1792
+    call $memcpy(l %t462, l %t460, l 32)
     ret %t69
 }
 
@@ -305478,7 +305490,7 @@ data $__str368 = { b "spectre: precondition 'valid_second' violated in function 
 data $__str369 = { b "spectre: precondition 'valid_millis' violated in function 'std__time__DateTime__new'\n", b 0 }
 data $__str370 = { b "spectre: precondition 'non_negative' violated in function 'std__time__sleep_millis'\n", b 0 }
 data $__str371 = { b "v0.0.15", b 0 }
-data $__str372 = { b "9b06a85", b 0 }
+data $__str372 = { b "995d247", b 0 }
 data $__str373 = { b "unknown", b 0 }
 data $__str374 = { b "usage:", b 0 }
 data $__str375 = { b "  spectre <command> [args] | <input.sx> [options]", b 0 }

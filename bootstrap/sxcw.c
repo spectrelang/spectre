@@ -622,7 +622,7 @@ static char sx__str397[]="lib syntax for linking is not supported on this platfo
 static char sx__str398[]="could not resolve library '%s' with pkg-config";
 static char sx__str399[]="could not find library '%s' on this system";
 static char sx__str400[]="v0.0.15";
-static char sx__str401[]="9b06a85";
+static char sx__str401[]="995d247";
 static char sx__str402[]="";
 static char sx__str403[]="unknown";
 static char sx__str404[]="usage:";
@@ -47264,6 +47264,8 @@ int64_t t_saved_dvars=(int64_t)(codegen__cg_clone_char_list(((int64_t)(intptr_t)
 int64_t t_saved_dqtypes=(int64_t)(codegen__cg_clone_char_list(((int64_t)(intptr_t)((char*)(intptr_t)(t_ctx)+216))));
 int64_t t_saved_defer_stack=(int64_t)(codegen__cg_clone_void_list(((int64_t)(intptr_t)((char*)(intptr_t)(t_ctx)+928))));
 int64_t t_saved_module_prefix=(int64_t)((*(int64_t*)((char*)(intptr_t)(t_ctx)+1248)));
+int64_t t_saved_stack_agg_values=(int64_t)(codegen__cg_clone_char_list(((int64_t)(intptr_t)((char*)(intptr_t)(t_ctx)+1936))));
+int64_t t_saved_aggregate_heap=(int64_t)((*(int64_t*)((char*)(intptr_t)(t_ctx)+1928)));
 int64_t t_temp_mono_sb=(int64_t)(std__str__StringBuilder__new());
 *(int64_t*)(intptr_t)((int64_t)(intptr_t)((char*)(intptr_t)(t_ctx)+0))=(int64_t)(t_temp_mono_sb);
 *(int64_t*)(intptr_t)((int64_t)(intptr_t)((char*)(intptr_t)(t_ctx)+1248))=(int64_t)(t_gfn_prefix);
@@ -47288,6 +47290,8 @@ memcpy((void*)(intptr_t)((int64_t)(intptr_t)((char*)(intptr_t)(t_ctx)+184)),(voi
 memcpy((void*)(intptr_t)((int64_t)(intptr_t)((char*)(intptr_t)(t_ctx)+216)),(void*)(intptr_t)(t_saved_dqtypes),(size_t)32);
 memcpy((void*)(intptr_t)((int64_t)(intptr_t)((char*)(intptr_t)(t_ctx)+928)),(void*)(intptr_t)(t_saved_defer_stack),(size_t)32);
 *(int64_t*)(intptr_t)((int64_t)(intptr_t)((char*)(intptr_t)(t_ctx)+1248))=(int64_t)(t_saved_module_prefix);
+memcpy((void*)(intptr_t)((int64_t)(intptr_t)((char*)(intptr_t)(t_ctx)+1936)),(void*)(intptr_t)(t_saved_stack_agg_values),(size_t)32);
+*(int64_t*)(intptr_t)((int64_t)(intptr_t)((char*)(intptr_t)(t_ctx)+1928))=(int64_t)(t_saved_aggregate_heap);
 int64_t t_temp_built=(int64_t)(std__str__StringBuilder__build(t_temp_mono_sb));
 (void)(std__str__StringBuilder__append_cstr((*(int64_t*)((char*)(intptr_t)(t_ctx)+16)),std__str__cstr(t_temp_built)));
 (void)(std__str__StringBuilder__free(t_temp_mono_sb));
