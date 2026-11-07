@@ -13012,13 +13012,12 @@ fn gen_builtin(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
                                 val fpe_opt = @get(fpack, fpi as usize)
                                 if fpe_opt is some fpe {
                                     val fpe_node: ref parser.Node = fpe as ref parser.Node
-                                    val fpqt: ref u8 = expr_qtype(ctx, fpe_node)
-                                    val fpv: ref u8 = gen_expr(ctx, fpe_node)
+                                    val fpvarg: ref u8 = gen_variadic_arg(ctx, fpe_node)
                                     val fpbuf: ref u8 = allocators.ScopedArena.alloc_or_none(
                                         ctx.arena,
                                         64 as usize
                                     ) as ref u8
-                                    @snprintf(fpbuf, 64, ", {s} {s}", {fpqt, fpv})
+                                    @snprintf(fpbuf, 64, ", {s}", {fpvarg})
                                     str.StringBuilder.append_cstr(fmt_call_sb, fpbuf)
                                 }
                                 fpi++
@@ -17940,6 +17939,58 @@ fn items_have_external_links(items: list[ref parser.Node]) bool = trust {
     return false
 }
 
+/// Mark the owning module of an already-qualified function name as used.
+///
+/// `resolve_callee_name` returns names such as `json__build_object`, while
+/// `cg_resolve_fn_name` is normally given the bare `build_object`. Without
+/// this, test mode's usage pruning can emit callers but omit the module that
+/// defines their callees.
+fn cg_mark_name_prefix(ctx: mut ref CgCtx, name: ref u8) void = trust {
+    val n: i64 = str.len_raw(name)
+    val sep: mut i64 = -1
+    val i: mut i64 = 0
+    for {
+        if i + 1 >= n {
+            break
+        }
+        if @load8(@ptradd(name, i)) == 95 && @load8(@ptradd(name, i + 1)) == 95 {
+            sep = i
+            i += 2
+        } else {
+            i++
+        }
+    }
+    if sep <= 0 {
+        return
+    }
+    val prefix: ref u8 = allocators.ScopedArena.alloc_or_none(
+        ctx.arena,
+        (sep + 1) as usize
+    ) as ref u8
+    @memcpy(prefix, name, sep as usize)
+    @store8(@ptradd(prefix, sep), 0)
+    val plen: i64 = sep
+    val pi: mut i64 = 0
+    for {
+        if pi >= plen {
+            break
+        }
+        if pi + 1 < plen && @load8(@ptradd(prefix, pi)) == 95 &&
+        @load8(@ptradd(prefix, pi + 1)) == 95 {
+            val sub_prefix: ref u8 = allocators.ScopedArena.alloc_or_none(
+                ctx.arena,
+                (pi + 1) as usize
+            ) as ref u8
+            @memcpy(sub_prefix, prefix, pi as usize)
+            @store8(@ptradd(sub_prefix, pi), 0)
+            cg_mark_prefix_used(ctx, sub_prefix)
+            pi++
+        }
+        pi++
+    }
+    cg_mark_prefix_used(ctx, prefix)
+}
+
 /// Scan items for function calls to track which modules are used, without emitting code.
 fn scan_items_for_usage(
     ctx: mut ref CgCtx,
@@ -18017,10 +18068,12 @@ fn scan_node_for_calls_depth(ctx: mut ref CgCtx, node: ref parser.Node, depth: i
             if callee.kind == parser.NK_IDENT || callee.kind == parser.NK_FIELD {
                 val callee_name: ref u8 = resolve_callee_name(ctx, callee)
                 cg_resolve_fn_name(ctx, callee_name)
+                cg_mark_name_prefix(ctx, callee_name)
             } elif callee.kind == parser.NK_GENERIC_INST {
                 val gi_base: ref parser.Node = parser.generic_inst_base(callee)
                 val gi_name: ref u8 = generic_callee_base_name(ctx, gi_base)
                 cg_resolve_fn_name(ctx, gi_name)
+                cg_mark_name_prefix(ctx, gi_name)
             }
             scan_node_for_calls_depth(ctx, callee, depth + 1)
         }
@@ -18040,6 +18093,7 @@ fn scan_node_for_calls_depth(ctx: mut ref CgCtx, node: ref parser.Node, depth: i
     } elif k == parser.NK_IDENT {
         val name: ref u8 = node.d0 as ref u8
         cg_resolve_fn_name(ctx, name)
+        cg_mark_name_prefix(ctx, name)
     } elif k == parser.NK_FIELD {
         scan_node_for_calls_depth(ctx, parser.field_base(node), depth + 1)
     } elif k == parser.NK_IF {

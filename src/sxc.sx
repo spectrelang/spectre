@@ -11,6 +11,7 @@ val os          = use("std/os")
 val allocators  = use("std/allocators")
 val path        = use("std/path")
 val reflection  = use("std/reflection")
+val fmt         = use("std/fmt")
 val parser      = use("ast/parser.sx")
 val ast_printer = use("ast/ast_printer.sx")
 val sema        = use("sema/sema.sx")
@@ -126,6 +127,80 @@ pub fn main() i32 = trust {
             allocators.Arena.free(arena)
             return 1
         }
+    }
+
+    if string.raw_cmp(input, "-test-all") == 0 {
+        val root: mut ref u8 = "."
+        val max_depth: mut i64 = 25
+        val extra_flags: mut list[ref u8] = mem.new[ref u8]()
+        val ti: mut i64 = input_arg_i + 1
+        for {
+            val opt = @get(args, ti)
+            if opt is some av {
+                val a: ref u8 = av as ref u8
+                if string.raw_cmp(a, "-test-depth") == 0 {
+                    ti++
+                    val next_opt = @get(args, ti)
+                    if next_opt is some nv {
+                        val next_val: ref u8 = nv as ref u8
+                        val parsed = fmt.string_to_i64(next_val)
+                        match parsed {
+                            ok v => {
+                                max_depth = v
+                            }
+                            err _ => {
+                                stdio.print("error: invalid test depth '{s}'\n", {
+                                    next_val
+                                })
+                                allocators.Arena.free(arena)
+                                return 1
+                            }
+                        }
+                    } else {
+                        stdio.puts("error: -test-depth requires a number")
+                        allocators.Arena.free(arena)
+                        return 1
+                    }
+                } elif string.raw_starts_with(a, "-test-depth:") {
+                    val text: ref u8 = string.substr(
+                        a,
+                        12,
+                        string.len_raw(a) - 12
+                    )
+                    val parsed = fmt.string_to_i64(text)
+                    match parsed {
+                        ok v => {
+                            max_depth = v
+                        }
+                        err _ => {
+                            stdio.print("error: invalid test depth '{s}'\n", {text})
+                            allocators.Arena.free(arena)
+                            return 1
+                        }
+                    }
+                } elif string.raw_starts_with(a, "-") {
+                    @append(extra_flags, a)
+                } else {
+                    root = a
+                }
+            } else {
+                break
+            }
+            ti++
+        }
+        if max_depth < 0 {
+            stdio.puts("error: -test-depth must be zero or greater")
+            allocators.Arena.free(arena)
+            return 1
+        }
+        val code: i32 = commands.cmd_test_all(
+            exe_path,
+            root,
+            max_depth,
+            extra_flags
+        )
+        allocators.Arena.free(arena)
+        return code
     }
 
     val flag_first_translate_c: bool = string.raw_cmp(input, "-translate-c") == 0

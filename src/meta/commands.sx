@@ -1607,6 +1607,118 @@ pub fn cmd_graph() i32 = trust {
     return 0
 }
 
+fn shell_quote(s: ref u8) ref u8 = trust {
+    val sb: ref void = str.StringBuilder.new()
+    str.StringBuilder.append_char(sb, 39)
+    val n: i64 = str.len_raw(s)
+    val i: mut i64 = 0
+    for {
+        if i >= n {
+            break
+        }
+        val c: u8 = @load8(@ptradd(s, i))
+        if c == 39 {
+            str.StringBuilder.append_char(sb, 39)
+            str.StringBuilder.append_char(sb, 92)
+            str.StringBuilder.append_char(sb, 39)
+            str.StringBuilder.append_char(sb, 39)
+        } else {
+            str.StringBuilder.append_char(sb, c)
+        }
+        i++
+    }
+    str.StringBuilder.append_char(sb, 39)
+    val built: ref void = str.StringBuilder.build(sb)
+    val raw: ref u8 = str.cstr(built)
+    val out: ref u8 = @alloc(str.len_raw(raw) + 1) as ref u8
+    @memcpy(out, raw, str.len_raw(raw) as usize)
+    @store8(@ptradd(out, str.len_raw(raw)), 0)
+    str.StringBuilder.free(sb)
+    return out
+}
+
+fn collect_test_files(
+    target: ref u8,
+    depth: i64,
+    max_depth: i64,
+    out: mut list[ref u8]
+) void = trust {
+    if !fs.is_directory(target) {
+        if str.raw_ends_with(target, ".sx") {
+            @append(out, target)
+        }
+        return
+    }
+    val walk_arena: allocators.ScopedArenaAllocator = allocators.ScopedArena.new(
+        65536 as usize
+    )?
+    val walk_list_arena: allocators.ListArena = {arena: walk_arena}
+    val entries_opt = fs.walk_dir[allocators.ListArena](walk_list_arena, target)
+    if entries_opt is some entries {
+        for entry in entries {
+            val child: ref u8 = path.join(target, entry)
+            if fs.is_directory(child) {
+                if depth < max_depth {
+                    collect_test_files(child, depth + 1, max_depth, out)
+                }
+                @free(child as ref void)
+            } elif str.raw_ends_with(entry, ".sx") {
+                @append(out, child)
+            } else {
+                @free(child as ref void)
+            }
+        }
+    } else {
+        stdio.print("error: could not read directory '{s}'\n", {target})
+    }
+    allocators.ScopedArena.free(walk_arena)
+}
+
+/// Run `-test` for every `.sx` file under `root`, recursively.
+pub fn cmd_test_all(
+    exe_path: ref u8,
+    root: ref u8,
+    max_depth: i64,
+    extra_flags: list[ref u8]
+) i32 = trust {
+    val files: mut list[ref u8] = mem.new[ref u8]()
+    collect_test_files(root, 0, max_depth, files)
+    val count: i64 = @len(files) as i64
+    if count == 0 {
+        stdio.print("no .sx files found under '{s}'\n", {root})
+        return 0
+    }
+    val failures: mut i64 = 0
+    val i: mut i64 = 0
+    for file in files {
+        i++
+        stdio.print("[{lld}/{lld}] {s}\n", {i, count, file})
+        val sb: ref void = str.StringBuilder.new()
+        str.StringBuilder.append_cstr(sb, shell_quote(exe_path))
+        str.StringBuilder.append_cstr(sb, " ")
+        str.StringBuilder.append_cstr(sb, shell_quote(file))
+        str.StringBuilder.append_cstr(sb, " -test")
+        for flag in extra_flags {
+            str.StringBuilder.append_cstr(sb, " ")
+            str.StringBuilder.append_cstr(sb, flag)
+        }
+        val built: ref void = str.StringBuilder.build(sb)
+        val cmd: ref u8 = str.cstr(built)
+        val code: i32 = os.run(cmd)
+        str.StringBuilder.free(sb)
+        if code != 0 {
+            failures++
+            stdio.print("[fail] {s}\n", {file})
+        }
+    }
+    if failures > 0 {
+        stdio.print("{lld} of {lld} modules failed\n", {failures, count})
+        return 1
+    }
+    stdio.print("all {lld} modules passed\n", {count})
+    return 0
+}
+
 pub fn cmd_clean() i32 = {
     if os.exists("s-out") {
         when windows {

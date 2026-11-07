@@ -49,6 +49,8 @@ pub fn print_usage() void = {
     stdio.puts("  -inc-path:<dir>      Add an include search path for the alt backend")
     stdio.puts("  -show-cmd            Show the command used for linking")
     stdio.puts("  -test                Run the unit tests in the current file")
+    stdio.puts("  -test-all            Run tests in every .sx file under the current directory")
+    stdio.puts("  -test-depth:<n>      Maximum directory depth for -test-all (default: 25)")
     stdio.puts("  -leak-check          Track allocations and enable the @dumpmemleaks intrinsic")
     stdio.puts("  -release             Build in release mode")
     stdio.puts("  -native              Optimize the alt backend for the host CPU")
@@ -346,6 +348,15 @@ pub fn print_help(topic: ref u8) i32 = trust {
             "-test",
             "Run the unit tests in the current file.",
             "spectre <input.sx> -test"
+        )
+        return 0
+    }
+
+    if str.raw_cmp(topic, "-test-all") == 0 {
+        print_flag_help(
+            "-test-all",
+            "Run the unit tests in every .sx file under the current directory, recursively.",
+            "spectre -test-all [-test-depth:<n>] [directory]"
         )
         return 0
     }
