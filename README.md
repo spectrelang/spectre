@@ -48,7 +48,9 @@ An example program:
 val stdio = use("std/stdio")
 
 pub fn main() void = {
-    val xs: [_]ref u8 = ["hello", "world", "this", "is", "a", "test"]
+    val xs: [_]ref u8 = [
+        "hello", "world", "this", "is", "a", "test"
+    ]
     for x in xs {
         trust stdio.print("{s}\n", {x})
     }
