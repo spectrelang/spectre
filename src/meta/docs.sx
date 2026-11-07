@@ -284,7 +284,9 @@ fn is_doc_target_line(line: ref u8) bool = trust {
     return str.raw_starts_with(line, "fn ") ||
     str.raw_starts_with(line, "pub fn ") ||
     str.raw_starts_with(line, "val ") ||
+    str.raw_starts_with(line, "val (") ||
     str.raw_starts_with(line, "pub val ") ||
+    str.raw_starts_with(line, "pub val (") ||
     str.raw_starts_with(line, "extern ") ||
     str.raw_starts_with(line, "pub extern ") ||
     str.raw_starts_with(line, "type ") ||
@@ -1020,6 +1022,10 @@ fn collect_entries(
     availability: ref u8
 ) void = trust {
     for item in items {
+        if item.kind == parser.NK_VAL_BULK {
+            collect_entries(parser.val_bulk_items(item), doc_map, out, availability)
+            continue
+        }
         if item.kind == parser.NK_WHEN_ITEMS {
             val branch = combine_availability(
                 availability,
@@ -2762,6 +2768,8 @@ test "docs extracts comments, signatures and slugs" {
 
     assert trust is_doc_target_line("spec Allocator = {")
     assert trust is_doc_target_line("pub spec Allocator = {")
+    assert trust is_doc_target_line("val (")
+    assert trust is_doc_target_line("pub val (")
 
     val spec_src = trust extract_doc_map(
         \\/// allocator interface

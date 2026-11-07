@@ -3823,7 +3823,7 @@ fn parse_extern_header_item(p: mut ref Parser) result[ref Node, ref u8] = trust 
     return ok neh
 }
 
-fn parse_bulk_val_entry(p: mut ref Parser) result[ref Node, ref u8] = trust {
+fn parse_bulk_val_entry(p: mut ref Parser, public: i64) result[ref Node, ref u8] = trust {
     val line: i64 = p_line(p)
     val name = p_expect_ident(p)?
     val is_mut: mut i64 = 0
@@ -3848,21 +3848,21 @@ fn parse_bulk_val_entry(p: mut ref Parser) result[ref Node, ref u8] = trust {
         return ok nv
     }
     val nc: mut ref Node = make_node(p.arena, NK_CONST, line)
-    nc.d0 = 0
+    nc.d0 = public
     node_store_slot[ref u8](@addr(nc.d1), name)
     node_store_slot[ref Node](@addr(nc.d2), expr)
     node_store_slot[ref Node](@addr(nc.d3), ty)
     return ok nc
 }
 
-fn parse_bulk_val(p: mut ref Parser, line: i64) result[ref Node, ref u8] = trust {
+fn parse_bulk_val(p: mut ref Parser, line: i64, public: i64) result[ref Node, ref u8] = trust {
     p_expect_lparen(p)?
     val entries: mut list[ref Node] = mem.new[ref Node]()
     for {
         if lexer.kind_is_rparen(p_peek_kind(p)) {
             break
         }
-        val entry = parse_bulk_val_entry(p)?
+        val entry = parse_bulk_val_entry(p, public)?
         @append(entries, entry)
         p_eat_fn(p, lexer.kind_is_comma)
     }
@@ -4030,7 +4030,7 @@ pub fn parse_item(p: mut ref Parser) result[ref Node, ref u8] = trust {
     if kind_is_val(k2) {
         p_advance(p)
         if lexer.kind_is_lparen(p_peek_kind(p)) {
-            return parse_bulk_val(p, line)
+            return parse_bulk_val(p, line, public)
         }
         val vname = p_expect_ident(p)?
         val vmut: mut i64 = 0
@@ -4555,6 +4555,33 @@ test "parser parses expressions, statements and top-level items" {
                 val b: ref Node = b_val as ref Node
                 assert b.kind == NK_CONST
                 assert string.raw_cmp(b.d1 as ref u8, "b") == 0
+            } else {
+                assert false
+            }
+        }
+    }
+
+    val r26b = parse_src("pub val (\n    a: i32 = 1\n    b: i32 = 2\n)")
+    match r26b {
+        err e => {
+            trust stdio.print("{s}\n", {e})
+            assert false
+        }
+        ok items => {
+            assert @len(items) as i64 == 2
+            val a_opt = @get(items, 0 as usize)
+            val b_opt = @get(items, 1 as usize)
+            if a_opt is some a_val {
+                val a: ref Node = a_val as ref Node
+                assert a.kind == NK_CONST
+                assert a.d0 == 1
+            } else {
+                assert false
+            }
+            if b_opt is some b_val {
+                val b: ref Node = b_val as ref Node
+                assert b.kind == NK_CONST
+                assert b.d0 == 1
             } else {
                 assert false
             }
