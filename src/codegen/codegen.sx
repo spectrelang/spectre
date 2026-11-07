@@ -1552,6 +1552,9 @@ fn monomorphize_generic_fn(ctx: mut ref CgCtx, gfn_node: ref parser.Node, gfn_pr
         if parser.fn_is_inline(gfn_node) {
             syn.d6 = syn.d6 | parser.FN_FLAG_INLINE
         }
+        if parser.fn_suppresses_unused(gfn_node) {
+            syn.d6 = syn.d6 | parser.FN_FLAG_SUPPRESS_UNUSED
+        }
 
         val saved_sb = ctx.sb
         val saved_tmp = ctx.tmp

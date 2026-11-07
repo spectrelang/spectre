@@ -2,6 +2,8 @@ val allocators = use("std/allocators")
 val mem        = use("../meta/mem.sx")
 val string     = use("std/string")
 
+val SUPPRESS_UNUSED: i64 = 1
+
 pub union TokenKind = {
     Fn()
     | Spec()
@@ -96,11 +98,13 @@ pub type Token = {
     kind: mut TokenKind
     line: mut i64
     col: mut i64
+    /// Suppression directives attached to this token by preceding comments.
+    suppress: mut i64
     /// Non-none when this token list owns its backing arena.
     arena: mut allocators.ScopedArenaAllocator
 }
 
-fn make_tok(l: ref Lexer, kind: TokenKind, line: i64, col: i64) ref Token = trust {
+fn make_tok(l: mut ref Lexer, kind: TokenKind, line: i64, col: i64) ref Token = trust {
     val t: mut ref Token = allocators.ScopedArena.alloc_or_none(
         l.arena,
         @sizeof(Token) as usize
@@ -108,6 +112,8 @@ fn make_tok(l: ref Lexer, kind: TokenKind, line: i64, col: i64) ref Token = trus
     t.kind = kind
     t.line = line
     t.col = col
+    t.suppress = l.pending_suppress
+    l.pending_suppress = 0
     if l.owns_arena {
         t.arena = l.arena
     } else {
@@ -124,6 +130,7 @@ type Lexer = {
     col: mut i64
     arena: mut allocators.ScopedArenaAllocator
     owns_arena: mut bool
+    pending_suppress: mut i64
 }
 
 fn lexer_new(
@@ -140,6 +147,7 @@ fn lexer_new(
     l.col = 1
     l.arena = arena
     l.owns_arena = owns_arena
+    l.pending_suppress = 0
     return l
 }
 
@@ -456,14 +464,97 @@ fn skip_whitespace(l: mut ref Lexer) void = trust {
     }
 }
 
+fn lx_match_text(l: ref Lexer, start: i64, end: i64, text: ref u8) bool = trust {
+    val n: i64 = string.len_raw(text)
+    if start < 0 || start + n > end {
+        return false
+    }
+    val i: mut i64 = 0
+    for {
+        if i >= n {
+            break
+        }
+        val actual: i64 = @load8(@ptradd(l.src, start + i)) as i64
+        val expected: i64 = @load8(@ptradd(text, i)) as i64
+        if actual != expected {
+            return false
+        }
+        i++
+    }
+    return true
+}
+
+/// Recognize `//!suppress "unused-function"` in the comment spanning
+/// `start` (inclusive) to `end` (exclusive).
+fn comment_suppresses_unused(l: ref Lexer, start: i64, end: i64) bool = trust {
+    val prefix: ref u8 = "//!suppress"
+    if !lx_match_text(l, start, end, prefix) {
+        return false
+    }
+    val p: mut i64 = start + string.len_raw(prefix)
+    if p >= end {
+        return false
+    }
+    val first: i64 = @load8(@ptradd(l.src, p)) as i64
+    if !is_space(first) {
+        return false
+    }
+    for {
+        if p >= end {
+            break
+        }
+        val c: i64 = @load8(@ptradd(l.src, p)) as i64
+        if !is_space(c) {
+            break
+        }
+        p++
+    }
+    if p >= end {
+        return false
+    }
+    val open_quote: i64 = @load8(@ptradd(l.src, p)) as i64
+    if open_quote != 34 {
+        return false
+    }
+    p++
+    val feature: ref u8 = "unused-function"
+    if !lx_match_text(l, p, end, feature) {
+        return false
+    }
+    p = p + string.len_raw(feature)
+    if p >= end {
+        return false
+    }
+    val close_quote: i64 = @load8(@ptradd(l.src, p)) as i64
+    if close_quote != 34 {
+        return false
+    }
+    p++
+    for {
+        if p >= end {
+            break
+        }
+        val c: i64 = @load8(@ptradd(l.src, p)) as i64
+        if !is_space(c) {
+            return false
+        }
+        p++
+    }
+    return true
+}
+
 fn skip_comment(l: mut ref Lexer) bool = trust {
     if lx_peek(l) == 47 && lx_peek2(l) == 47 {
+        val start: i64 = l.pos
         for {
             val c: i64 = lx_peek(l)
             if c == -1 || c == 10 {
                 break
             }
             lx_advance(l)
+        }
+        if comment_suppresses_unused(l, start, l.pos) {
+            l.pending_suppress = l.pending_suppress | SUPPRESS_UNUSED
         }
         return true
     }
@@ -556,7 +647,7 @@ fn lex_identifier(l: mut ref Lexer, line: i64, col: i64) ref Token = trust {
     return make_tok(l, kind, line, col)
 }
 
-fn lex_single_char(l: ref Lexer, c: i64, line: i64, col: i64) result[ref Token, bool] = trust {
+fn lex_single_char(l: mut ref Lexer, c: i64, line: i64, col: i64) result[ref Token, bool] = trust {
     if c == 40 {
         return ok make_tok(l, LParen(), line, col)
     }
@@ -878,6 +969,14 @@ pub fn tok_text(tokens: list[ref Token], i: i64) ref u8 = {
     } else {
         return none
     }
+}
+
+pub fn tok_suppress_unused(tokens: list[ref Token], i: i64) bool = {
+    val opt = @get(tokens, i as usize)
+    if opt is some t {
+        return ((t as ref Token).suppress & SUPPRESS_UNUSED) != 0
+    }
+    return false
 }
 
 pub fn kind_is_fn(k: TokenKind) bool = {
@@ -1441,6 +1540,18 @@ test "lexer tokenizes keywords, literals, operators and comments" {
             assert kind_is_fn(tok_kind(toks, 0))
             assert kind_is_val(tok_kind(toks, 1))
             assert kind_is_eof(tok_kind(toks, 2))
+        }
+    }
+
+    val r9b = trust tokenize("//!suppress \"unused-function\"\nfn unused() i32")
+    match r9b {
+        err _ => {
+            assert false
+        }
+        ok toks => {
+            assert kind_is_fn(tok_kind(toks, 0))
+            assert tok_suppress_unused(toks, 0)
+            assert !tok_suppress_unused(toks, 1)
         }
     }
 

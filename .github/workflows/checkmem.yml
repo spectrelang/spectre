@@ -1,0 +1,43 @@
+name: Memory Leak Checks
+
+on:
+  push:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checkmem:
+    name: Compiler memory leak checks
+    runs-on: ubuntu-26.04
+    timeout-minutes: 60
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libsdl2-dev libsdl3-dev \
+            libcurl4-openssl-dev libnghttp2-dev \
+            libssl-dev zlib1g-dev libbrotli-dev libzstd-dev \
+            libkrb5-dev libgpg-error-dev libjitterentropy3-dev \
+            libunistring-dev libp11-kit-dev
+
+      - name: Install Spectre toolchain
+        run: curl -fsSL https://spectrelang.org/get.sh | sh
+
+      - name: Add Spectre to PATH
+        run: echo "${HOME}/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Build spectre-dev
+        run: ./fw/build.sh
+
+      - name: Check compiler memory leaks
+        run: ./fw/checkmem.sh --strict

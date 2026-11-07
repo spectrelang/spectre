@@ -409,8 +409,8 @@ pub fn ps_escape(value: ref u8) ref u8 = trust {
     @store8(@ptradd(buf, j), 0)
     return buf
 }
-
-pub fn windows_add_user_path(_bin_dir: ref u8) bool = trust {
+//!suppress "unused-function"
+fn windows_add_user_path(_bin_dir: ref u8) bool = trust {
     if str.len_raw(_bin_dir) == 0 {
         return false
     }

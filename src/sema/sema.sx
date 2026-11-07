@@ -9701,6 +9701,36 @@ fn is_function_public(
     return false
 }
 
+fn function_suppresses_unused(
+    ctx: ref SemaCtx,
+    items: list[ref parser.Node],
+    fn_name: ref u8
+) bool = trust {
+    for item in items {
+        if item == none {
+            continue
+        }
+        val k: i64 = item.kind
+        if k == parser.NK_FN || k == parser.NK_GENERIC_FN {
+            if parser.fn_suppresses_unused(item) {
+                val name: ref u8 = item.d2 as ref u8
+                val full_name: ref u8 = fn_full_name(ctx, item.d1 as ref u8, name)
+                if full_name != none && string.str_eql(full_name, fn_name) {
+                    return true
+                }
+            }
+        } elif k == parser.NK_WHEN_ITEMS {
+            val witems: ref void = sema_select_when_branch(ctx, item)
+            if witems != none {
+                if function_suppresses_unused(ctx, witems as list[ref parser.Node], fn_name) {
+                    return true
+                }
+            }
+        }
+    }
+    return false
+}
+
 
 pub fn check_module(
     arena: allocators.ScopedArenaAllocator,
@@ -9753,7 +9783,11 @@ pub fn check_module(
                     }
                 }
                 val is_public: bool = is_function_public(ctx, items, namec)
-                if !string.str_eql(namec, "main") && !is_variant && !is_public {
+                val suppresses_unused: bool = function_suppresses_unused(ctx, items, namec)
+                if !string.str_eql(
+                    namec,
+                    "main"
+                ) && !is_variant && !is_public && !suppresses_unused {
                     val wbuf: ref u8 = allocators.ScopedArena.alloc_or_none(
                         ctx.arena,
                         (256) as usize

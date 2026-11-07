@@ -7,116 +7,118 @@ val stdio      = use("std/stdio")
 val lexer      = use("lexer.sx")
 
 pub val (
-    NK_FN: i64                 = 1
-    NK_USE: i64                = 2
-    NK_TYPEDEF: i64            = 3
-    NK_ENUMDEF: i64            = 4
-    NK_UNIONDEF: i64           = 5
-    NK_CONST: i64              = 6
-    NK_EXTERN_FN: i64          = 7
-    NK_EXTERN_TYPE: i64        = 8
-    NK_LINK: i64               = 9
-    NK_WHEN_ITEMS: i64         = 10
-    NK_TAGGED_UNIONDEF: i64    = 11
-    NK_SPEC: i64               = 12
-    NK_EXTERN_HEADER: i64      = 53
-    NK_LIB: i64                = 54
-    NK_VAL: i64                = 20
-    NK_ASSIGN: i64             = 21
-    NK_RETURN: i64             = 22
-    NK_IF: i64                 = 23
-    NK_FOR: i64                = 24
-    NK_FORIN: i64              = 25
-    NK_BREAK: i64              = 26
-    NK_CONTINUE: i64           = 27
-    NK_DEFER: i64              = 28
-    NK_ASSERT: i64             = 29
-    NK_PRE: i64                = 30
-    NK_POST: i64               = 31
-    NK_GUARDED_PRE: i64        = 32
-    NK_GUARDED_POST: i64       = 45
-    NK_EXPR_STMT: i64          = 33
-    NK_MATCH_OPT: i64          = 34
-    NK_MATCH_RES: i64          = 35
-    NK_MATCH_ENUM: i64         = 36
-    NK_MATCH_UNION: i64        = 37
-    NK_MATCH_STR: i64          = 38
-    NK_WHEN_STMT: i64          = 39
-    NK_INCREMENT: i64          = 40
-    NK_DECREMENT: i64          = 41
-    NK_ADD_ASSIGN: i64         = 42
-    NK_SUB_ASSIGN: i64         = 43
-    NK_TEST: i64               = 44
-    NK_MATCH_TAGGED_UNION: i64 = 46
-    NK_GUARD: i64              = 47
-    NK_GENERIC_FN: i64         = 48
-    NK_GENERIC_WHEN: i64       = 49
-    NK_GENERIC_INST: i64       = 50
-    NK_GWHEN_COND: i64         = 51
-    NK_MATCH_VALUE: i64        = 52
-    NK_INT_LIT: i64            = 60
-    NK_FLOAT_LIT: i64          = 61
-    NK_STR_LIT: i64            = 62
-    NK_IDENT: i64              = 63
-    NK_BOOL: i64               = 64
-    NK_SOME: i64               = 65
-    NK_NONE: i64               = 66
-    NK_OK_VAL: i64             = 67
-    NK_ERR_VAL: i64            = 68
-    NK_CHAR_LIT: i64           = 69
-    NK_TRY: i64                = 83
-    NK_FIELD: i64              = 70
-    NK_CALL: i64               = 71
-    NK_BUILTIN: i64            = 72
-    NK_TRUST: i64              = 73
-    NK_TRUST_BLOCK: i64        = 84
-    NK_VAL_BULK: i64           = 85
-    NK_BINOP: i64              = 74
-    NK_UNOP: i64               = 75
-    NK_STRUCT_LIT: i64         = 76
-    NK_LIST_LIT: i64           = 77
-    NK_ARGS_PACK: i64          = 78
-    NK_ZERO_INIT: i64          = 79
-    NK_CAST: i64               = 80
-    NK_ADDR: i64               = 81
-    NK_DEREF: i64              = 82
-    TY_NAMED: i64              = 100
-    TY_REF: i64                = 101
-    TY_MUT: i64                = 102
-    TY_OPTION: i64             = 103
-    TY_LIST: i64               = 104
-    TY_RESULT: i64             = 105
-    TY_SLICE: i64              = 106
-    TY_FIXED_ARR: i64          = 107
-    TY_FNPTR: i64              = 108
-    TY_VOID: i64               = 109
-    TY_ARGSPACK: i64           = 110
-    TY_INFER: i64              = 111
-    OP_ADD: i64                = 1
-    OP_SUB: i64                = 2
-    OP_MUL: i64                = 3
-    OP_DIV: i64                = 4
-    OP_REM: i64                = 5
-    OP_EQ: i64                 = 6
-    OP_NE: i64                 = 7
-    OP_LT: i64                 = 8
-    OP_GT: i64                 = 9
-    OP_LE: i64                 = 10
-    OP_GE: i64                 = 11
-    OP_AND: i64                = 12
-    OP_OR: i64                 = 13
-    OP_BAND: i64               = 14
-    OP_BOR: i64                = 15
-    OP_BXOR: i64               = 16
-    OP_SHL: i64                = 17
-    OP_SHR: i64                = 18
-    UOP_NOT: i64               = 1
-    UOP_NEG: i64               = 2
-    UOP_BNOT: i64              = 3
-    FN_FLAG_UNSAFE: i64        = 1
-    FN_FLAG_INLINE: i64        = 2
-    EXTERN_FLAG_VARIADIC: i64  = 2
-    EXTERN_FLAG_HEADER: i64    = 4
+    NK_FN: i64                           = 1
+    NK_USE: i64                          = 2
+    NK_TYPEDEF: i64                      = 3
+    NK_ENUMDEF: i64                      = 4
+    NK_UNIONDEF: i64                     = 5
+    NK_CONST: i64                        = 6
+    NK_EXTERN_FN: i64                    = 7
+    NK_EXTERN_TYPE: i64                  = 8
+    NK_LINK: i64                         = 9
+    NK_WHEN_ITEMS: i64                   = 10
+    NK_TAGGED_UNIONDEF: i64              = 11
+    NK_SPEC: i64                         = 12
+    NK_EXTERN_HEADER: i64                = 53
+    NK_LIB: i64                          = 54
+    NK_VAL: i64                          = 20
+    NK_ASSIGN: i64                       = 21
+    NK_RETURN: i64                       = 22
+    NK_IF: i64                           = 23
+    NK_FOR: i64                          = 24
+    NK_FORIN: i64                        = 25
+    NK_BREAK: i64                        = 26
+    NK_CONTINUE: i64                     = 27
+    NK_DEFER: i64                        = 28
+    NK_ASSERT: i64                       = 29
+    NK_PRE: i64                          = 30
+    NK_POST: i64                         = 31
+    NK_GUARDED_PRE: i64                  = 32
+    NK_GUARDED_POST: i64                 = 45
+    NK_EXPR_STMT: i64                    = 33
+    NK_MATCH_OPT: i64                    = 34
+    NK_MATCH_RES: i64                    = 35
+    NK_MATCH_ENUM: i64                   = 36
+    NK_MATCH_UNION: i64                  = 37
+    NK_MATCH_STR: i64                    = 38
+    NK_WHEN_STMT: i64                    = 39
+    NK_INCREMENT: i64                    = 40
+    NK_DECREMENT: i64                    = 41
+    NK_ADD_ASSIGN: i64                   = 42
+    NK_SUB_ASSIGN: i64                   = 43
+    NK_TEST: i64                         = 44
+    NK_MATCH_TAGGED_UNION: i64           = 46
+    NK_GUARD: i64                        = 47
+    NK_GENERIC_FN: i64                   = 48
+    NK_GENERIC_WHEN: i64                 = 49
+    NK_GENERIC_INST: i64                 = 50
+    NK_GWHEN_COND: i64                   = 51
+    NK_MATCH_VALUE: i64                  = 52
+    NK_INT_LIT: i64                      = 60
+    NK_FLOAT_LIT: i64                    = 61
+    NK_STR_LIT: i64                      = 62
+    NK_IDENT: i64                        = 63
+    NK_BOOL: i64                         = 64
+    NK_SOME: i64                         = 65
+    NK_NONE: i64                         = 66
+    NK_OK_VAL: i64                       = 67
+    NK_ERR_VAL: i64                      = 68
+    NK_CHAR_LIT: i64                     = 69
+    NK_TRY: i64                          = 83
+    NK_FIELD: i64                        = 70
+    NK_CALL: i64                         = 71
+    NK_BUILTIN: i64                      = 72
+    NK_TRUST: i64                        = 73
+    NK_TRUST_BLOCK: i64                  = 84
+    NK_VAL_BULK: i64                     = 85
+    NK_BINOP: i64                        = 74
+    NK_UNOP: i64                         = 75
+    NK_STRUCT_LIT: i64                   = 76
+    NK_LIST_LIT: i64                     = 77
+    NK_ARGS_PACK: i64                    = 78
+    NK_ZERO_INIT: i64                    = 79
+    NK_CAST: i64                         = 80
+    NK_ADDR: i64                         = 81
+    NK_DEREF: i64                        = 82
+    TY_NAMED: i64                        = 100
+    TY_REF: i64                          = 101
+    TY_MUT: i64                          = 102
+    TY_OPTION: i64                       = 103
+    TY_LIST: i64                         = 104
+    TY_RESULT: i64                       = 105
+    TY_SLICE: i64                        = 106
+    TY_FIXED_ARR: i64                    = 107
+    TY_FNPTR: i64                        = 108
+    TY_VOID: i64                         = 109
+    TY_ARGSPACK: i64                     = 110
+    TY_INFER: i64                        = 111
+    OP_ADD: i64                          = 1
+    OP_SUB: i64                          = 2
+    OP_MUL: i64                          = 3
+    OP_DIV: i64                          = 4
+    OP_REM: i64                          = 5
+    OP_EQ: i64                           = 6
+    OP_NE: i64                           = 7
+    OP_LT: i64                           = 8
+    OP_GT: i64                           = 9
+    OP_LE: i64                           = 10
+    OP_GE: i64                           = 11
+    OP_AND: i64                          = 12
+    OP_OR: i64                           = 13
+    OP_BAND: i64                         = 14
+    OP_BOR: i64                          = 15
+    OP_BXOR: i64                         = 16
+    OP_SHL: i64                          = 17
+    OP_SHR: i64                          = 18
+    UOP_NOT: i64                         = 1
+    UOP_NEG: i64                         = 2
+    UOP_BNOT: i64                        = 3
+    FN_FLAG_UNSAFE: i64                  = 1
+    FN_FLAG_INLINE: i64                  = 2
+    FN_FLAG_SUPPRESS_UNUSED: i64         = 4
+    GENERIC_FN_FLAG_SUPPRESS_UNUSED: i64 = 8
+    EXTERN_FLAG_VARIADIC: i64            = 2
+    EXTERN_FLAG_HEADER: i64              = 4
 )
 
 pub type Node = {
@@ -307,6 +309,19 @@ pub fn fn_is_inline(n: ref Node) bool = {
         return ((n.d0 >> 2) & 1) != 0
     }
     return (n.d6 & FN_FLAG_INLINE) != 0
+}
+
+pub fn fn_suppresses_unused(n: ref Node) bool = {
+    if n == none {
+        return false
+    }
+    if n.kind == NK_GENERIC_FN {
+        return (n.d0 & GENERIC_FN_FLAG_SUPPRESS_UNUSED) != 0
+    }
+    if n.kind == NK_EXTERN_FN {
+        return false
+    }
+    return (n.d6 & FN_FLAG_SUPPRESS_UNUSED) != 0
 }
 
 pub fn extern_fn_is_variadic(n: ref Node) bool = {
@@ -634,6 +649,10 @@ fn p_peek_line(p: ref Parser) i64 = trust {
     } else {
         return 0
     }
+}
+
+fn p_suppress_unused(p: ref Parser) bool = trust {
+    return lexer.tok_suppress_unused(p.tokens, p.pos)
 }
 
 fn p_advance(p: mut ref Parser) lexer.TokenKind = trust {
@@ -3427,7 +3446,11 @@ pub fn parse_stmts(p: mut ref Parser) result[list[ref Node], ref u8] = trust {
     return ok stmts
 }
 
-fn parse_fn_item(p: mut ref Parser, public: i64) result[ref Node, ref u8] = trust {
+fn parse_fn_item(
+    p: mut ref Parser,
+    public: i64,
+    suppress_unused: bool
+) result[ref Node, ref u8] = trust {
     val line: i64 = p_line(p)
     p_expect_kind(p, kind_is_fn, "fn")?
     val ns: mut ref u8 = none
@@ -3498,6 +3521,10 @@ fn parse_fn_item(p: mut ref Parser, public: i64) result[ref Node, ref u8] = trus
     }
     val is_unsafe: mut i64 = 0
     val is_inline: mut i64 = 0
+    val suppress_flag: mut i64 = 0
+    if suppress_unused {
+        suppress_flag = 1
+    }
     val body: mut list[ref Node] = mem.new[ref Node]()
     if p_eat_fn(p, kind_is_eq) {
         for {
@@ -3517,7 +3544,7 @@ fn parse_fn_item(p: mut ref Parser, public: i64) result[ref Node, ref u8] = trus
     }
     if @len(type_params) as i64 > 0 {
         val nfn: mut ref Node = make_node(p.arena, NK_GENERIC_FN, line)
-        nfn.d0 = public | (is_unsafe << 1) | (is_inline << 2)
+        nfn.d0 = public | (is_unsafe << 1) | (is_inline << 2) | (suppress_flag << 3)
         node_store_slot[ref u8](@addr(nfn.d1), ns)
         node_store_slot[ref u8](@addr(nfn.d2), name)
         val pl: list[ref Node] = params
@@ -3538,7 +3565,7 @@ fn parse_fn_item(p: mut ref Parser, public: i64) result[ref Node, ref u8] = trus
     node_store_slot[ref Node](@addr(nfn.d4), ret_ty)
     val bl: list[ref Node] = body
     node_store_slot[list[ref Node]](@addr(nfn.d5), bl)
-    nfn.d6 = (is_unsafe * FN_FLAG_UNSAFE) | (is_inline * FN_FLAG_INLINE)
+    nfn.d6 = (is_unsafe * FN_FLAG_UNSAFE) | (is_inline * FN_FLAG_INLINE) | (suppress_flag * FN_FLAG_SUPPRESS_UNUSED)
     return ok nfn
 }
 
@@ -3641,11 +3668,12 @@ fn parse_spec_item(p: mut ref Parser, public: i64) result[ref Node, ref u8] = tr
         if lexer.kind_is_rbrace(p_peek_kind(p)) {
             break
         }
+        val method_suppress_unused: bool = p_suppress_unused(p)
         val method_public: mut i64 = 0
         if p_eat_fn(p, kind_is_pub) {
             method_public = 1
         }
-        val method = parse_fn_item(p, method_public)?
+        val method = parse_fn_item(p, method_public, method_suppress_unused)?
         @append(methods, method)
     }
     p_expect_rbrace(p)?
@@ -3887,6 +3915,7 @@ fn p_append_item(items: mut list[ref Node], item: ref Node) void = trust {
 
 pub fn parse_item(p: mut ref Parser) result[ref Node, ref u8] = trust {
     val line: i64 = p_line(p)
+    val suppress_unused: bool = p_suppress_unused(p)
     val k: lexer.TokenKind = p_peek_kind(p)
 
     if kind_is_link(k) {
@@ -4017,7 +4046,7 @@ pub fn parse_item(p: mut ref Parser) result[ref Node, ref u8] = trust {
         return parse_spec_item(p, public)
     }
     if kind_is_fn(k2) {
-        return parse_fn_item(p, public)
+        return parse_fn_item(p, public, suppress_unused)
     }
     if kind_is_type(k2) {
         return parse_type_def_item(p, public, 0)

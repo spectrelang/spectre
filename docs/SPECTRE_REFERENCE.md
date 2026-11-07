@@ -2,7 +2,7 @@
 
 This document specifies the core Spectre programming language as accepted by the reference compiler and as observed in compiled programs. It is a working specification of the language, not of the standard library. Standard-library types and functions are referenced only where they constitute the canonical realization of a language-level convention, principally the allocator protocol. The specification does not define the QBE intermediate representation, the platform assembler, the linker, or the C ABI, except where those are observable from source programs.
 
-The words *shall*, *must*, *should*, and *may* are used in their conventional normative sense. A statement marked as an implementation note describes the reference implementation and does not by itself constrain every conforming implementation.
+The words _shall_, _must_, _should_, and _may_ are used in their conventional normative sense. A statement marked as an implementation note describes the reference implementation and does not by itself constrain every conforming implementation.
 
 ## 1. Scope and Conformance
 
@@ -14,7 +14,7 @@ The language provides no garbage collector, no borrow checker, no lifetime infer
 
 ### 1.2 Conformance
 
-A conforming implementation shall accept every source unit derivable from the grammar in Section 10 and shall reject every source unit that violates a static rule stated in this document. A source unit that passes lexical, syntactic, and static analysis is a *program*. The behavior of a program is determined by the dynamic rules of this document and by the semantics of the operations it invokes.
+A conforming implementation shall accept every source unit derivable from the grammar in Section 10 and shall reject every source unit that violates a static rule stated in this document. A source unit that passes lexical, syntactic, and static analysis is a _program_. The behavior of a program is determined by the dynamic rules of this document and by the semantics of the operations it invokes.
 
 Where this document states that a property is implementation-defined, an implementation may choose any behavior consistent with the observable requirements of the language. Where this document states that a property is unspecified, no requirement is imposed. The reference implementation reports diagnostics with a source file and line; the exact wording of a diagnostic is not normative.
 
@@ -35,6 +35,8 @@ A source file is a sequence of octets. The reference lexer reads a NUL-terminate
 ### 2.2 Whitespace and comments
 
 The whitespace bytes are space (`0x20`), horizontal tab (`0x09`), line feed (`0x0A`), and carriage return (`0x0D`). A comment begins with `//` and extends to the next line feed or to the end of the source. There are no block comments. The byte sequence `/*` is lexed as the division operator followed by the multiplication operator, not as a comment. A `#` byte outside a literal is not a comment introducer and constitutes a lexical error.
+
+A comment of the form `//!suppress "feature"` is a suppression directive. It applies to the next top-level declaration or specification method and suppresses the diagnostic named by `feature` for that declaration. The reference compiler recognizes `"unused-function"`, which suppresses the warning for an otherwise unused private function. A suppression directive is otherwise an ordinary comment; unrecognized feature names have no effect.
 
 Newlines are not significant syntactic tokens. There is no automatic semicolon insertion. Statements are separated by the grammar itself, and a semicolon is not a statement terminator in the language. The lexer produces a semicolon token for the byte `;`, but the parser does not accept it in any production; consequently, a semicolon in source text is a syntax error except where it appears inside a string or character literal.
 
@@ -86,22 +88,22 @@ The parameterized types are written `option[T]`, `result[T, E]`, and `list[T]`. 
 
 The primitive types and their reference-implementation sizes are the following. Sizes are expressed in bytes and are observable through `@sizeof`.
 
-| Type | Size | Interpretation |
-|---|---:|---|
-| `i8` | 1 | signed two's-complement integer |
-| `i16` | 2 | signed two's-complement integer |
-| `i32` | 4 | signed two's-complement integer |
-| `i64` | 8 | signed two's-complement integer |
-| `u8` | 1 | unsigned integer |
-| `u16` | 2 | unsigned integer |
-| `u32` | 4 | unsigned integer |
-| `u64` | 8 | unsigned integer |
-| `usize` | 8 | unsigned pointer-sized integer |
-| `isize` | 8 | signed pointer-sized integer |
-| `f32` | 4 | IEEE 754 binary32 floating-point value |
-| `f64` | 8 | IEEE 754 binary64 floating-point value |
-| `bool` | 4 | truth value |
-| `void` | 0 | no value |
+| Type    | Size | Interpretation                         |
+| ------- | ---: | -------------------------------------- |
+| `i8`    |    1 | signed two's-complement integer        |
+| `i16`   |    2 | signed two's-complement integer        |
+| `i32`   |    4 | signed two's-complement integer        |
+| `i64`   |    8 | signed two's-complement integer        |
+| `u8`    |    1 | unsigned integer                       |
+| `u16`   |    2 | unsigned integer                       |
+| `u32`   |    4 | unsigned integer                       |
+| `u64`   |    8 | unsigned integer                       |
+| `usize` |    8 | unsigned pointer-sized integer         |
+| `isize` |    8 | signed pointer-sized integer           |
+| `f32`   |    4 | IEEE 754 binary32 floating-point value |
+| `f64`   |    8 | IEEE 754 binary64 floating-point value |
+| `bool`  |    4 | truth value                            |
+| `void`  |    0 | no value                               |
 
 Integer arithmetic is performed at the width of the underlying machine representation. The reference implementation does not insert overflow or underflow checks. Division and remainder by zero are not checked. The right-shift operator is emitted as a machine shift; the language does not provide a separate arithmetic-shift operator. A value used in a condition is false when it is zero and true when it is nonzero.
 
@@ -175,7 +177,14 @@ The intrinsic `@sizeof(T)` yields the size in bytes of type `T` as a compile-tim
 
 Each source file is a module. A module contains a sequence of top-level items. Top-level items are declarations of functions, types, enumerations, unions, specifications, external entities, linker directives, tests, and values. The module name is derived from the file path during module resolution; source programs refer to imported modules through the alias bound by a `use` declaration.
 
-Top-level names are registered before the bodies of the module are analysed. This permits a function to refer to a function, type, or global declared later in the same module. Duplicate function definitions are rejected. An unused private function produces a warning; an unused import and an unused local variable are errors.
+Top-level names are registered before the bodies of the module are analysed. This permits a function to refer to a function, type, or global declared later in the same module. Duplicate function definitions are rejected. An unused private function produces a warning; an unused import and an unused local variable are errors. The warning for a particular function can be suppressed with the directive `//!suppress "unused-function"` immediately before its declaration.
+
+```spectre
+//!suppress "unused-function"
+fn helper() i32 = {
+    return 42
+}
+```
 
 ### 4.2 Imports
 
@@ -261,19 +270,19 @@ The prefix operators are logical negation `!`, its alias `not`, arithmetic negat
 
 The binary operators, from lowest to highest precedence, are logical disjunction `||`, logical conjunction `&&`, comparison `==`, `!=`, `<`, `>`, `<=`, `>=`, bitwise or `|`, bitwise exclusive or `^`, bitwise and `&`, shifts `<<` and `>>`, addition and subtraction `+` and `-`, and multiplication, division, and remainder `*`, `/`, and `%`. All binary levels are left-associative. Prefix operators bind less tightly than postfix operations and more tightly than every binary operator.
 
-| Precedence | Operators | Associativity |
-|---|---|---|
-| lowest | `\|\|` | left |
-| | `&&` | left |
-| | `==` `!=` `<` `>` `<=` `>=` | left |
-| | `\|` | left |
-| | `^` | left |
-| | `&` | left |
-| | `<<` `>>` | left |
-| | `+` `-` | left |
-| | `*` `/` `%` | left |
-| | prefix `!` `not` `-` `~` `trust` `some` `ok` `err` | right |
-| highest | postfix `.` call `{}` `?` `as` `[...]` | left |
+| Precedence | Operators                                          | Associativity |
+| ---------- | -------------------------------------------------- | ------------- |
+| lowest     | `\|\|`                                             | left          |
+|            | `&&`                                               | left          |
+|            | `==` `!=` `<` `>` `<=` `>=`                        | left          |
+|            | `\|`                                               | left          |
+|            | `^`                                                | left          |
+|            | `&`                                                | left          |
+|            | `<<` `>>`                                          | left          |
+|            | `+` `-`                                            | left          |
+|            | `*` `/` `%`                                        | left          |
+|            | prefix `!` `not` `-` `~` `trust` `some` `ok` `err` | right         |
+| highest    | postfix `.` call `{}` `?` `as` `[...]`             | left          |
 
 The precedence of bitwise operators is higher than that of comparisons. Therefore `x & 1 == 0` parses as `(x & 1) == 0`. Shifts bind more tightly than addition, so `x << 1 + 1` parses as `(x << 1) + 1`. Parentheses may be used to override any precedence.
 
@@ -452,30 +461,30 @@ A value of a primitive type is stored at an address aligned for that type in the
 
 The memory intrinsics operate on raw addresses and byte counts. They do not validate their arguments. The following table summarizes their forms and results. The arity column lists the number of value arguments; an optional type-argument list is noted separately.
 
-| Intrinsic | Arity | Result | Semantics |
-|---|---:|---|---|
-| `@alloc(n)` | 1 | `ref void` | allocate `n` bytes from the C heap; no zeroing |
-| `@free(p)` | 1 | `void` | release a heap allocation |
-| `@realloc(p, n)` | 2 | `ref void` | resize a heap allocation to `n` bytes |
-| `@sizeof(T)` | 1 type | `usize` | size of a type in bytes, computed at compile time |
-| `@addr(e)` | 1 | `ref T` | address of a mutable place |
-| `@deref(p)` | 1 | `T` | value referred to by a reference |
-| `@load(p)` | 1 | machine word | load a 64-bit word |
-| `@load8(p)` | 1 | `u8` | load and zero-extend a byte |
-| `@load16(p)` | 1 | `u16` | load and zero-extend a halfword |
-| `@load32(p)` | 1 | `i32` | load and sign-extend a 32-bit word |
-| `@load64(p)` | 1 | machine word | load a 64-bit word |
-| `@store(p, v)` | 2 | `void` | store a 64-bit word |
-| `@store8(p, v)` | 2 | `void` | store a byte |
-| `@store16(p, v)` | 2 | `void` | store a halfword |
-| `@store32(p, v)` | 2 | `void` | store a 32-bit word |
-| `@store64(p, v)` | 2 | `void` | store a 64-bit word |
-| `@ptradd(p, n)` | 2 | `ref T` | add `n` bytes to a reference |
-| `@memcpy(d, s, n)` | 3 | `void` | copy `n` bytes; regions shall not overlap |
-| `@memmove(d, s, n)` | 3 | `void` | copy `n` bytes; regions may overlap |
-| `@memset(d, v, n)` | 3 | `void` | fill `n` bytes with the low byte of `v` |
-| `@bitcast(v, T)` | 2 | `T` | representation-level conversion |
-| `@zeroed` or `T{}` | 0 | `T` | zero-initialize a value of the destination type |
+| Intrinsic           |  Arity | Result       | Semantics                                         |
+| ------------------- | -----: | ------------ | ------------------------------------------------- |
+| `@alloc(n)`         |      1 | `ref void`   | allocate `n` bytes from the C heap; no zeroing    |
+| `@free(p)`          |      1 | `void`       | release a heap allocation                         |
+| `@realloc(p, n)`    |      2 | `ref void`   | resize a heap allocation to `n` bytes             |
+| `@sizeof(T)`        | 1 type | `usize`      | size of a type in bytes, computed at compile time |
+| `@addr(e)`          |      1 | `ref T`      | address of a mutable place                        |
+| `@deref(p)`         |      1 | `T`          | value referred to by a reference                  |
+| `@load(p)`          |      1 | machine word | load a 64-bit word                                |
+| `@load8(p)`         |      1 | `u8`         | load and zero-extend a byte                       |
+| `@load16(p)`        |      1 | `u16`        | load and zero-extend a halfword                   |
+| `@load32(p)`        |      1 | `i32`        | load and sign-extend a 32-bit word                |
+| `@load64(p)`        |      1 | machine word | load a 64-bit word                                |
+| `@store(p, v)`      |      2 | `void`       | store a 64-bit word                               |
+| `@store8(p, v)`     |      2 | `void`       | store a byte                                      |
+| `@store16(p, v)`    |      2 | `void`       | store a halfword                                  |
+| `@store32(p, v)`    |      2 | `void`       | store a 32-bit word                               |
+| `@store64(p, v)`    |      2 | `void`       | store a 64-bit word                               |
+| `@ptradd(p, n)`     |      2 | `ref T`      | add `n` bytes to a reference                      |
+| `@memcpy(d, s, n)`  |      3 | `void`       | copy `n` bytes; regions shall not overlap         |
+| `@memmove(d, s, n)` |      3 | `void`       | copy `n` bytes; regions may overlap               |
+| `@memset(d, v, n)`  |      3 | `void`       | fill `n` bytes with the low byte of `v`           |
+| `@bitcast(v, T)`    |      2 | `T`          | representation-level conversion                   |
+| `@zeroed` or `T{}`  |      0 | `T`          | zero-initialize a value of the destination type   |
 
 The intrinsic `@alloc` returns a null reference when allocation fails; the caller shall check the result if failure is possible. The intrinsic `@realloc` likewise returns a null reference on failure. The intrinsics `@free`, `@memcpy`, `@memmove`, and `@memset` return no useful value. The intrinsic `@ptradd` performs byte arithmetic, not element arithmetic; a caller that wants element addressing multiplies the index by the element size.
 
@@ -483,20 +492,20 @@ The intrinsic `@alloc` returns a null reference when allocation fails; the calle
 
 The list intrinsics operate on the list representation described in Section 3.8. The checked operation is `@get`; the other indexed operations require the caller to establish the index bound. The allocator-backed constructors require a type that provides the allocation, deallocation, and reallocation operations described in Section 8.6.
 
-| Intrinsic | Arity | Result | Semantics |
-|---|---:|---|---|
-| `@len(l)` | 1 | `usize` | current number of elements |
-| `@capacity(l)` | 1 | `usize` | current capacity in elements |
-| `@get(l, i)` | 2 | `option[T]` | element at `i`, or `none` when out of bounds |
-| `@set(l, i, v)` | 3 | `void` | replace the element at `i`; no bounds check |
-| `@append(l, v)` | 2 | `void` | append `v`, growing the buffer as needed |
-| `@insert(l, i, v)` | 3 | `void` | insert `v` at `i`, shifting later elements |
-| `@remove(l, i)` | 2 | `T` | remove and return the element at `i` |
-| `@reserve(l, n)` | 2 | `void` | ensure capacity for at least `n` elements |
-| `@listfree(l)` | 1 | `void` | release the list storage |
-| `@list(ac, e...)` | variadic | `result[list[T], E]` | allocator-backed list from elements |
-| `@list(ac)` | 1 | `result[list[T], E]` | empty allocator-backed list |
-| `@listalloc[A, T](ac)` | 1 | `result[list[T], E]` | empty list using allocator type `A`; `T` is optional when inferable |
+| Intrinsic              |    Arity | Result               | Semantics                                                           |
+| ---------------------- | -------: | -------------------- | ------------------------------------------------------------------- |
+| `@len(l)`              |        1 | `usize`              | current number of elements                                          |
+| `@capacity(l)`         |        1 | `usize`              | current capacity in elements                                        |
+| `@get(l, i)`           |        2 | `option[T]`          | element at `i`, or `none` when out of bounds                        |
+| `@set(l, i, v)`        |        3 | `void`               | replace the element at `i`; no bounds check                         |
+| `@append(l, v)`        |        2 | `void`               | append `v`, growing the buffer as needed                            |
+| `@insert(l, i, v)`     |        3 | `void`               | insert `v` at `i`, shifting later elements                          |
+| `@remove(l, i)`        |        2 | `T`                  | remove and return the element at `i`                                |
+| `@reserve(l, n)`       |        2 | `void`               | ensure capacity for at least `n` elements                           |
+| `@listfree(l)`         |        1 | `void`               | release the list storage                                            |
+| `@list(ac, e...)`      | variadic | `result[list[T], E]` | allocator-backed list from elements                                 |
+| `@list(ac)`            |        1 | `result[list[T], E]` | empty allocator-backed list                                         |
+| `@listalloc[A, T](ac)` |        1 | `result[list[T], E]` | empty list using allocator type `A`; `T` is optional when inferable |
 
 The core constructors of dynamic lists are `@list` and `@listalloc`. The bracket expression list `[e1, e2, ...]` is a fixed array literal and does not allocate a list. An allocator-backed list records its allocator descriptor and releases its buffer through that allocator when `@listfree` is called. The `@append`, `@insert`, `@remove`, `@reserve`, and `@set` operations do not return an error value; a caller that requires allocation-failure handling shall use an allocator-backed construction form that returns a result, and shall establish the capacity before performing unchecked mutations.
 
@@ -504,29 +513,29 @@ The core constructors of dynamic lists are `@list` and `@listalloc`. The bracket
 
 The following intrinsics provide formatting, standard I/O, argument access, and compile-time diagnostics. They are part of the core intrinsic set even when their implementation delegates to the platform C library.
 
-| Intrinsic | Arity | Result | Semantics |
-|---|---:|---|---|
-| `@print(fmt, pack)` | 1 or 2 | `void` | formatted output to standard output |
-| `@dprintf(fd, fmt, pack)` | 2 or 3 | `void` | formatted output to a file descriptor |
-| `@snprintf(buf, n, fmt, pack)` | 3 or 4 | integer | formatted output into a buffer of `n` bytes |
-| `@puts(s)` | 1 | `void` | write a NUL-terminated string and a newline |
-| `@flush()` | 0 | `void` | flush buffered output |
-| `@stdin` | 0 | stream | standard input stream value |
-| `@stdout` | 0 | stream | standard output stream value |
-| `@stderr` | 0 | stream | standard error stream value |
-| `@fgets(buf, n, stream)` | 3 | reference | read at most `n - 1` bytes into `buf` |
-| `@getchar()` | 0 | integer | read one character from standard input |
-| `@args()` | 0 | `list[ref u8]` | process argument vector |
-| `@argsalloc[A](ac)` | 1 | `result[list[ref u8], E]` | argument vector allocated with `A` |
-| `@fmtalloc(fmt, pack)` | 1 or 2 | `ref u8` | heap-allocated formatted string |
-| `@fmtalloc[A](ac, fmt, pack)` | 2 or 3 | `result[ref u8, E]` | allocator-backed formatted string |
-| `@strlen(s)` | 1 | `i64` | length of a NUL-terminated string |
-| `@strcmp(a, b)` | 2 | integer | lexical comparison of two NUL-terminated strings |
-| `@atoi(s)` | 1 | integer | parse a decimal integer |
-| `@call(f, ...)` | variadic | depends on `f` | indirect call through a function value |
-| `@staticerror(message)` | 1 | no value | abort compilation with a message |
-| `@embed(path)` | 1 | `ref u8` | reference to compile-time file contents |
-| `@embedlen(path)` | 1 | `usize` | length of compile-time file contents |
+| Intrinsic                      |    Arity | Result                    | Semantics                                        |
+| ------------------------------ | -------: | ------------------------- | ------------------------------------------------ |
+| `@print(fmt, pack)`            |   1 or 2 | `void`                    | formatted output to standard output              |
+| `@dprintf(fd, fmt, pack)`      |   2 or 3 | `void`                    | formatted output to a file descriptor            |
+| `@snprintf(buf, n, fmt, pack)` |   3 or 4 | integer                   | formatted output into a buffer of `n` bytes      |
+| `@puts(s)`                     |        1 | `void`                    | write a NUL-terminated string and a newline      |
+| `@flush()`                     |        0 | `void`                    | flush buffered output                            |
+| `@stdin`                       |        0 | stream                    | standard input stream value                      |
+| `@stdout`                      |        0 | stream                    | standard output stream value                     |
+| `@stderr`                      |        0 | stream                    | standard error stream value                      |
+| `@fgets(buf, n, stream)`       |        3 | reference                 | read at most `n - 1` bytes into `buf`            |
+| `@getchar()`                   |        0 | integer                   | read one character from standard input           |
+| `@args()`                      |        0 | `list[ref u8]`            | process argument vector                          |
+| `@argsalloc[A](ac)`            |        1 | `result[list[ref u8], E]` | argument vector allocated with `A`               |
+| `@fmtalloc(fmt, pack)`         |   1 or 2 | `ref u8`                  | heap-allocated formatted string                  |
+| `@fmtalloc[A](ac, fmt, pack)`  |   2 or 3 | `result[ref u8, E]`       | allocator-backed formatted string                |
+| `@strlen(s)`                   |        1 | `i64`                     | length of a NUL-terminated string                |
+| `@strcmp(a, b)`                |        2 | integer                   | lexical comparison of two NUL-terminated strings |
+| `@atoi(s)`                     |        1 | integer                   | parse a decimal integer                          |
+| `@call(f, ...)`                | variadic | depends on `f`            | indirect call through a function value           |
+| `@staticerror(message)`        |        1 | no value                  | abort compilation with a message                 |
+| `@embed(path)`                 |        1 | `ref u8`                  | reference to compile-time file contents          |
+| `@embedlen(path)`              |        1 | `usize`                   | length of compile-time file contents             |
 
 The formatting intrinsics accept a format string and an optional brace-enclosed argument pack. The format language is the platform `printf`-style language extended by Spectre's brace directives; the standard-library formatting functions are the recommended interface for code that must remain portable across the supported targets. The intrinsic `@staticerror` is evaluated while the compiler generates the containing function and therefore aborts compilation if that function is generated, regardless of whether the runtime path would reach it. The paths accepted by `@embed` and `@embedlen` are resolved relative to the source file that contains the intrinsic. `@embed` yields a reference to the exact file bytes and `@embedlen` yields their byte count; the embedded data is not implicitly followed by a NUL byte.
 

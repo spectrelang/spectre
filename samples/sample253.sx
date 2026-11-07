@@ -1,0 +1,8 @@
+//!suppress "unused-function"
+fn unused() i32 = {
+    return 42
+}
+
+pub fn main() void = {
+
+}

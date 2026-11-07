@@ -1648,6 +1648,9 @@ fn cc_monomorphize_generic_fn(ctx: mut ref CCtx, gfn_node: ref parser.Node, gfn_
         if parser.fn_is_inline(gfn_node) {
             syn.d6 = syn.d6 | parser.FN_FLAG_INLINE
         }
+        if parser.fn_suppresses_unused(gfn_node) {
+            syn.d6 = syn.d6 | parser.FN_FLAG_SUPPRESS_UNUSED
+        }
         val saved_sb: ref void = ctx.sb
         val saved_tmp: i64 = ctx.tmp
         val saved_lbl: i64 = ctx.lbl
@@ -6535,7 +6538,12 @@ fn gen_builtin(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
         val a: ref u8 = get_arg(ctx, args, 0)
         val b: ref u8 = get_arg(ctx, args, 1)
         val buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 512 as usize) as ref u8
-        @snprintf(buf, 512, "strcmp((const char*)(intptr_t)({s}),(const char*)(intptr_t)({s}))", {a, b})
+        @snprintf(
+            buf,
+            512,
+            "strcmp((const char*)(intptr_t)({s}),(const char*)(intptr_t)({s}))",
+            {a, b}
+        )
         return cc_expr_track(ctx, buf)
     }
     if str.raw_cmp(bname, "atoi") == 0 {
