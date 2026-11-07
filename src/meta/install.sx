@@ -20,89 +20,14 @@ fn marker_end() ref u8 = {
     return "# <<< spectre install <<<"
 }
 
-fn is_path_sep(c: u8) bool = {
-    return c == 47 || c == 92
-}
-
-fn is_alpha(c: u8) bool = {
-    return (c >= 65 && c <= 90) || (c >= 97 && c <= 122)
-}
-
-fn path_sep() u8 = {
-    when windows {
-        return ';'
-    }
-    return ':'
-}
-
-/// Return the last component of a path, accepting both '/' and '\\'.
-fn base_name(p: ref u8) ref u8 = trust {
-    val len: i64 = str.len_raw(p)
-    if len == 0 {
-        return ""
-    }
-
-    val end: mut i64 = len
-    for {
-        if end <= 1 {
-            break
-        }
-        val c: u8 = @load8(@ptradd(p, end - 1)) as u8
-        if is_path_sep(c) {
-            end--
-        } else {
-            break
-        }
-    }
-
-    val i: mut i64 = end - 1
-    for {
-        if i < 0 {
-            break
-        }
-        val c: u8 = @load8(@ptradd(p, i)) as u8
-        if is_path_sep(c) {
-            return str.substr(p, i + 1, end - i - 1)
-        }
-        i--
-    }
-    return str.substr(p, 0, end)
-}
-
-fn normalize_shell(name: ref u8) ref u8 = trust {
-    val base: ref u8 = base_name(name)
-    val len: i64 = str.len_raw(base)
-    val trimmed: mut ref u8 = base
-    if len > 4 && str.raw_ends_with(base, ".exe") {
-        trimmed = str.substr(base, 0, len - 4)
-    }
-
-    val lower: ref u8 = @alloc(str.len_raw(trimmed) + 1) as ref u8
-    val i: mut i64 = 0
-    for {
-        if i >= str.len_raw(trimmed) {
-            break
-        }
-        val c: u8 = @load8(@ptradd(trimmed, i)) as u8
-        val v: mut u8 = c
-        if c >= 65 && c <= 90 {
-            v = (c + 32) as u8
-        }
-        @store8(@ptradd(lower, i), v)
-        i++
-    }
-    @store8(@ptradd(lower, i), 0)
-    return lower
-}
-
 fn detect_shell(explicit: ref u8) ref u8 = trust {
     if str.len_raw(explicit) > 0 {
-        return normalize_shell(explicit)
+        return path.normalize_shell(explicit)
     }
 
     val override = os.env("SPECTRE_SHELL")
     if override is some v {
-        return normalize_shell(v as ref u8)
+        return path.normalize_shell(v as ref u8)
     }
 
     when windows {
@@ -111,115 +36,9 @@ fn detect_shell(explicit: ref u8) ref u8 = trust {
 
     val login_shell = os.env("SHELL")
     if login_shell is some v {
-        return normalize_shell(v as ref u8)
+        return path.normalize_shell(v as ref u8)
     }
     return "sh"
-}
-
-fn raw_contains(haystack: ref u8, needle: ref u8) bool = trust {
-    val hlen: i64 = str.len_raw(haystack)
-    val nlen: i64 = str.len_raw(needle)
-    if nlen == 0 {
-        return true
-    }
-    if nlen > hlen {
-        return false
-    }
-    val limit: i64 = hlen - nlen
-    val i: mut i64 = 0
-    for {
-        if i > limit {
-            break
-        }
-        val j: mut i64 = 0
-        val matched: mut bool = true
-        for {
-            if j >= nlen {
-                break
-            }
-            val x: u8 = @load8(@ptradd(haystack, i + j)) as u8
-            val y: u8 = @load8(@ptradd(needle, j)) as u8
-            if x != y {
-                matched = false
-                break
-            }
-            j++
-        }
-        if matched {
-            return true
-        }
-        i++
-    }
-    return false
-}
-
-fn path_contains_dir(dir: ref u8) bool = trust {
-    val env_opt = os.env("PATH")
-    val p: mut ref u8 = ""
-    match env_opt {
-        none => {
-            return false
-        }
-        some value => {
-            p = value
-        }
-    }
-    val len: i64 = str.len_raw(p)
-    val sep: u8 = path_sep()
-    val start: mut i64 = 0
-    val i: mut i64 = 0
-    for {
-        if i > len {
-            break
-        }
-        val at_end: bool = i == len
-        val c: mut u8 = 0
-        if !at_end {
-            c = @load8(@ptradd(p, i)) as u8
-        }
-        if at_end || c == sep {
-            val part: ref u8 = str.substr(p, start, i - start)
-            if str.len_raw(part) > 0 && str.raw_cmp(part, dir) == 0 {
-                return true
-            }
-            start = i + 1
-        }
-        if at_end {
-            break
-        }
-        i++
-    }
-    return false
-}
-
-fn ensure_dir(dir: ref u8) bool = trust {
-    val len: i64 = str.len_raw(dir)
-    if len == 0 {
-        return false
-    }
-    if fs.is_directory(dir) {
-        return true
-    }
-
-    val i: mut i64 = 1
-    for {
-        if i >= len {
-            break
-        }
-        val c: u8 = @load8(@ptradd(dir, i)) as u8
-        if is_path_sep(c) {
-            val parent: ref u8 = str.substr(dir, 0, i)
-            if str.len_raw(parent) > 0 && !fs.is_directory(parent) {
-                fs.mkdir_path(parent)
-            }
-        }
-        i++
-    }
-
-    if fs.is_directory(dir) {
-        return true
-    }
-    return fs.mkdir_path(dir)
 }
 
 fn tool_available(name: ref u8) bool = trust {
@@ -302,7 +121,7 @@ fn is_absolute(p: ref u8) bool = trust {
         }
         if len >= 2 {
             val c1: u8 = @load8(@ptradd(p, 1)) as u8
-            if c1 == 58 && is_alpha(c0) {
+            if c1 == 58 && str.is_alpha(c0) {
                 return true
             }
         }
@@ -545,7 +364,7 @@ fn append_managed_block(file: ref u8, shell: ref u8, bin_dir: ref u8) i32 = trus
             }
             some content => {
                 val text: ref u8 = content as ref u8
-                already = raw_contains(text, marker_start())
+                already = str.raw_contains(text, marker_start())
                 @free(content)
             }
         }
@@ -555,7 +374,7 @@ fn append_managed_block(file: ref u8, shell: ref u8, bin_dir: ref u8) i32 = trus
     }
 
     val parent: ref u8 = path.dir(file)
-    if !ensure_dir(parent) {
+    if !path.ensure_dir(parent) {
         return -1
     }
 
@@ -602,7 +421,7 @@ fn windows_add_user_path(_bin_dir: ref u8) bool = trust {
         val check_res = os.exec(check_cmd)
         match check_res {
             ok value => {
-                if raw_contains(str.cstr(value), bin_dir) {
+                if str.raw_contains(str.cstr(value), bin_dir) {
                     return true
                 }
             }
@@ -694,7 +513,7 @@ fn integrate_path(bin_dir: ref u8, shell: ref u8) bool = trust {
         return windows_add_user_path(bin_dir)
     }
 
-    if path_contains_dir(bin_dir) {
+    if path.path_contains_dir(bin_dir) {
         return true
     }
 
@@ -717,7 +536,7 @@ fn install_artifact(artifact: ref u8, destination: ref u8) bool = trust {
         return false
     }
     if str.raw_cmp(artifact, destination) != 0 {
-        if !ensure_dir(path.dir(destination)) {
+        if !path.ensure_dir(path.dir(destination)) {
             return false
         }
         if !os.copy_file(artifact, destination) {
@@ -773,7 +592,7 @@ pub fn cmd_install(
         @fmtalloc("spectre-install-{s}", {random.random_uuid()})
     )
 
-    if !ensure_dir(clone_dir) {
+    if !path.ensure_dir(clone_dir) {
         stdio.print("error: could not create temporary directory {s}\n", {clone_dir})
         return 1
     }
@@ -864,7 +683,7 @@ pub fn cmd_install(
     if str.len_raw(rule.output) > 0 {
         artifact = find_artifact(join_project(clone_dir, rule.output))
     } else {
-        val entry_name: ref u8 = strip_extension(base_name(entry))
+        val entry_name: ref u8 = strip_extension(path.base_name(entry))
         artifact = find_artifact(path.join(clone_dir, @fmtalloc("s-out/{s}", {entry_name})))
     }
 

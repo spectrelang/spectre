@@ -277,6 +277,50 @@ pub fn raw_ends_with(s: ref u8, suffix: ref u8) bool = {
     return true
 }
 
+/// Returns true when `needle` occurs anywhere in `haystack`.
+pub fn raw_contains(haystack: ref u8, needle: ref u8) bool = trust {
+    val hlen: i64 = len_raw(haystack)
+    val nlen: i64 = len_raw(needle)
+    if nlen == 0 {
+        return true
+    }
+    if nlen > hlen {
+        return false
+    }
+
+    val limit: i64 = hlen - nlen
+    val i: mut i64 = 0
+    for {
+        if i > limit {
+            break
+        }
+        val j: mut i64 = 0
+        val matched: mut bool = true
+        for {
+            if j >= nlen {
+                break
+            }
+            val a: u8 = @load8(@ptradd(haystack, i + j)) as u8
+            val b: u8 = @load8(@ptradd(needle, j)) as u8
+            if a != b {
+                matched = false
+                break
+            }
+            j++
+        }
+        if matched {
+            return true
+        }
+        i++
+    }
+    return false
+}
+
+/// Returns true when `c` is an ASCII letter (A-Z or a-z).
+pub fn is_alpha(c: u8) bool = {
+    return (c >= 65 && c <= 90) || (c >= 97 && c <= 122)
+}
+
 /// Ensure capacity (private helper)
 fn ensure_cap(ptr: ref void, needed: i64) void = trust {
     val cap: i64 = @load(@ptradd(ptr, 16)) as i64

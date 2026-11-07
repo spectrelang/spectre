@@ -831,43 +831,6 @@ pub fn repo_name_from_url(url: ref u8) ref u8 = trust {
     return base
 }
 
-fn raw_contains(haystack: ref u8, needle: ref u8) bool = {
-    val hlen: i64 = str.len_raw(haystack)
-    val nlen: i64 = str.len_raw(needle)
-    if nlen == 0 {
-        return true
-    }
-    if nlen > hlen {
-        return false
-    }
-    val limit: i64 = hlen - nlen
-    val i: mut i64 = 0
-    for {
-        if i > limit {
-            break
-        }
-        val j: mut i64 = 0
-        val matched: mut bool = true
-        for {
-            if j >= nlen {
-                break
-            }
-            val x: u8 = trust @load8(@ptradd(haystack, i + j)) as u8
-            val y: u8 = trust @load8(@ptradd(needle, j)) as u8
-            if x != y {
-                matched = false
-                break
-            }
-            j++
-        }
-        if matched {
-            return true
-        }
-        i++
-    }
-    return false
-}
-
 /// Rewrite filepath, dropping lines that start with dep_prefix AND contain needle.
 fn drop_dep_lines(filepath: ref u8, needle: ref u8) void = trust {
     val size_opt = fs.file_size(filepath)
@@ -907,7 +870,7 @@ fn drop_dep_lines(filepath: ref u8, needle: ref u8) void = trust {
                     @memcpy(line, @ptradd(text, line_start), line_len as usize)
                     @store8(@ptradd(line, line_len), 0)
                     val is_dep: bool = str.raw_starts_with(line, "dep ")
-                    val has_needle: bool = raw_contains(line, needle)
+                    val has_needle: bool = str.raw_contains(line, needle)
                     if !(is_dep && has_needle) {
                         str.StringBuilder.append_cstr(sb, line)
                         if !at_end {

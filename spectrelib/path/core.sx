@@ -1,6 +1,14 @@
 val str        = use("../string")
 val stdio      = use("../stdio")
 val allocators = use("../allocators")
+val os         = use("../os")
+
+when windows {
+    extern (C, header) fn CreateDirectoryA(
+        path: ref u8,
+        security: ref void
+    ) i32 = "CreateDirectoryA"
+}
 
 /// Gets the name of some file path without the file extension.
 pub fn get_name_without_ext(arena: ref allocators.Arena, path: ref u8) ref u8 = {
@@ -257,6 +265,210 @@ pub fn canonicalize_path(path: ref u8) ref u8 = trust {
         return "."
     }
     return out
+}
+
+/// Returns true when `c` is a path separator on any supported platform.
+pub fn is_path_sep(c: u8) bool = {
+    return c == 47 || c == 92
+}
+
+/// Returns the separator used in PATH-style environment variables.
+///
+/// This is ':' on POSIX systems and ';' on Windows. It is not the same as the
+/// separator between path components.
+pub fn path_sep() u8 = {
+    when windows {
+        return ';'
+    }
+    return ':'
+}
+
+/// Returns the final component of a path.
+///
+/// Both '/' and '\\' are accepted as separators. A path consisting only of
+/// separators yields an empty string.
+pub fn base_name(path: ref u8) ref u8 = trust {
+    val len: i64 = str.len_raw(path)
+    if len == 0 {
+        return ""
+    }
+
+    val end: mut i64 = len
+    for {
+        if end <= 1 {
+            break
+        }
+        val c: u8 = @load8(@ptradd(path, end - 1)) as u8
+        if is_path_sep(c) {
+            end--
+        } else {
+            break
+        }
+    }
+
+    val i: mut i64 = end - 1
+    for {
+        if i < 0 {
+            break
+        }
+        val c: u8 = @load8(@ptradd(path, i)) as u8
+        if is_path_sep(c) {
+            return str.substr(path, i + 1, end - i - 1)
+        }
+        i--
+    }
+    return str.substr(path, 0, end)
+}
+
+fn lower_char(c: u8) u8 = {
+    if c >= 65 && c <= 90 {
+        return (c + 32) as u8
+    }
+    return c
+}
+
+fn has_exe_suffix(s: ref u8) bool = trust {
+    val len: i64 = str.len_raw(s)
+    if len <= 4 {
+        return false
+    }
+    val dot: u8 = @load8(@ptradd(s, len - 4)) as u8
+    val e1: u8 = lower_char(@load8(@ptradd(s, len - 3)) as u8)
+    val x: u8 = lower_char(@load8(@ptradd(s, len - 2)) as u8)
+    val e2: u8 = lower_char(@load8(@ptradd(s, len - 1)) as u8)
+    return dot == 46 && e1 == 101 && x == 120 && e2 == 101
+}
+
+/// Normalize a shell name or shell executable path.
+///
+/// Returns the lower-case base name with any `.exe` suffix removed, so
+/// `/bin/Bash`, `bash`, and `C:\\Windows\\System32\\BASH.EXE` all become
+/// `bash`.
+pub fn normalize_shell(name: ref u8) ref u8 = trust {
+    val base: ref u8 = base_name(name)
+    val len: i64 = str.len_raw(base)
+    val trimmed: mut ref u8 = base
+    if has_exe_suffix(base) {
+        trimmed = str.substr(base, 0, len - 4)
+    }
+
+    val lower: ref u8 = @alloc(str.len_raw(trimmed) + 1) as ref u8
+    val i: mut i64 = 0
+    for {
+        if i >= str.len_raw(trimmed) {
+            break
+        }
+        val c: u8 = @load8(@ptradd(trimmed, i)) as u8
+        @store8(@ptradd(lower, i), lower_char(c))
+        i++
+    }
+    @store8(@ptradd(lower, i), 0)
+    return lower
+}
+
+fn is_directory(path: ref u8) bool = trust {
+    val handle: ref void = os.opendir(path)
+    if handle == none {
+        return false
+    }
+    os.closedir(handle)
+    return true
+}
+
+fn make_directory(path: ref u8) bool = trust {
+    when windows {
+        return CreateDirectoryA(path, none) != 0
+    }
+    when posix {
+        return os.mkdir(path, 493 as u32) == 0
+    }
+    return false
+}
+
+/// Create a directory and all of its missing parent directories.
+///
+/// Returns true when the directory exists after the call. Existing directories
+/// are treated as success.
+pub fn ensure_dir(path: ref u8) bool = trust {
+    val len: i64 = str.len_raw(path)
+    if len == 0 || str.raw_cmp(path, ".") == 0 {
+        return true
+    }
+    if is_directory(path) {
+        return true
+    }
+
+    val i: mut i64 = 1
+    for {
+        if i >= len {
+            break
+        }
+        val c: u8 = @load8(@ptradd(path, i)) as u8
+        if is_path_sep(c) {
+            val parent: ref u8 = str.substr(path, 0, i)
+            if str.len_raw(parent) > 0 && !is_directory(parent) {
+                make_directory(parent)
+            }
+        }
+        i++
+    }
+
+    if is_directory(path) {
+        return true
+    }
+    return make_directory(path)
+}
+
+/// Returns true when `target` is one of the entries in the PATH environment
+/// variable.
+pub fn path_contains_dir(target: ref u8) bool = trust {
+    val env_opt = os.env("PATH")
+    val value: mut ref u8 = ""
+    match env_opt {
+        none => {
+            return false
+        }
+        some found => {
+            value = found
+        }
+    }
+
+    val len: i64 = str.len_raw(value)
+    val sep: u8 = path_sep()
+    val start: mut i64 = 0
+    val i: mut i64 = 0
+    for {
+        if i > len {
+            break
+        }
+        val at_end: bool = i == len
+        val c: mut u8 = 0
+        if !at_end {
+            c = @load8(@ptradd(value, i)) as u8
+        }
+        if at_end || c == sep {
+            val part: ref u8 = str.substr(value, start, i - start)
+            if str.len_raw(part) > 0 && str.raw_cmp(part, target) == 0 {
+                return true
+            }
+            start = i + 1
+        }
+        if at_end {
+            break
+        }
+        i++
+    }
+    return false
+}
+
+test "path helpers split names, normalize shells and detect PATH entries" {
+    assert str.raw_cmp(trust base_name("/usr/local/bin/spectre"), "spectre") == 0
+    assert str.raw_cmp(trust base_name("C:\\Tools\\phantom.exe"), "phantom.exe") == 0
+    assert str.raw_cmp(trust normalize_shell("/bin/Bash"), "bash") == 0
+    assert str.raw_cmp(trust normalize_shell("C:\\Windows\\System32\\BASH.EXE"), "bash") == 0
+    assert is_path_sep(47)
+    assert is_path_sep(92)
+    assert !is_path_sep(65)
 }
 
 test "path canonicalization normalizes segments" {
