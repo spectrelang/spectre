@@ -1,0 +1,887 @@
+/// Command-line flag parsing.
+///
+/// SPDX-License-Identifier: GPL-3.0-only
+/// (C) Navid Momtahen - 2026
+
+val stdio      = use("../stdio")
+val str        = use("../string")
+val fmt        = use("../fmt")
+val allocators = use("../allocators")
+
+extern (C, header) fn strlen(s: ref u8) i64 = "strlen"
+
+/// Errors reported while creating a flag set.
+pub enum InitError = {
+    OutOfMemory
+}
+
+/// Errors reported while parsing arguments.
+pub union ParseError = {
+    HelpRequested()
+    | UnknownFlag(ref u8)
+    | MissingValue(ref u8)
+    | InvalidValue(ref u8, ref u8)
+}
+
+/// The value storage for one registered flag.
+union FlagValue = {
+    Bool(mut ref bool)
+    | Str(mut ref ref u8)
+    | Int(mut ref i64)
+    | Float(mut ref f64)
+}
+
+/// One registered flag.
+type Flag = {
+    next: mut ref Flag
+    name: mut ref u8
+    alias: mut ref u8
+    help: mut ref u8
+    placeholder: mut ref u8
+    default_text: mut ref u8
+    value: mut FlagValue
+}
+
+/// A collection of flags and the arguments left over after parsing.
+pub type FlagSet = {
+    name: mut ref u8
+    description: mut ref u8
+    head: mut ref Flag
+    tail: mut ref Flag
+    positional: mut ref list[ref u8]
+    allow_double_dash: mut bool
+}
+
+/// Create an empty flag set. `name` is shown in the usage text.
+pub fn new(name: ref u8, description: ref u8) result[FlagSet, InitError] = trust {
+    val fs: mut ref FlagSet = @alloc(@sizeof(FlagSet)) as ref FlagSet
+    if fs == none {
+        return err InitError.OutOfMemory
+    }
+
+    val heap: allocators.HeapAllocator = @zeroed
+    val args_result = @listalloc[allocators.HeapAllocator, ref u8](heap)
+    match args_result {
+        ok args => {
+            val slot: mut ref list[ref u8] = @alloc(
+                @sizeof(list[ref u8])
+            ) as ref list[ref u8]
+            if slot == none {
+                @listfree(args)
+                @free(fs as ref void)
+                return err InitError.OutOfMemory
+            }
+            @deref(slot) = args
+            fs.name = name
+            fs.description = description
+            fs.head = none
+            fs.tail = none
+            fs.positional = slot
+            fs.allow_double_dash = false
+            return ok (fs as FlagSet)
+        }
+        err _ => {
+            @free(fs as ref void)
+            return err InitError.OutOfMemory
+        }
+    }
+}
+
+/// Accept `--name` spellings as well as the default `-name` spelling.
+/// Also makes a bare `--` terminate flag parsing.
+pub fn allow_double_dash(fs: mut FlagSet, enabled: bool) void = {
+    fs.allow_double_dash = enabled
+}
+
+fn add(
+    fs: mut FlagSet,
+    name: ref u8,
+    alias: ref u8,
+    help: ref u8,
+    placeholder: ref u8,
+    default_text: ref u8,
+    value: FlagValue
+) void = trust {
+    val flag: mut ref Flag = @alloc(@sizeof(Flag)) as ref Flag
+    if flag == none {
+        return
+    }
+    flag.next = none
+    flag.name = name
+    flag.alias = alias
+    flag.help = help
+    flag.placeholder = placeholder
+    flag.default_text = default_text
+    flag.value = value
+
+    if fs.head == none {
+        fs.head = flag
+    } else {
+        fs.tail.next = flag
+    }
+    fs.tail = flag
+}
+
+/// Register a boolean flag. The flag is false until it appears on the command
+/// line; an explicit value may be given with `:` or `=`.
+pub fn bool_var(
+    fs: mut FlagSet,
+    name: ref u8,
+    alias: ref u8,
+    target: ref bool,
+    help: ref u8
+) void = trust {
+    val default_text: mut ref u8 = none
+    if @deref(target) {
+        default_text = @fmtalloc("(default: true)", {})
+    }
+    add(fs, name, alias, help, none, default_text, Bool(target))
+}
+
+/// Register a string flag. Values are borrowed pointers, not copies.
+pub fn string_var(
+    fs: mut FlagSet,
+    name: ref u8,
+    alias: ref u8,
+    target: ref ref u8,
+    help: ref u8
+) void = trust {
+    val current: ref u8 = @deref(target)
+    val default_text: mut ref u8 = none
+    if current == none || strlen(current) == 0 {
+        default_text = @fmtalloc("(default: \"\")", {})
+    } else {
+        default_text = @fmtalloc("(default: {s})", {current})
+    }
+    add(fs, name, alias, help, "string", default_text, Str(target))
+}
+
+/// Register a signed integer flag.
+pub fn int_var(
+    fs: mut FlagSet,
+    name: ref u8,
+    alias: ref u8,
+    target: ref i64,
+    help: ref u8
+) void = trust {
+    val default_text: ref u8 = @fmtalloc("(default: {d})", {@deref(target)})
+    add(fs, name, alias, help, "int", default_text, Int(target))
+}
+
+/// Register a floating-point flag.
+pub fn float_var(
+    fs: mut FlagSet,
+    name: ref u8,
+    alias: ref u8,
+    target: ref f64,
+    help: ref u8
+) void = trust {
+    val default_text: ref u8 = @fmtalloc("(default: {f})", {@deref(target)})
+    add(fs, name, alias, help, "float", default_text, Float(target))
+}
+
+/// Parse command-line arguments. The first entry is treated as the program
+/// name and skipped, matching `@args()` and `os.get_args()`.
+///
+/// Only the first positional `--` is special, and only when double-dash
+/// support is enabled. Parsing stops at the first error; values already seen
+/// remain set.
+pub fn parse(
+    fs: FlagSet,
+    argv: list[ref u8]
+) result[void, ParseError] = trust {
+    val argc: i64 = @len(argv) as i64
+    clear_positional(fs)
+
+    val i: mut i64 = 1
+    val only_positional: mut bool = false
+
+    for {
+        if i >= argc {
+            break
+        }
+
+        val item = @get(argv, i as usize)
+        val arg: mut ref u8 = none
+        if item is some value {
+            arg = value as ref u8
+        } else {
+            i++
+            continue
+        }
+        val arg_len: i64 = strlen(arg)
+
+        if only_positional {
+            @append(@deref(fs.positional), arg)
+            i++
+            continue
+        }
+
+        // A lone "-" and anything that does not start with "-" is positional.
+        if arg_len == 0 || @load8(arg) != 45 || arg_len == 1 {
+            @append(@deref(fs.positional), arg)
+            i++
+            continue
+        }
+
+        val body: mut ref u8 = @ptradd(arg, 1)
+        if @load8(body) == 45 { // second '-'
+            if !fs.allow_double_dash {
+                return err ParseError.UnknownFlag(arg)
+            }
+            if arg_len == 2 {
+                only_positional = true
+                i++
+                continue
+            }
+            body = @ptradd(arg, 2)
+        }
+
+        val body_len: i64 = strlen(body)
+        if body_len == 0 {
+            return err ParseError.UnknownFlag(arg)
+        }
+
+        val sep: i64 = find_separator(body)
+        val name_len: mut i64 = body_len
+        if sep >= 0 {
+            name_len = sep
+        }
+        if name_len == 0 {
+            return err ParseError.UnknownFlag(arg)
+        }
+
+        if span_equals(body, name_len, "h") || span_equals(body, name_len, "help") {
+            return err ParseError.HelpRequested()
+        }
+
+        val flag: ref Flag = find_name(fs, body, name_len)
+        if flag == none {
+            return err ParseError.UnknownFlag(arg)
+        }
+
+        match flag.value {
+            Bool target => {
+                if sep >= 0 {
+                    val value: ref u8 = @ptradd(body, sep + 1)
+                    match parse_bool(value) {
+                        some parsed => {
+                            @deref(target) = parsed
+                        }
+                        none => {
+                            return err ParseError.InvalidValue(flag.name, value)
+                        }
+                    }
+                } else {
+                    @deref(target) = true
+                }
+            }
+            Str target => {
+                val value: ref u8 = value_of(argv, body, sep, @addr(i), argc)
+                if value == none {
+                    return err ParseError.MissingValue(flag.name)
+                }
+                @deref(target) = value
+            }
+            Int target => {
+                val value: ref u8 = value_of(argv, body, sep, @addr(i), argc)
+                if value == none {
+                    return err ParseError.MissingValue(flag.name)
+                }
+                @deref(target) = parse_int(flag.name, value)?
+            }
+            Float target => {
+                val value: ref u8 = value_of(argv, body, sep, @addr(i), argc)
+                if value == none {
+                    return err ParseError.MissingValue(flag.name)
+                }
+                @deref(target) = parse_float(flag.name, value)?
+            }
+        }
+
+        i++
+    }
+
+    return ok ()
+}
+
+/// Positional arguments collected by the last call to `parse`.
+pub fn args(fs: FlagSet) list[ref u8] = trust {
+    return @deref(fs.positional)
+}
+
+/// Print the generated usage text to stdout.
+pub fn usage(fs: FlagSet) void = trust {
+    write_usage(fs, false)
+}
+
+/// Print the generated usage text to stderr.
+pub fn usage_err(fs: FlagSet) void = trust {
+    write_usage(fs, true)
+}
+
+/// Release the flag set, its registered flags, and the positional argument
+/// list. Target values and borrowed strings are not freed.
+pub fn destroy(fs: FlagSet) void = trust {
+    val current: mut ref Flag = fs.head
+    for {
+        if current == none {
+            break
+        }
+        val next_flag: ref Flag = current.next
+        if current.default_text != none {
+            @free(current.default_text as ref void)
+        }
+        @free(current as ref void)
+        current = next_flag
+    }
+
+    val list_ptr: ref list[ref u8] = fs.positional
+    if list_ptr != none {
+        @listfree(@deref(list_ptr))
+        val list_header: mut ref void = list_ptr as ref void
+        @free(list_header)
+    }
+
+    val header: mut ref void = fs as ref void
+    @free(header)
+}
+
+/// True when `parse` stopped because `-h` or `-help` was requested.
+pub fn is_help(e: ParseError) bool = {
+    match e {
+        HelpRequested() => {
+            return true
+        }
+        _ => {
+            return false
+        }
+    }
+    return false
+}
+
+/// A human-readable message for a parse error. The returned string is
+/// heap-allocated.
+pub fn message(e: ParseError) ref u8 = trust {
+    match e {
+        HelpRequested() => {
+            return ""
+        }
+        UnknownFlag flag => {
+            return @fmtalloc("unknown flag '{s}'", {flag})
+        }
+        MissingValue flag => {
+            return @fmtalloc("flag '-{s}' requires a value", {flag})
+        }
+        InvalidValue flag, value => {
+            return @fmtalloc("invalid value '{s}' for flag '-{s}'", {value, flag})
+        }
+    }
+}
+
+fn clear_positional(fs: FlagSet) void = trust {
+    val list_ptr: ref list[ref u8] = fs.positional
+    for {
+        val len: usize = @len(@deref(list_ptr))
+        if len == 0 {
+            break
+        }
+        @remove(@deref(list_ptr), len - 1)
+    }
+}
+
+fn emit(to_stderr: bool, line: ref u8) void = trust {
+    if to_stderr {
+        stdio.eprint("{s}", {line})
+    } else {
+        stdio.print("{s}", {line})
+    }
+}
+
+fn write_usage(fs: FlagSet, to_stderr: bool) void = trust {
+    val title: ref u8 = @fmtalloc("Usage: {s} [options] [args...]\n", {fs.name})
+    emit(to_stderr, title)
+
+    if fs.description != none && strlen(fs.description) > 0 {
+        emit(to_stderr, @fmtalloc("\n{s}\n", {fs.description}))
+    }
+
+    emit(to_stderr, "\nOptions:\n")
+
+    val current: mut ref Flag = fs.head
+    for {
+        if current == none {
+            break
+        }
+
+        val names: mut ref u8 = ""
+        if current.alias != none && strlen(current.alias) > 0 {
+            names = @fmtalloc("-{s}, -{s}", {current.alias, current.name})
+        } else {
+            names = @fmtalloc("-{s}", {current.name})
+        }
+        if fs.allow_double_dash {
+            names = @fmtalloc("{s}, --{s}", {names, current.name})
+        }
+        if current.placeholder != none {
+            names = @fmtalloc("{s} <{s}>", {names, current.placeholder})
+        }
+
+        val description: mut ref u8 = current.help
+        if current.default_text != none {
+            description = @fmtalloc("{s} {s}", {current.help, current.default_text})
+        }
+
+        emit(to_stderr, @fmtalloc("  {-24s}  {s}\n", {names, description}))
+
+        current = current.next
+    }
+
+    if fs.allow_double_dash {
+        emit(
+            to_stderr,
+            @fmtalloc("  {-24s}  {s}\n", {"-h, -help, --help", "show this help message"})
+        )
+    } else {
+        emit(to_stderr, @fmtalloc("  {-24s}  {s}\n", {"-h, -help", "show this help message"}))
+    }
+}
+
+fn span_equals(span: ref u8, len: i64, other: ref u8) bool = trust {
+    if other == none {
+        return false
+    }
+    if strlen(other) != len {
+        return false
+    }
+    val i: mut i64 = 0
+    for {
+        if i >= len {
+            break
+        }
+        if @load8(@ptradd(span, i)) != @load8(@ptradd(other, i)) {
+            return false
+        }
+        i++
+    }
+    return true
+}
+
+fn find_name(fs: FlagSet, name: ref u8, len: i64) ref Flag = trust {
+    val current: mut ref Flag = fs.head
+    for {
+        if current == none {
+            break
+        }
+        if span_equals(name, len, current.name) {
+            return current
+        }
+        if current.alias != none && strlen(current.alias) > 0 {
+            if span_equals(name, len, current.alias) {
+                return current
+            }
+        }
+        current = current.next
+    }
+    return none
+}
+
+fn find_separator(s: ref u8) i64 = trust {
+    val len: i64 = strlen(s)
+    val i: mut i64 = 0
+    for {
+        if i >= len {
+            break
+        }
+        val c: u8 = @load8(@ptradd(s, i))
+        if c == 58 || c == 61 { // ':' or '='
+            return i
+        }
+        i++
+    }
+    return -1
+}
+
+fn value_of(
+    argv: list[ref u8],
+    body: ref u8,
+    sep: i64,
+    i: mut ref i64,
+    argc: i64
+) ref u8 = trust {
+    if sep >= 0 {
+        return @ptradd(body, sep + 1)
+    }
+    if @deref(i) + 1 >= argc {
+        return none
+    }
+    val next = @get(argv, (@deref(i) + 1) as usize)
+    if next is some value {
+        @deref(i) = @deref(i) + 1
+        return value as ref u8
+    }
+    return none
+}
+
+fn parse_bool(value: ref u8) option[bool] = {
+    if str.raw_cmp(value, "true") == 0 || str.raw_cmp(value, "1") == 0 {
+        return some true
+    }
+    if str.raw_cmp(value, "yes") == 0 || str.raw_cmp(value, "on") == 0 {
+        return some true
+    }
+    if str.raw_cmp(value, "false") == 0 || str.raw_cmp(value, "0") == 0 {
+        return some false
+    }
+    if str.raw_cmp(value, "no") == 0 || str.raw_cmp(value, "off") == 0 {
+        return some false
+    }
+    return none
+}
+
+fn looks_like_int(value: ref u8) bool = trust {
+    val len: i64 = strlen(value)
+    if len == 0 {
+        return false
+    }
+    val i: mut i64 = 0
+    if @load8(value) == 45 { // '-'
+        i = 1
+    }
+    if i >= len {
+        return false
+    }
+    for {
+        if i >= len {
+            break
+        }
+        val c: u8 = @load8(@ptradd(value, i))
+        if c < 48 || c > 57 {
+            return false
+        }
+        i++
+    }
+    return true
+}
+
+fn parse_int(name: ref u8, value: ref u8) result[i64, ParseError] = trust {
+    if !looks_like_int(value) {
+        return err ParseError.InvalidValue(name, value)
+    }
+    match fmt.string_to_i64(value) {
+        ok parsed => {
+            return ok parsed
+        }
+        err _ => {
+            return err ParseError.InvalidValue(name, value)
+        }
+    }
+}
+
+fn parse_float(name: ref u8, value: ref u8) result[f64, ParseError] = {
+    match fmt.string_to_f64(value) {
+        ok parsed => {
+            return ok parsed
+        }
+        err _ => {
+            return err ParseError.InvalidValue(name, value)
+        }
+    }
+}
+
+fn assert_ok(r: result[void, ParseError]) void = {
+    match r {
+        ok _ => {}
+        err _ => {
+            assert false
+        }
+    }
+}
+
+test "flags parse colon, equals and separate values with aliases" {
+    val arena: allocators.ScopedArenaAllocator = trust allocators.ScopedArena.new(
+        4096 as usize
+    )?
+    val la: allocators.ListArena = {arena: arena}
+
+    val verbose: mut bool = false
+    val name: mut ref u8 = "none"
+    val count: mut i64 = 0
+    val kv: mut ref u8 = ""
+
+    val fs: mut FlagSet = trust new("test", "flags test")?
+    trust bool_var(fs, "verbose", "v", @addr(verbose), "verbose")
+    trust string_var(fs, "name", "n", @addr(name), "name")
+    trust int_var(fs, "count", "c", @addr(count), "count")
+    trust string_var(fs, "kv", "", @addr(kv), "key/value")
+
+    val argv: list[ref u8] = @list(
+        la,
+        "test",
+        "-name:Ada",
+        "-count=7",
+        "-v",
+        "-kv:key=value"
+    )?
+    assert_ok(trust parse(fs, argv))
+
+    assert verbose
+    assert str.raw_cmp(name, "Ada") == 0
+    assert count == 7
+    assert str.raw_cmp(kv, "key=value") == 0
+    assert @len(trust args(fs)) == 0
+
+    trust destroy(fs)
+    trust allocators.ScopedArena.free(arena)
+}
+
+test "flags accept separate values, explicit bools and positionals" {
+    val arena: allocators.ScopedArenaAllocator = trust allocators.ScopedArena.new(
+        4096 as usize
+    )?
+    val la: allocators.ListArena = {arena: arena}
+
+    val verbose: mut bool = true
+    val name: mut ref u8 = "none"
+    val count: mut i64 = 0
+
+    val fs: mut FlagSet = trust new("test", "")?
+    trust bool_var(fs, "verbose", "v", @addr(verbose), "verbose")
+    trust string_var(fs, "name", "n", @addr(name), "name")
+    trust int_var(fs, "count", "c", @addr(count), "count")
+
+    val argv: list[ref u8] = @list(
+        la,
+        "test",
+        "first",
+        "-n",
+        "Grace",
+        "-verbose:false",
+        "second",
+        "-c",
+        "-3"
+    )?
+    assert_ok(trust parse(fs, argv))
+
+    assert !verbose
+    assert str.raw_cmp(name, "Grace") == 0
+    assert count == -3
+
+    val rest = trust args(fs)
+    assert @len(rest) == 2
+    val first = @get(rest, 0 as usize)
+    if first is some value {
+        assert str.raw_cmp(value as ref u8, "first") == 0
+    } else {
+        assert false
+    }
+    val second = @get(rest, 1 as usize)
+    if second is some value {
+        assert str.raw_cmp(value as ref u8, "second") == 0
+    } else {
+        assert false
+    }
+
+    trust destroy(fs)
+    trust allocators.ScopedArena.free(arena)
+}
+
+test "flags report unknown, missing and invalid values" {
+    val arena: allocators.ScopedArenaAllocator = trust allocators.ScopedArena.new(
+        4096 as usize
+    )?
+    val la: allocators.ListArena = {arena: arena}
+
+    val verbose: mut bool = false
+    val name: mut ref u8 = "none"
+    val count: mut i64 = 0
+
+    val fs: mut FlagSet = trust new("test", "")?
+    trust bool_var(fs, "verbose", "v", @addr(verbose), "verbose")
+    trust string_var(fs, "name", "n", @addr(name), "name")
+    trust int_var(fs, "count", "c", @addr(count), "count")
+
+    val unknown: list[ref u8] = @list(la, "test", "-bogus")?
+    match trust parse(fs, unknown) {
+        ok _ => {
+            assert false
+        }
+        err e => {
+            match e {
+                UnknownFlag flag => {
+                    assert str.raw_cmp(flag, "-bogus") == 0
+                }
+                _ => {
+                    assert false
+                }
+            }
+        }
+    }
+
+    val missing: list[ref u8] = @list(la, "test", "-name")?
+    match trust parse(fs, missing) {
+        ok _ => {
+            assert false
+        }
+        err e => {
+            match e {
+                MissingValue flag => {
+                    assert str.raw_cmp(flag, "name") == 0
+                }
+                _ => {
+                    assert false
+                }
+            }
+        }
+    }
+
+    val bad_int: list[ref u8] = @list(la, "test", "-count:twelve")?
+    match trust parse(fs, bad_int) {
+        ok _ => {
+            assert false
+        }
+        err e => {
+            match e {
+                InvalidValue flag, value => {
+                    assert str.raw_cmp(flag, "count") == 0
+                    assert str.raw_cmp(value, "twelve") == 0
+                }
+                _ => {
+                    assert false
+                }
+            }
+        }
+    }
+
+    val bad_bool: list[ref u8] = @list(la, "test", "-verbose:maybe")?
+    match trust parse(fs, bad_bool) {
+        ok _ => {
+            assert false
+        }
+        err e => {
+            match e {
+                InvalidValue flag, _ => {
+                    assert str.raw_cmp(flag, "verbose") == 0
+                }
+                _ => {
+                    assert false
+                }
+            }
+        }
+    }
+
+    trust destroy(fs)
+    trust allocators.ScopedArena.free(arena)
+}
+
+test "flags enable double dash and the bare -- terminator" {
+    val arena: allocators.ScopedArenaAllocator = trust allocators.ScopedArena.new(
+        4096 as usize
+    )?
+    val la: allocators.ListArena = {arena: arena}
+
+    val verbose: mut bool = false
+    val name: mut ref u8 = "none"
+
+    val fs: mut FlagSet = trust new("test", "")?
+    trust bool_var(fs, "verbose", "v", @addr(verbose), "verbose")
+    trust string_var(fs, "name", "n", @addr(name), "name")
+
+    val disabled: list[ref u8] = @list(la, "test", "--verbose")?
+    match trust parse(fs, disabled) {
+        ok _ => {
+            assert false
+        }
+        err e => {
+            match e {
+                UnknownFlag _ => {}
+                _ => {
+                    assert false
+                }
+            }
+        }
+    }
+
+    allow_double_dash(fs, true)
+    val argv: list[ref u8] = @list(
+        la,
+        "test",
+        "--verbose",
+        "--name:Grace",
+        "--",
+        "--name:ignored",
+        "-v"
+    )?
+    assert_ok(trust parse(fs, argv))
+
+    assert verbose
+    assert str.raw_cmp(name, "Grace") == 0
+
+    val rest = trust args(fs)
+    assert @len(rest) == 2
+    val first = @get(rest, 0 as usize)
+    if first is some value {
+        assert str.raw_cmp(value as ref u8, "--name:ignored") == 0
+    } else {
+        assert false
+    }
+    val second = @get(rest, 1 as usize)
+    if second is some value {
+        assert str.raw_cmp(value as ref u8, "-v") == 0
+    } else {
+        assert false
+    }
+
+    trust destroy(fs)
+    trust allocators.ScopedArena.free(arena)
+}
+
+test "flags recognise help requests" {
+    val arena: allocators.ScopedArenaAllocator = trust allocators.ScopedArena.new(
+        1024 as usize
+    )?
+    val la: allocators.ListArena = {arena: arena}
+
+    val fs: FlagSet = trust new("test", "")?
+
+    val short_help: list[ref u8] = @list(la, "test", "-h")?
+    match trust parse(fs, short_help) {
+        ok _ => {
+            assert false
+        }
+        err e => {
+            assert is_help(e)
+        }
+    }
+
+    val long_help: list[ref u8] = @list(la, "test", "-help")?
+    match trust parse(fs, long_help) {
+        ok _ => {
+            assert false
+        }
+        err e => {
+            assert is_help(e)
+        }
+    }
+
+    trust destroy(fs)
+    trust allocators.ScopedArena.free(arena)
+}
+
+test "flags parse float values" {
+    val arena: allocators.ScopedArenaAllocator = trust allocators.ScopedArena.new(
+        1024 as usize
+    )?
+    val la: allocators.ListArena = {arena: arena}
+
+    val scale: mut f64 = 0.0
+    val fs: mut FlagSet = trust new("test", "")?
+    trust float_var(fs, "scale", "s", @addr(scale), "scale")
+
+    val argv: list[ref u8] = @list(la, "test", "-scale:2.5")?
+    assert_ok(trust parse(fs, argv))
+    assert scale == 2.5
+
+    trust destroy(fs)
+    trust allocators.ScopedArena.free(arena)
+}

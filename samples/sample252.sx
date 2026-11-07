@@ -1,0 +1,46 @@
+val flags = use("std/flags")
+val stdio = use("std/stdio")
+val os    = use("std/os")
+
+pub fn main() void = trust {
+    val verbose: mut bool = false
+    val name: mut ref u8 = "world"
+    val times: mut i64 = 1
+
+    val fs: mut flags.FlagSet = flags.new("greet", "Say hello to someone, a few times.")?
+
+    // Double-dash spellings are disabled by default.
+    // flags.allow_double_dash(fs, true)
+
+    flags.bool_var(fs, "verbose", "v", @addr(verbose), "print extra information")
+    flags.string_var(fs, "name", "n", @addr(name), "who to greet")
+    flags.int_var(fs, "times", "t", @addr(times), "how many greetings")
+
+    val argv = os.get_args()
+    match flags.parse(fs, argv) {
+        ok _ => {}
+        err e => {
+            if flags.is_help(e) {
+                flags.usage(fs)
+                return
+            }
+            stdio.eprint("error: {s}\n", {flags.message(e)})
+            flags.usage_err(fs)
+            os.exit(1)
+        }
+    }
+
+    for i = 0, i < times, i++ {
+        stdio.print("hello, {s}!\n", {name})
+    }
+
+    if verbose {
+        stdio.print("verbose: name={s} times={d}\n", {name, times})
+    }
+
+    for extra in flags.args(fs) {
+        stdio.print("extra argument: {s}\n", {extra})
+    }
+
+    flags.destroy(fs)
+}

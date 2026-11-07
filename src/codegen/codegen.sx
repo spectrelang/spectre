@@ -16572,6 +16572,7 @@ fn gen_match_tagged_union(ctx: mut ref CgCtx, stmt: ref parser.Node) void = trus
                                 val struct_type_name: mut ref u8 = ""
                                 val field_load_op: mut ref u8 = "loadl"
                                 val field_qt2: mut ref u8 = "l"
+                                val binding_type: mut ref u8 = ""
 
                                 if variant_fields != none {
                                     val field_ty_opt = @get(
@@ -16580,6 +16581,7 @@ fn gen_match_tagged_union(ctx: mut ref CgCtx, stmt: ref parser.Node) void = trus
                                     )
                                     if field_ty_opt is some field_ty {
                                         val fty: ref parser.Node = field_ty as ref parser.Node
+                                        binding_type = type_expr_to_annotation(ctx, fty)
                                         field_load_op = field_load_instr_for(fty)
                                         if str.raw_cmp(field_load_op, "loadd") == 0 {
                                             field_qt2 = "d"
@@ -16649,6 +16651,9 @@ fn gen_match_tagged_union(ctx: mut ref CgCtx, stmt: ref parser.Node) void = trus
                                         })
                                     emit(ctx, bbuf)
                                     cg_dvars_add(ctx, bname, field_qt2)
+                                    if str.raw_cmp(binding_type, "") != 0 {
+                                        cg_register_local_type(ctx, bname, binding_type)
+                                    }
                                 }
                             }
                         }
