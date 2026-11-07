@@ -637,7 +637,8 @@ fn print_manual_path_instructions(bin_dir: ref u8) void = trust {
             {bin_dir}
         )
         stdio.puts("Command Prompt:")
-        stdio.print("  setx PATH \"{s};%PATH%\"\n", {bin_dir})
+        val pth: ref u8 = \\%PATH%
+        stdio.print("  setx PATH \"{s};{s}\"\n", {bin_dir, pth})
     }
     when posix {
         stdio.puts("POSIX shells (bash, zsh, sh, ...):")
