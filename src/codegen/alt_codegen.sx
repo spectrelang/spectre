@@ -3472,23 +3472,43 @@ fn gen_expr(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
         emit(ctx, buf)
         emitln(ctx, "{")
         cc_emit_defers(ctx)
+        val try_result_ty: ref parser.Node = cc_infer_expr_ty(
+            ctx,
+            expr.d0 as ref parser.Node
+        )
+        val try_ok_ty: ref parser.Node = cc_unwrap_result_ok_ty(try_result_ty)
+        val try_ok_ct: ref u8 = cc_c_type_of(ctx, try_ok_ty)
+        val val_decl: ref u8 = allocators.ScopedArena.alloc_or_none(
+            ctx.arena,
+            256 as usize
+        ) as ref u8
+        if str.raw_cmp(try_ok_ct, "double") == 0 || str.raw_cmp(try_ok_ct, "float") == 0 {
+            @snprintf(
+                val_decl,
+                256,
+                "{s} sx__val{lld};memcpy(&sx__val{lld},&sx__try{lld}[1],sizeof({s}));\n",
+                {try_ok_ct, t, t, t, try_ok_ct}
+            )
+        } else {
+            @snprintf(val_decl, 256, "int64_t sx__val{lld} = sx__try{lld}[1];\n", {t, t})
+        }
         if ctx.current_ret_unboxed {
             @snprintf(
                 buf,
                 8192,
-                "memcpy(sx__ret,(void*)(intptr_t)sx__try{lld},24);return 0;\n}\nint64_t sx__val{lld} = sx__try{lld}[1];\n",
-                {t, t, t}
+                "memcpy(sx__ret,(void*)(intptr_t)sx__try{lld},24);return 0;\n}\n{s}",
+                {t, val_decl}
             )
         } elif str.raw_cmp(ctx.current_ret_ctype, "void") == 0 {
-            @snprintf(buf, 8192, "return;\n}\nint64_t sx__val{lld} = sx__try{lld}[1];\n", {t, t})
+            @snprintf(buf, 8192, "return;\n}\n{s}", {val_decl})
         } elif ctx.current_ret_is_void {
-            @snprintf(buf, 8192, "return 0;\n}\nint64_t sx__val{lld} = sx__try{lld}[1];\n", {t, t})
+            @snprintf(buf, 8192, "return 0;\n}\n{s}", {val_decl})
         } else {
             @snprintf(
                 buf,
                 8192,
-                "return ({s})(intptr_t)sx__try{lld};\n}\nint64_t sx__val{lld} = sx__try{lld}[1];\n",
-                {ctx.current_ret_ctype, t, t, t}
+                "return ({s})(intptr_t)sx__try{lld};\n}\n{s}",
+                {ctx.current_ret_ctype, t, val_decl}
             )
         }
         emit(
@@ -7401,13 +7421,16 @@ fn gen_stmt(ctx: mut ref CCtx, stmt: ref parser.Node) void = trust {
             val ptr: ref u8 = gen_expr(ctx, target.d0 as ref parser.Node)
             val ptr_ty: ref parser.Node = cc_infer_expr_ty(ctx, target.d0 as ref parser.Node)
             val inner_ty: ref parser.Node = cc_unwrap_ref_inner_ty(ptr_ty)
+            val resolved_inner: ref parser.Node = cc_concrete_ty(ctx, inner_ty)
+            val is_list: bool = resolved_inner != none
+            && resolved_inner.kind == parser.TY_LIST
             val isz: i64 = c_size_of(ctx, inner_ty)
             val ict: ref u8 = cc_c_type_of(ctx, inner_ty)
             val buf: ref u8 = allocators.ScopedArena.alloc_or_none(
                 ctx.arena,
                 4096 as usize
             ) as ref u8
-            if cc_type_needs_aggregate_copy(ctx, inner_ty) || isz > 8 {
+            if !is_list && (cc_type_needs_aggregate_copy(ctx, inner_ty) || isz > 8) {
                 @snprintf(
                     buf,
                     4096,
@@ -8424,8 +8447,18 @@ fn gen_match_res(ctx: mut ref CCtx, stmt: ref parser.Node) void = trust {
             ctx.arena,
             256 as usize
         ) as ref u8
+        val ok_ct: ref u8 = cc_c_type_of(ctx, ok_ty)
+        val ok_is_float: bool = str.raw_cmp(ok_ct, "double") == 0
+        || str.raw_cmp(ok_ct, "float") == 0
         if cc_is_unboxed_wrap(ctx, ok_ty) {
             @snprintf(vb, 256, "int64_t t_{s}=(int64_t)(intptr_t)(&sx__rp{lld}[1]);\n", {ob, t})
+        } elif ok_is_float {
+            @snprintf(
+                vb,
+                256,
+                "{s} t_{s};memcpy(&t_{s},&sx__rp{lld}[1],sizeof({s}));\n",
+                {ok_ct, ob, ob, t, ok_ct}
+            )
         } else {
             @snprintf(vb, 256, "int64_t t_{s}=sx__rp{lld}[1];\n", {ob, t})
         }
@@ -8809,17 +8842,17 @@ fn gen_match_tagged_union(ctx: mut ref CCtx, stmt: ref parser.Node) void = trust
                                     )
                                     if fty_opt2 is some fty2 {
                                         val fct2: ref u8 = c_type_of(fty2 as ref parser.Node)
+                                        bind_st = cc_spectre_type_name_of(
+                                            ctx,
+                                            fty2 as ref parser.Node
+                                        )
+                                        bind_ty = fty2 as ref parser.Node
                                         if str.raw_cmp(
                                             fct2,
                                             "double"
                                         ) == 0 || str.raw_cmp(fct2, "float") == 0 {
                                             is_float_bind = true
                                             bind_ct = fct2
-                                            bind_st = cc_spectre_type_name_of(
-                                                ctx,
-                                                fty2 as ref parser.Node
-                                            )
-                                            bind_ty = fty2 as ref parser.Node
                                         }
                                     }
                                 }
@@ -8846,7 +8879,7 @@ fn gen_match_tagged_union(ctx: mut ref CCtx, stmt: ref parser.Node) void = trust
                                         ctx,
                                         bb
                                     )
-                                    cc_register_local(ctx, bn, "int64_t", none, 0)
+                                    cc_register_local(ctx, bn, bind_st, bind_ty, 0)
                                 }
                             }
                         }
@@ -9074,6 +9107,12 @@ fn gen_tagged_union_def(ctx: ref CCtx, item: ref parser.Node, mod_prefix: ref u8
             val vn: ref parser.Node = v as ref parser.Node
             val vname: ref u8 = vn.d0 as ref u8
             cc_register_tv(ctx, vname, mangled, vi, vn.d1 as ref void)
+            val uv: ref u8 = allocators.ScopedArena.alloc_or_none(
+                ctx.arena,
+                256 as usize
+            ) as ref u8
+            @snprintf(uv, 256, "{s}__{s}", {name, vname})
+            cc_register_tv(ctx, uv, mangled, vi, vn.d1 as ref void)
             if str.raw_cmp(mod_prefix, "") != 0 {
                 val pv: ref u8 = allocators.ScopedArena.alloc_or_none(
                     ctx.arena,
@@ -9086,6 +9125,17 @@ fn gen_tagged_union_def(ctx: ref CCtx, item: ref parser.Node, mod_prefix: ref u8
                     {mod_prefix, vname}
                 )
                 cc_register_tv(ctx, pv, mangled, vi, vn.d1 as ref void)
+                val qv: ref u8 = allocators.ScopedArena.alloc_or_none(
+                    ctx.arena,
+                    256 as usize
+                ) as ref u8
+                @snprintf(
+                    qv,
+                    256,
+                    "{s}__{s}__{s}",
+                    {mod_prefix, name, vname}
+                )
+                cc_register_tv(ctx, qv, mangled, vi, vn.d1 as ref void)
             }
             if is_sc {
                 val sv: ref u8 = allocators.ScopedArena.alloc_or_none(
@@ -9099,6 +9149,17 @@ fn gen_tagged_union_def(ctx: ref CCtx, item: ref parser.Node, mod_prefix: ref u8
                     {mod_prefix, vname}
                 )
                 cc_register_tv(ctx, sv, mangled, vi, vn.d1 as ref void)
+                val sqv: ref u8 = allocators.ScopedArena.alloc_or_none(
+                    ctx.arena,
+                    256 as usize
+                ) as ref u8
+                @snprintf(
+                    sqv,
+                    256,
+                    "std__{s}__{s}__{s}",
+                    {mod_prefix, name, vname}
+                )
+                cc_register_tv(ctx, sqv, mangled, vi, vn.d1 as ref void)
             }
         }
         vi++

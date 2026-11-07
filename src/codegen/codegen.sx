@@ -57,6 +57,7 @@ pub type CgCtx = {
     mc_vals: mut list[ref u8]
     mc_index: mut ref void
     fn_name_index: mut ref void
+    fn_suffix_index: mut ref void
     defer_stack: mut list[ref void]
     local_src_names: mut list[ref u8]
     local_qbe_names: mut list[ref u8]
@@ -181,6 +182,7 @@ fn cg_new() ref CgCtx = trust {
     ctx.mc_vals = mem.new[ref u8]()
     ctx.mc_index = collections.RawIndexMap.new(64 as usize)
     ctx.fn_name_index = collections.RawIndexMap.new(256 as usize)
+    ctx.fn_suffix_index = collections.RawIndexMap.new(256 as usize)
     ctx.defer_stack = mem.new[ref void]()
     ctx.local_src_names = mem.new[ref u8]()
     ctx.local_qbe_names = mem.new[ref u8]()
@@ -230,6 +232,9 @@ fn cg_free_ctx(ctx: mut ref CgCtx) void = trust {
     }
     if ctx.fn_name_index != none {
         collections.RawIndexMap.free(ctx.fn_name_index)
+    }
+    if ctx.fn_suffix_index != none {
+        collections.RawIndexMap.free(ctx.fn_suffix_index)
     }
     if ctx.c_const_index != none {
         collections.RawIndexMap.free(ctx.c_const_index)
@@ -2553,112 +2558,108 @@ fn cg_ann_after_get_indices(ann: ref u8, dims: i64) ref u8 = trust {
 
 /// Returns true if name is a registered function.
 fn cg_is_fn(ctx: mut ref CgCtx, name: ref u8) bool = trust {
-    val names: ref void = cg_fn_names(ctx)
-    val nlen: i64 = @len(names as list[ref u8]) as i64
-    val ni: mut i64 = 0
-    for {
-        if ni >= nlen {
-            break
-        }
-        val n_opt = @get(names as list[ref u8], ni as usize)
-        if n_opt is some n {
-            if str.raw_cmp(n as ref u8, name) == 0 {
-                return true
-            }
-        }
-        ni++
-    }
-    return false
+    return collections.RawIndexMap.contains(ctx.fn_name_index, name)
 }
 
 /// Returns the mangled function name for a bare name, or 0 if not found.
 ///
-/// Tries exact match first, then suffix match (e.g. "hash_string" -> "collections__hash_string").
+/// Tries exact match first, then the current module's prefix, then suffix
+/// match (e.g. "hash_string" -> "collections__hash_string"). The function
+/// index makes all three lookups O(1) instead of scanning every function.
 fn cg_resolve_fn_name(ctx: mut ref CgCtx, name: ref u8) ref u8 = trust {
-    val names: ref void = cg_fn_names(ctx)
-    val nlen: i64 = @len(names as list[ref u8]) as i64
-    val namelen: i64 = str.len_raw(name)
-    val suffix: ref u8 = allocators.ScopedArena.alloc_or_none(
-        ctx.arena,
-        (namelen + 3) as usize
-    ) as ref u8
-    @snprintf(suffix, namelen + 3, "__{s}", {name})
-    val cur_name: mut ref u8 = none
-    if str.raw_cmp(ctx.current_module_prefix, "") != 0 {
-        val cur_prefix_len: i64 = str.len_raw(ctx.current_module_prefix)
-        val is_sc: bool = is_std_child_name(ctx.current_module_prefix)
+    if name == none {
+        return none
+    }
+
+    if collections.RawIndexMap.contains(ctx.fn_name_index, name) {
+        cg_mark_prefix_used(ctx, "")
+        return name
+    }
+
+    val prefix: ref u8 = ctx.current_module_prefix
+    if str.raw_cmp(prefix, "") != 0 {
+        val namelen: i64 = str.len_raw(name)
+        val prefix_len: i64 = str.len_raw(prefix)
+        val is_sc: bool = is_std_child_name(prefix)
+        val cur_name: mut ref u8 = none
         if is_sc {
-            val cur_name_cap: i64 = cur_prefix_len + namelen + 8
+            val cap: i64 = prefix_len + namelen + 8
             cur_name = allocators.ScopedArena.alloc_or_none(
                 ctx.arena,
-                (cur_name_cap) as usize
+                cap as usize
             ) as ref u8
-            @snprintf(cur_name, cur_name_cap, "std__{s}__{s}", {ctx.current_module_prefix, name})
+            @snprintf(cur_name, cap, "std__{s}__{s}", {prefix, name})
         } else {
-            val cur_name_cap: i64 = cur_prefix_len + namelen + 3
+            val cap: i64 = prefix_len + namelen + 3
             cur_name = allocators.ScopedArena.alloc_or_none(
                 ctx.arena,
-                (cur_name_cap) as usize
+                cap as usize
             ) as ref u8
-            @snprintf(cur_name, cur_name_cap, "{s}__{s}", {ctx.current_module_prefix, name})
+            @snprintf(cur_name, cap, "{s}__{s}", {prefix, name})
+        }
+        if collections.RawIndexMap.contains(ctx.fn_name_index, cur_name) {
+            cg_mark_prefix_used(ctx, prefix)
+            return cur_name
         }
     }
-    val ni: mut i64 = 0
-    val found: mut ref u8 = none
+
+    match collections.RawIndexMap.get(ctx.fn_suffix_index, name) {
+        some raw_index => {
+            val index: usize = raw_index as usize
+            val found_opt = @get(ctx.fn_names, index)
+            val found: mut ref u8 = none
+            if found_opt is some value {
+                found = value as ref u8
+            } else {
+                return none
+            }
+            val found_prefix: ref u8 = extract_prefix_from_mangled(ctx.arena, found, name)
+            val plen: i64 = str.len_raw(found_prefix)
+            val pi: mut i64 = 0
+            for {
+                if pi >= plen {
+                    break
+                }
+                val c1: u8 = @load8(@ptradd(found_prefix, pi))
+                if pi + 1 < plen {
+                    val c2: u8 = @load8(@ptradd(found_prefix, pi + 1))
+                    if c1 == 95 && c2 == 95 {
+                        val sub_prefix: ref u8 = allocators.ScopedArena.alloc_or_none(
+                            ctx.arena,
+                            (pi + 1) as usize
+                        ) as ref u8
+                        @memcpy(sub_prefix, found_prefix, pi as usize)
+                        @store8(@ptradd(sub_prefix, pi), 0)
+                        cg_mark_prefix_used(ctx, sub_prefix)
+                        pi++
+                    }
+                }
+                pi++
+            }
+            cg_mark_prefix_used(ctx, found_prefix)
+            return found
+        }
+        none => {
+            return none
+        }
+    }
+}
+
+/// Index a mangled name by itself and by every suffix after a `__` boundary.
+fn cg_index_fn_name(ctx: mut ref CgCtx, mangled: ref u8, index: usize) void = trust {
+    collections.RawIndexMap.set(ctx.fn_name_index, mangled, index)
+    val n: i64 = str.len_raw(mangled)
+    val i: mut i64 = 0
     for {
-        if ni >= nlen {
+        if i + 1 >= n {
             break
         }
-        val candidate: ref u8 = @load(cg_list_slot(names, ni)) as ref u8
-        if str.raw_cmp(candidate, name) == 0 {
-            if cur_name != none { }
-            cg_mark_prefix_used(ctx, "")
-            return candidate
+        if @load8(@ptradd(mangled, i)) == 95 && @load8(@ptradd(mangled, i + 1)) == 95 {
+            val suffix: ref u8 = @ptradd(mangled, i + 2) as ref u8
+            collections.RawIndexMap.set(ctx.fn_suffix_index, suffix, index)
         }
-        if cur_name != none && str.raw_cmp(candidate, cur_name) == 0 {
-            cg_mark_prefix_used(ctx, ctx.current_module_prefix)
-            return candidate
-        }
-        val clen: i64 = str.len_raw(candidate)
-        val slen: i64 = namelen + 2
-        if clen > slen {
-            val tail: ref u8 = @ptradd(candidate, clen - slen) as ref u8
-            if str.raw_cmp(tail, suffix) == 0 {
-                found = candidate
-            }
-        }
-        ni++
+        i++
     }
-    if cur_name != none { }
-    if found != none {
-        val prefix: ref u8 = extract_prefix_from_mangled(ctx.arena, found, name)
-
-        val plen: i64 = str.len_raw(prefix)
-        val pi: mut i64 = 0
-        for {
-            if pi >= plen {
-                break
-            }
-            val c1: u8 = @load8(@ptradd(prefix, pi))
-            if pi + 1 < plen {
-                val c2: u8 = @load8(@ptradd(prefix, pi + 1))
-                if c1 == 95 && c2 == 95 {
-                    val sub_prefix: ref u8 = allocators.ScopedArena.alloc_or_none(
-                        ctx.arena,
-                        (pi + 1) as usize
-                    ) as ref u8
-                    @memcpy(sub_prefix, prefix, pi as usize)
-                    @store8(@ptradd(sub_prefix, pi), 0)
-                    cg_mark_prefix_used(ctx, sub_prefix)
-                    pi++
-                }
-            }
-            pi++
-        }
-
-        cg_mark_prefix_used(ctx, prefix)
-    }
-    return found
 }
 
 /// Register a function's mangled name and its param list for call-site type checking.
@@ -2673,6 +2674,8 @@ fn cg_register_fn(
     @append(ctx.fn_names, mangled)
     @append(ctx.fn_params as list[ref void], params)
     @append(ctx.fn_rets as list[ref void], ret_ty)
+    val index: usize = (@len(ctx.fn_names) as usize) - 1
+    cg_index_fn_name(ctx, mangled, index)
 }
 
 fn cg_lookup_fn_name_by_node(ctx: ref CgCtx, node: ref parser.Node) ref u8 = trust {
@@ -2706,27 +2709,19 @@ fn cg_lookup_fn_name_by_node(ctx: ref CgCtx, node: ref parser.Node) ref u8 = tru
 
 /// Look up param list for a mangled function name. Returns 0 if not found.
 fn cg_lookup_fn_params(ctx: mut ref CgCtx, mangled: ref u8) ref void = trust {
-    val names: ref void = cg_fn_names(ctx)
-    val nlen: i64 = @len(names as list[ref u8]) as i64
-    val ni: mut i64 = 0
-    for {
-        if ni >= nlen {
-            break
-        }
-        val n_opt = @get(names as list[ref u8], ni as usize)
-        if n_opt is some n {
-            if str.raw_cmp(n as ref u8, mangled) == 0 {
-                val p_opt = @get(cg_fn_params(ctx) as list[ref void], ni as usize)
-                if p_opt is some p {
-                    return p as ref void
-                } else {
-                    return none
-                }
+    match collections.RawIndexMap.get(ctx.fn_name_index, mangled) {
+        some raw_index => {
+            val index: usize = raw_index as usize
+            val p_opt = @get(cg_fn_params(ctx) as list[ref void], index)
+            if p_opt is some p {
+                return p as ref void
             }
+            return none
         }
-        ni++
+        none => {
+            return none
+        }
     }
-    return none
 }
 
 /// Find a mangled function name whose suffix matches the given bare name.
@@ -2769,27 +2764,19 @@ fn resolve_fn_mangled(ctx: mut ref CgCtx, bare_name: ref u8) ref u8 = trust {
 
 /// Look up the return type for a mangled function name. Returns 0 if not found.
 fn cg_lookup_fn_ret(ctx: mut ref CgCtx, mangled: ref u8) ref void = trust {
-    val names: ref void = cg_fn_names(ctx)
-    val nlen: i64 = @len(names as list[ref u8]) as i64
-    val ni: mut i64 = 0
-    for {
-        if ni >= nlen {
-            break
-        }
-        val n_opt = @get(names as list[ref u8], ni as usize)
-        if n_opt is some n {
-            if str.raw_cmp(n as ref u8, mangled) == 0 {
-                val r_opt = @get(cg_fn_rets(ctx) as list[ref void], ni as usize)
-                if r_opt is some r {
-                    return r as ref void
-                } else {
-                    return none
-                }
+    match collections.RawIndexMap.get(ctx.fn_name_index, mangled) {
+        some raw_index => {
+            val index: usize = raw_index as usize
+            val r_opt = @get(cg_fn_rets(ctx) as list[ref void], index)
+            if r_opt is some r {
+                return r as ref void
             }
+            return none
         }
-        ni++
+        none => {
+            return none
+        }
     }
-    return none
 }
 
 /// Look up the return TypeExpr for a function by its simple (unmangled) name.
