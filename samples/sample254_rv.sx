@@ -1,0 +1,46 @@
+val allocators = use("std/allocators")
+
+type Bag = {
+    xs: mut list[i32]
+    tag: i32
+}
+
+// Generic so that using it during struct construction forces the compiler to
+// monomorphize another function while the outer aggregate is being built.
+fn identity[T](value: T) T = {
+    return value
+}
+
+fn make_bag(xs: list[i32]) Bag = {
+    return {
+        xs: xs,
+        tag: identity[i32](42 as i32)
+    }
+}
+
+fn clobber_stack() i64 = trust {
+    val pad: mut [512]i64 = @zeroed()
+    @memset(pad, 0x5A, 512 as usize)
+    return @len(pad) as i64
+}
+
+pub fn main() void = trust {
+    val sa: allocators.ScopedArenaAllocator = allocators.ScopedArena.new(4096 as usize)?
+    val la: allocators.ListArena = {arena: sa}
+
+    val xs: mut list[i32] = @listalloc[allocators.ListArena, i32](la)?
+    @append(xs, 11 as i32)
+    @append(xs, 22 as i32)
+
+    val bag: Bag = make_bag(xs)
+    val junk: i64 = clobber_stack()
+    assert junk > (0 as i64)
+    assert bag.tag == (42 as i32)
+    assert @len(bag.xs) == (2 as usize)
+    assert @get(bag.xs, 0 as usize) == some (11 as i32)
+    assert @get(bag.xs, 1 as usize) == some (22 as i32)
+
+    @puts("It worked.")
+
+    allocators.ScopedArena.free(sa)
+}
