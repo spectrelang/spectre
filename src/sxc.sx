@@ -245,6 +245,7 @@ pub fn main() i32 = trust {
         val target_arg: mut ref u8 = "."
         val md_mode: mut bool = false
         val output_arg: mut ref u8 = ""
+        val read_arg: mut ref u8 = ""
         val doc_arg_i: mut i64 = 2
         for {
             val arg_opt = @get(args, doc_arg_i)
@@ -275,6 +276,25 @@ pub fn main() i32 = trust {
                         return 1
                     }
                     output_arg = string.substr(arg, 3, out_len)
+                } elif string.raw_cmp(arg, "-read") == 0 {
+                    val next_i: i64 = doc_arg_i + 1
+                    val next_opt = @get(args, next_i)
+                    if next_opt is some rv {
+                        read_arg = rv as ref u8
+                        doc_arg_i = next_i
+                    } else {
+                        stdio.puts("error: -read requires a markdown file")
+                        allocators.Arena.free(arena)
+                        return 1
+                    }
+                } elif string.raw_starts_with(arg, "-read:") {
+                    val read_len: i64 = string.len_raw(arg) as i64 - 6
+                    if read_len <= 0 {
+                        stdio.puts("error: -read requires a markdown file")
+                        allocators.Arena.free(arena)
+                        return 1
+                    }
+                    read_arg = string.substr(arg, 6, read_len)
                 } elif string.raw_starts_with(arg, "-") {
                     stdio.print("error: unknown doc option '{s}'\n", {arg})
                     allocators.Arena.free(arena)
@@ -287,7 +307,7 @@ pub fn main() i32 = trust {
             }
             doc_arg_i++
         }
-        val code: i32 = docs.cmd_doc(target_arg, md_mode, output_arg)
+        val code: i32 = docs.cmd_doc(target_arg, md_mode, output_arg, read_arg)
         allocators.Arena.free(arena)
         return code
     }

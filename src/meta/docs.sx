@@ -1677,22 +1677,22 @@ fn append_markdown_inline_html(sb: ref void, text: ref u8) void = trust {
     }
 }
 
-fn flush_markdown_paragraph_html(sb: ref void, paragraph: mut ref u8) void = trust {
+fn flush_markdown_paragraph_html(sb: ref void, paragraph: ref u8) ref u8 = trust {
     if str_eq(paragraph, "") {
-        return
+        return ""
     }
     string.StringBuilder.append_cstr(sb, "<p>")
     append_markdown_inline_html(sb, paragraph)
     string.StringBuilder.append_cstr(sb, "</p>")
-    paragraph = ""
+    return ""
 }
 
-fn close_markdown_list_html(sb: ref void, in_list: mut bool) void = trust {
+fn close_markdown_list_html(sb: ref void, in_list: bool) bool = trust {
     if !in_list {
-        return
+        return false
     }
     string.StringBuilder.append_cstr(sb, "</ul>")
-    in_list = false
+    return false
 }
 
 fn append_markdown_html(sb: ref void, markdown: ref u8) void = trust {
@@ -1714,13 +1714,13 @@ fn append_markdown_html(sb: ref void, markdown: ref u8) void = trust {
                 }
                 string.StringBuilder.append_cstr(sb, "</code></pre>")
             } elif str_eq(trimmed, "") {
-                flush_markdown_paragraph_html(sb, paragraph)
-                close_markdown_list_html(sb, in_list)
+                paragraph = flush_markdown_paragraph_html(sb, paragraph)
+                in_list = close_markdown_list_html(sb, in_list)
             } else {
                 val level = markdown_heading_level(trimmed)
                 if level > 0 {
-                    flush_markdown_paragraph_html(sb, paragraph)
-                    close_markdown_list_html(sb, in_list)
+                    paragraph = flush_markdown_paragraph_html(sb, paragraph)
+                    in_list = close_markdown_list_html(sb, in_list)
                     val heading_text = trim_ws(substr(
                             trimmed,
                             level + 1,
@@ -1731,7 +1731,7 @@ fn append_markdown_html(sb: ref void, markdown: ref u8) void = trust {
                     append_markdown_inline_html(sb, heading_text)
                     string.StringBuilder.append_cstr(sb, @fmtalloc("</{s}>", {tag}))
                 } elif str.raw_starts_with(trimmed, "- ") || str.raw_starts_with(trimmed, "* ") {
-                    flush_markdown_paragraph_html(sb, paragraph)
+                    paragraph = flush_markdown_paragraph_html(sb, paragraph)
                     if !in_list {
                         string.StringBuilder.append_cstr(sb, "<ul>")
                         in_list = true
@@ -1743,13 +1743,13 @@ fn append_markdown_html(sb: ref void, markdown: ref u8) void = trust {
                     )
                     string.StringBuilder.append_cstr(sb, "</li>")
                 } else {
-                    close_markdown_list_html(sb, in_list)
+                    in_list = close_markdown_list_html(sb, in_list)
                     if str_eq(paragraph, "") {
                         paragraph = trimmed
                     } else {
                         paragraph = @fmtalloc("{s} {s}", {paragraph, trimmed})
                     }
-                    flush_markdown_paragraph_html(sb, paragraph)
+                    paragraph = flush_markdown_paragraph_html(sb, paragraph)
                 }
             }
             break
@@ -1767,8 +1767,8 @@ fn append_markdown_html(sb: ref void, markdown: ref u8) void = trust {
                     string.StringBuilder.append_cstr(sb, "\n")
                 }
             } elif str.raw_starts_with(trimmed, "```") {
-                flush_markdown_paragraph_html(sb, paragraph)
-                close_markdown_list_html(sb, in_list)
+                paragraph = flush_markdown_paragraph_html(sb, paragraph)
+                in_list = close_markdown_list_html(sb, in_list)
                 code_lang = trim_ws(substr(trimmed, 3, str.len_raw(trimmed) - 3))
                 if str_eq(code_lang, "") {
                     string.StringBuilder.append_cstr(sb, "<pre><code>")
@@ -1780,13 +1780,13 @@ fn append_markdown_html(sb: ref void, markdown: ref u8) void = trust {
                 }
                 in_code = true
             } elif str_eq(trimmed, "") {
-                flush_markdown_paragraph_html(sb, paragraph)
-                close_markdown_list_html(sb, in_list)
+                paragraph = flush_markdown_paragraph_html(sb, paragraph)
+                in_list = close_markdown_list_html(sb, in_list)
             } else {
                 val level = markdown_heading_level(trimmed)
                 if level > 0 {
-                    flush_markdown_paragraph_html(sb, paragraph)
-                    close_markdown_list_html(sb, in_list)
+                    paragraph = flush_markdown_paragraph_html(sb, paragraph)
+                    in_list = close_markdown_list_html(sb, in_list)
                     val heading_text = trim_ws(substr(
                             trimmed,
                             level + 1,
@@ -1797,7 +1797,7 @@ fn append_markdown_html(sb: ref void, markdown: ref u8) void = trust {
                     append_markdown_inline_html(sb, heading_text)
                     string.StringBuilder.append_cstr(sb, @fmtalloc("</{s}>", {tag}))
                 } elif str.raw_starts_with(trimmed, "- ") || str.raw_starts_with(trimmed, "* ") {
-                    flush_markdown_paragraph_html(sb, paragraph)
+                    paragraph = flush_markdown_paragraph_html(sb, paragraph)
                     if !in_list {
                         string.StringBuilder.append_cstr(sb, "<ul>")
                         in_list = true
@@ -1809,7 +1809,7 @@ fn append_markdown_html(sb: ref void, markdown: ref u8) void = trust {
                     )
                     string.StringBuilder.append_cstr(sb, "</li>")
                 } else {
-                    close_markdown_list_html(sb, in_list)
+                    in_list = close_markdown_list_html(sb, in_list)
                     if str_eq(paragraph, "") {
                         paragraph = trimmed
                     } else {
@@ -2604,7 +2604,12 @@ fn output_dir_for_target(target: ref u8, target_is_dir: bool) ref u8 = trust {
     return "./docs-out"
 }
 
-pub fn cmd_doc(target: ref u8, markdown: bool, output_override: ref u8) i32 = trust {
+pub fn cmd_doc(
+    target: ref u8,
+    markdown: bool,
+    output_override: ref u8,
+    read_override: ref u8
+) i32 = trust {
     val parse_arena: allocators.ScopedArenaAllocator = allocators.ScopedArena.new(
         67108864 as usize
     )?
@@ -2614,6 +2619,14 @@ pub fn cmd_doc(target: ref u8, markdown: bool, output_override: ref u8) i32 = tr
     if str_eq(target, "") {
         stdio.puts("error: doc requires a file or directory target")
         return 1
+    }
+    val readme_override: mut ref u8 = ""
+    if !str_eq(read_override, "") {
+        if !os.exists(read_override) {
+            stdio.print("error: could not read '{s}'\n", {read_override})
+            return 1
+        }
+        readme_override = read_text_file_or_empty(read_override)
     }
     val target_is_dir: bool = dir_exists(target)
     val out_dir: mut ref u8 = output_dir_for_target(target, target_is_dir)
@@ -2651,7 +2664,10 @@ pub fn cmd_doc(target: ref u8, markdown: bool, output_override: ref u8) i32 = tr
             index_rel = "index.md"
         }
         val index_path = path.join(out_dir, index_rel)
-        val readme = load_directory_readme(clean_target)
+        val readme: mut ref u8 = load_directory_readme(clean_target)
+        if !str_eq(readme_override, "") {
+            readme = readme_override
+        }
         if !write_page(
             index_path,
             render_overview_page(markdown, modules, index_rel, clean_target, readme)
@@ -2683,6 +2699,10 @@ pub fn cmd_doc(target: ref u8, markdown: bool, output_override: ref u8) i32 = tr
     }
     if !str.raw_ends_with(target, ".sx") {
         stdio.puts("error: doc expects a .sx file or a directory")
+        return 1
+    }
+    if !str_eq(read_override, "") {
+        stdio.puts("error: -read requires a directory target")
         return 1
     }
     val rel_path = normalize_rel_path(path_basename(target))
@@ -2755,6 +2775,16 @@ test "docs extracts comments, signatures and slugs" {
     assert str.raw_cmp(
         doc_html,
         "<div class=\"docs\"><p>Return when x is <code>none</code></p></div>"
+    ) == 0
+
+    val md_html_sb = string.StringBuilder.new()
+    trust append_markdown_html(md_html_sb, "first\n\nsecond\n\n- a\n- b\n")
+    val md_html_built = trust string.StringBuilder.build(md_html_sb)
+    val md_html = trust string.cstr(md_html_built)
+    trust string.StringBuilder.free(md_html_sb)
+    assert str.raw_cmp(
+        md_html,
+        "<p>first</p><p>second</p><ul><li>a</li><li>b</li></ul>"
     ) == 0
 
     assert str_eq(trust slugify("Hello.World"), "hello-world")
