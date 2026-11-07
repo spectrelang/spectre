@@ -8,20 +8,31 @@ val allocators = use("std/allocators")
 val random     = use("std/crypto/random")
 val parser     = use("../ast/parser.sx")
 
+/// Join a temporary directory and file name using a tracked allocation.
+fn tmp_join(dir: ref u8, name: ref u8) ref u8 = trust {
+    val dlen: i64 = string.len_raw(dir)
+    val nlen: i64 = string.len_raw(name)
+    val out: ref u8 = @alloc((dlen + nlen + 2) as usize) as ref u8
+    @memcpy(out, dir, dlen as usize)
+    @store8(@ptradd(out, dlen), 47)
+    @memcpy(@ptradd(out, dlen + 1), name, (nlen + 1) as usize)
+    return out
+}
+
 /// Returns a platform-appropriate path for a temp file.
 pub fn get_tmp_path(name: ref u8) ref u8 = trust {
     when windows {
         val tmp_dir: ref u8 = os.getenv("TEMP")
         if tmp_dir != none {
-            return @fmtalloc("{s}/{s}", {tmp_dir, name})
+            return tmp_join(tmp_dir, name)
         }
         val tmp2: ref u8 = os.getenv("TMP")
         if tmp2 != none {
-            return @fmtalloc("{s}/{s}", {tmp2, name})
+            return tmp_join(tmp2, name)
         }
-        return @fmtalloc("C:/Windows/Temp/{s}", {name})
+        return tmp_join("C:/Windows/Temp", name)
     }
-    return @fmtalloc("/tmp/{s}", {name})
+    return tmp_join("/tmp", name)
 }
 
 /// Returns a unique platform-appropriate temp path for a build artifact.

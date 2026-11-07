@@ -1,0 +1,81 @@
+/// Leak harness for src/meta/commands.sx.
+///
+/// SPDX-License-Identifier: GPL-3.0-only
+/// (C) Navid Momtahen - 2026
+
+val os       = use("std/os")
+val fs       = use("std/fs")
+val mem      = use("../../src/meta/mem.sx")
+val meta     = use("../../src/meta/meta.sx")
+val commands = use("../../src/meta/commands.sx")
+val check    = use("lib/check.sx")
+
+when posix {
+    extern (C) fn chdir(path: ref u8) i32 = "chdir"
+}
+
+test "commands parses sx.mod without leaking" {
+    trust {
+        mem.init()
+        val content: ref u8 = \\entry "./src/main.sx"
+        \\version "1.2.3"
+        \\spectre_version "0.0.0"
+        \\single_flags "-release -dynamic"
+        \\dep "https://example.com/lib.git"
+        \\build dev {
+        \\    action "./script.sh"
+        \\    flags "-l"
+        \\    output "./out"
+        \\    env {
+        \\        FOO=bar
+        \\    }
+        \\    linux {
+        \\        flags "-O2"
+        \\    }
+        \\}
+        val parsed = commands.parse_sxmod(content)
+        assert @len(parsed.deps) as i64 == 1
+        assert @len(parsed.builds) as i64 == 1
+        val cfg_opt = @get(parsed.builds, 0 as usize)
+        if cfg_opt is some raw_cfg {
+            val cfg: ref commands.SxBuildConfig = raw_cfg as ref commands.SxBuildConfig
+            assert @len(cfg.rules) as i64 == 1
+            assert @len(cfg.base.envs) as i64 == 1
+        } else {
+            assert false
+        }
+        mem.close()
+        check.expect_clean("commands")
+    }
+}
+
+test "commands build does not leak" {
+    trust {
+        mem.init()
+        val dir: ref u8 = "./s-out/checkmem-commands"
+        assert fs.mkdir_path(dir)
+
+        val version: ref u8 = meta.get_spectre_version()
+        val prefix: ref u8 = "entry \"./main.sx\"\nversion \"1.2.3\"\nspectre_version \""
+        val suffix: ref u8 = "\"\nbuild checkmem { action \"true\" }\n"
+        assert fs.write_all("./s-out/checkmem-commands/sx.mod", prefix)
+        assert fs.append_all("./s-out/checkmem-commands/sx.mod", version)
+        assert fs.append_all("./s-out/checkmem-commands/sx.mod", suffix)
+
+        when posix {
+            assert chdir(dir) == 0
+            val code: i32 = commands.cmd_build("checkmem", "./spectre-checkmem")
+            assert chdir("../..") == 0
+            assert code == 0
+        }
+
+        when windows {
+            os.run("rmdir /s /q .\\s-out\\checkmem-commands")
+        }
+        when posix {
+            os.run("rm -rf ./s-out/checkmem-commands")
+        }
+        mem.close()
+        check.expect_clean("commands-build")
+    }
+}

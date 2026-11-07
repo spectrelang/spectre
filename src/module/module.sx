@@ -1,8 +1,6 @@
 val str        = use("std/string")
 val mem        = use("../meta/mem.sx")
-val stdio      = use("std/stdio")
 val path       = use("std/path")
-val os         = use("std/os")
 val fs         = use("std/fs")
 val reflection = use("std/reflection")
 val allocators = use("std/allocators")
@@ -1329,8 +1327,10 @@ fn resolve_module_impl(
                     @append(m.import_modules, child as ref void)
                 }
                 err e => {
-                    stdio.eprint("error: could not resolve import '{s}': {s}\n", {import_name, e})
-                    os.exit(1)
+                    return err @fmtalloc(
+                        "could not resolve import '{s}': {s}",
+                        {import_name, e}
+                    )
                 }
             }
         }

@@ -54,6 +54,27 @@ fn new_ctx(text: ref u8) ref ParseCtx = {
     return ctx
 }
 
+fn mem_dup_cstr(s: ref u8) ref u8 = trust {
+    val len: i64 = str.len_raw(s)
+    val out: ref u8 = mem.alloc((len + 1) as usize) as ref u8
+    @memcpy(out, s, (len + 1) as usize)
+    return out
+}
+
+fn mem_concat2(a: ref u8, b: ref u8) ref u8 = trust {
+    val alen: i64 = str.len_raw(a)
+    val blen: i64 = str.len_raw(b)
+    val out: ref u8 = mem.alloc((alen + blen + 1) as usize) as ref u8
+    @memcpy(out, a, alen as usize)
+    @memcpy(@ptradd(out, alen), b, blen as usize)
+    @store8(@ptradd(out, alen + blen), 0)
+    return out
+}
+
+fn mem_concat3(a: ref u8, b: ref u8, c: ref u8) ref u8 = trust {
+    return mem_concat2(mem_concat2(a, b), c)
+}
+
 fn ctx_peek(ctx: ref ParseCtx) i64 = trust {
     if ctx.pos >= ctx.len {
         return -1
@@ -125,7 +146,7 @@ fn ctx_read_quoted(ctx: mut ref ParseCtx) ref u8 = trust {
         ctx_advance(ctx)
     }
     @store8(@ptradd(buf, i), 0)
-    val result: ref u8 = @alloc(i + 1) as ref u8
+    val result: ref u8 = mem.alloc((i + 1) as usize) as ref u8
     @memcpy(result, buf, (i + 1) as usize)
     @free(buf)
     return result
@@ -155,7 +176,7 @@ fn ctx_read_ident(ctx: mut ref ParseCtx) ref u8 = trust {
         @free(buf)
         return ""
     }
-    val result: ref u8 = @alloc(i + 1) as ref u8
+    val result: ref u8 = mem.alloc((i + 1) as usize) as ref u8
     @memcpy(result, buf, (i + 1) as usize)
     @free(buf)
     return result
@@ -188,14 +209,14 @@ fn ctx_read_env_value(ctx: mut ref ParseCtx) ref u8 = trust {
         @free(buf)
         return ""
     }
-    val result: ref u8 = @alloc(i + 1) as ref u8
+    val result: ref u8 = mem.alloc((i + 1) as usize) as ref u8
     @memcpy(result, buf, (i + 1) as usize)
     @free(buf)
     return result
 }
 
 pub fn new_build_rule(platform: ref u8, arch: ref u8) ref SxBuildRule = trust {
-    val rule: mut ref SxBuildRule = @alloc(@sizeof(SxBuildRule)) as mut ref SxBuildRule
+    val rule: mut ref SxBuildRule = mem.alloc(@sizeof(SxBuildRule) as usize) as mut ref SxBuildRule
     @memset(rule, 0, @sizeof(SxBuildRule))
     rule.platform = platform
     rule.arch = arch
@@ -227,7 +248,7 @@ fn parse_env_entries(ctx: mut ref ParseCtx, out: mut list[ref u8]) void = trust 
             ctx_advance(ctx)
         }
         val env_value: ref u8 = ctx_read_env_value(ctx)
-        @append(out, @fmtalloc("{s}={s}", {env_name, env_value}))
+        @append(out, mem_concat3(env_name, "=", env_value))
     }
     if ctx_peek(ctx) == 125 {
         ctx_advance(ctx)
@@ -314,8 +335,12 @@ fn parse_build_body(ctx: mut ref ParseCtx, cfg: mut ref SxBuildConfig) void = tr
         val platform: mut ref u8 = name
         val arch: mut ref u8 = ""
         if dot >= 0 {
-            platform = str.substr(name, 0, dot)
-            arch = str.substr(name, dot + 1, name_len - dot - 1)
+            val platform_tmp: ref u8 = str.substr(name, 0, dot)
+            val arch_tmp: ref u8 = str.substr(name, dot + 1, name_len - dot - 1)
+            platform = mem_dup_cstr(platform_tmp)
+            arch = mem_dup_cstr(arch_tmp)
+            @free(platform_tmp)
+            @free(arch_tmp)
         }
         ctx_skip_ws(ctx)
         if ctx_peek(ctx) != 123 {
@@ -334,7 +359,7 @@ fn parse_build_body(ctx: mut ref ParseCtx, cfg: mut ref SxBuildConfig) void = tr
 
 pub fn parse_sxmod(content: ref u8) ref SxMod = trust {
     val ctx: mut ref ParseCtx = new_ctx(content)
-    val m: mut ref SxMod = @alloc(@sizeof(SxMod)) as ref SxMod
+    val m: mut ref SxMod = mem.alloc(@sizeof(SxMod) as usize) as ref SxMod
     @memset(m, 0, @sizeof(SxMod) as usize)
     m.entry = ""
     m.version = ""
@@ -362,7 +387,7 @@ pub fn parse_sxmod(content: ref u8) ref SxMod = trust {
         } elif str.raw_cmp(kw, "dep") == 0 {
             @append(m.deps, ctx_read_quoted(ctx))
         } elif str.raw_cmp(kw, "build") == 0 {
-            val cfg: mut ref SxBuildConfig = @alloc(@sizeof(SxBuildConfig)) as mut ref SxBuildConfig
+            val cfg: mut ref SxBuildConfig = mem.alloc(@sizeof(SxBuildConfig) as usize) as mut ref SxBuildConfig
             @memset(cfg, 0, @sizeof(SxBuildConfig))
             cfg.name = ctx_read_ident(ctx)
             cfg.base = none
@@ -466,7 +491,7 @@ fn parse_sxlock(content: ref u8) list[ref SxLockDep] = trust {
             val url: ref u8 = ctx_read_quoted(ctx)
             val hash: ref u8 = ctx_read_quoted(ctx)
             if str.raw_cmp(url, "") != 0 && str.raw_cmp(hash, "") != 0 {
-                val dep: mut ref SxLockDep = @alloc(@sizeof(SxLockDep)) as ref SxLockDep
+                val dep: mut ref SxLockDep = mem.alloc(@sizeof(SxLockDep) as usize) as ref SxLockDep
                 @memset(dep, 0, @sizeof(SxLockDep) as usize)
                 dep.url = url
                 dep.hash = hash
@@ -681,10 +706,12 @@ fn load_sxlock_at(dir: ref u8) option[list[ref SxLockDep]] = trust {
             arena_cap = sz as i64
         }
     } else {
+        @free(lock_path)
         return none
     }
     val arena: allocators.Arena = allocators.Arena.new((arena_cap + 8) as usize)?
     val content_opt = fs.read_all[allocators.Arena](arena, lock_path)
+    @free(lock_path)
     match content_opt {
         none => {
             allocators.Arena.free(arena)
@@ -758,28 +785,28 @@ pub fn resolve_build_rule(cfg: ref SxBuildConfig, target: mut ref SxBuildRule) v
 fn build_config_cmd(cfg: ref SxBuildRule, exe_path: ref u8, entry: ref u8) ref u8 = trust {
     val cmd: mut ref u8 = ""
     if str.raw_cmp(cfg.action, "") != 0 {
-        cmd = cfg.action
+        cmd = mem_dup_cstr(cfg.action)
     } else {
-        cmd = @fmtalloc("{s} {s} -no-single-flags", {exe_path, entry})
+        cmd = mem_concat2(mem_concat3(exe_path, " ", entry), " -no-single-flags")
     }
     if str.raw_cmp(cfg.flags, "") != 0 {
-        cmd = @fmtalloc("{s} {s}", {cmd, cfg.flags})
+        cmd = mem_concat3(cmd, " ", cfg.flags)
     }
     if str.raw_cmp(cfg.output, "") != 0 {
-        cmd = @fmtalloc("{s} -o {s}", {cmd, cfg.output})
+        cmd = mem_concat3(cmd, " -o ", cfg.output)
     }
     val nenv: i64 = @len(cfg.envs) as i64
     if nenv > 0 {
         if str.raw_cmp(cfg.action, "") == 0 {
             for e in cfg.envs {
-                cmd = @fmtalloc("{s} -d:{s}", {cmd, e})
+                cmd = mem_concat3(cmd, " -d:", e)
             }
         } else {
             val prefix: mut ref u8 = ""
             for e in cfg.envs {
-                prefix = @fmtalloc("{s}{s} ", {prefix, e})
+                prefix = mem_concat3(prefix, e, " ")
             }
-            cmd = @fmtalloc("{s}{s}", {prefix, cmd})
+            cmd = mem_concat2(prefix, cmd)
         }
     }
     return cmd

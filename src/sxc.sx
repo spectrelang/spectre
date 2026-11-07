@@ -45,6 +45,9 @@ pub fn main() i32 = trust {
         mem.close()
     }
     val args = os.get_args()
+    defer {
+        @listfree(args)
+    }
     val argc: i64 = @len(args) as i64
     val exe_path: mut ref u8 = "./spectre"
     val exe_opt = @get(args, 0)

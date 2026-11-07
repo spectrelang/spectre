@@ -1,0 +1,37 @@
+/// Leak harness for src/meta/builds.sx.
+///
+/// SPDX-License-Identifier: GPL-3.0-only
+/// (C) Navid Momtahen - 2026
+
+val string = use("std/string")
+val mem    = use("../../src/meta/mem.sx")
+val builds = use("../../src/meta/builds.sx")
+val check  = use("lib/check.sx")
+
+test "build helpers do not leak" {
+    trust {
+        mem.init()
+        assert string.raw_cmp(builds.alt_compiler_kind("clang"), "gnu") == 0
+        assert string.raw_cmp(builds.alt_compiler_kind("clang-cl"), "clang-cl") == 0
+        assert string.raw_cmp(builds.alt_compiler_kind("cl"), "msvc") == 0
+        assert string.raw_cmp(builds.compiler_std_flag("gnu"), "-std=c99") == 0
+        assert string.raw_cmp(builds.compiler_opt_flag("gnu", true), "-O3") == 0
+        assert string.raw_cmp(builds.compiler_warn_flag("clang"), "-Wno-everything") == 0
+        assert builds.supports_static_linking("linux")
+        assert !builds.supports_static_linking("windows")
+        assert string.raw_cmp(builds.parse_alt_compiler_arg("-alt:clang"), "clang") == 0
+
+        val plain: ref u8 = builds.get_tmp_path("spectre-checkmem.txt")
+        assert string.len_raw(plain) > 0
+        @free(plain)
+
+        val first: ref u8 = builds.get_unique_tmp_path("spectre-checkmem.txt")
+        val second: ref u8 = builds.get_unique_tmp_path("spectre-checkmem.txt")
+        assert string.raw_cmp(first, second) != 0
+        @free(first)
+        @free(second)
+
+        mem.close()
+        check.expect_clean("builds")
+    }
+}
