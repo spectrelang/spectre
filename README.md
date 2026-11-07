@@ -17,6 +17,7 @@ Resources:
 - [Visual Studio Code Extension](https://marketplace.visualstudio.com/items?itemName=NavidM.spectre-lang)
 - [Neovim Extension](https://github.com/spectrelang/spectre-nvim)
 - [Language Server](https://github.com/spectrelang/spectre-ls)
+- [Debugger](https://github.com/spectrelang/phantom)
 
 ## Installation
 
