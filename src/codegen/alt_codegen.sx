@@ -6511,6 +6511,19 @@ fn gen_builtin(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
         @snprintf(buf, 512, "strlen((const char*)(intptr_t)({s}))", {arg})
         return cc_expr_track(ctx, buf)
     }
+    if str.raw_cmp(bname, "strcmp") == 0 {
+        val a: ref u8 = get_arg(ctx, args, 0)
+        val b: ref u8 = get_arg(ctx, args, 1)
+        val buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 512 as usize) as ref u8
+        @snprintf(buf, 512, "strcmp((const char*)(intptr_t)({s}),(const char*)(intptr_t)({s}))", {a, b})
+        return cc_expr_track(ctx, buf)
+    }
+    if str.raw_cmp(bname, "atoi") == 0 {
+        val arg: ref u8 = get_arg(ctx, args, 0)
+        val buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 512 as usize) as ref u8
+        @snprintf(buf, 512, "atoi((const char*)(intptr_t)({s}))", {arg})
+        return cc_expr_track(ctx, buf)
+    }
     return "0"
 }
 

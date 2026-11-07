@@ -1,0 +1,15 @@
+pub fn atoi(s: ref u8) i64 = {
+    return @atoi(s)
+}
+
+pub fn main() void = trust {
+    assert atoi("") == 0
+    assert atoi("0") == 0
+    assert atoi("42") == 42
+    assert atoi("+7") == 7
+    assert atoi("-123") == -123
+    assert atoi("  99xyz") == 99
+    assert atoi("abc") == 0
+    assert atoi("-") == 0
+    @puts("atoi ok\n")
+}

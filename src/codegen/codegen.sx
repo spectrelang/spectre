@@ -11679,11 +11679,11 @@ fn gen_builtin(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
     } elif str.raw_cmp(name, "strcmp") == 0 {
         val a: ref u8 = get_arg(ctx, args, 0)
         val b: ref u8 = get_arg(ctx, args, 1)
-        @snprintf(buf, 512, "    %%t{lld} =l call $strcmp(l {s}, l {s})\n", {tmp, a, b})
+        @snprintf(buf, 512, "    %%t{lld} =l call $sxqbe_strcmp(l {s}, l {s})\n", {tmp, a, b})
         emit(ctx, buf)
     } elif str.raw_cmp(name, "atoi") == 0 {
         val s3: ref u8 = get_arg(ctx, args, 0)
-        @snprintf(buf, 512, "    %%t{lld} =l call $atoi(l {s})\n", {tmp, s3})
+        @snprintf(buf, 512, "    %%t{lld} =l call $sxqbe_atoi(l {s})\n", {tmp, s3})
         emit(ctx, buf)
     } elif str.raw_cmp(name, "append") == 0 {
         val lst: ref u8 = get_list_arg(ctx, args, 0)
@@ -17304,6 +17304,83 @@ fn emit_runtime_helpers(ctx: mut ref CgCtx) void = trust {
         \\function l $__sx_get_args() {
         \\@start
         \\    %r =l call $sx_get_args()
+        \\    ret %r
+        \\}
+        \\
+        \\function l $sxqbe_strcmp(l %a, l %b) {
+        \\@start
+        \\    %pa =l copy %a
+        \\    %pb =l copy %b
+        \\@loop
+        \\    %ca =w loadub %pa
+        \\    %cb =w loadub %pb
+        \\    %d =w sub %ca, %cb
+        \\    %ne =w cnew %d, 0
+        \\    jnz %ne, @diff, @same
+        \\@same
+        \\    %z =w ceqw %ca, 0
+        \\    jnz %z, @done, @advance
+        \\@advance
+        \\    %pa =l add %pa, 1
+        \\    %pb =l add %pb, 1
+        \\    jmp @loop
+        \\@diff
+        \\    %r =l extsw %d
+        \\    ret %r
+        \\@done
+        \\    ret 0
+        \\}
+        \\
+        \\function l $sxqbe_atoi(l %s) {
+        \\@start
+        \\    %p =l copy %s
+        \\    %n =l copy 0
+        \\    %sign =l copy 1
+        \\@ws
+        \\    %c =w loadub %p
+        \\    %is_sp =w ceqw %c, 32
+        \\    %is_tab =w ceqw %c, 9
+        \\    %is_nl =w ceqw %c, 10
+        \\    %is_vt =w ceqw %c, 11
+        \\    %is_ff =w ceqw %c, 12
+        \\    %is_cr =w ceqw %c, 13
+        \\    %w1 =w or %is_sp, %is_tab
+        \\    %w2 =w or %is_nl, %is_vt
+        \\    %w3 =w or %is_ff, %is_cr
+        \\    %w4 =w or %w1, %w2
+        \\    %is_ws =w or %w4, %w3
+        \\    jnz %is_ws, @ws_advance, @sign
+        \\@ws_advance
+        \\    %p =l add %p, 1
+        \\    jmp @ws
+        \\@sign
+        \\    %c2 =w loadub %p
+        \\    %is_plus =w ceqw %c2, 43
+        \\    %is_minus =w ceqw %c2, 45
+        \\    %is_sign =w or %is_plus, %is_minus
+        \\    jnz %is_sign, @sign_advance, @digits
+        \\@sign_advance
+        \\    jnz %is_minus, @negative, @sign_done
+        \\@negative
+        \\    %sign =l copy -1
+        \\@sign_done
+        \\    %p =l add %p, 1
+        \\    jmp @digits
+        \\@digits
+        \\    %c3 =w loadub %p
+        \\    %ge0 =w cugew %c3, 48
+        \\    %le9 =w culew %c3, 57
+        \\    %is_digit =w and %ge0, %le9
+        \\    jnz %is_digit, @digit_body, @done
+        \\@digit_body
+        \\    %d =w sub %c3, 48
+        \\    %dl =l extuw %d
+        \\    %n10 =l mul %n, 10
+        \\    %n =l add %n10, %dl
+        \\    %p =l add %p, 1
+        \\    jmp @digits
+        \\@done
+        \\    %r =l mul %n, %sign
         \\    ret %r
         \\}
         \\
