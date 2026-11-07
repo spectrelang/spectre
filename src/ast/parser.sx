@@ -1910,7 +1910,10 @@ fn parse_postfix(p: mut ref Parser) result[ref Node, ref u8] = trust {
                     break
                 }
                 val ta: mut ref Node = none
-                if kind_is_ident(p_peek_kind(p)) && string.str_eql(lexer.tok_text(p.tokens, p.pos), "_") {
+                if kind_is_ident(p_peek_kind(p)) && string.str_eql(
+                    lexer.tok_text(p.tokens, p.pos),
+                    "_"
+                ) {
                     p_advance(p)
                     ta = make_node(p.arena, TY_INFER, line)
                 } else {
@@ -2089,7 +2092,10 @@ fn parse_primary(p: mut ref Parser) result[ref Node, ref u8] = trust {
                     break
                 }
                 val bta: mut ref Node = none
-                if kind_is_ident(p_peek_kind(p)) && string.str_eql(lexer.tok_text(p.tokens, p.pos), "_") {
+                if kind_is_ident(p_peek_kind(p)) && string.str_eql(
+                    lexer.tok_text(p.tokens, p.pos),
+                    "_"
+                ) {
                     p_advance(p)
                     bta = make_node(p.arena, TY_INFER, line)
                 } else {
