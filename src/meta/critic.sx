@@ -2380,15 +2380,6 @@ fn has_sx_suffix(file: ref u8) bool = {
     return str.raw_ends_with(file, ".sx")
 }
 
-fn is_directory(dir: ref u8) bool = trust {
-    val handle: ref void = fs.opendir(dir)
-    if handle == none {
-        return false
-    }
-    fs.closedir(handle)
-    return true
-}
-
 fn join_path(arena: allocators.Arena, dir: ref u8, name: ref u8) ref u8 = trust {
     val dlen: i64 = str.len_raw(dir)
     val nlen: i64 = str.len_raw(name)
@@ -2421,7 +2412,7 @@ fn collect_files(
     out: mut list[ref u8],
     explicit: bool
 ) i32 = trust {
-    if is_directory(target) {
+    if fs.is_directory(target) {
         val walk_arena: allocators.ScopedArenaAllocator = allocators.ScopedArena.new(
             65536 as usize
         )?

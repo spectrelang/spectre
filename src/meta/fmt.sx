@@ -3902,15 +3902,6 @@ fn has_sx_suffix(file: ref u8) bool = {
     return str.raw_ends_with(file, ".sx")
 }
 
-fn is_directory(dir: ref u8) bool = trust {
-    val handle: ref void = fs.opendir(dir)
-    if handle == none {
-        return false
-    }
-    fs.closedir(handle)
-    return true
-}
-
 fn format_file(file: ref u8, to_stdout: bool) i32 = trust {
     val size_opt = fs.file_size(file)
     val size: mut i64 = 0
@@ -3965,7 +3956,7 @@ fn format_file(file: ref u8, to_stdout: bool) i32 = trust {
 }
 
 fn collect_files(target: ref u8, out: mut list[ref u8], explicit: bool) i32 = trust {
-    if is_directory(target) {
+    if fs.is_directory(target) {
         val heap: allocators.HeapAllocator = @zeroed
         val entries_opt = fs.walk_dir_raw[_](heap, target)
         match entries_opt {
