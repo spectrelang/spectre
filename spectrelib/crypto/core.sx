@@ -15,12 +15,12 @@ pub enum CryptoError = {
     FileReadFailed
 }
 
-extern (C) fn fopen(path: ref u8, mode: ref u8) ref void = "fopen"
-extern (C) fn fclose(stream: ref void) i32 = "fclose"
-extern (C) fn fread(buf: ref void, size: usize, count: usize, stream: ref void) usize = "fread"
-extern (C) fn fseek(stream: ref void, offset: i64, whence: i32) i32 = "fseek"
-extern (C) fn ftell(stream: ref void) i64 = "ftell"
-extern (C) fn rewind(stream: ref void) void = "rewind"
+extern (C, header) fn fopen(path: ref u8, mode: ref u8) ref void = "fopen"
+extern (C, header) fn fclose(stream: ref void) i32 = "fclose"
+extern (C, header) fn fread(buf: ref void, size: usize, count: usize, stream: ref void) usize = "fread"
+extern (C, header) fn fseek(stream: ref void, offset: i64, whence: i32) i32 = "fseek"
+extern (C, header) fn ftell(stream: ref void) i64 = "ftell"
+extern (C, header) fn rewind(stream: ref void) void = "rewind"
 
 /// FNV-1a hash.
 ///

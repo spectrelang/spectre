@@ -4,7 +4,7 @@
 /// (C) Navid Momtahen - 2026
 
 /// The getenv extern.
-extern (C) fn getenv(name: ref u8) ref u8 = "getenv"
+extern (C, header) fn getenv(name: ref u8) ref u8 = "getenv"
 
 /// Get an environment variable.
 /// Returns an empty string when the variable is not set.

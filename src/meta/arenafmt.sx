@@ -2,7 +2,7 @@
 
 val allocators = use("std/allocators")
 
-extern (C) fn strlen(s: ref u8) i64 = "strlen"
+extern (C, header) fn strlen(s: ref u8) i64 = "strlen"
 
 fn rewrite_fmt(arena: allocators.ScopedArenaAllocator, fmt: ref u8) ref void = trust {
     val fmtlen: i64 = strlen(fmt)

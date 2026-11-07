@@ -29,16 +29,18 @@ pub type Thread = {
 }
 
 when posix {
-    extern (C) fn pthread_create(
+    extern "pthread.h"
+    extern "sched.h"
+    extern (C, header) fn pthread_create(
         thread: ref void,
         attr: ref void,
         start_routine: usize,
         arg: ref void
     ) i32 = "pthread_create"
-    extern (C) fn pthread_join(thread: ref void, retval: ref void) i32 = "pthread_join"
-    extern (C) fn pthread_detach(thread: ref void) i32 = "pthread_detach"
-    extern (C) fn pthread_self() ref void = "pthread_self"
-    extern (C) fn sched_yield() i32 = "sched_yield"
+    extern (C, header) fn pthread_join(thread: ref void, retval: ref void) i32 = "pthread_join"
+    extern (C, header) fn pthread_detach(thread: ref void) i32 = "pthread_detach"
+    extern (C, header) fn pthread_self() ref void = "pthread_self"
+    extern (C, header) fn sched_yield() i32 = "sched_yield"
 }
 
 when windows {
@@ -240,10 +242,10 @@ pub type Mutex = {
 }
 
 when posix {
-    extern (C) fn pthread_mutex_init(mutex: ref void, attr: ref void) i32 = "pthread_mutex_init"
-    extern (C) fn pthread_mutex_destroy(mutex: ref void) i32 = "pthread_mutex_destroy"
-    extern (C) fn pthread_mutex_lock(mutex: ref void) i32 = "pthread_mutex_lock"
-    extern (C) fn pthread_mutex_unlock(mutex: ref void) i32 = "pthread_mutex_unlock"
+    extern (C, header) fn pthread_mutex_init(mutex: ref void, attr: ref void) i32 = "pthread_mutex_init"
+    extern (C, header) fn pthread_mutex_destroy(mutex: ref void) i32 = "pthread_mutex_destroy"
+    extern (C, header) fn pthread_mutex_lock(mutex: ref void) i32 = "pthread_mutex_lock"
+    extern (C, header) fn pthread_mutex_unlock(mutex: ref void) i32 = "pthread_mutex_unlock"
 }
 
 when windows {

@@ -3,30 +3,30 @@ val str        = use("../string")
 val pathutil   = use("../path")
 val allocators = use("../allocators")
 
-extern (C) fn fopen(path: ref u8, mode: ref u8) ref void = "fopen"
-extern (C) fn fclose(stream: ref void) i32 = "fclose"
-extern (C) fn fread(buf: ref void, size: usize, count: usize, stream: ref void) usize = "fread"
-extern (C) fn fwrite(buf: ref void, size: usize, count: usize, stream: ref void) usize = "fwrite"
-extern (C) fn fseek(stream: ref void, offset: i64, whence: i32) i32 = "fseek"
-extern (C) fn ftell(stream: ref void) i64 = "ftell"
-extern (C) fn rewind(stream: ref void) void = "rewind"
-extern (C) fn remove(path: ref u8) i32 = "remove"
-extern (C) fn rename(old: ref u8, new: ref u8) i32 = "rename"
-extern (C) fn strlen(s: ref u8) i64 = "strlen"
-extern (C) fn getcwd(buf: ref u8, size: usize) ref u8 = "getcwd"
+extern (C, header) fn fopen(path: ref u8, mode: ref u8) ref void = "fopen"
+extern (C, header) fn fclose(stream: ref void) i32 = "fclose"
+extern (C, header) fn fread(buf: ref void, size: usize, count: usize, stream: ref void) usize = "fread"
+extern (C, header) fn fwrite(buf: ref void, size: usize, count: usize, stream: ref void) usize = "fwrite"
+extern (C, header) fn fseek(stream: ref void, offset: i64, whence: i32) i32 = "fseek"
+extern (C, header) fn ftell(stream: ref void) i64 = "ftell"
+extern (C, header) fn rewind(stream: ref void) void = "rewind"
+extern (C, header) fn remove(path: ref u8) i32 = "remove"
+extern (C, header) fn rename(old: ref u8, new: ref u8) i32 = "rename"
+extern (C, header) fn strlen(s: ref u8) i64 = "strlen"
+extern (C, header) fn getcwd(buf: ref u8, size: usize) ref u8 = "getcwd"
 
-pub extern (C) fn getenv(name: ref u8) ref u8 = "getenv"
+pub extern (C, header) fn getenv(name: ref u8) ref u8 = "getenv"
 when windows {
     // direct.h exposes the one-argument _mkdir on Windows.
     pub extern (C, header) fn _mkdir(path: ref u8) i32 = "_mkdir"
 }
 when posix {
-    pub extern (C) fn mkdir(path: ref u8, mode: u32) i32 = "mkdir"
+    pub extern (C, header) fn mkdir(path: ref u8, mode: u32) i32 = "mkdir"
 }
-pub extern (C) fn rmdir(path: ref u8) i32 = "rmdir"
-pub extern (C) fn opendir(path: ref u8) ref void = "opendir"
-pub extern (C) fn closedir(dir: ref void) i32 = "closedir"
-pub extern (C) fn readdir(dir: ref void) ref Dirent = "readdir"
+pub extern (C, header) fn rmdir(path: ref u8) i32 = "rmdir"
+pub extern (C, header) fn opendir(path: ref u8) ref void = "opendir"
+pub extern (C, header) fn closedir(dir: ref void) i32 = "closedir"
+pub extern (C, header) fn readdir(dir: ref void) ref Dirent = "readdir"
 
 when linux {
     extern type Dirent = {

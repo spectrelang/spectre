@@ -6505,35 +6505,10 @@ fn gen_builtin(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
         @snprintf(buf, 512, "_mkdir((const char*)(intptr_t)({s}))", {p})
         return cc_expr_track(ctx, buf)
     }
-    if is_libc_fn(bname) {
-        val sb: ref void = str.StringBuilder.new()
-        val hdr: ref u8 = allocators.ScopedArena.alloc_or_none(
-            ctx.arena,
-            8192 as usize
-        ) as ref u8
-        @snprintf(hdr, 8192, "{s}(", {bname})
-        str.StringBuilder.append_cstr(sb, hdr)
-        if args != none {
-            val alen: i64 = @len(args as list[ref parser.Node]) as i64
-            val ai: mut i64 = 0
-            for {
-                if ai >= alen {
-                    break
-                }
-                val a_opt = @get(args as list[ref parser.Node], ai as usize)
-                if a_opt is some a {
-                    if ai > 0 {
-                        str.StringBuilder.append_cstr(sb, ",")
-                    }
-                    val av: ref u8 = gen_expr(ctx, a as ref parser.Node)
-                    str.StringBuilder.append_cstr(sb, av)
-                }
-                ai++
-            }
-        }
-        str.StringBuilder.append_cstr(sb, ")")
-        val buf: ref u8 = cc_sb_build_cstr(ctx, sb)
-        str.StringBuilder.free(sb)
+    if str.raw_cmp(bname, "strlen") == 0 {
+        val arg: ref u8 = get_arg(ctx, args, 0)
+        val buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 512 as usize) as ref u8
+        @snprintf(buf, 512, "strlen((const char*)(intptr_t)({s}))", {arg})
         return cc_expr_track(ctx, buf)
     }
     return "0"
@@ -9915,30 +9890,6 @@ fn emit_string_data(ctx: ref CCtx) void = trust {
     }
 }
 
-val libc_fn_names: [140]ref u8 = [
-    "malloc", "free", "realloc", "calloc", "memset", "memcpy",
-    "strlen", "strcmp", "puts", "printf", "dprintf", "getchar", "fgets",
-    "exit", "abort", "abs", "getenv", "fopen", "fclose", "fread", "fwrite",
-    "remove", "rename", "system", "time","gmtime","localtime","strftime","clock",
-    "gettimeofday","srand","rand","random","srandom","access","popen","pclose",
-    "open","close","read","write","lseek","pread","pwrite","fsync","ftruncate",
-    "strlen","strnlen","strcmp","strncmp","strcpy","strncpy","strcat","strncat","strchr",
-    "strrchr","strstr","strpbrk","strtok","strdup","strndup", "vdprintf", "vsnprintf", "fscanf", "sprintf", "setvbuf", "open_memstream", "fmemopen", "fdopen", "tmpfile", "renameat",
-    "stat","fstat","lstat","opendir","readdir","closedir","isatty", "readlink", "rmdir",
-    "fseek", "ftell", "rewind", "getcwd", "mkdir", "fread", "tmpnam", "freopen", "setbuf", "vfprintf", "vsscanf", "fgetc", "getc", "getc_unlocked", "putc", "vprintf", "vsprintf", "sscanf", "scanf", "vfscanf", "fputc", "vscanf", "__REDIRECT", "fgetpos", "fputs", "getdelim", "__getdelim", "ungetc", "getline", "ungetc", "fseeko", "feof", "clearerr", "ferror", "perror", "ctermid", "flockfile", "fileno", "fwrite", "fprintf", "fflush", "chmod", "futimens", "mkfifoat", "mkfifo", "utimensat", "mkdirat", "fchmodat", "chmod", "fstatat", "fsetpos", "ftrylockfile", "funlockfile", "ftello", "putc_unlocked", "__uflow", "snprintf", "int64_t", "void", "__overflow"
-]
-
-fn is_libc_fn(name: ref u8) bool = trust {
-    for i = 0, i < 140, i++ {
-        if @get(libc_fn_names, i) is some fun {
-            if str.raw_cmp(name, fun as ref u8) == 0 {
-                return true
-            }
-        }
-    }
-    return false
-}
-
 fn emit_forward_decls(ctx: ref CCtx) void = trust {
     val flen: i64 = @len(ctx.fn_names as list[ref u8]) as i64
     val fi: mut i64 = 0
@@ -9950,10 +9901,6 @@ fn emit_forward_decls(ctx: ref CCtx) void = trust {
         if mangled_opt is some mangled_ref {
             val mangled: ref u8 = mangled_ref as ref u8
             if str.raw_cmp(mangled, "main") == 0 {
-                fi++
-                continue
-            }
-            if is_libc_fn(mangled) {
                 fi++
                 continue
             }

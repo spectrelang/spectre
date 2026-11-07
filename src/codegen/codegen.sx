@@ -13,7 +13,7 @@ val parser      = use("../ast/parser.sx")
 val module      = use("../module/module.sx")
 val defines     = use("../meta/defines.sx")
 
-extern (C) fn strstr(haystack: ref u8, needle: ref u8) ref u8 = "strstr"
+extern (C, header) fn strstr(haystack: ref u8, needle: ref u8) ref u8 = "strstr"
 
 /// Codegen context
 pub type CgCtx = {

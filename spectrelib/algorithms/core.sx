@@ -1,7 +1,8 @@
+extern "ctype.h"
 val string     = use("../string")
 val allocators = use("../allocators")
 
-extern (C) fn isdigit(c: i32) i32 = "isdigit"
+extern (C, header) fn isdigit(c: i32) i32 = "isdigit"
 
 /// Generic sort (radix for numeric integers, insertion sort otherwise).
 pub fn sort[A: allocators.GeneralAllocator, T](ac: A, input: list[T]) list[T] = {

@@ -1,10 +1,10 @@
 val stdio = use("../stdio")
 
-extern (C) fn localtime(timep: ref i64) ref void = "localtime"
-extern (C) fn gettimeofday(tv: ref TimeVal, tz: ref void) i32 = "gettimeofday"
+extern (C, header) fn localtime(timep: ref i64) ref void = "localtime"
+extern (C, header) fn gettimeofday(tv: ref TimeVal, tz: ref void) i32 = "gettimeofday"
 
 when posix {
-    extern (C) fn usleep(usec: u32) i32 = "usleep"
+    extern (C, header) fn usleep(usec: u32) i32 = "usleep"
 }
 
 when windows {

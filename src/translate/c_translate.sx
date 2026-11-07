@@ -5553,36 +5553,36 @@ fn emit_known_extern(name: ref u8, out: ref void) bool = {
         append_line(
             out,
             0,
-            "extern (C) fn sprintf(dst: ref u8, fmt: ref u8, ...) i32 = \"sprintf\""
+            "extern (C, header) fn sprintf(dst: ref u8, fmt: ref u8, ...) i32 = \"sprintf\""
         )
         return true
     }
     if string.raw_cmp(name, "puts") == 0 {
-        append_line(out, 0, "extern (C) fn puts(s: ref u8) i32 = \"puts\"")
+        append_line(out, 0, "extern (C, header) fn puts(s: ref u8) i32 = \"puts\"")
         return true
     }
     if string.raw_cmp(name, "putchar") == 0 {
-        append_line(out, 0, "extern (C) fn putchar(c: i32) i32 = \"putchar\"")
+        append_line(out, 0, "extern (C, header) fn putchar(c: i32) i32 = \"putchar\"")
         return true
     }
     if string.raw_cmp(name, "strlen") == 0 {
-        append_line(out, 0, "extern (C) fn strlen(s: ref u8) i64 = \"strlen\"")
+        append_line(out, 0, "extern (C, header) fn strlen(s: ref u8) i64 = \"strlen\"")
         return true
     }
     if string.raw_cmp(name, "fgets") == 0 {
         append_line(
             out,
             0,
-            "extern (C) fn fgets(dst: ref u8, n: i32, stream: ref void) ref u8 = \"fgets\""
+            "extern (C, header) fn fgets(dst: ref u8, n: i32, stream: ref void) ref u8 = \"fgets\""
         )
         return true
     }
     if string.raw_cmp(name, "malloc") == 0 {
-        append_line(out, 0, "extern (C) fn malloc(size: usize) ref void = \"malloc\"")
+        append_line(out, 0, "extern (C, header) fn malloc(size: usize) ref void = \"malloc\"")
         return true
     }
     if string.raw_cmp(name, "free") == 0 {
-        append_line(out, 0, "extern (C) fn free(ptr: ref void) void = \"free\"")
+        append_line(out, 0, "extern (C, header) fn free(ptr: ref void) void = \"free\"")
         return true
     }
     return false

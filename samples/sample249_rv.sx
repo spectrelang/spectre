@@ -1,0 +1,7 @@
+pub fn strlen(str: ref u8) usize = {
+    return @strlen(str)
+}
+
+pub fn main() void = {
+    trust @print("{x}", {strlen("hi")})
+}

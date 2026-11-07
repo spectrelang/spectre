@@ -2,8 +2,8 @@ val collections = use("../collections")
 val stdio       = use("../stdio")
 val allocators  = use("../allocators")
 
-extern (C) fn strlen(s: ref u8) i64 = "strlen"
-extern (C) fn strcmp(a: ref u8, b: ref u8) i64 = "strcmp"
+extern (C, header) fn strlen(s: ref u8) i64 = "strlen"
+extern (C, header) fn strcmp(a: ref u8, b: ref u8) i64 = "strcmp"
 
 /// This is the classic string type.
 ///

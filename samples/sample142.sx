@@ -2,9 +2,9 @@ val allocators = use("std/allocators")
 val stdio      = use("std/stdio")
 val fs         = use("std/fs")
 
-extern (C) fn fopen(path: ref u8, mode: ref u8) ref void = "fopen"
-extern (C) fn fclose(stream: ref void) i32 = "fclose"
-extern (C) fn fseek(stream: ref void, offset: i64, whence: i32) i32 = "fseek"
+extern (C, header) fn fopen(path: ref u8, mode: ref u8) ref void = "fopen"
+extern (C, header) fn fclose(stream: ref void) i32 = "fclose"
+extern (C, header) fn fseek(stream: ref void, offset: i64, whence: i32) i32 = "fseek"
 
 fn baseline_raw(path: ref u8) i32 = trust {
     val file: ref void = fopen(path, "rb")

@@ -274,7 +274,7 @@ pub fn i64_to_string[A: allocators.Allocator](ac: A, x: i64) ref u8 = trust {
     return out
 }
 
-extern (C) fn strlen(s: ref u8) i64 = "strlen"
+extern (C, header) fn strlen(s: ref u8) i64 = "strlen"
 
 pub fn string_to_i64(s: ref u8) result[i64, ParseIntError] = {
     guarded pre {

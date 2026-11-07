@@ -229,7 +229,7 @@ pub fn current_arch_name[T: allocators.Allocator](ac: T) ref u8 = trust {
 }
 
 when posix {
-    pub extern (C) fn readlink(path: ref u8, buf: ref u8, bufsiz: i64) i64 = "readlink"
+    pub extern (C, header) fn readlink(path: ref u8, buf: ref u8, bufsiz: i64) i64 = "readlink"
 }
 
 when darwin {
