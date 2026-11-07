@@ -358,6 +358,15 @@ pub fn main() i32 = trust {
         }
     }
 
+    if fs.is_directory(input) {
+        stdio.print("error: '{s}' is a directory, not a source file\n", {input})
+        stdio.puts(
+            "-> run 'spectre build <config>' in a project with sx.mod, or compile a file with 'spectre <file.sx> -o <output>'"
+        )
+        allocators.Arena.free(arena)
+        return 1
+    }
+
     val src_size_opt = fs.file_size(input)
     if src_size_opt is some _ {
     } else {

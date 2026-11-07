@@ -974,3 +974,15 @@ pub fn walk_dir_raw[A: allocators.GeneralAllocator](
     closedir(dir)
     return some result
 }
+
+pub fn is_directory(path: ref u8) bool = trust {
+    pre {
+        path != none
+    }
+    val handle: ref void = opendir(path)
+    if handle == none {
+        return false
+    }
+    closedir(handle)
+    return true
+}
