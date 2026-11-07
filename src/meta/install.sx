@@ -388,7 +388,7 @@ fn append_managed_block(file: ref u8, shell: ref u8, bin_dir: ref u8) i32 = trus
     return 1
 }
 
-fn ps_escape(value: ref u8) ref u8 = trust {
+pub fn ps_escape(value: ref u8) ref u8 = trust {
     val len: i64 = str.len_raw(value)
     val buf: ref u8 = @alloc(len * 2 + 1) as ref u8
     val j: mut i64 = 0
@@ -410,7 +410,7 @@ fn ps_escape(value: ref u8) ref u8 = trust {
     return buf
 }
 
-fn windows_add_user_path(_bin_dir: ref u8) bool = trust {
+pub fn windows_add_user_path(_bin_dir: ref u8) bool = trust {
     if str.len_raw(_bin_dir) == 0 {
         return false
     }
