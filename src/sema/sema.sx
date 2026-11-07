@@ -2161,9 +2161,6 @@ fn type_node_matches_impl_type(
         return false
     }
     if spec_ty.kind != impl_ty.kind {
-        if spec_ty.kind == parser.TY_NAMED && string.str_eql(spec_ty.d0 as ref u8, "self") {
-            return string.str_eql(extract_type_name(impl_ty), impl_name)
-        }
         return false
     }
     if spec_ty.kind == parser.TY_MUT {
