@@ -11674,7 +11674,7 @@ fn gen_builtin(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
         return sres
     } elif str.raw_cmp(name, "strlen") == 0 {
         val s2: ref u8 = get_arg(ctx, args, 0)
-        @snprintf(buf, 512, "    %%t{lld} =l call $strlen(l {s})\n", {tmp, s2})
+        @snprintf(buf, 512, "    %%t{lld} =l call $sxqbe_strlen(l {s})\n", {tmp, s2})
         emit(ctx, buf)
     } elif str.raw_cmp(name, "strcmp") == 0 {
         val a: ref u8 = get_arg(ctx, args, 0)
@@ -17305,6 +17305,22 @@ fn emit_runtime_helpers(ctx: mut ref CgCtx) void = trust {
         \\@start
         \\    %r =l call $sx_get_args()
         \\    ret %r
+        \\}
+        \\
+        \\function l $sxqbe_strlen(l %s) {
+        \\@start
+        \\    %p =l copy %s
+        \\    %n =l copy 0
+        \\@loop
+        \\    %c =w loadub %p
+        \\    %done =w ceqw %c, 0
+        \\    jnz %done, @done, @body
+        \\@body
+        \\    %p =l add %p, 1
+        \\    %n =l add %n, 1
+        \\    jmp @loop
+        \\@done
+        \\    ret %n
         \\}
         \\
         \\function w $os__exit(w %code) {
