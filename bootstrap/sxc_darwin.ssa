@@ -293346,7 +293346,7 @@ data $__str365 = { b "spectre: precondition 'valid_second' violated in function 
 data $__str366 = { b "spectre: precondition 'valid_millis' violated in function 'std__time__DateTime__new'\n", b 0 }
 data $__str367 = { b "spectre: precondition 'non_negative' violated in function 'std__time__sleep_millis'\n", b 0 }
 data $__str368 = { b "v0.0.15", b 0 }
-data $__str369 = { b "a9c348d", b 0 }
+data $__str369 = { b "3b5dc77", b 0 }
 data $__str370 = { b "unknown", b 0 }
 data $__str371 = { b "usage:", b 0 }
 data $__str372 = { b "  spectre <command> [args] | <input.sx> [options]", b 0 }
@@ -294408,7 +294408,7 @@ data $__str1427 = { b ")", b 0 }
 data $__str1428 = { b "    %%t%lld =l call $malloc(l %lld)\n", b 0 }
 data $__str1429 = { b "    call $memset(l %%t%lld, w 0, l %lld)\n", b 0 }
 data $__str1430 = { b "    %%t%lld =l add %%t%lld, %lld\n", b 0 }
-data $__str1431 = { b "error: %s:%lld: implicit dynamic list allocation is not allowed, use @list(ac, ...) or @listalloc[Alloc, T](ac)\n", b 0 }
+data $__str1431 = { b "error: %s:%lld: implicit dynamic list allocation is not allowed, use @list(ac, ...) or @listalloc[Alloc, T](ac), squared bracket syntax denotes an array literal and requires an explicit type annotation\n", b 0 }
 data $__str1432 = { b "    %%t%lld =l call $malloc(l 32)\n", b 0 }
 data $__str1433 = { b "    storel %%t%lld, %%t%lld\n", b 0 }
 data $__str1434 = { b "    %%t%lld =l add %%t%lld, 8\n", b 0 }
