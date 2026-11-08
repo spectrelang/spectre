@@ -1876,7 +1876,7 @@ fn append_page_head_html(sb: ref void, title: ref u8) void = trust {
     )
     string.StringBuilder.append_cstr(
         sb,
-        dfmt("<title>{s} — Docs</title>", {html_escape(safe_cstr(title))})
+        dfmt("<title>{s} - Docs</title>", {html_escape(safe_cstr(title))})
     )
     string.StringBuilder.append_cstr(
         sb,
