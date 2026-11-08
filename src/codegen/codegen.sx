@@ -6209,8 +6209,8 @@ fn emit_global_val(ctx: mut ref CgCtx, mod_prefix: ref u8, node: ref parser.Node
 
     if gexpr != none && str.raw_cmp(gqtype, "l") == 0 {
         val needs_runtime_init: mut bool = gexpr.kind == parser.NK_STRUCT_LIT ||
-            gexpr.kind == parser.NK_ARGS_PACK ||
-            gexpr.kind == parser.NK_CALL
+        gexpr.kind == parser.NK_ARGS_PACK ||
+        gexpr.kind == parser.NK_CALL
         if gexpr.kind == parser.NK_ZERO_INIT {
             needs_runtime_init = !is_fixed_arr_type(gty_node)
         }
@@ -6231,7 +6231,11 @@ fn emit_global_val(ctx: mut ref CgCtx, mod_prefix: ref u8, node: ref parser.Node
 
 /// Emit storage for an immutable module-level value whose initializer can only
 /// be evaluated at runtime (for example a struct returned by a function call).
-fn emit_const_runtime_global(ctx: mut ref CgCtx, mod_prefix: ref u8, node: ref parser.Node) void = trust {
+fn emit_const_runtime_global(
+    ctx: mut ref CgCtx,
+    mod_prefix: ref u8,
+    node: ref parser.Node
+) void = trust {
     val gname: ref u8 = node.d1 as ref u8
     val gexpr: ref parser.Node = node.d2 as ref parser.Node
     val gty_node: ref parser.Node = node.d3 as ref parser.Node
@@ -12273,7 +12277,12 @@ fn gen_builtin(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
                 target_size = type_size(target_node)
             }
             if str.raw_cmp(source_qtype, target_qtype) == 0 {
-                @snprintf(buf, 512, "    %%t{lld} ={s} copy {s}\n", {tmp, target_qtype, source_expr})
+                @snprintf(
+                    buf,
+                    512,
+                    "    %%t{lld} ={s} copy {s}\n",
+                    {tmp, target_qtype, source_expr}
+                )
                 emit(ctx, buf)
             } else {
                 val slot_tmp: i64 = fresh_tmp(ctx)
@@ -12299,7 +12308,12 @@ fn gen_builtin(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
                     ctx.arena,
                     128 as usize
                 ) as ref u8
-                @snprintf(store_buf, 128, "    {s} {s}, %%t{lld}\n", {store_op, source_expr, slot_tmp})
+                @snprintf(
+                    store_buf,
+                    128,
+                    "    {s} {s}, %%t{lld}\n",
+                    {store_op, source_expr, slot_tmp}
+                )
                 emit(ctx, store_buf)
                 val load_op: mut ref u8 = "loadl"
                 if str.raw_cmp(target_qtype, "w") == 0 {

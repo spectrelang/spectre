@@ -698,7 +698,12 @@ fn check_snake_name(ctx: mut ref Ctx, line: i64, name: ref u8, kind: ref u8) voi
     )
 }
 
-fn check_screaming_snake_name(ctx: mut ref Ctx, line: i64, name: ref u8, kind: ref u8) void = trust {
+fn check_screaming_snake_name(
+    ctx: mut ref Ctx,
+    line: i64,
+    name: ref u8,
+    kind: ref u8
+) void = trust {
     if name == none || is_screaming_snake_case(name) {
         return
     }

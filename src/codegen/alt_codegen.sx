@@ -7270,7 +7270,7 @@ fn gen_stmt(ctx: mut ref CCtx, stmt: ref parser.Node) void = trust {
         }
 
         if ty_node != none && cc_is_aggregate_storage(ctx, ty_node) &&
-            (init_expr == none || cc_expr_is_zero_init_like(init_expr)) {
+        (init_expr == none || cc_expr_is_zero_init_like(init_expr)) {
             val agg_sz: i64 = c_size_of(ctx, ty_node)
             val decl_cap2: i64 = str.len_raw(name) + 128
             val decl2: ref u8 = allocators.ScopedArena.alloc_or_none(
@@ -9588,7 +9588,11 @@ fn gen_module_val(ctx: mut ref CCtx, node: ref parser.Node, mod_prefix: ref u8) 
     )
 }
 
-fn gen_module_const_global(ctx: mut ref CCtx, node: ref parser.Node, mod_prefix: ref u8) void = trust {
+fn gen_module_const_global(
+    ctx: mut ref CCtx,
+    node: ref parser.Node,
+    mod_prefix: ref u8
+) void = trust {
     gen_module_storage(
         ctx,
         node.d1 as ref u8,
@@ -9742,7 +9746,7 @@ fn emit_c_preamble(ctx: ref CCtx) void = trust {
     emitln_fwd(ctx, "#include <stdio.h>")
     emitln_fwd(ctx, "#include <time.h>")
     emitln_fwd(ctx, \\static char* sx__rt_rewrite_fmt(const char* s){if(!s)return(char*)"";size_t n=strlen(s);int ps=0;for(size_t i=0;i+1<n;i++){char c=s[i+1];if(s[i]=='%'&&(c=='%'||c=='d'||c=='i'||c=='o'||c=='u'||c=='x'||c=='X'||c=='e'||c=='E'||c=='f'||c=='F'||c=='g'||c=='G'||c=='a'||c=='A'||c=='c'||c=='s'||c=='p'||c=='l')){ps=1;break;}}char*o=(char*)malloc(n*4+2);size_t oi=0;if(ps){memcpy(o,s,n);o[n]=0;return o;}for(size_t i=0;i<n;){unsigned char c=(unsigned char)s[i];if(c=='\\'&&i+1<n&&(s[i+1]=='{'||s[i+1]=='}')){o[oi++]=s[i+1];i+=2;}else if(c=='{'){size_t j=i+1;while(j<n&&s[j]!='}')j++;if(j<n){size_t tlen=j-(i+1);int okk=0;char sp[8];memset(sp,0,8);if(tlen==1){char sc=s[i+1];if(sc=='d'||sc=='i'||sc=='s'||sc=='x'||sc=='c'||sc=='p'||sc=='f'){okk=1;sp[0]=sc;}}else if(tlen<=6){memcpy(sp,s+i+1,tlen);if((tlen==2&&((sp[0]=='l'&&(sp[1]=='d'||sp[1]=='u'||sp[1]=='x'))||(sp[0]=='z'&&(sp[1]=='u'||sp[1]=='d'))))||(tlen==3&&sp[0]=='l'&&sp[1]=='l'&&(sp[2]=='d'||sp[2]=='u'||sp[2]=='x')))okk=1;}if(okk){if(tlen==1){char sc=sp[0];if(sc=='d'||sc=='i'){memcpy(o+oi,"%lld",4);oi+=4;}else if(sc=='s'){memcpy(o+oi,"%s",2);oi+=2;}else if(sc=='x'){memcpy(o+oi,"%llx",4);oi+=4;}else if(sc=='c'){memcpy(o+oi,"%c",2);oi+=2;}else if(sc=='p'){memcpy(o+oi,"%p",2);oi+=2;}else{memcpy(o+oi,"%f",2);oi+=2;}}else{o[oi++]='%';memcpy(o+oi,sp,tlen);oi+=tlen;}}else{memcpy(o+oi,s+i,j-i+1);oi+=j-i+1;}i=j+1;}else{o[oi++]=c;i++;}}else{o[oi++]=c;i++;}}o[oi]=0;return o;}
-)
+    )
     if cc_platform_matches(ctx, "posix") {
         emitln_fwd(ctx, "#include <sys/time.h>")
         emitln_fwd(ctx, "#include <sys/types.h>")
