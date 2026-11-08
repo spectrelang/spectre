@@ -168,10 +168,11 @@ pub fn from[T: allocators.Allocator](ac: T, cstr: ref u8) String = trust {
 }
 
 /// Free string
-pub fn string_free(s: mut String) void = trust {
+pub fn string_free(s: String) void = trust {
     val ptr: ref void = @load(s as ref void)
     @free(ptr)
-    @free(s as ref void)
+    val header: mut ref void = s as ref void
+    @free(header)
 }
 
 /// Length of a String

@@ -448,7 +448,7 @@ fn send_response(client: ref Client) void = trust {
         string.StringBuilder.append_cstr(sb, @fmtalloc("{s}", {res.body}))
     }
 
-    val response: mut string.String = string.StringBuilder.build(sb)
+    val response: string.String = string.StringBuilder.build(sb)
     send_all(client.fd, string.cstr(response), string.len(response))
     string.string_free(response)
     string.StringBuilder.free(sb)

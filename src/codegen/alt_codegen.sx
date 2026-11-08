@@ -188,7 +188,7 @@ fn cc_heap_copy_cstr(ctx: ref CCtx, s: ref u8) ref u8 = trust {
 }
 
 fn cc_sb_build_cstr(ctx: ref CCtx, sb: ref void) ref u8 = trust {
-    val built: mut str.String = str.StringBuilder.build(sb) as str.String
+    val built: str.String = str.StringBuilder.build(sb) as str.String
     val out: ref u8 = cc_heap_copy_cstr(ctx, str.cstr(built))
     str.string_free(built)
     return out

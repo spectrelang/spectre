@@ -37,9 +37,7 @@ fn take_cstr(value: string.String) ref u8 = trust {
         }
         @store8(@ptradd(out, len), 0)
     }
-    @free(source)
-    val value_ptr: mut string.String = value
-    @free(value_ptr)
+    string.string_free(value)
     return out
 }
 

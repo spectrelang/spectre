@@ -113,7 +113,7 @@ fn respond(client: i64, status: ref u8, content_type: ref u8, body: ref u8) void
     string.StringBuilder.append_cstr(sb, "\r\nConnection: close\r\n\r\n")
     string.StringBuilder.append_cstr(sb, body)
 
-    val response: mut string.String = string.StringBuilder.build(sb)
+    val response: string.String = string.StringBuilder.build(sb)
     send_all(client, string.cstr(response), string.len(response))
 
     string.string_free(response)
