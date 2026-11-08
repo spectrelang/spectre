@@ -87,14 +87,14 @@ fn find_workspace_root(start_dir: ref u8) ref u8 = trust {
         val spectre_mod: mut ref u8 = path.join(cur, "sx.mod")
         val found_here: bool = file_exists(spectre_mod) &&
         commands.is_project_sxmod_at(cur)
-        @free(spectre_mod as ref void)
+        @free(spectre_mod)
         if found_here {
             return cur
         }
         val parent: mut ref u8 = path.dir(cur)
         if str.raw_cmp(parent, cur) == 0 {
             if str.raw_cmp(parent, ".") != 0 {
-                @free(parent as ref void)
+                @free(parent)
             }
             break
         }
@@ -102,7 +102,7 @@ fn find_workspace_root(start_dir: ref u8) ref u8 = trust {
             break
         }
         if cur != start_dir {
-            @free(cur as ref void)
+            @free(cur)
         }
         cur = parent
     }
@@ -112,7 +112,7 @@ fn find_workspace_root(start_dir: ref u8) ref u8 = trust {
 /// Join a candidate suffix onto `base`, taking ownership of `suffix`.
 fn join_owned_suffix(base: ref u8, suffix: ref u8) ref u8 = trust {
     val joined = path.join(base, suffix)
-    @free(suffix as ref void)
+    @free(suffix)
     return joined
 }
 
@@ -120,11 +120,11 @@ fn join_owned_suffix(base: ref u8, suffix: ref u8) ref u8 = trust {
 fn resolve_existing_candidate(base: ref u8, suffix: ref u8) ref u8 = trust {
     val joined: mut ref u8 = join_owned_suffix(base, suffix)
     if !file_exists(joined) {
-        @free(joined as ref void)
+        @free(joined)
         return none
     }
     val resolved = path.canonicalize_path(joined)
-    @free(joined as ref void)
+    @free(joined)
     return resolved
 }
 
@@ -132,7 +132,7 @@ fn resolve_existing_candidate(base: ref u8, suffix: ref u8) ref u8 = trust {
 fn canonical_candidate(base: ref u8, suffix: ref u8) ref u8 = trust {
     val joined: mut ref u8 = join_owned_suffix(base, suffix)
     val resolved = path.canonicalize_path(joined)
-    @free(joined as ref void)
+    @free(joined)
     return resolved
 }
 
@@ -151,7 +151,7 @@ pub fn resolve_use_path(
     }
     defer {
         if owned_use != none {
-            @free(owned_use as ref void)
+            @free(owned_use)
         }
     }
     val plen: i64 = str.len_raw(use_path)
@@ -163,7 +163,7 @@ pub fn resolve_use_path(
         if c0 == 46 && c1 == 115 && c2 == 120 {
             val joined: mut ref u8 = path.join(file_dir, use_path)
             val resolved = path.canonicalize_path(joined)
-            @free(joined as ref void)
+            @free(joined)
             return resolved
         }
     }
@@ -1244,7 +1244,7 @@ fn resolve_module_impl(
     val dir_part: mut ref u8 = path.dir(canonical_path)
     val file_dir = arena_string(arena, dir_part)
     if str.raw_cmp(dir_part, ".") != 0 {
-        @free(dir_part as ref void)
+        @free(dir_part)
     }
     val file_dir_c = str.cstr(file_dir)
     val workspace = find_workspace_root(file_dir_c)
@@ -1367,7 +1367,7 @@ pub fn resolve_module(
         if key_opt is some key {
             val key_ptr: mut ref u8 = key as ref u8
             if key_ptr != path {
-                @free(key_ptr as ref void)
+                @free(key_ptr)
             }
         }
         ki++

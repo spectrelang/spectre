@@ -37,8 +37,8 @@ fn take_cstr(value: string.String) ref u8 = trust {
         }
         @store8(@ptradd(out, len), 0)
     }
-    @free(source as ref void)
-    val value_ptr: mut ref void = value as ref void
+    @free(source)
+    val value_ptr: mut string.String = value
     @free(value_ptr)
     return out
 }
@@ -59,7 +59,7 @@ fn tdir(p: ref u8) ref u8 = trust {
     val dir: mut ref u8 = path.dir(p)
     val out = arena_copy_cstr(dir)
     if string.raw_cmp(dir, ".") != 0 {
-        @free(dir as ref void)
+        @free(dir)
     }
     return out
 }
@@ -67,14 +67,14 @@ fn tdir(p: ref u8) ref u8 = trust {
 fn tjoin(a: ref u8, b: ref u8) ref u8 = trust {
     val joined: mut ref u8 = path.join(a, b)
     val out = arena_copy_cstr(joined)
-    @free(joined as ref void)
+    @free(joined)
     return out
 }
 
 fn tconcat(a: ref u8, b: ref u8) ref u8 = trust {
     val joined: mut ref u8 = string.concat_raw(a, b)
     val out = arena_copy_cstr(joined)
-    @free(joined as ref void)
+    @free(joined)
     return out
 }
 

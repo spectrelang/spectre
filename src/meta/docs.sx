@@ -38,7 +38,7 @@ fn build_cstr(sb: ref void) ref u8 = trust {
     if out != none {
         @store8(@ptradd(out, len), 0)
     }
-    @free(source as ref void)
+    @free(source)
     @free(built)
     return out
 }
@@ -312,9 +312,9 @@ fn collect_sx_files(dir: ref u8, rel_dir: ref u8, out: mut list[ref u8]) void = 
                 @append(out, copy_cstr(normalize_rel_path(child_rel)))
             }
             if child_rel_owned {
-                @free(child_rel as ref void)
+                @free(child_rel)
             }
-            @free(child_path as ref void)
+            @free(child_path)
         }
     }
     allocators.ScopedArena.free(walk_arena)
@@ -1573,17 +1573,17 @@ fn load_directory_readme(dir_path: ref u8) ref u8 = trust {
     val readme_md: mut ref u8 = path.join(base_dir, "README.md")
     if os.exists(readme_md) {
         val text = read_text_file_or_empty(readme_md)
-        @free(readme_md as ref void)
+        @free(readme_md)
         return text
     }
-    @free(readme_md as ref void)
+    @free(readme_md)
     val readme_plain: mut ref u8 = path.join(base_dir, "README")
     if os.exists(readme_plain) {
         val text = read_text_file_or_empty(readme_plain)
-        @free(readme_plain as ref void)
+        @free(readme_plain)
         return text
     }
-    @free(readme_plain as ref void)
+    @free(readme_plain)
     return ""
 }
 
@@ -2710,7 +2710,7 @@ pub fn cmd_doc(
             }
             @append(modules, load_module(parse_arena, source_path, rel))
             if source_owned {
-                @free(source_path as ref void)
+                @free(source_path)
             }
         }
 
@@ -2729,10 +2729,10 @@ pub fn cmd_doc(
         val overview = render_overview_page(markdown, modules, index_rel, clean_target, readme)
         if !write_page(index_path, overview) {
             stdio.print("error: could not write '{s}'\n", {index_path})
-            @free(index_path as ref void)
+            @free(index_path)
             return 1
         }
-        @free(index_path as ref void)
+        @free(index_path)
 
         for mod in modules {
             val full_path: mut ref u8 = path.join(out_dir, mod.output_path)
@@ -2744,10 +2744,10 @@ pub fn cmd_doc(
             }
             if !write_page(full_path, content) {
                 stdio.print("error: could not write '{s}'\n", {full_path})
-                @free(full_path as ref void)
+                @free(full_path)
                 return 1
             }
-            @free(full_path as ref void)
+            @free(full_path)
         }
         stdio.print("wrote docs to {s}\n", {out_dir})
         return 0
@@ -2784,10 +2784,10 @@ pub fn cmd_doc(
     val out_path: mut ref u8 = path.join(out_dir, module.output_path)
     if !write_page(out_path, content) {
         stdio.print("error: could not write '{s}'\n", {out_path})
-        @free(out_path as ref void)
+        @free(out_path)
         return 1
     }
-    @free(out_path as ref void)
+    @free(out_path)
     stdio.print("wrote docs to {s}\n", {out_dir})
     return 0
 }

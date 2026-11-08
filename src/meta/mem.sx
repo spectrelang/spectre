@@ -87,7 +87,7 @@ pub fn close() void = {
     if state != none {
         val old: ref allocators.ListArena = state
         trust allocators.ScopedArena.free(old.arena)
-        trust @free(old as ref void)
+        trust @free(old)
         state = none
     }
 }

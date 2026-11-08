@@ -1,0 +1,4 @@
+pub fn main() void = trust {
+    @print("whatever {d}", {1})
+    @print("nested {d}", {2})
+}

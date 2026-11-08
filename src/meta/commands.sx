@@ -1654,11 +1654,11 @@ fn collect_test_files(
                 if depth < max_depth {
                     collect_test_files(child, depth + 1, max_depth, out)
                 }
-                @free(child as ref void)
+                @free(child)
             } elif str.raw_ends_with(entry, ".sx") {
                 @append(out, child)
             } else {
-                @free(child as ref void)
+                @free(child)
             }
         }
     } else {

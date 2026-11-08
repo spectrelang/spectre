@@ -88,6 +88,53 @@ else
 	pass "fix mode"
 fi
 
+# Nested trust statements must be removed, including same-line nested trust.
+trust_actual="$tmpdir/trust_bad.sx"
+cp "$FIXTURES/trust_bad.sx" "$trust_actual"
+
+if ! "$COMPILER" critic -fix "$trust_actual" >/dev/null 2>&1; then
+	fail "trust fix mode (expected zero exit code after fixes)"
+elif ! cmp -s "$trust_actual" "$FIXTURES/trust_good.sx"; then
+	echo "[FAIL] trust fix mode (output differs from trust_good.sx)"
+	diff -u "$FIXTURES/trust_good.sx" "$trust_actual" | head -40 | sed 's/^/    /'
+	failed=$((failed + 1))
+else
+	pass "trust fix mode"
+fi
+
+# Regression: a named type inferred for a 'ref void' edit used to leave a
+# dangling pointer that made apply_edits call strlen on a freed string.
+crash_dir="$tmpdir/ref_void_crash"
+mkdir -p "$crash_dir"
+cat >"$crash_dir/crash.sx" <<'EOF'
+type Thing = {
+    value: mut i32
+}
+
+fn f(t: Thing) void = {
+    val p: ref void = t
+}
+EOF
+
+if ! "$COMPILER" critic -fix "$crash_dir" >/dev/null 2>&1; then
+	fail "ref void fix mode (critic crashed or failed)"
+elif ! grep -Fq "val p: Thing" "$crash_dir/crash.sx"; then
+	fail "ref void fix mode (expected inferred type)"
+else
+	pass "ref void fix mode"
+fi
+
+# Regression: critic -fix used to segfault on the compiler source tree.
+src_copy="$tmpdir/src"
+cp -a ./src "$src_copy"
+"$COMPILER" critic -fix "$src_copy" >/dev/null 2>&1
+src_status=$?
+if [ $src_status -ge 128 ]; then
+	fail "critic -fix src (crashed with status $src_status)"
+else
+	pass "critic -fix src"
+fi
+
 tree="$tmpdir/tree"
 mkdir -p "$tree/sub"
 cp "$FIXTURES/fix_bad.sx" "$tree/sub/fix_bad.sx"

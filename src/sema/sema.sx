@@ -211,7 +211,7 @@ fn normalize_path(arena: allocators.ScopedArenaAllocator, path: ref u8) ref u8 =
         @memcpy(out, source, n as usize)
     }
     string.StringBuilder.free(sb)
-    @free(source as ref void)
+    @free(source)
     @free(built)
     return out
 }
@@ -403,8 +403,8 @@ fn resolve_embed_builtin(
         val base_dir: ref u8 = path.dir(filename)
         val joined: ref u8 = path.join(base_dir, rel)
         val canonical: ref u8 = canonicalize_path(ctx, joined)
-        @free(base_dir as ref void)
-        @free(joined as ref void)
+        @free(base_dir)
+        @free(joined)
         val size_opt = fs.file_size(canonical)
         match size_opt {
             some size => {

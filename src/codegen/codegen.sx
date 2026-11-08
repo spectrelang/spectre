@@ -243,7 +243,7 @@ fn cg_free_ctx(ctx: mut ref CgCtx) void = trust {
     if ctx.c_const_index != none {
         collections.RawIndexMap.free(ctx.c_const_index)
     }
-    @free(ctx as ref void)
+    @free(ctx)
 }
 
 fn cg_sb(ctx: ref CgCtx) ref void = {
@@ -6953,7 +6953,7 @@ fn gen_expr(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
                 ctx.aggregate_heap++
                 val inner_ok_raw: ref u8 = gen_expr(ctx, inner_ok_expr)
                 ctx.aggregate_heap--
-                ctx.expected_ty = old_expected_ok as ref void
+                ctx.expected_ty = old_expected_ok
                 val inner_ok_ann: ref u8 = infer_type_annotation(ctx, inner_ok_expr)
                 val inner_ok: ref u8 = cg_materialize_stack_aggregate_ann(
                     ctx,
@@ -7106,7 +7106,7 @@ fn gen_expr(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
             ctx.aggregate_heap++
             val inner_err_raw: ref u8 = gen_expr(ctx, expr.d0 as ref parser.Node)
             ctx.aggregate_heap--
-            ctx.expected_ty = old_expected_err as ref void
+            ctx.expected_ty = old_expected_err
             val inner_err_ann: ref u8 = infer_type_annotation(
                 ctx,
                 expr.d0 as ref parser.Node
@@ -18910,7 +18910,7 @@ fn cg_flush_qbe_fn(
                 val a_opt = @get(allocs, ai as usize)
                 if a_opt is some a {
                     cg_append_qbe_line(out, a as ref u8)
-                    @free(a as ref void)
+                    @free(a)
                 }
                 ai++
             }
@@ -18974,13 +18974,13 @@ fn cg_hoist_qbe_allocs(qbe: ref u8) ref u8 = trust {
                     @append(lines, line)
                 } else {
                     cg_append_qbe_line(out, line)
-                    @free(line as ref void)
+                    @free(line)
                 }
             } else {
                 if str.raw_cmp(line, "}") == 0 {
                     cg_flush_qbe_fn(out, lines, allocs, insert_at)
                     cg_append_qbe_line(out, line)
-                    @free(line as ref void)
+                    @free(line)
                     in_fn = false
                 } elif cg_contains_raw(line, "=l alloc") {
                     @append(allocs, line)
@@ -19006,7 +19006,7 @@ fn cg_hoist_qbe_allocs(qbe: ref u8) ref u8 = trust {
     val result: ref u8 = str.cstr(built)
     str.StringBuilder.free(out)
     @free(built)
-    @free(qbe as ref void)
+    @free(qbe)
     return result
 }
 

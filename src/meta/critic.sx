@@ -57,6 +57,8 @@ type Ctx = {
     fns: mut list[ref FnSig]
     uses: mut list[ref parser.Node]
     fix_mode: mut bool
+    in_trust: mut bool
+    trust_cursor: mut i64
 }
 
 /// Free a heap-allocated language-level list (header and backing storage).
@@ -111,6 +113,8 @@ fn ctx_new(
     c.fns = mem.new[ref FnSig]()
     c.uses = mem.new[ref parser.Node]()
     c.fix_mode = fix_mode
+    c.in_trust = false
+    c.trust_cursor = 0
     return c
 }
 
@@ -134,15 +138,15 @@ fn token_col(ctx: ref Ctx, idx: i64) i64 = trust {
     return 0
 }
 
-fn token_kind(ctx: ref Ctx, idx: i64) lexer.TokenKind = trust {
+fn token_kind(ctx: mut ref Ctx, idx: i64) lexer.TokenKind = trust {
     return lexer.tok_kind(ctx.tokens, idx)
 }
 
-fn token_text(ctx: ref Ctx, idx: i64) ref u8 = trust {
+fn token_text(ctx: mut ref Ctx, idx: i64) ref u8 = trust {
     return lexer.tok_text(ctx.tokens, idx)
 }
 
-fn token_start(ctx: ref Ctx, idx: i64) i64 = trust {
+fn token_start(ctx: mut ref Ctx, idx: i64) i64 = trust {
     val line: i64 = token_line(ctx, idx)
     if line <= 0 {
         return -1
@@ -155,7 +159,7 @@ fn token_start(ctx: ref Ctx, idx: i64) i64 = trust {
     return -1
 }
 
-fn token_ident_len(ctx: ref Ctx, idx: i64) i64 = trust {
+fn token_ident_len(ctx: mut ref Ctx, idx: i64) i64 = trust {
     val txt: ref u8 = token_text(ctx, idx)
     if txt == none {
         return 0
@@ -284,7 +288,7 @@ fn kind_is_or_tok(k: lexer.TokenKind) bool = {
     }
 }
 
-fn is_void_ident(ctx: ref Ctx, idx: i64) bool = trust {
+fn is_void_ident(ctx: mut ref Ctx, idx: i64) bool = trust {
     val k: lexer.TokenKind = token_kind(ctx, idx)
     match k {
         Ident s => {
@@ -296,11 +300,22 @@ fn is_void_ident(ctx: ref Ctx, idx: i64) bool = trust {
     }
 }
 
-fn is_ident_text(ctx: ref Ctx, idx: i64, text: ref u8) bool = trust {
+fn is_ident_text(ctx: mut ref Ctx, idx: i64, text: ref u8) bool = trust {
     val k: lexer.TokenKind = token_kind(ctx, idx)
     match k {
         Ident s => {
             return str.raw_cmp(s, text) == 0
+        }
+        else => {
+            return false
+        }
+    }
+}
+
+fn kind_is_trust_tok(k: lexer.TokenKind) bool = {
+    match k {
+        Trust() => {
+            return true
         }
         else => {
             return false
@@ -315,7 +330,7 @@ fn list_len(items: list[ref parser.Node]) i64 = {
     return @len(items) as i64
 }
 
-fn add_issue(ctx: ref Ctx, line: i64, message: ref u8) void = trust {
+fn add_issue(ctx: mut ref Ctx, line: i64, message: ref u8) void = trust {
     for existing in ctx.issues {
         if existing.line == line && str.raw_cmp(existing.message, message) == 0 {
             return
@@ -333,7 +348,26 @@ fn add_issue(ctx: ref Ctx, line: i64, message: ref u8) void = trust {
     @append(ctx.issues, issue)
 }
 
-fn add_fix(ctx: ref Ctx, start: i64, end: i64, text: ref u8) void = trust {
+fn arena_copy_cstr(arena: allocators.Arena, text: ref u8) ref u8 = trust {
+    if text == none {
+        return ""
+    }
+    val len: i64 = str.len_raw(text)
+    val buf: ref u8 = allocators.Arena.alloc_or_none(
+        arena,
+        (len + 1) as usize
+    ) as ref u8
+    if buf == none {
+        return ""
+    }
+    if len > 0 {
+        @memcpy(buf, text, len as usize)
+    }
+    @store8(@ptradd(buf, len), 0)
+    return buf
+}
+
+fn add_fix(ctx: mut ref Ctx, start: i64, end: i64, text: ref u8) void = trust {
     if start < 0 || end < start {
         return
     }
@@ -346,8 +380,139 @@ fn add_fix(ctx: ref Ctx, start: i64, end: i64, text: ref u8) void = trust {
     }
     edit.start = start
     edit.end = end
-    edit.text = text
+    // The source text can point into the parser arena, which is released
+    // before edits are applied. Copy it into the per-file arena so every edit
+    // stays valid until apply_edits finishes.
+    edit.text = arena_copy_cstr(ctx.arena, text)
     @append(ctx.fixes, edit)
+}
+
+fn next_trust_token(ctx: mut ref Ctx, line: i64) i64 = trust {
+    val n: i64 = token_count(ctx)
+    val i: mut i64 = ctx.trust_cursor
+    for {
+        if i >= n {
+            break
+        }
+        if kind_is_trust_tok(token_kind(ctx, i)) {
+            val trust_line: i64 = token_line(ctx, i)
+            if trust_line == line {
+                ctx.trust_cursor = i + 1
+                return i
+            }
+            if trust_line > line {
+                return -1
+            }
+        }
+        i++
+    }
+    return -1
+}
+
+fn skip_trust_token(ctx: mut ref Ctx) void = trust {
+    val n: i64 = token_count(ctx)
+    val i: mut i64 = ctx.trust_cursor
+    for {
+        if i >= n {
+            break
+        }
+        if kind_is_trust_tok(token_kind(ctx, i)) {
+            ctx.trust_cursor = i + 1
+            return
+        }
+        i++
+    }
+}
+
+fn add_remove_trust_keyword_fix(ctx: mut ref Ctx, idx: i64) void = trust {
+    if idx < 0 {
+        return
+    }
+    val start: i64 = token_start(ctx, idx)
+    if start < 0 {
+        return
+    }
+    val end: mut i64 = start + 5
+    for {
+        if end >= ctx.len {
+            break
+        }
+        val c: i64 = byte_at(ctx.src, end)
+        if c != 32 && c != 9 {
+            break
+        }
+        end++
+    }
+    add_fix(ctx, start, end, "")
+}
+
+fn add_remove_token_fix(ctx: mut ref Ctx, idx: i64) void = trust {
+    if idx < 0 {
+        return
+    }
+    val start: i64 = token_start(ctx, idx)
+    if start < 0 {
+        return
+    }
+    add_fix(ctx, start, start + 1, "")
+}
+
+fn add_unwrap_trust_block_fixes(ctx: mut ref Ctx, idx: i64) void = trust {
+    if idx < 0 {
+        return
+    }
+    val n: i64 = token_count(ctx)
+    val lbrace: i64 = idx + 1
+    if lbrace >= n || !lexer.kind_is_lbrace(token_kind(ctx, lbrace)) {
+        return
+    }
+    val rbrace: mut i64 = -1
+    val depth: mut i64 = 0
+    val i: mut i64 = lbrace
+    for {
+        if i >= n {
+            break
+        }
+        val k: lexer.TokenKind = token_kind(ctx, i)
+        if lexer.kind_is_lbrace(k) {
+            depth++
+        } elif lexer.kind_is_rbrace(k) {
+            depth--
+            if depth == 0 {
+                rbrace = i
+                break
+            }
+        }
+        i++
+    }
+    if rbrace < 0 {
+        return
+    }
+    add_remove_trust_keyword_fix(ctx, idx)
+    add_remove_token_fix(ctx, lbrace)
+    add_remove_token_fix(ctx, rbrace)
+}
+
+fn report_redundant_trust(ctx: mut ref Ctx, line: i64, block: bool) void = trust {
+    if block {
+        add_issue(ctx, line, "redundant 'trust' block; already in a trusted context")
+    } else {
+        add_issue(ctx, line, "redundant 'trust' statement; already in a trusted context")
+    }
+}
+
+fn walk_trust_block(ctx: mut ref Ctx, node: ref parser.Node) void = trust {
+    val idx: i64 = next_trust_token(ctx, node.line)
+    if ctx.in_trust {
+        report_redundant_trust(ctx, node.line, true)
+        if ctx.fix_mode {
+            add_unwrap_trust_block_fixes(ctx, idx)
+        }
+    }
+    val prev: bool = ctx.in_trust
+    ctx.in_trust = true
+    walk_stmts(ctx, node.d0 as list[ref parser.Node])
+    ctx.in_trust = prev
 }
 
 fn line_start_at(ctx: ref Ctx, line: i64) i64 = trust {
@@ -359,7 +524,7 @@ fn line_start_at(ctx: ref Ctx, line: i64) i64 = trust {
     return -1
 }
 
-fn line_end_at(ctx: ref Ctx, line: i64) i64 = trust {
+fn line_end_at(ctx: mut ref Ctx, line: i64) i64 = trust {
     val start: i64 = line_start_at(ctx, line)
     if start < 0 {
         return -1
@@ -377,7 +542,7 @@ fn line_end_at(ctx: ref Ctx, line: i64) i64 = trust {
     return i
 }
 
-fn add_remove_line_fix(ctx: ref Ctx, line: i64) void = trust {
+fn add_remove_line_fix(ctx: mut ref Ctx, line: i64) void = trust {
     val start: i64 = line_start_at(ctx, line)
     if start < 0 {
         return
@@ -393,7 +558,7 @@ fn add_remove_line_fix(ctx: ref Ctx, line: i64) void = trust {
     add_fix(ctx, start, stop, "")
 }
 
-fn is_blank_line(ctx: ref Ctx, line: i64) bool = trust {
+fn is_blank_line(ctx: mut ref Ctx, line: i64) bool = trust {
     val start: i64 = line_start_at(ctx, line)
     val end: i64 = line_end_at(ctx, line)
     if start < 0 || end < 0 {
@@ -413,7 +578,7 @@ fn is_blank_line(ctx: ref Ctx, line: i64) bool = trust {
     return true
 }
 
-fn first_nonblank_line(ctx: ref Ctx) i64 = trust {
+fn first_nonblank_line(ctx: mut ref Ctx) i64 = trust {
     val n: i64 = @len(ctx.starts) as i64
     val line: mut i64 = 1
     for {
@@ -518,7 +683,7 @@ fn is_pascal_case(name: ref u8) bool = trust {
     return true
 }
 
-fn check_snake_name(ctx: ref Ctx, line: i64, name: ref u8, kind: ref u8) void = trust {
+fn check_snake_name(ctx: mut ref Ctx, line: i64, name: ref u8, kind: ref u8) void = trust {
     if name == none || is_snake_case(name) {
         return
     }
@@ -533,7 +698,7 @@ fn check_snake_name(ctx: ref Ctx, line: i64, name: ref u8, kind: ref u8) void = 
     )
 }
 
-fn check_screaming_snake_name(ctx: ref Ctx, line: i64, name: ref u8, kind: ref u8) void = trust {
+fn check_screaming_snake_name(ctx: mut ref Ctx, line: i64, name: ref u8, kind: ref u8) void = trust {
     if name == none || is_screaming_snake_case(name) {
         return
     }
@@ -548,7 +713,7 @@ fn check_screaming_snake_name(ctx: ref Ctx, line: i64, name: ref u8, kind: ref u
     )
 }
 
-fn check_pascal_name(ctx: ref Ctx, line: i64, name: ref u8, kind: ref u8) void = trust {
+fn check_pascal_name(ctx: mut ref Ctx, line: i64, name: ref u8, kind: ref u8) void = trust {
     if name == none || is_pascal_case(name) {
         return
     }
@@ -674,7 +839,7 @@ fn is_ref_type_name(name: ref u8) bool = trust {
     return str.raw_starts_with(name, "ref ") || str.raw_starts_with(name, "mut ref ")
 }
 
-fn expr_type(ctx: ref Ctx, node: ref parser.Node) ref u8 = trust {
+fn expr_type(ctx: mut ref Ctx, node: ref parser.Node) ref u8 = trust {
     if node == none {
         return none
     }
@@ -705,7 +870,7 @@ fn expr_type(ctx: ref Ctx, node: ref parser.Node) ref u8 = trust {
     return none
 }
 
-fn infer_concrete_type(ctx: ref Ctx, node: ref parser.Node) ref u8 = trust {
+fn infer_concrete_type(ctx: mut ref Ctx, node: ref parser.Node) ref u8 = trust {
     if node == none {
         return none
     }
@@ -738,7 +903,7 @@ fn expr_is_ref_void_cast(node: ref parser.Node) bool = trust {
     return false
 }
 
-fn walk_type(ctx: ref Ctx, ty: ref parser.Node) void = trust {
+fn walk_type(ctx: mut ref Ctx, ty: ref parser.Node) void = trust {
     if ty == none {
         return
     }
@@ -774,7 +939,7 @@ fn walk_type(ctx: ref Ctx, ty: ref parser.Node) void = trust {
     }
 }
 
-fn add_var_type(ctx: ref Ctx, name: ref u8, ty: ref parser.Node, line: i64) void = trust {
+fn add_var_type(ctx: mut ref Ctx, name: ref u8, ty: ref parser.Node, line: i64) void = trust {
     if name == none || ty == none {
         return
     }
@@ -795,7 +960,7 @@ fn add_var_type(ctx: ref Ctx, name: ref u8, ty: ref parser.Node, line: i64) void
     @append(ctx.vars, vt)
 }
 
-fn add_var_type_name(ctx: ref Ctx, name: ref u8, type_name: ref u8, line: i64) void = trust {
+fn add_var_type_name(ctx: mut ref Ctx, name: ref u8, type_name: ref u8, line: i64) void = trust {
     if name == none || type_name == none {
         return
     }
@@ -812,7 +977,7 @@ fn add_var_type_name(ctx: ref Ctx, name: ref u8, type_name: ref u8, line: i64) v
     @append(ctx.vars, vt)
 }
 
-fn find_val_ref_void_span(ctx: ref Ctx, name: ref u8, line: i64) ref TokSpan = trust {
+fn find_val_ref_void_span(ctx: mut ref Ctx, name: ref u8, line: i64) ref TokSpan = trust {
     val span: mut ref TokSpan = allocators.Arena.alloc_or_none(
         ctx.arena,
         @sizeof(TokSpan) as usize
@@ -854,7 +1019,7 @@ fn find_val_ref_void_span(ctx: ref Ctx, name: ref u8, line: i64) ref TokSpan = t
     return span
 }
 
-fn find_cast_after(ctx: ref Ctx, line: i64, from_idx: i64) i64 = trust {
+fn find_cast_after(ctx: mut ref Ctx, line: i64, from_idx: i64) i64 = trust {
     val n: i64 = token_count(ctx)
     val i: mut i64 = from_idx + 1
     for {
@@ -875,7 +1040,7 @@ fn find_cast_after(ctx: ref Ctx, line: i64, from_idx: i64) i64 = trust {
     return -1
 }
 
-fn trim_ws_before(ctx: ref Ctx, pos: i64) i64 = trust {
+fn trim_ws_before(ctx: mut ref Ctx, pos: i64) i64 = trust {
     val i: mut i64 = pos
     for {
         if i <= 0 {
@@ -890,7 +1055,7 @@ fn trim_ws_before(ctx: ref Ctx, pos: i64) i64 = trust {
     return i
 }
 
-fn add_cast_removal_fix(ctx: ref Ctx, as_idx: i64) void = trust {
+fn add_cast_removal_fix(ctx: mut ref Ctx, as_idx: i64) void = trust {
     val as_start: i64 = token_start(ctx, as_idx)
     val j: mut i64 = as_idx + 1
     if kind_is_mut_tok(token_kind(ctx, j)) {
@@ -905,7 +1070,7 @@ fn add_cast_removal_fix(ctx: ref Ctx, as_idx: i64) void = trust {
     add_fix(ctx, start, void_start + 4, "")
 }
 
-fn is_ref_void_decl_initializer(ctx: ref Ctx, as_idx: i64) bool = trust {
+fn is_ref_void_decl_initializer(ctx: mut ref Ctx, as_idx: i64) bool = trust {
     val line: i64 = token_line(ctx, as_idx)
     val i: mut i64 = as_idx - 1
     for {
@@ -945,7 +1110,7 @@ fn is_ref_void_decl_initializer(ctx: ref Ctx, as_idx: i64) bool = trust {
 }
 
 fn collect_ref_void_decl_fix(
-    ctx: ref Ctx,
+    ctx: mut ref Ctx,
     name: ref u8,
     line: i64,
     init: ref parser.Node
@@ -978,7 +1143,7 @@ fn collect_ref_void_decl_fix(
     }
 }
 
-fn collect_cast_removal_fixes(ctx: ref Ctx) void = trust {
+fn collect_cast_removal_fixes(ctx: mut ref Ctx) void = trust {
     if !ctx.fix_mode {
         return
     }
@@ -1020,7 +1185,7 @@ fn collect_cast_removal_fixes(ctx: ref Ctx) void = trust {
     }
 }
 
-fn line_has_only_assignment(ctx: ref Ctx, line: i64, lhs_idx: i64, rhs_idx: i64) bool = trust {
+fn line_has_only_assignment(ctx: mut ref Ctx, line: i64, lhs_idx: i64, rhs_idx: i64) bool = trust {
     val n: i64 = token_count(ctx)
     val first: mut i64 = -1
     val last: mut i64 = -1
@@ -1040,7 +1205,7 @@ fn line_has_only_assignment(ctx: ref Ctx, line: i64, lhs_idx: i64, rhs_idx: i64)
     return first == lhs_idx && last == rhs_idx
 }
 
-fn collect_self_assignment_fixes(ctx: ref Ctx) void = trust {
+fn collect_self_assignment_fixes(ctx: mut ref Ctx) void = trust {
     if !ctx.fix_mode {
         return
     }
@@ -1075,7 +1240,7 @@ fn collect_self_assignment_fixes(ctx: ref Ctx) void = trust {
     }
 }
 
-fn first_token_on_line(ctx: ref Ctx, line: i64) i64 = trust {
+fn first_token_on_line(ctx: mut ref Ctx, line: i64) i64 = trust {
     val n: i64 = token_count(ctx)
     val i: mut i64 = 0
     for {
@@ -1090,7 +1255,7 @@ fn first_token_on_line(ctx: ref Ctx, line: i64) i64 = trust {
     return -1
 }
 
-fn last_token_on_line(ctx: ref Ctx, line: i64) i64 = trust {
+fn last_token_on_line(ctx: mut ref Ctx, line: i64) i64 = trust {
     val n: i64 = token_count(ctx)
     val i: mut i64 = 0
     val last: mut i64 = -1
@@ -1106,7 +1271,7 @@ fn last_token_on_line(ctx: ref Ctx, line: i64) i64 = trust {
     return last
 }
 
-fn token_lexeme(ctx: ref Ctx, idx: i64) ref u8 = trust {
+fn token_lexeme(ctx: mut ref Ctx, idx: i64) ref u8 = trust {
     val txt: ref u8 = token_text(ctx, idx)
     if txt != none {
         return txt
@@ -1137,7 +1302,7 @@ fn token_lexeme(ctx: ref Ctx, idx: i64) ref u8 = trust {
     }
 }
 
-fn token_sequences_equal(ctx: ref Ctx, a: i64, b: i64, count: i64) bool = trust {
+fn token_sequences_equal(ctx: mut ref Ctx, a: i64, b: i64, count: i64) bool = trust {
     val i: mut i64 = 0
     for {
         if i >= count {
@@ -1153,7 +1318,7 @@ fn token_sequences_equal(ctx: ref Ctx, a: i64, b: i64, count: i64) bool = trust 
     return true
 }
 
-fn collect_redundant_arithmetic_fixes(ctx: ref Ctx) void = trust {
+fn collect_redundant_arithmetic_fixes(ctx: mut ref Ctx) void = trust {
     if !ctx.fix_mode {
         return
     }
@@ -1233,7 +1398,7 @@ fn collect_redundant_arithmetic_fixes(ctx: ref Ctx) void = trust {
     }
 }
 
-fn collect_duplicate_condition_fixes(ctx: ref Ctx) void = trust {
+fn collect_duplicate_condition_fixes(ctx: mut ref Ctx) void = trust {
     if !ctx.fix_mode {
         return
     }
@@ -1289,7 +1454,7 @@ fn count_ident_tokens(ctx: ref Ctx, name: ref u8) i64 = trust {
     return count
 }
 
-fn check_unused_imports(ctx: ref Ctx) void = trust {
+fn check_unused_imports(ctx: mut ref Ctx) void = trust {
     for use_node in ctx.uses {
         val alias: ref u8 = use_node.d1 as ref u8
         if alias == none {
@@ -1315,7 +1480,7 @@ fn check_unused_imports(ctx: ref Ctx) void = trust {
     }
 }
 
-fn collect_fn_sigs(ctx: ref Ctx, items: list[ref parser.Node]) void = trust {
+fn collect_fn_sigs(ctx: mut ref Ctx, items: list[ref parser.Node]) void = trust {
     for item in items {
         if item == none {
             continue
@@ -1485,7 +1650,7 @@ fn collect_bool_leaves(
     @append(leaves, node)
 }
 
-fn check_duplicate_condition(ctx: ref Ctx, node: ref parser.Node) void = trust {
+fn check_duplicate_condition(ctx: mut ref Ctx, node: ref parser.Node) void = trust {
     val op: i64 = parser.binop_op(node)
     if op != parser.OP_AND && op != parser.OP_OR {
         return
@@ -1550,7 +1715,7 @@ fn expr_to_text(arena: allocators.Arena, node: ref parser.Node) ref u8 = trust {
     return none
 }
 
-fn check_redundant_arithmetic_assignment(ctx: ref Ctx, node: ref parser.Node) void = trust {
+fn check_redundant_arithmetic_assignment(ctx: mut ref Ctx, node: ref parser.Node) void = trust {
     val lhs: ref parser.Node = node.d0 as ref parser.Node
     val rhs: ref parser.Node = node.d1 as ref parser.Node
     if rhs == none || rhs.kind != parser.NK_BINOP {
@@ -1604,7 +1769,7 @@ fn check_redundant_arithmetic_assignment(ctx: ref Ctx, node: ref parser.Node) vo
     }
 }
 
-fn walk_expr(ctx: ref Ctx, node: ref parser.Node) void = trust {
+fn walk_expr(ctx: mut ref Ctx, node: ref parser.Node) void = trust {
     if node == none {
         return
     }
@@ -1636,7 +1801,21 @@ fn walk_expr(ctx: ref Ctx, node: ref parser.Node) void = trust {
         walk_type(ctx, node.d1 as ref parser.Node)
         return
     }
-    if k == parser.NK_ADDR || k == parser.NK_DEREF || k == parser.NK_TRUST || k == parser.NK_TRY ||
+    if k == parser.NK_TRUST {
+        val idx: i64 = next_trust_token(ctx, node.line)
+        if ctx.in_trust {
+            report_redundant_trust(ctx, node.line, false)
+            if ctx.fix_mode {
+                add_remove_trust_keyword_fix(ctx, idx)
+            }
+        }
+        val prev: bool = ctx.in_trust
+        ctx.in_trust = true
+        walk_expr(ctx, node.d0 as ref parser.Node)
+        ctx.in_trust = prev
+        return
+    }
+    if k == parser.NK_ADDR || k == parser.NK_DEREF || k == parser.NK_TRY ||
     k == parser.NK_SOME || k == parser.NK_OK_VAL || k == parser.NK_ERR_VAL {
         walk_expr(ctx, node.d0 as ref parser.Node)
         return
@@ -1665,12 +1844,12 @@ fn walk_expr(ctx: ref Ctx, node: ref parser.Node) void = trust {
         return
     }
     if k == parser.NK_TRUST_BLOCK {
-        walk_stmts(ctx, node.d0 as list[ref parser.Node])
+        walk_trust_block(ctx, node)
         return
     }
 }
 
-fn walk_contracts(ctx: ref Ctx, contracts: list[ref parser.Node]) void = trust {
+fn walk_contracts(ctx: mut ref Ctx, contracts: list[ref parser.Node]) void = trust {
     if contracts == none {
         return
     }
@@ -1681,7 +1860,7 @@ fn walk_contracts(ctx: ref Ctx, contracts: list[ref parser.Node]) void = trust {
     }
 }
 
-fn walk_params(ctx: ref Ctx, params: list[ref parser.Node]) void = trust {
+fn walk_params(ctx: mut ref Ctx, params: list[ref parser.Node]) void = trust {
     if params == none {
         return
     }
@@ -1697,7 +1876,7 @@ fn walk_params(ctx: ref Ctx, params: list[ref parser.Node]) void = trust {
     }
 }
 
-fn check_fn_node(ctx: ref Ctx, fn_node: ref parser.Node, check_body: bool) void = trust {
+fn check_fn_node(ctx: mut ref Ctx, fn_node: ref parser.Node, check_body: bool) void = trust {
     val name: ref u8 = fn_node.d2 as ref u8
     check_snake_name(ctx, fn_node.line, name, "function")
     val params: list[ref parser.Node] = fn_node.d3 as list[ref parser.Node]
@@ -1716,6 +1895,13 @@ fn check_fn_node(ctx: ref Ctx, fn_node: ref parser.Node, check_body: bool) void 
     if !check_body {
         return
     }
+    val prev_trust: bool = ctx.in_trust
+    if parser.fn_is_unsafe(fn_node) {
+        ctx.in_trust = true
+        // Consume the trust marker that follows '=' so the token cursor stays
+        // aligned with the trust constructs visited inside the body.
+        skip_trust_token(ctx)
+    }
     val body: list[ref parser.Node] = fn_node.d5 as list[ref parser.Node]
     if list_len(body) == 0 {
         add_issue(
@@ -1727,6 +1913,7 @@ fn check_fn_node(ctx: ref Ctx, fn_node: ref parser.Node, check_body: bool) void 
                     {name}
                 ))
         )
+        ctx.in_trust = prev_trust
         return
     }
     if list_len(body) == 1 {
@@ -1743,14 +1930,16 @@ fn check_fn_node(ctx: ref Ctx, fn_node: ref parser.Node, check_body: bool) void 
                             {name}
                         ))
                 )
+                ctx.in_trust = prev_trust
                 return
             }
         }
     }
     walk_stmts(ctx, body)
+    ctx.in_trust = prev_trust
 }
 
-fn walk_type_def(ctx: ref Ctx, node: ref parser.Node) void = trust {
+fn walk_type_def(ctx: mut ref Ctx, node: ref parser.Node) void = trust {
     check_pascal_name(ctx, node.line, node.d1 as ref u8, "type")
     val fields: list[ref parser.Node] = node.d2 as list[ref parser.Node]
     if fields != none {
@@ -1770,7 +1959,7 @@ fn walk_type_def(ctx: ref Ctx, node: ref parser.Node) void = trust {
     }
 }
 
-fn walk_union_def(ctx: ref Ctx, node: ref parser.Node) void = trust {
+fn walk_union_def(ctx: mut ref Ctx, node: ref parser.Node) void = trust {
     check_pascal_name(ctx, node.line, node.d1 as ref u8, "type")
     val variants: list[ref parser.Node] = node.d2 as list[ref parser.Node]
     if variants == none {
@@ -1793,7 +1982,7 @@ fn walk_union_def(ctx: ref Ctx, node: ref parser.Node) void = trust {
     }
 }
 
-fn walk_spec(ctx: ref Ctx, node: ref parser.Node) void = trust {
+fn walk_spec(ctx: mut ref Ctx, node: ref parser.Node) void = trust {
     check_pascal_name(ctx, node.line, node.d1 as ref u8, "spec")
     val methods: list[ref parser.Node] = node.d2 as list[ref parser.Node]
     if methods == none {
@@ -1806,7 +1995,7 @@ fn walk_spec(ctx: ref Ctx, node: ref parser.Node) void = trust {
     }
 }
 
-fn walk_when_stmts(ctx: ref Ctx, node: ref parser.Node) void = trust {
+fn walk_when_stmts(ctx: mut ref Ctx, node: ref parser.Node) void = trust {
     walk_stmts(ctx, node.d1 as list[ref parser.Node])
     val or_branches: list[ref parser.Node] = node.d2 as list[ref parser.Node]
     if or_branches != none {
@@ -1819,7 +2008,7 @@ fn walk_when_stmts(ctx: ref Ctx, node: ref parser.Node) void = trust {
     walk_stmts(ctx, node.d3 as list[ref parser.Node])
 }
 
-fn walk_match_bodies(ctx: ref Ctx, arms: list[ref parser.Node], body_slot: i64) void = trust {
+fn walk_match_bodies(ctx: mut ref Ctx, arms: list[ref parser.Node], body_slot: i64) void = trust {
     if arms == none {
         return
     }
@@ -1835,7 +2024,7 @@ fn walk_match_bodies(ctx: ref Ctx, arms: list[ref parser.Node], body_slot: i64) 
     }
 }
 
-fn walk_stmts(ctx: ref Ctx, stmts: list[ref parser.Node]) void = trust {
+fn walk_stmts(ctx: mut ref Ctx, stmts: list[ref parser.Node]) void = trust {
     if stmts == none {
         return
     }
@@ -2066,13 +2255,13 @@ fn walk_stmts(ctx: ref Ctx, stmts: list[ref parser.Node]) void = trust {
             continue
         }
         if k == parser.NK_TRUST_BLOCK {
-            walk_stmts(ctx, stmt.d0 as list[ref parser.Node])
+            walk_trust_block(ctx, stmt)
             continue
         }
     }
 }
 
-fn walk_items(ctx: ref Ctx, items: list[ref parser.Node]) void = trust {
+fn walk_items(ctx: mut ref Ctx, items: list[ref parser.Node]) void = trust {
     if items == none {
         return
     }
@@ -2134,7 +2323,7 @@ fn walk_items(ctx: ref Ctx, items: list[ref parser.Node]) void = trust {
     }
 }
 
-fn analyze(ctx: ref Ctx, items: list[ref parser.Node]) void = trust {
+fn analyze(ctx: mut ref Ctx, items: list[ref parser.Node]) void = trust {
     collect_fn_sigs(ctx, items)
     walk_items(ctx, items)
     check_unused_imports(ctx)

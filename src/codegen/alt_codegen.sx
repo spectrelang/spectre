@@ -170,7 +170,7 @@ fn cc_new() ref CCtx = trust {
 }
 
 fn cc_free_ctx(ctx: mut ref CCtx) void = trust {
-    @free(ctx as ref void)
+    @free(ctx)
 }
 
 fn cc_platform_matches(ctx: ref CCtx, name: ref u8) bool = trust {
