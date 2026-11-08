@@ -11,7 +11,8 @@
 extern (C, header) fn c_signal(
     signum: i32,
     handler: fn(i32) void
-) fn(i32) void = "signal"
+)
+fn(i32) void = "signal"
 extern (C, header) fn c_raise(sig: i32) i32 = "raise"
 
 /// Number of listeners that can be registered at once.
@@ -95,84 +96,216 @@ fn installed_slot(signum: i32) mut ref usize = trust {
 
 fn linux_number(sig: Signal) i32 = {
     match sig {
-        Signal.Hangup => { return 1 }
-        Signal.Interrupt => { return 2 }
-        Signal.Quit => { return 3 }
-        Signal.IllegalInstruction => { return 4 }
-        Signal.Trap => { return 5 }
-        Signal.Abort => { return 6 }
-        Signal.BusError => { return 7 }
-        Signal.FloatingPointException => { return 8 }
-        Signal.Kill => { return 9 }
-        Signal.User1 => { return 10 }
-        Signal.SegmentationViolation => { return 11 }
-        Signal.User2 => { return 12 }
-        Signal.Pipe => { return 13 }
-        Signal.Alarm => { return 14 }
-        Signal.Terminate => { return 15 }
-        Signal.Child => { return 17 }
-        Signal.Continue => { return 18 }
-        Signal.Stop => { return 19 }
-        Signal.StopTerminal => { return 20 }
-        Signal.BackgroundRead => { return 21 }
-        Signal.BackgroundWrite => { return 22 }
-        Signal.Urgent => { return 23 }
-        Signal.CpuTimeExceeded => { return 24 }
-        Signal.FileSizeExceeded => { return 25 }
-        Signal.VirtualTimer => { return 26 }
-        Signal.ProfilingTimer => { return 27 }
-        Signal.WindowChange => { return 28 }
-        Signal.Io => { return 29 }
-        Signal.Power => { return 30 }
-        Signal.System => { return 31 }
+        Signal.Hangup => {
+            return 1
+        }
+        Signal.Interrupt => {
+            return 2
+        }
+        Signal.Quit => {
+            return 3
+        }
+        Signal.IllegalInstruction => {
+            return 4
+        }
+        Signal.Trap => {
+            return 5
+        }
+        Signal.Abort => {
+            return 6
+        }
+        Signal.BusError => {
+            return 7
+        }
+        Signal.FloatingPointException => {
+            return 8
+        }
+        Signal.Kill => {
+            return 9
+        }
+        Signal.User1 => {
+            return 10
+        }
+        Signal.SegmentationViolation => {
+            return 11
+        }
+        Signal.User2 => {
+            return 12
+        }
+        Signal.Pipe => {
+            return 13
+        }
+        Signal.Alarm => {
+            return 14
+        }
+        Signal.Terminate => {
+            return 15
+        }
+        Signal.Child => {
+            return 17
+        }
+        Signal.Continue => {
+            return 18
+        }
+        Signal.Stop => {
+            return 19
+        }
+        Signal.StopTerminal => {
+            return 20
+        }
+        Signal.BackgroundRead => {
+            return 21
+        }
+        Signal.BackgroundWrite => {
+            return 22
+        }
+        Signal.Urgent => {
+            return 23
+        }
+        Signal.CpuTimeExceeded => {
+            return 24
+        }
+        Signal.FileSizeExceeded => {
+            return 25
+        }
+        Signal.VirtualTimer => {
+            return 26
+        }
+        Signal.ProfilingTimer => {
+            return 27
+        }
+        Signal.WindowChange => {
+            return 28
+        }
+        Signal.Io => {
+            return 29
+        }
+        Signal.Power => {
+            return 30
+        }
+        Signal.System => {
+            return 31
+        }
     }
     return -1
 }
 
 fn bsd_number(sig: Signal) i32 = {
     match sig {
-        Signal.Hangup => { return 1 }
-        Signal.Interrupt => { return 2 }
-        Signal.Quit => { return 3 }
-        Signal.IllegalInstruction => { return 4 }
-        Signal.Trap => { return 5 }
-        Signal.Abort => { return 6 }
-        Signal.BusError => { return 10 }
-        Signal.FloatingPointException => { return 8 }
-        Signal.Kill => { return 9 }
-        Signal.SegmentationViolation => { return 11 }
-        Signal.System => { return 12 }
-        Signal.Pipe => { return 13 }
-        Signal.Alarm => { return 14 }
-        Signal.Terminate => { return 15 }
-        Signal.Urgent => { return 16 }
-        Signal.Stop => { return 17 }
-        Signal.StopTerminal => { return 18 }
-        Signal.Continue => { return 19 }
-        Signal.Child => { return 20 }
-        Signal.BackgroundRead => { return 21 }
-        Signal.BackgroundWrite => { return 22 }
-        Signal.Io => { return 23 }
-        Signal.CpuTimeExceeded => { return 24 }
-        Signal.FileSizeExceeded => { return 25 }
-        Signal.VirtualTimer => { return 26 }
-        Signal.ProfilingTimer => { return 27 }
-        Signal.WindowChange => { return 28 }
-        Signal.User1 => { return 30 }
-        Signal.User2 => { return 31 }
+        Signal.Hangup => {
+            return 1
+        }
+        Signal.Interrupt => {
+            return 2
+        }
+        Signal.Quit => {
+            return 3
+        }
+        Signal.IllegalInstruction => {
+            return 4
+        }
+        Signal.Trap => {
+            return 5
+        }
+        Signal.Abort => {
+            return 6
+        }
+        Signal.BusError => {
+            return 10
+        }
+        Signal.FloatingPointException => {
+            return 8
+        }
+        Signal.Kill => {
+            return 9
+        }
+        Signal.SegmentationViolation => {
+            return 11
+        }
+        Signal.System => {
+            return 12
+        }
+        Signal.Pipe => {
+            return 13
+        }
+        Signal.Alarm => {
+            return 14
+        }
+        Signal.Terminate => {
+            return 15
+        }
+        Signal.Urgent => {
+            return 16
+        }
+        Signal.Stop => {
+            return 17
+        }
+        Signal.StopTerminal => {
+            return 18
+        }
+        Signal.Continue => {
+            return 19
+        }
+        Signal.Child => {
+            return 20
+        }
+        Signal.BackgroundRead => {
+            return 21
+        }
+        Signal.BackgroundWrite => {
+            return 22
+        }
+        Signal.Io => {
+            return 23
+        }
+        Signal.CpuTimeExceeded => {
+            return 24
+        }
+        Signal.FileSizeExceeded => {
+            return 25
+        }
+        Signal.VirtualTimer => {
+            return 26
+        }
+        Signal.ProfilingTimer => {
+            return 27
+        }
+        Signal.WindowChange => {
+            return 28
+        }
+        Signal.User1 => {
+            return 30
+        }
+        Signal.User2 => {
+            return 31
+        }
     }
     return -1
 }
 
 fn windows_number(sig: Signal) i32 = {
     match sig {
-        Signal.Interrupt => { return 2 }
-        Signal.IllegalInstruction => { return 4 }
-        Signal.FloatingPointException => { return 8 }
-        Signal.SegmentationViolation => { return 11 }
-        Signal.Terminate => { return 15 }
-        Signal.Break => { return 21 }
-        Signal.Abort => { return 22 }
+        Signal.Interrupt => {
+            return 2
+        }
+        Signal.IllegalInstruction => {
+            return 4
+        }
+        Signal.FloatingPointException => {
+            return 8
+        }
+        Signal.SegmentationViolation => {
+            return 11
+        }
+        Signal.Terminate => {
+            return 15
+        }
+        Signal.Break => {
+            return 21
+        }
+        Signal.Abort => {
+            return 22
+        }
     }
     return -1
 }
@@ -182,15 +315,20 @@ fn windows_number(sig: Signal) i32 = {
 pub fn number(sig: Signal) i32 = {
     when windows {
         return windows_number(sig)
-    } or when darwin {
+    }
+    or when darwin {
         return bsd_number(sig)
-    } or when bsd {
+    }
+    or when bsd {
         return bsd_number(sig)
-    } or when linux {
+    }
+    or when linux {
         return linux_number(sig)
-    } or when android {
+    }
+    or when android {
         return linux_number(sig)
-    } otherwise {
+    }
+    otherwise {
         return -1
     }
 }
@@ -198,37 +336,99 @@ pub fn number(sig: Signal) i32 = {
 /// Return the conventional name of `sig` (for example "SIGINT").
 pub fn name(sig: Signal) ref u8 = {
     match sig {
-        Signal.Hangup => { return "SIGHUP" }
-        Signal.Interrupt => { return "SIGINT" }
-        Signal.Quit => { return "SIGQUIT" }
-        Signal.IllegalInstruction => { return "SIGILL" }
-        Signal.Trap => { return "SIGTRAP" }
-        Signal.Abort => { return "SIGABRT" }
-        Signal.Break => { return "SIGBREAK" }
-        Signal.BusError => { return "SIGBUS" }
-        Signal.FloatingPointException => { return "SIGFPE" }
-        Signal.Kill => { return "SIGKILL" }
-        Signal.User1 => { return "SIGUSR1" }
-        Signal.SegmentationViolation => { return "SIGSEGV" }
-        Signal.User2 => { return "SIGUSR2" }
-        Signal.Pipe => { return "SIGPIPE" }
-        Signal.Alarm => { return "SIGALRM" }
-        Signal.Terminate => { return "SIGTERM" }
-        Signal.Child => { return "SIGCHLD" }
-        Signal.Continue => { return "SIGCONT" }
-        Signal.Stop => { return "SIGSTOP" }
-        Signal.StopTerminal => { return "SIGTSTP" }
-        Signal.BackgroundRead => { return "SIGTTIN" }
-        Signal.BackgroundWrite => { return "SIGTTOU" }
-        Signal.Urgent => { return "SIGURG" }
-        Signal.CpuTimeExceeded => { return "SIGXCPU" }
-        Signal.FileSizeExceeded => { return "SIGXFSZ" }
-        Signal.VirtualTimer => { return "SIGVTALRM" }
-        Signal.ProfilingTimer => { return "SIGPROF" }
-        Signal.WindowChange => { return "SIGWINCH" }
-        Signal.Io => { return "SIGIO" }
-        Signal.Power => { return "SIGPWR" }
-        Signal.System => { return "SIGSYS" }
+        Signal.Hangup => {
+            return "SIGHUP"
+        }
+        Signal.Interrupt => {
+            return "SIGINT"
+        }
+        Signal.Quit => {
+            return "SIGQUIT"
+        }
+        Signal.IllegalInstruction => {
+            return "SIGILL"
+        }
+        Signal.Trap => {
+            return "SIGTRAP"
+        }
+        Signal.Abort => {
+            return "SIGABRT"
+        }
+        Signal.Break => {
+            return "SIGBREAK"
+        }
+        Signal.BusError => {
+            return "SIGBUS"
+        }
+        Signal.FloatingPointException => {
+            return "SIGFPE"
+        }
+        Signal.Kill => {
+            return "SIGKILL"
+        }
+        Signal.User1 => {
+            return "SIGUSR1"
+        }
+        Signal.SegmentationViolation => {
+            return "SIGSEGV"
+        }
+        Signal.User2 => {
+            return "SIGUSR2"
+        }
+        Signal.Pipe => {
+            return "SIGPIPE"
+        }
+        Signal.Alarm => {
+            return "SIGALRM"
+        }
+        Signal.Terminate => {
+            return "SIGTERM"
+        }
+        Signal.Child => {
+            return "SIGCHLD"
+        }
+        Signal.Continue => {
+            return "SIGCONT"
+        }
+        Signal.Stop => {
+            return "SIGSTOP"
+        }
+        Signal.StopTerminal => {
+            return "SIGTSTP"
+        }
+        Signal.BackgroundRead => {
+            return "SIGTTIN"
+        }
+        Signal.BackgroundWrite => {
+            return "SIGTTOU"
+        }
+        Signal.Urgent => {
+            return "SIGURG"
+        }
+        Signal.CpuTimeExceeded => {
+            return "SIGXCPU"
+        }
+        Signal.FileSizeExceeded => {
+            return "SIGXFSZ"
+        }
+        Signal.VirtualTimer => {
+            return "SIGVTALRM"
+        }
+        Signal.ProfilingTimer => {
+            return "SIGPROF"
+        }
+        Signal.WindowChange => {
+            return "SIGWINCH"
+        }
+        Signal.Io => {
+            return "SIGIO"
+        }
+        Signal.Power => {
+            return "SIGPWR"
+        }
+        Signal.System => {
+            return "SIGSYS"
+        }
     }
     return "SIGUNKNOWN"
 }
