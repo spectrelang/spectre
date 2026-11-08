@@ -88,6 +88,23 @@ else
 	pass "fix mode"
 fi
 
+# Mutable bindings that are never mutated must lose the 'mut' qualifier,
+# while bindings that are assigned or incremented keep it.
+mut_actual="$tmpdir/mut_bad.sx"
+cp "$FIXTURES/mut_bad.sx" "$mut_actual"
+
+if ! "$COMPILER" critic -fix "$mut_actual" >/dev/null 2>&1; then
+	fail "mut fix mode (expected zero exit code after fixes)"
+elif ! cmp -s "$mut_actual" "$FIXTURES/mut_good.sx"; then
+	echo "[FAIL] mut fix mode (output differs from mut_good.sx)"
+	diff -u "$FIXTURES/mut_good.sx" "$mut_actual" | head -40 | sed 's/^/    /'
+	failed=$((failed + 1))
+elif ! "$COMPILER" "$mut_actual" -syntax-check >/dev/null 2>&1; then
+	fail "mut fix mode (fixed file does not compile)"
+else
+	pass "mut fix mode"
+fi
+
 # Nested trust statements must be removed, including same-line nested trust.
 trust_actual="$tmpdir/trust_bad.sx"
 cp "$FIXTURES/trust_bad.sx" "$trust_actual"

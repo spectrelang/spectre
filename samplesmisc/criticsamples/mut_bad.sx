@@ -1,0 +1,8 @@
+pub fn main() void = {
+    val unused_mut: mut i64 = 1
+    val assigned: mut i64 = 2
+    assigned = 7
+    val incremented: mut i64 = 3
+    incremented++
+    trust @print("{d} {d} {d}\n", {unused_mut, assigned, incremented})
+}

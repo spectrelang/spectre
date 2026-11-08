@@ -32,6 +32,14 @@ type VarType = {
 type FnSig = {
     name: mut ref u8
     ret_type: mut ref u8
+    params: mut list[ref parser.Node]
+}
+
+type MutVar = {
+    name: mut ref u8
+    line: mut i64
+    type_name: mut ref u8
+    mutated: mut bool
 }
 
 type Buf = {
@@ -59,6 +67,7 @@ type Ctx = {
     fix_mode: mut bool
     in_trust: mut bool
     trust_cursor: mut i64
+    mut_vars: mut list[ref MutVar]
 }
 
 /// Free a heap-allocated language-level list (header and backing storage).
@@ -115,6 +124,7 @@ fn ctx_new(
     c.fix_mode = fix_mode
     c.in_trust = false
     c.trust_cursor = 0
+    c.mut_vars = mem.new[ref MutVar]()
     return c
 }
 
@@ -491,6 +501,277 @@ fn add_unwrap_trust_block_fixes(ctx: mut ref Ctx, idx: i64) void = trust {
     add_remove_trust_keyword_fix(ctx, idx)
     add_remove_token_fix(ctx, lbrace)
     add_remove_token_fix(ctx, rbrace)
+}
+
+fn find_root_ident_name(node: ref parser.Node) ref u8 = trust {
+    val cur: mut ref parser.Node = node
+    for {
+        if cur == none {
+            return none
+        }
+        if cur.kind == parser.NK_IDENT {
+            return cur.d0 as ref u8
+        }
+        if cur.kind == parser.NK_FIELD {
+            cur = parser.field_base(cur)
+            continue
+        }
+        if cur.kind == parser.NK_CAST || cur.kind == parser.NK_TRUST ||
+        cur.kind == parser.NK_DEREF || cur.kind == parser.NK_ADDR {
+            cur = cur.d0 as ref parser.Node
+            continue
+        }
+        return none
+    }
+    return none
+}
+
+fn add_mut_var(
+    ctx: mut ref Ctx,
+    name: ref u8,
+    line: i64,
+    type_name: ref u8
+) void = trust {
+    if name == none || str.raw_cmp(name, "_") == 0 {
+        return
+    }
+    val v: mut ref MutVar = allocators.Arena.alloc_or_none(
+        ctx.arena,
+        @sizeof(MutVar) as usize
+    ) as ref MutVar
+    if v == none {
+        return
+    }
+    v.name = name
+    v.line = line
+    v.type_name = type_name
+    v.mutated = false
+    @append(ctx.mut_vars, v)
+}
+
+fn is_refish_type_name(name: ref u8) bool = trust {
+    if name == none {
+        return false
+    }
+    return str.raw_starts_with(name, "ref ") || str.raw_starts_with(name, "mut ref ")
+    || str.raw_starts_with(name, "list[") || str.raw_starts_with(name, "mut list[")
+}
+
+fn mut_var_is_refish(ctx: ref Ctx, name: ref u8) bool = trust {
+    val n: i64 = @len(ctx.mut_vars) as i64
+    val i: mut i64 = 0
+    for {
+        if i >= n {
+            break
+        }
+        val v_opt = @get(ctx.mut_vars, i as usize)
+        if v_opt is some v_val {
+            val v: ref MutVar = v_val as ref MutVar
+            if str.raw_cmp(v.name, name) == 0 && is_refish_type_name(v.type_name) {
+                return true
+            }
+        }
+        i++
+    }
+    return false
+}
+
+fn mark_refish_call_args(ctx: ref Ctx, args: list[ref parser.Node]) void = trust {
+    if args == none {
+        return
+    }
+    for arg in args {
+        val root: ref u8 = find_root_ident_name(arg)
+        if root != none && mut_var_is_refish(ctx, root) {
+            mark_mut_var(ctx, root)
+        }
+    }
+}
+
+fn mark_mut_var(ctx: ref Ctx, name: ref u8) void = trust {
+    if name == none {
+        return
+    }
+    val n: i64 = @len(ctx.mut_vars) as i64
+    val i: mut i64 = 0
+    for {
+        if i >= n {
+            break
+        }
+        val v_opt = @get(ctx.mut_vars, i as usize)
+        if v_opt is some v_val {
+            val v: mut ref MutVar = v_val as ref MutVar
+            if str.raw_cmp(v.name, name) == 0 {
+                v.mutated = true
+            }
+        }
+        i++
+    }
+}
+
+fn mark_root_mutated(ctx: ref Ctx, node: ref parser.Node) void = trust {
+    mark_mut_var(ctx, find_root_ident_name(node))
+}
+
+fn find_val_mut_span(ctx: mut ref Ctx, name: ref u8, line: i64) i64 = trust {
+    val n: i64 = token_count(ctx)
+    val i: mut i64 = 0
+    for {
+        if i + 3 >= n {
+            break
+        }
+        if token_line(ctx, i) != line || !kind_is_val_tok(token_kind(ctx, i)) {
+            i++
+            continue
+        }
+        if token_line(ctx, i + 1) != line || !is_ident_text(ctx, i + 1, name) {
+            i++
+            continue
+        }
+        if token_line(ctx, i + 2) != line || !kind_is_colon(token_kind(ctx, i + 2)) {
+            i++
+            continue
+        }
+        if kind_is_mut_tok(token_kind(ctx, i + 3)) {
+            return i + 3
+        }
+        i++
+    }
+    return -1
+}
+
+fn add_remove_mut_keyword_fix(ctx: mut ref Ctx, idx: i64) void = trust {
+    if idx < 0 {
+        return
+    }
+    val start: i64 = token_start(ctx, idx)
+    if start < 0 {
+        return
+    }
+    val end: mut i64 = start + 3
+    for {
+        if end >= ctx.len {
+            break
+        }
+        val c: i64 = byte_at(ctx.src, end)
+        if c != 32 && c != 9 {
+            break
+        }
+        end++
+    }
+    add_fix(ctx, start, end, "")
+}
+
+fn param_is_mutating(ty: ref parser.Node) bool = trust {
+    if ty == none {
+        return false
+    }
+    val k: i64 = ty.kind
+    if k == parser.TY_REF || k == parser.TY_LIST {
+        return true
+    }
+    if k == parser.TY_MUT {
+        val inner: ref parser.Node = ty.d0 as ref parser.Node
+        if inner == none {
+            return false
+        }
+        val ik: i64 = inner.kind
+        return ik == parser.TY_REF || ik == parser.TY_LIST || ik == parser.TY_NAMED
+    }
+    return false
+}
+
+fn is_mutating_builtin(name: ref u8) bool = trust {
+    return str.raw_cmp(name, "memcpy") == 0 || str.raw_cmp(name, "store8") == 0
+    || str.raw_cmp(name, "memset") == 0 || str.raw_cmp(name, "addr") == 0
+    || str.raw_cmp(name, "memmove") == 0 || str.raw_cmp(name, "set") == 0
+    || str.raw_cmp(name, "insert") == 0 || str.raw_cmp(name, "realloc") == 0
+    || str.raw_cmp(name, "free") == 0 || str.raw_cmp(name, "store") == 0
+    || str.raw_cmp(name, "append") == 0 || str.raw_cmp(name, "remove") == 0
+    || str.raw_cmp(name, "reserve") == 0 || str.raw_cmp(name, "getmut") == 0
+}
+
+fn lookup_fn_sig(ctx: ref Ctx, name: ref u8) ref FnSig = trust {
+    for fn_sig in ctx.fns {
+        if str.raw_cmp(fn_sig.name, name) == 0 {
+            return fn_sig
+        }
+    }
+    return none
+}
+
+fn mark_call_mutations(ctx: mut ref Ctx, call: ref parser.Node) void = trust {
+    val callee: ref parser.Node = parser.call_callee(call)
+    val args: list[ref parser.Node] = parser.call_args(call)
+    if callee == none {
+        return
+    }
+
+    if callee.kind == parser.NK_FIELD {
+        mark_root_mutated(ctx, parser.field_base(callee))
+        mark_refish_call_args(ctx, args)
+        return
+    }
+
+    if callee.kind != parser.NK_IDENT || args == none {
+        return
+    }
+
+    val sig: ref FnSig = lookup_fn_sig(ctx, callee.d0 as ref u8)
+    if sig == none || sig.params == none {
+        mark_refish_call_args(ctx, args)
+        return
+    }
+
+    val alen: i64 = @len(args) as i64
+    val plen: i64 = @len(sig.params) as i64
+    val i: mut i64 = 0
+    for {
+        if i >= alen || i >= plen {
+            break
+        }
+        val arg_opt = @get(args, i as usize)
+        val param_opt = @get(sig.params, i as usize)
+        if arg_opt is some arg_val {
+            if param_opt is some param_val {
+                val param: ref parser.Node = param_val as ref parser.Node
+                if param_is_mutating(param.d1 as ref parser.Node) {
+                    mark_root_mutated(ctx, arg_val as ref parser.Node)
+                }
+            }
+        }
+        i++
+    }
+}
+
+fn finish_mut_vars(ctx: mut ref Ctx) void = trust {
+    for v in ctx.mut_vars {
+        if v.mutated {
+            continue
+        }
+        add_issue(
+            ctx,
+            v.line,
+            str.cstr(fmt.format[allocators.Arena](
+                    ctx.arena,
+                    "mutable variable '{s}' declared mutable but never mutated",
+                    {v.name}
+                ))
+        )
+        if ctx.fix_mode {
+            add_remove_mut_keyword_fix(ctx, find_val_mut_span(ctx, v.name, v.line))
+        }
+    }
+}
+
+fn walk_mut_body(ctx: mut ref Ctx, stmts: list[ref parser.Node]) void = trust {
+    val saved: list[ref MutVar] = ctx.mut_vars
+    val vars: list[ref MutVar] = mem.new[ref MutVar]()
+    ctx.mut_vars = vars
+    walk_stmts(ctx, stmts)
+    finish_mut_vars(ctx)
+    free_list[ref MutVar](ctx.mut_vars)
+    ctx.mut_vars = saved
 }
 
 fn report_redundant_trust(ctx: mut ref Ctx, line: i64, block: bool) void = trust {
@@ -1504,6 +1785,7 @@ fn collect_fn_sigs(ctx: mut ref Ctx, items: list[ref parser.Node]) void = trust 
             }
             sig.name = name
             sig.ret_type = ret_name
+            sig.params = item.d3 as list[ref parser.Node]
             @append(ctx.fns, sig)
         } elif k == parser.NK_WHEN_ITEMS {
             collect_fn_sigs(ctx, item.d1 as list[ref parser.Node])
@@ -1799,6 +2081,7 @@ fn walk_expr(ctx: mut ref Ctx, node: ref parser.Node) void = trust {
         for arg in args {
             walk_expr(ctx, arg)
         }
+        mark_call_mutations(ctx, node)
         return
     }
     if k == parser.NK_CAST {
@@ -1820,7 +2103,12 @@ fn walk_expr(ctx: mut ref Ctx, node: ref parser.Node) void = trust {
         ctx.in_trust = prev
         return
     }
-    if k == parser.NK_ADDR || k == parser.NK_DEREF || k == parser.NK_TRY ||
+    if k == parser.NK_ADDR {
+        mark_root_mutated(ctx, node.d0 as ref parser.Node)
+        walk_expr(ctx, node.d0 as ref parser.Node)
+        return
+    }
+    if k == parser.NK_DEREF || k == parser.NK_TRY ||
     k == parser.NK_SOME || k == parser.NK_OK_VAL || k == parser.NK_ERR_VAL {
         walk_expr(ctx, node.d0 as ref parser.Node)
         return
@@ -1843,6 +2131,13 @@ fn walk_expr(ctx: mut ref Ctx, node: ref parser.Node) void = trust {
     }
     if k == parser.NK_BUILTIN {
         val args: list[ref parser.Node] = node.d1 as list[ref parser.Node]
+        val bname: ref u8 = parser.builtin_name(node)
+        if is_mutating_builtin(bname) && args != none {
+            val first_opt = @get(args, 0 as usize)
+            if first_opt is some first {
+                mark_root_mutated(ctx, first as ref parser.Node)
+            }
+        }
         for arg in args {
             walk_expr(ctx, arg)
         }
@@ -1940,7 +2235,7 @@ fn check_fn_node(ctx: mut ref Ctx, fn_node: ref parser.Node, check_body: bool) v
             }
         }
     }
-    walk_stmts(ctx, body)
+    walk_mut_body(ctx, body)
     ctx.in_trust = prev_trust
 }
 
@@ -2043,6 +2338,15 @@ fn walk_stmts(ctx: mut ref Ctx, stmts: list[ref parser.Node]) void = trust {
             check_snake_name(ctx, stmt.line, name, "variable")
             val ty: ref parser.Node = stmt.d2 as ref parser.Node
             val init: ref parser.Node = stmt.d3 as ref parser.Node
+            if stmt.d1 != 0 {
+                val decl_type: mut ref u8 = none
+                if ty != none {
+                    decl_type = type_to_string(ctx.arena, ty)
+                } else {
+                    decl_type = infer_concrete_type(ctx, init)
+                }
+                add_mut_var(ctx, name, stmt.line, decl_type)
+            }
             walk_type(ctx, ty)
             walk_expr(ctx, init)
             if ty_is_ref_void(ty) {
@@ -2059,6 +2363,7 @@ fn walk_stmts(ctx: mut ref Ctx, stmts: list[ref parser.Node]) void = trust {
         if k == parser.NK_ASSIGN {
             val lhs: ref parser.Node = stmt.d0 as ref parser.Node
             val rhs: ref parser.Node = stmt.d1 as ref parser.Node
+            mark_root_mutated(ctx, lhs)
             if nodes_equal(lhs, rhs) {
                 add_issue(ctx, stmt.line, "self-assignment has no effect")
             }
@@ -2152,10 +2457,12 @@ fn walk_stmts(ctx: mut ref Ctx, stmts: list[ref parser.Node]) void = trust {
             continue
         }
         if k == parser.NK_INCREMENT || k == parser.NK_DECREMENT {
+            mark_root_mutated(ctx, stmt.d0 as ref parser.Node)
             walk_expr(ctx, stmt.d0 as ref parser.Node)
             continue
         }
         if k == parser.NK_ADD_ASSIGN || k == parser.NK_SUB_ASSIGN {
+            mark_root_mutated(ctx, stmt.d0 as ref parser.Node)
             walk_expr(ctx, stmt.d0 as ref parser.Node)
             walk_expr(ctx, stmt.d1 as ref parser.Node)
             continue
@@ -2322,7 +2629,7 @@ fn walk_items(ctx: mut ref Ctx, items: list[ref parser.Node]) void = trust {
             continue
         }
         if k == parser.NK_TEST {
-            walk_stmts(ctx, item.d0 as list[ref parser.Node])
+            walk_mut_body(ctx, item.d0 as list[ref parser.Node])
             continue
         }
     }
@@ -2562,6 +2869,7 @@ fn ctx_free(ctx: mut ref Ctx) void = trust {
     free_list_buffer[ref VarType](ctx.vars)
     free_list_buffer[ref FnSig](ctx.fns)
     free_list_buffer[ref parser.Node](ctx.uses)
+    free_list_buffer[ref MutVar](ctx.mut_vars)
 }
 
 fn print_issues(ctx: ref Ctx, filename: ref u8) void = trust {
