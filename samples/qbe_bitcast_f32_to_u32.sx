@@ -1,0 +1,13 @@
+// QBE codegen repro: bitcast an f32 value to u32.
+//
+// Expected diagnostic:
+//   qbe: ... invalid type for first operand %t0 in copy
+//   error: qbe stage failed
+//
+// The issue is independent of the destination being an integer: the generated
+// copy carries an f32 operand where the QBE instruction requires an integer.
+pub fn main() void = trust {
+    val x: f32 = 1.5
+    val u: u32 = @bitcast(x, u32)
+    assert u == 1069547520
+}

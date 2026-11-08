@@ -1,0 +1,15 @@
+// QBE codegen repro: a local fixed array of f32 initialized from an array
+// literal emits an invalid store.
+//
+// Expected diagnostic:
+//   qbe: ... invalid type for first operand %t1 in stores
+//   error: qbe stage failed
+//
+// The same declaration works when the element type is i32, i64, u8, or f64,
+// and also works for f32 when the local is initialized with @zeroed() instead
+// of an array literal. Global [4]f32 literals work as well.
+pub fn main() void = trust {
+    val arr: mut [4]f32 = [1.0, 2.0, 3.0, 4.0]
+    @memset(@addr(arr) as ref void, 0, 16)
+    @puts("ok\n")
+}

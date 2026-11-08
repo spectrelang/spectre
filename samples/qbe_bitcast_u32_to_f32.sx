@@ -1,0 +1,13 @@
+// QBE codegen repro: bitcast a u32 value to f32.
+//
+// Expected diagnostic:
+//   qbe: ... invalid type for first operand %t2 in copy
+//   error: qbe stage failed
+//
+// This is the reverse direction of qbe_bitcast_f32_to_u32.sx and fails in the
+// same lowering path: the generated copy mixes integer and float operands.
+pub fn main() void = trust {
+    val u: u32 = 1069547520
+    val x: f32 = @bitcast(u, f32)
+    assert x == 1.5
+}
