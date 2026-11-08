@@ -1,0 +1,76 @@
+// Regression sample for the C99 backend:
+//  - @addr of a module-level fixed array
+//  - local names shadowing module functions in @addr
+//  - immutable module-level structs with runtime initializers
+//  - zero-initialized aggregate locals and globals
+//  - runtime rewriting of brace format strings
+
+val stdio = use("std/stdio")
+
+type Pair = {
+    x: mut i32
+    y: mut i32
+}
+
+val garr: mut [4]i32 = @zeroed
+val gpair: mut Pair = @zeroed
+val fixed: Pair = make_pair()
+
+fn make_pair() Pair = {
+    return Pair{x: 11, y: 22}
+}
+
+fn dir(_: i32) i32 = {
+    return -1
+}
+
+fn set_i32(base: ref void, index: i32, value: i32) void = trust {
+    @store32(@ptradd(base, index as i64 * 4), value)
+}
+
+fn get_i32(base: ref void, index: i32) i32 = {
+    return @load32(trust @ptradd(base, index as i64 * 4))
+}
+
+fn fmt_into(dst: ref u8, cap: i32, fmt: ref u8, args: argspack) i32 = {
+    return @snprintf(dst, cap, fmt, args)
+}
+
+pub fn main() i32 = trust {
+    // local array named like a function: @addr must pick the local
+    val dir: mut [4]i32 = @zeroed
+    set_i32(@addr(dir) as ref void, 2, 77)
+    if get_i32(@addr(dir) as ref void, 2) != 77 {
+        return 1
+    }
+
+    set_i32(@addr(garr) as ref void, 3, 99)
+    if get_i32(@addr(garr) as ref void, 3) != 99 {
+        return 2
+    }
+
+    gpair.x = 5
+    gpair.y = 6
+    if gpair.x != 5 || gpair.y != 6 {
+        return 3
+    }
+    if fixed.x != 11 || fixed.y != 22 {
+        return 4
+    }
+
+    val local: mut Pair = Pair{}
+    local.x = 8
+    local.y = 9
+    if local.x != 8 || local.y != 9 {
+        return 5
+    }
+
+    val buf: mut [128]u8 = @zeroed
+    fmt_into(@addr(buf) as ref u8, 128, "n={d} s={s}", {7, "ok"})
+    if @strcmp(@addr(buf) as ref u8, "n=7 s=ok") != 0 {
+        stdio.puts("dynamic format mismatch")
+        return 6
+    }
+
+    return 0
+}
