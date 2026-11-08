@@ -1832,6 +1832,50 @@ fn cg_lookup_global(
     return false
 }
 
+/// Return true when a global label with this exact name has been registered.
+fn cg_global_label_exists(ctx: ref CgCtx, label: ref u8) bool = trust {
+    val labels: ref void = cg_global_labels(ctx)
+    val len: i64 = @len(labels) as i64
+    val i: mut i64 = 0
+    for {
+        if i >= len {
+            break
+        }
+        val l_opt = @get(labels as list[ref u8], i as usize)
+        if l_opt is some l {
+            if str.raw_cmp(l as ref u8, label) == 0 {
+                return true
+            }
+        }
+        i++
+    }
+    return false
+}
+
+/// Look up the type annotation of a global by its mangled label.
+fn cg_global_ann_by_label(ctx: ref CgCtx, label: ref u8) ref u8 = trust {
+    val labels: ref void = cg_global_labels(ctx)
+    val len: i64 = @len(labels) as i64
+    val i: mut i64 = 0
+    for {
+        if i >= len {
+            break
+        }
+        val l_opt = @get(labels as list[ref u8], i as usize)
+        if l_opt is some l {
+            if str.raw_cmp(l as ref u8, label) == 0 {
+                val a_opt = @get(cg_global_anns(ctx) as list[ref u8], i as usize)
+                if a_opt is some a {
+                    return a as ref u8
+                }
+                return ""
+            }
+        }
+        i++
+    }
+    return ""
+}
+
 fn cg_sfields(ctx: ref CgCtx) list[ref void] = trust {
     return ctx.sfields
 }
@@ -2416,6 +2460,26 @@ fn cg_ann_size(ctx: mut ref CgCtx, ann: ref u8) i64 = trust {
         return 0
     }
     return 8
+}
+
+fn cg_ann_store_instr(ctx: mut ref CgCtx, ann: ref u8) ref u8 = trust {
+    if str.raw_cmp(ann, "f64") == 0 {
+        return "stored"
+    }
+    if str.raw_cmp(ann, "f32") == 0 {
+        return "stores"
+    }
+    val sz: i64 = cg_ann_size(ctx, ann)
+    if sz <= 1 {
+        return "storeb"
+    }
+    if sz == 2 {
+        return "storeh"
+    }
+    if sz == 4 {
+        return "storew"
+    }
+    return "storel"
 }
 
 fn cg_ann_load_instr(ann: ref u8) ref u8 = trust {
@@ -4550,6 +4614,12 @@ fn infer_type_annotation(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = tru
                 512 as usize
             ) as ref u8
             @snprintf(mod_key, 512, "{s}__{s}", {base_name_f, field_name})
+            if cg_global_label_exists(ctx, mod_key) {
+                val mod_ann: ref u8 = cg_global_ann_by_label(ctx, mod_key)
+                if str.raw_cmp(mod_ann, "") != 0 {
+                    return mod_ann
+                }
+            }
             val mod_cval: ref u8 = cg_const_val(ctx, mod_key)
             if str.raw_cmp(mod_cval, "") != 0 {
                 if raw_starts_with(mod_cval, "d_") {
@@ -8897,7 +8967,15 @@ fn gen_field(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
                 ) as ref u8
                 @snprintf(qbe_key, 512, "{s}__{s}", {base_name2, field_name})
                 val is_fn: bool = cg_is_fn(ctx, qbe_key)
-                if is_fn {
+                val gann: ref u8 = cg_global_ann_by_label(ctx, qbe_key)
+                if raw_starts_with(gann, "[") {
+                    @snprintf(
+                        buf,
+                        256,
+                        "    %%t{lld} =l add ${s}__{s}, 0\n",
+                        {tmp, base_name2, field_name}
+                    )
+                } elif is_fn {
                     @snprintf(
                         buf,
                         256,
@@ -9301,14 +9379,31 @@ fn gen_field_storage_addr(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = tr
     val base: mut ref u8 = none
     if base_expr.kind == parser.NK_IDENT {
         val base_name2: ref u8 = base_expr.d0 as ref u8
-        val dqt: ref u8 = cg_direct_type(ctx, base_name2)
-        if str.raw_cmp(dqt, "") != 0 {
-            val direct_buf: ref u8 = allocators.ScopedArena.alloc_or_none(
+        if str.raw_cmp(cg_lookup_local_var(ctx, base_name2), "") == 0 {
+            val mod_key: ref u8 = allocators.ScopedArena.alloc_or_none(
                 ctx.arena,
-                32 as usize
+                512 as usize
             ) as ref u8
-            @snprintf(direct_buf, 32, "%%{s}", {base_name2})
-            base = direct_buf
+            @snprintf(mod_key, 512, "{s}__{s}", {base_name2, field_name})
+            if cg_global_label_exists(ctx, mod_key) {
+                val mod_addr: ref u8 = allocators.ScopedArena.alloc_or_none(
+                    ctx.arena,
+                    260 as usize
+                ) as ref u8
+                @snprintf(mod_addr, 260, "${s}", {mod_key})
+                base = mod_addr
+            }
+        }
+        if base == none {
+            val dqt: ref u8 = cg_direct_type(ctx, base_name2)
+            if str.raw_cmp(dqt, "") != 0 {
+                val direct_buf: ref u8 = allocators.ScopedArena.alloc_or_none(
+                    ctx.arena,
+                    32 as usize
+                ) as ref u8
+                @snprintf(direct_buf, 32, "%%{s}", {base_name2})
+                base = direct_buf
+            }
         }
     }
     if base == none {
@@ -9526,8 +9621,31 @@ fn gen_store_field_value(
         val field_size_write: mut i64 = 8
         val field_store_op: mut ref u8 = "storel"
 
-        val lookup3: mut ref u8 = ""
+        val module_key: mut ref u8 = ""
+        val module_ann: mut ref u8 = ""
         if ftarget.kind == parser.NK_IDENT {
+            val bname_m: ref u8 = ftarget.d0 as ref u8
+            if str.raw_cmp(cg_lookup_local_var(ctx, bname_m), "") == 0 {
+                val key_m: ref u8 = allocators.ScopedArena.alloc_or_none(
+                    ctx.arena,
+                    512 as usize
+                ) as ref u8
+                @snprintf(key_m, 512, "{s}__{s}", {bname_m, fname})
+                if cg_global_label_exists(ctx, key_m) {
+                    module_key = key_m
+                    module_ann = cg_global_ann_by_label(ctx, key_m)
+                    foffset = 0
+                }
+            }
+        }
+
+        val lookup3: mut ref u8 = ""
+        if str.raw_cmp(module_key, "") != 0 {
+            if str.raw_cmp(module_ann, "") != 0 {
+                field_size_write = cg_ann_size(ctx, module_ann)
+                field_store_op = cg_ann_store_instr(ctx, module_ann)
+            }
+        } elif ftarget.kind == parser.NK_IDENT {
             val bname2: ref u8 = ftarget.d0 as ref u8
             val tname3: ref u8 = cg_local_type(ctx, bname2)
             lookup3 = cg_ann_deref(tname3)
@@ -9601,7 +9719,17 @@ fn gen_store_field_value(
             val_to_store = cg_coerce_qtype(ctx, val_tmp2, val_qtype_n, dst_qtype)
         }
 
-        val base: ref u8 = gen_expr(ctx, ftarget)
+        val base: mut ref u8 = none
+        if str.raw_cmp(module_key, "") != 0 {
+            val mod_addr: ref u8 = allocators.ScopedArena.alloc_or_none(
+                ctx.arena,
+                260 as usize
+            ) as ref u8
+            @snprintf(mod_addr, 260, "${s}", {module_key})
+            base = mod_addr
+        } else {
+            base = gen_expr(ctx, ftarget)
+        }
         val buf3: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 128 as usize) as ref u8
         if field_size_write > 8 {
             if foffset == 0 {

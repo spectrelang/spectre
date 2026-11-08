@@ -1,0 +1,73 @@
+// Runtime regression: module-qualified mutable globals are valid lvalues.
+//
+// Covers direct scalar assignment, compound assignment, increment, array
+// storage through @ptradd, and writes to nested aggregate fields reached
+// through a module alias.
+
+val state = use("module_global_lvalues/state.sx")
+
+pub fn main() i32 = {
+    state.count = 5
+    if state.count != 5 {
+        return 1
+    }
+
+    state.count += 2
+    if state.count != 7 {
+        return 2
+    }
+
+    state.count++
+    if state.count != 8 {
+        return 3
+    }
+
+    state.root.mid.leaf.pad1 = 6
+    state.root.mid.leaf.pad2 = 8
+    state.root.mid.leaf.value = 42
+    if state.root.mid.leaf.value != 42 {
+        return 4
+    }
+    if state.root.mid.leaf.pad1 != 6 {
+        return 5
+    }
+    if state.root.mid.leaf.pad2 != 8 {
+        return 6
+    }
+
+    state.root.mid.leaf.value += 8
+    state.root.mid.leaf.value++
+    if state.root.mid.leaf.value != 51 {
+        return 7
+    }
+
+    state.root.mid.leaf.enabled = true
+    if !state.root.mid.leaf.enabled {
+        return 8
+    }
+
+    state.root.mid.other = 7
+    if state.root.mid.other != 7 {
+        return 9
+    }
+
+    trust @store32(
+        @ptradd(state.flags as ref i32, 2 as usize * @sizeof(i32)) as ref u32,
+        99 as u32
+    )
+    if trust @load32(
+            @ptradd(state.flags as ref i32, 2 as usize * @sizeof(i32)) as ref u32
+        ) as i32 != 99 {
+        return 10
+    }
+
+    state.set_count(77)
+    if state.get_count() != 77 {
+        return 11
+    }
+    if state.count != 77 {
+        return 12
+    }
+
+    return 0
+}

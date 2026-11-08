@@ -1,0 +1,107 @@
+// Runtime regression: field addresses are computed correctly for arbitrarily
+// deep lvalue chains, including mixed field sizes before and after the target.
+
+pub type Leaf = {
+    pad0: mut u8
+    pad1: mut i32
+    ratio: mut f32
+    wide: mut i64
+    value: mut i32
+    enabled: mut bool
+    pad2: mut i32
+}
+
+pub type Level3 = {
+    pad: mut i32
+    leaf: mut Leaf
+}
+
+pub type Level2 = {
+    pad: mut i32
+    child: mut Level3
+}
+
+pub type Level1 = {
+    pad: mut i32
+    child: mut Level2
+}
+
+pub type Root = {
+    pad: mut i32
+    child: mut Level1
+}
+
+pub fn main() i32 = {
+    val root: mut Root = {
+        pad: 1,
+        child: {
+            pad: 2,
+            child: {
+                pad: 3,
+                child: {
+                    pad: 4,
+                    leaf: {
+                        pad0: 5 as u8,
+                        pad1: 6,
+                        ratio: 1.5 as f32,
+                        wide: 123 as i64,
+                        value: 7,
+                        enabled: false,
+                        pad2: 8
+                    }
+                }
+            }
+        }
+    }
+
+    root.child.child.child.leaf.value = 42
+    if root.child.child.child.leaf.value != 42 {
+        return 1
+    }
+
+    root.child.child.child.leaf.value += 8
+    root.child.child.child.leaf.value++
+    if root.child.child.child.leaf.value != 51 {
+        return 2
+    }
+
+    root.child.child.child.leaf.enabled = true
+    if !root.child.child.child.leaf.enabled {
+        return 3
+    }
+
+    root.child.child.child.leaf.ratio = 2.5 as f32
+    if root.child.child.child.leaf.ratio != 2.5 as f32 {
+        return 4
+    }
+
+    root.child.child.child.leaf.wide = -9 as i64
+    if root.child.child.child.leaf.wide != -9 as i64 {
+        return 5
+    }
+
+    root.child.child.child.leaf.pad2 = 99
+    if root.child.child.child.leaf.pad0 != 5 as u8 {
+        return 6
+    }
+    if root.child.child.child.leaf.pad1 != 6 {
+        return 7
+    }
+    if root.child.child.child.leaf.pad2 != 99 {
+        return 8
+    }
+    if root.child.child.child.pad != 4 {
+        return 9
+    }
+    if root.child.child.pad != 3 {
+        return 10
+    }
+    if root.child.pad != 2 {
+        return 11
+    }
+    if root.pad != 1 {
+        return 12
+    }
+
+    return 0
+}

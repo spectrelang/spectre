@@ -1,0 +1,33 @@
+// Shared mutable state for sample261_rv.sx.
+//
+// These globals are intentionally written through a module alias from the
+// importing program, including nested aggregate fields.
+
+pub type Leaf = {
+    pad0: mut u8
+    pad1: mut i32
+    value: mut i32
+    enabled: mut bool
+    pad2: mut i32
+}
+
+pub type Mid = {
+    leaf: mut Leaf
+    other: mut i32
+}
+
+pub type Root = {
+    mid: mut Mid
+}
+
+pub val count: mut i32 = 0
+pub val flags: mut [4]i32 = @zeroed
+pub val root: mut Root = @zeroed
+
+pub fn set_count(value: i32) void = {
+    count = value
+}
+
+pub fn get_count() i32 = {
+    return count
+}
