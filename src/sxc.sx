@@ -860,6 +860,16 @@ pub fn main() i32 = trust {
         exe_dir = path.dir(exe_path2)
     }
 
+    if !use_alt && !emit_alt && !emit_qbe && !emit_ll && !emit_asm &&
+    !syntax_check && !print_ast && !translate_c_flag {
+        if !builds.is_compiler_available("qbe") {
+            use_alt = true
+            if !quiet {
+                stdio.puts("[I  ]│ QBE not found - using fallback C backend")
+            }
+        }
+    }
+
     if !quiet && !emit_qbe && !emit_ll && !emit_alt && !print_ast {
         stdio.puts("[I  ]│ Resolving module")
     }
@@ -1066,14 +1076,16 @@ pub fn main() i32 = trust {
                 return 1
             }
         }
-        builds.append_debug_runtime_links(
-            links_alt,
-            exe_dir,
-            quiet,
-            release_mode,
-            selected_compiler,
-            arena
-        )
+        if !compile_obj {
+            builds.append_debug_runtime_links(
+                links_alt,
+                exe_dir,
+                quiet,
+                release_mode,
+                selected_compiler,
+                arena
+            )
+        }
         val link_flags_alt: mut ref u8 = ""
         if string.raw_cmp(static_flag_alt, "") != 0 {
             link_flags_alt = @fmtalloc(" {s}", {static_flag_alt})
@@ -1089,6 +1101,9 @@ pub fn main() i32 = trust {
             if string.len_raw(translated_link) > 0 {
                 link_flags_alt = @fmtalloc("{s} {s}", {link_flags_alt, translated_link})
             }
+        }
+        if compile_obj {
+            link_flags_alt = ""
         }
         val include_flags_alt: mut ref u8 = ""
         for inc_path in inc_paths {
@@ -1426,7 +1441,9 @@ pub fn main() i32 = trust {
             return 1
         }
     }
-    builds.append_debug_runtime_links(links, exe_dir, quiet, release_mode, "cc", arena)
+    if !compile_obj {
+        builds.append_debug_runtime_links(links, exe_dir, quiet, release_mode, "cc", arena)
+    }
 
     val output_specified: bool = string.raw_cmp(output_name, "") != 0
     val cc_cmd: mut ref u8 = ""
@@ -1501,6 +1518,9 @@ pub fn main() i32 = trust {
     }
     for link_flag in links {
         link_flags = @fmtalloc("{s} {s}", {link_flags, link_flag})
+    }
+    if compile_obj {
+        link_flags = ""
     }
 
     if string.len_raw(shim_obj) > 0 && !compile_obj {

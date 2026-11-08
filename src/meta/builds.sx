@@ -108,11 +108,25 @@ pub fn select_alt_compiler(requested: ref u8) ref u8 = {
     if string.raw_cmp(requested, "") != 0 {
         return requested
     }
-    if is_compiler_available("tcc") {
-        return "tcc"
-    }
     if is_compiler_available("clang") {
         return "clang"
+    }
+    when windows {
+        if is_compiler_available("clang-cl") {
+            return "clang-cl"
+        }
+        if is_compiler_available("cl") {
+            return "cl"
+        }
+    }
+    if is_compiler_available("gcc") {
+        return "gcc"
+    }
+    if is_compiler_available("cc") {
+        return "cc"
+    }
+    if is_compiler_available("tcc") {
+        return "tcc"
     }
     return "cc"
 }
@@ -438,36 +452,30 @@ pub fn pick_alt_backend(
     if string.raw_cmp(requested, "") != 0 {
         return requested
     }
-    if release_mode {
+    if release_mode || (!input_is_in_std(input, arena) && root_has_direct_links(root_items)) {
         if is_compiler_available("clang") {
             return "clang"
         }
-        when windows {
-            if is_compiler_available("clang-cl") {
-                return "clang-cl"
-            }
-            if is_compiler_available("cl") {
-                return "cl"
-            }
-            if is_compiler_available("gcc") {
-                return "gcc"
-            }
-        }
-        if is_compiler_available("tcc") {
-            return "tcc"
-        }
-        return "cc"
-    }
-    if !input_is_in_std(input, arena) && root_has_direct_links(root_items) {
-        if is_compiler_available("clang") {
-            return "clang"
-        }
-    }
-    if is_compiler_available("tcc") {
-        return "tcc"
     }
     if is_compiler_available("clang") {
         return "clang"
+    }
+    when windows {
+        if is_compiler_available("clang-cl") {
+            return "clang-cl"
+        }
+        if is_compiler_available("cl") {
+            return "cl"
+        }
+    }
+    if is_compiler_available("gcc") {
+        return "gcc"
+    }
+    if is_compiler_available("cc") {
+        return "cc"
+    }
+    if is_compiler_available("tcc") {
+        return "tcc"
     }
     return "cc"
 }
@@ -492,14 +500,19 @@ pub fn append_debug_runtime_links(
     if release_mode {
         return
     }
+    val panic_c: ref u8 = path.join(exe_dir, "spectrelib/csources/panic_handler.c")
     val panic_o: ref u8 = path.join(exe_dir, "spectrelib/csources/panic_handler.o")
-    val panic_f = fs.open(panic_o, "r")
-    if panic_f is some h {
-        fs.close(h)
-        @append(links, panic_o)
+    val panic_cf = fs.open(panic_c, "r")
+    if panic_cf is some hc {
+        fs.close(hc)
+        @append(links, panic_c)
     } else {
-        if !quiet {
-            stdio.print("warning: panic_handler.o not found at: {s}\n", {panic_o})
+        val panic_of = fs.open(panic_o, "r")
+        if panic_of is some ho {
+            fs.close(ho)
+            @append(links, panic_o)
+        } elif !quiet {
+            stdio.print("warning: panic_handler.c not found at: {s}\n", {panic_c})
         }
     }
     if string.raw_cmp(platform, "windows") == 0 {

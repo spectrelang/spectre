@@ -378,6 +378,7 @@ STDLIB_DEST="${BIN_DIR}/spectrelib"
 [ -d "$STDLIB_SRC" ] || err "Spectre std library not found at ${STDLIB_SRC}"
 
 log "Installing standard library..."
+rm -f "${CSOURCES_DIR}"/*.o
 rm -rf "$STDLIB_DEST"
 mkdir -p "$STDLIB_DEST"
 
@@ -389,12 +390,10 @@ mkdir -p "$STDLIB_DEST"
 	tar xf -
 )
 
-log "Installing C runtime objects..."
+log "Installing C shim sources..."
 mkdir -p "${STDLIB_DEST}/csources"
-cp "${PANIC_HANDLER_OBJ}" "${STDLIB_DEST}/csources/"
-cp "${YYJSON_SHIM_OBJ}" "${STDLIB_DEST}/csources/"
-if [ -f "${QBE_RUNTIME_OBJ}" ]; then
-	cp "${QBE_RUNTIME_OBJ}" "${STDLIB_DEST}/csources/"
+if [ -f "${YYJSON_DIR}/src/yyjson.h" ]; then
+	cp "${YYJSON_DIR}/src/yyjson.h" "${STDLIB_DEST}/csources/"
 fi
 
 if [ "$MINIMAL" -eq 1 ]; then

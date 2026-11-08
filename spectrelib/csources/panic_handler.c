@@ -1,3 +1,7 @@
+#ifndef _GNU_SOURCE
+#  define _GNU_SOURCE 1
+#endif
+
 #if defined(_WIN32) || defined(_WIN64)
 #  define SX_PLATFORM_WINDOWS 1
 #else
