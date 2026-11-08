@@ -1,0 +1,173 @@
+val stdio = use("std/stdio")
+
+// ---------- tunable knobs ----------
+val NEST: i32 = 40          // depth of nested if/match/trust/expr
+val NUM_TYPES: i32 = 80     // number of similar named types with invariants
+val FIELDS: i32 = 12        // fields per type
+val GEN_DEPTH: i32 = 6      // generic instantiation depth
+// -----------------------------------
+
+// Spec used as generic constraint
+spec HasValue = {
+    fn value(s: self) i32
+}
+
+// Generate many nominal types with invariants (forces layout + invariant registration)
+type (HasValue) T0 = {
+    a0: i32
+    a1: i32
+    a2: i32
+    a3: i32
+    a4: i32
+    a5: i32
+    a6: i32
+    a7: i32
+    a8: i32
+    a9: i32
+    a10: i32
+    a11: i32
+    invariant {
+        a0 >= 0
+        a0 <= 1000000
+        a1 >= a0
+        a2 == a0 + a1
+    }
+}
+
+// (In a real stress generator you would emit T1..T79 the same way.
+//  For a hand-written file we keep a few and rely on the other axes.)
+
+type (HasValue) T1 = {
+    b0: i32
+    b1: i32
+    b2: i32
+    b3: i32
+    b4: i32
+    b5: i32
+    b6: i32
+    b7: i32
+    b8: i32
+    b9: i32
+    b10: i32
+    b11: i32
+    invariant {
+        b0 >= 0
+        b1 >= b0
+        b2 == b0 * 2
+    }
+}
+
+// Method implementations for the spec
+fn (T0) value(s: self) i32 = {
+    return s.a0
+}
+
+fn (T1) value(s: self) i32 = {
+    return s.b0
+}
+
+// Generic function with constraint + when + contracts
+fn process[T: HasValue](x: T, depth: i32) i32 = {
+    pre {
+        non_neg: depth >= 0
+        bounded: depth < 1000
+    }
+    when T is T0 {
+        val v = T.value(x)
+        guarded post {
+            result_ok: v >= 0
+        }
+        return v + depth
+    }
+    when T is T1 {
+        val v = T.value(x)
+        return v - depth
+    }
+    return depth
+}
+
+// Deeply nested expression / control-flow builder
+fn deep_nest(n: i32, acc: i32) i32 = trust {
+    pre {
+        n_ok: n >= 0
+    }
+    if n == 0 {
+        return acc
+    }
+    match some n {
+        some k => {
+            if k > 0 {
+                val next = deep_nest(k - 1, acc + 1)
+                post {
+                    progressed: next > acc
+                }
+                return next
+
+            } else {
+                return acc
+            }
+        }
+        none => {
+            return acc
+        }
+    }
+}
+
+// Large fixed array + list interaction (forces size handling)
+fn big_array_work() void = trust {
+    // Fixed array of modest but non-trivial size
+    val arr: [256]i32 = [
+        0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,
+        // ... (in practice fill or use a loop; the literal itself stresses the parser)
+        0
+    ]
+    // Use a few elements so the array is live
+    val sum = @get(arr, 0)  // note: no sugar; real code would use @get or pointer arithmetic
+    if sum is some s {
+        @print("{x}", {s})
+    }
+}
+
+// Recursive-looking but terminating generic chain (monomorphization pressure)
+fn chain[T: HasValue](x: T, n: i32) i32 = {
+    pre {
+        n_ge_0: n >= 0
+    }
+    if n == 0 {
+        return T.value(x)
+    }
+    return process[T](x, n) + chain[T](x, n - 1)
+}
+
+fn f00(x: i32) i32 = {
+    return x + 0
+}
+
+fn f01(x: i32) i32 = {
+    return x + 1
+}
+
+fn f02(x: i32) i32 = {
+    return x + 2
+}
+
+pub fn main() void = trust {
+    val t0: T0 = {
+        a0: 10, a1: 20, a2: 30, a3: 0, a4: 0, a5: 0,
+        a6: 0, a7: 0, a8: 0, a9: 0, a10: 0, a11: 0
+    }
+    val t1: T1 = {
+        b0: 5, b1: 10, b2: 10, b3: 0, b4: 0, b5: 0,
+        b6: 0, b7: 0, b8: 0, b9: 0, b10: 0, b11: 0
+    }
+
+    val d = deep_nest(NEST, 0)
+    val c0 = chain[T0](t0, GEN_DEPTH)
+    val c1 = chain[T1](t1, GEN_DEPTH)
+    val p0 = process[T0](t0, 3)
+    val p1 = process[T1](t1, 3)
+
+    val _ = f00(d) + f01(c0) + f02(c1) + p0 + p1
+
+    stdio.print("stress done: {d}\n", {d})
+}

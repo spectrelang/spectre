@@ -56,8 +56,8 @@ pub fn main() i32 = {
         99 as u32
     )
     if trust @load32(
-            @ptradd(state.flags as ref i32, 2 as usize * @sizeof(i32)) as ref u32
-        ) as i32 != 99 {
+        @ptradd(state.flags as ref i32, 2 as usize * @sizeof(i32)) as ref u32
+    ) as i32 != 99 {
         return 10
     }
 

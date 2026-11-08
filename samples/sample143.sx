@@ -3,7 +3,7 @@ val stdio      = use("std/stdio")
 val helper     = use("./sample143_helper.sx")
 
 pub fn main() void = trust {
-    val arena =  allocators.Arena.new(32768 as usize)?
+    val arena = allocators.Arena.new(32768 as usize)?
     val walk_arena: allocators.ScopedArenaAllocator = allocators.ScopedArena.new(
         32768 as usize
     )?
