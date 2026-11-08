@@ -1,0 +1,429 @@
+/// Signal handling.
+///
+/// SPDX-License-Identifier: GPL-3.0-only
+/// (C) Navid Momtahen - 2026
+///
+/// NOTE:
+/// Listeners run inside the native signal handler, so they should be short and
+/// should avoid allocating, blocking, or taking locks. Keep the work to setting
+/// a flag or writing to a self-pipe where possible.
+
+extern (C, header) fn c_signal(
+    signum: i32,
+    handler: fn(i32) void
+) fn(i32) void = "signal"
+extern (C, header) fn c_raise(sig: i32) i32 = "raise"
+
+/// Number of listeners that can be registered at once.
+pub val MAX_LISTENERS: usize = 32
+
+/// Highest signal number accepted by the numeric API.
+pub val MAX_SIGNALS: i32 = 128
+
+/// Signals that can be intercepted.
+///
+/// Some entries only exist on certain platforms. `number` returns -1 and
+/// `on` reports `SignalError.Unsupported` when a signal is not available.
+pub enum Signal = {
+    Hangup
+    Interrupt
+    Quit
+    IllegalInstruction
+    Trap
+    Abort
+    Break
+    BusError
+    FloatingPointException
+    Kill
+    User1
+    SegmentationViolation
+    User2
+    Pipe
+    Alarm
+    Terminate
+    Child
+    Continue
+    Stop
+    StopTerminal
+    BackgroundRead
+    BackgroundWrite
+    Urgent
+    CpuTimeExceeded
+    FileSizeExceeded
+    VirtualTimer
+    ProfilingTimer
+    WindowChange
+    Io
+    Power
+    System
+}
+
+/// Errors reported while installing or removing signal listeners.
+pub enum SignalError = {
+    InvalidSignal
+    Unsupported
+    CannotCatch
+    TableFull
+    InvalidListener
+    InstallFailed
+}
+
+val listener_signals: mut [32]i32 = @zeroed
+val listener_callbacks: mut [32]usize = @zeroed
+val listener_count: mut usize = 0
+
+val previous_handlers: mut [128]usize = @zeroed
+val installed: mut [128]usize = @zeroed
+
+val test_hits: mut i32 = 0
+
+fn listener_signal_slot(index: i64) mut ref i32 = trust {
+    return @ptradd(@addr(listener_signals), index * 4) as ref i32
+}
+
+fn listener_callback_slot(index: i64) mut ref usize = trust {
+    return @ptradd(@addr(listener_callbacks), index * 8) as ref usize
+}
+
+fn previous_slot(signum: i32) mut ref usize = trust {
+    return @ptradd(@addr(previous_handlers), (signum as i64) * 8) as ref usize
+}
+
+fn installed_slot(signum: i32) mut ref usize = trust {
+    return @ptradd(@addr(installed), (signum as i64) * 8) as ref usize
+}
+
+fn linux_number(sig: Signal) i32 = {
+    match sig {
+        Signal.Hangup => { return 1 }
+        Signal.Interrupt => { return 2 }
+        Signal.Quit => { return 3 }
+        Signal.IllegalInstruction => { return 4 }
+        Signal.Trap => { return 5 }
+        Signal.Abort => { return 6 }
+        Signal.BusError => { return 7 }
+        Signal.FloatingPointException => { return 8 }
+        Signal.Kill => { return 9 }
+        Signal.User1 => { return 10 }
+        Signal.SegmentationViolation => { return 11 }
+        Signal.User2 => { return 12 }
+        Signal.Pipe => { return 13 }
+        Signal.Alarm => { return 14 }
+        Signal.Terminate => { return 15 }
+        Signal.Child => { return 17 }
+        Signal.Continue => { return 18 }
+        Signal.Stop => { return 19 }
+        Signal.StopTerminal => { return 20 }
+        Signal.BackgroundRead => { return 21 }
+        Signal.BackgroundWrite => { return 22 }
+        Signal.Urgent => { return 23 }
+        Signal.CpuTimeExceeded => { return 24 }
+        Signal.FileSizeExceeded => { return 25 }
+        Signal.VirtualTimer => { return 26 }
+        Signal.ProfilingTimer => { return 27 }
+        Signal.WindowChange => { return 28 }
+        Signal.Io => { return 29 }
+        Signal.Power => { return 30 }
+        Signal.System => { return 31 }
+    }
+    return -1
+}
+
+fn bsd_number(sig: Signal) i32 = {
+    match sig {
+        Signal.Hangup => { return 1 }
+        Signal.Interrupt => { return 2 }
+        Signal.Quit => { return 3 }
+        Signal.IllegalInstruction => { return 4 }
+        Signal.Trap => { return 5 }
+        Signal.Abort => { return 6 }
+        Signal.BusError => { return 10 }
+        Signal.FloatingPointException => { return 8 }
+        Signal.Kill => { return 9 }
+        Signal.SegmentationViolation => { return 11 }
+        Signal.System => { return 12 }
+        Signal.Pipe => { return 13 }
+        Signal.Alarm => { return 14 }
+        Signal.Terminate => { return 15 }
+        Signal.Urgent => { return 16 }
+        Signal.Stop => { return 17 }
+        Signal.StopTerminal => { return 18 }
+        Signal.Continue => { return 19 }
+        Signal.Child => { return 20 }
+        Signal.BackgroundRead => { return 21 }
+        Signal.BackgroundWrite => { return 22 }
+        Signal.Io => { return 23 }
+        Signal.CpuTimeExceeded => { return 24 }
+        Signal.FileSizeExceeded => { return 25 }
+        Signal.VirtualTimer => { return 26 }
+        Signal.ProfilingTimer => { return 27 }
+        Signal.WindowChange => { return 28 }
+        Signal.User1 => { return 30 }
+        Signal.User2 => { return 31 }
+    }
+    return -1
+}
+
+fn windows_number(sig: Signal) i32 = {
+    match sig {
+        Signal.Interrupt => { return 2 }
+        Signal.IllegalInstruction => { return 4 }
+        Signal.FloatingPointException => { return 8 }
+        Signal.SegmentationViolation => { return 11 }
+        Signal.Terminate => { return 15 }
+        Signal.Break => { return 21 }
+        Signal.Abort => { return 22 }
+    }
+    return -1
+}
+
+/// Return the platform signal number for `sig`, or -1 when the signal does not
+/// exist on the current platform.
+pub fn number(sig: Signal) i32 = {
+    when windows {
+        return windows_number(sig)
+    } or when darwin {
+        return bsd_number(sig)
+    } or when bsd {
+        return bsd_number(sig)
+    } or when linux {
+        return linux_number(sig)
+    } or when android {
+        return linux_number(sig)
+    } otherwise {
+        return -1
+    }
+}
+
+/// Return the conventional name of `sig` (for example "SIGINT").
+pub fn name(sig: Signal) ref u8 = {
+    match sig {
+        Signal.Hangup => { return "SIGHUP" }
+        Signal.Interrupt => { return "SIGINT" }
+        Signal.Quit => { return "SIGQUIT" }
+        Signal.IllegalInstruction => { return "SIGILL" }
+        Signal.Trap => { return "SIGTRAP" }
+        Signal.Abort => { return "SIGABRT" }
+        Signal.Break => { return "SIGBREAK" }
+        Signal.BusError => { return "SIGBUS" }
+        Signal.FloatingPointException => { return "SIGFPE" }
+        Signal.Kill => { return "SIGKILL" }
+        Signal.User1 => { return "SIGUSR1" }
+        Signal.SegmentationViolation => { return "SIGSEGV" }
+        Signal.User2 => { return "SIGUSR2" }
+        Signal.Pipe => { return "SIGPIPE" }
+        Signal.Alarm => { return "SIGALRM" }
+        Signal.Terminate => { return "SIGTERM" }
+        Signal.Child => { return "SIGCHLD" }
+        Signal.Continue => { return "SIGCONT" }
+        Signal.Stop => { return "SIGSTOP" }
+        Signal.StopTerminal => { return "SIGTSTP" }
+        Signal.BackgroundRead => { return "SIGTTIN" }
+        Signal.BackgroundWrite => { return "SIGTTOU" }
+        Signal.Urgent => { return "SIGURG" }
+        Signal.CpuTimeExceeded => { return "SIGXCPU" }
+        Signal.FileSizeExceeded => { return "SIGXFSZ" }
+        Signal.VirtualTimer => { return "SIGVTALRM" }
+        Signal.ProfilingTimer => { return "SIGPROF" }
+        Signal.WindowChange => { return "SIGWINCH" }
+        Signal.Io => { return "SIGIO" }
+        Signal.Power => { return "SIGPWR" }
+        Signal.System => { return "SIGSYS" }
+    }
+    return "SIGUNKNOWN"
+}
+
+fn dispatch(signum: i32) void = trust {
+    if @load(installed_slot(signum)) != 0 {
+        // Reinstall the dispatcher. Some C libraries reset the handler to the
+        // default action after the first delivery.
+        c_signal(signum, dispatch)
+    }
+
+    val count: usize = listener_count
+    val i: mut usize = 0
+    for {
+        if i >= count {
+            break
+        }
+        val registered: i32 = @load(listener_signal_slot(i as i64))
+        if registered == signum {
+            val address: usize = @load(listener_callback_slot(i as i64))
+            if address != 0 {
+                val callback: fn(i32) void = @bitcast(address, fn(i32) void)
+                @call(callback, signum)
+            }
+        }
+        i = i + 1
+    }
+}
+
+fn install(signum: i32) result[void, SignalError] = trust {
+    if @load(installed_slot(signum)) != 0 {
+        return ok ()
+    }
+
+    val previous: fn(i32) void = c_signal(signum, dispatch)
+    val previous_address: usize = previous as usize
+    if @bitcast(previous_address, i64) == -1 {
+        return err SignalError.InstallFailed
+    }
+
+    @store(previous_slot(signum), previous_address)
+    @store(installed_slot(signum), 1)
+    return ok ()
+}
+
+/// Register `listener` for a numeric signal.
+///
+/// Multiple listeners may be registered for the same signal; they run in the
+/// order they were added. Returns an error when the signal is invalid, cannot
+/// be caught, or the listener table is full.
+pub fn on_number(signum: i32, listener: fn(i32) void) result[void, SignalError] = trust {
+    if signum <= 0 || signum >= MAX_SIGNALS {
+        return err SignalError.InvalidSignal
+    }
+
+    val address: usize = listener as usize
+    if address == 0 {
+        return err SignalError.InvalidListener
+    }
+
+    val count: usize = listener_count
+    if count >= MAX_LISTENERS {
+        return err SignalError.TableFull
+    }
+
+    match install(signum) {
+        ok _ => {}
+        err e => {
+            return err e
+        }
+    }
+
+    @store(listener_signal_slot(count as i64), signum)
+    @store(listener_callback_slot(count as i64), address)
+    listener_count = count + 1
+    return ok ()
+}
+
+/// Register `listener` for `sig`.
+pub fn on(sig: Signal, listener: fn(i32) void) result[void, SignalError] = trust {
+    if sig == Signal.Kill || sig == Signal.Stop {
+        return err SignalError.CannotCatch
+    }
+
+    val signum: i32 = number(sig)
+    if signum < 0 {
+        return err SignalError.Unsupported
+    }
+
+    return on_number(signum, listener)
+}
+
+/// Remove every listener registered for a numeric signal and restore the
+/// handler that was installed before the first listener was added.
+pub fn off_number(signum: i32) void = trust {
+    if signum <= 0 || signum >= MAX_SIGNALS {
+        return
+    }
+
+    if @load(installed_slot(signum)) != 0 {
+        val previous_address: usize = @load(previous_slot(signum))
+        val previous: fn(i32) void = @bitcast(previous_address, fn(i32) void)
+        c_signal(signum, previous)
+        @store(previous_slot(signum), 0)
+        @store(installed_slot(signum), 0)
+    }
+
+    val count: usize = listener_count
+    val write: mut usize = 0
+    val i: mut usize = 0
+    for {
+        if i >= count {
+            break
+        }
+
+        val registered: i32 = @load(listener_signal_slot(i as i64))
+        if registered != signum {
+            if write != i {
+                val callback: usize = @load(listener_callback_slot(i as i64))
+                @store(listener_signal_slot(write as i64), registered)
+                @store(listener_callback_slot(write as i64), callback)
+            }
+            write = write + 1
+        }
+
+        i = i + 1
+    }
+    listener_count = write
+}
+
+/// Remove every listener registered for `sig`.
+pub fn off(sig: Signal) void = trust {
+    off_number(number(sig))
+}
+
+/// Remove every listener and restore all previous signal handlers.
+pub fn clear() void = trust {
+    val signum: mut i32 = 1
+    for {
+        if signum >= MAX_SIGNALS {
+            break
+        }
+        off_number(signum)
+        signum = signum + 1
+    }
+}
+
+/// Send a numeric signal to the current process.
+pub fn raise_number(signum: i32) i32 = trust {
+    return c_raise(signum)
+}
+
+/// Send `sig` to the current process.
+pub fn raise_signal(sig: Signal) i32 = trust {
+    val signum: i32 = number(sig)
+    if signum < 0 {
+        return -1
+    }
+    return c_raise(signum)
+}
+
+fn test_listener(sig: i32) void = {
+    test_hits = test_hits + sig
+}
+
+test "signals invoke listeners in registration order" {
+    test_hits = 0
+    trust on(Signal.Interrupt, test_listener)
+    trust on(Signal.Interrupt, test_listener)
+
+    trust raise_signal(Signal.Interrupt)
+    assert test_hits == 4
+
+    trust off(Signal.Interrupt)
+
+    trust on(Signal.Interrupt, test_listener)
+    trust raise_signal(Signal.Interrupt)
+    assert test_hits == 6
+
+    trust off(Signal.Interrupt)
+    test_hits = 0
+}
+
+test "signal metadata matches the host platform" {
+    assert number(Signal.Interrupt) == 2
+    assert number(Signal.Terminate) == 15
+
+    when posix {
+        assert number(Signal.Kill) > 0
+        assert number(Signal.IllegalInstruction) == 4
+        assert number(Signal.SegmentationViolation) == 11
+    }
+
+    when windows {
+        assert number(Signal.Abort) == 22
+        assert number(Signal.Break) == 21
+    }
+}
