@@ -1994,7 +1994,8 @@ fn append_page_head_html(sb: ref void, title: ref u8) void = trust {
         \\.control-btn svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
         \\.control-btn[aria-pressed="true"]{color:var(--accent);border-color:color-mix(in srgb,var(--accent) 40%,var(--border))}
         \\.theme-btn{right:16px}
-        \\.private-toggle-btn{right:58px}
+        \\.home-btn{right:58px}
+        \\.private-toggle-btn{right:100px}
         \\
         \\.content{
         \\  margin-left:var(--sb-w);padding:64px 60px 80px;
@@ -2149,6 +2150,14 @@ fn append_page_shell_start_html(
     string.StringBuilder.append_cstr(
         sb,
         "<button class=\"toggle\" id=\"toggle\" aria-label=\"Toggle sidebar\"><svg viewBox=\"0 0 24 24\"><line x1=\"3\" y1=\"6\" x2=\"21\" y2=\"6\"/><line x1=\"3\" y1=\"12\" x2=\"21\" y2=\"12\"/><line x1=\"3\" y1=\"18\" x2=\"21\" y2=\"18\"/></svg></button>"
+    )
+
+    string.StringBuilder.append_cstr(
+        sb,
+        dfmt(
+            "<a class=\"control-btn home-btn\" id=\"home-btn\" href=\"{s}\" aria-label=\"Documentation home\" title=\"Documentation home\"><svg viewBox=\"0 0 24 24\"><path d=\"M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z\"/><polyline points=\"9 22 9 12 15 12 15 22\"/></svg></a>",
+            {href_from(current.output_path, "index.html")}
+        )
     )
 
     if has_private_functions {
@@ -2895,6 +2904,19 @@ test "docs extracts comments, signatures and slugs" {
     if docs_src_opt is some docs_src {
         val ml_toggle: mut i64 = 0
         match regex.re_match("id=\\\\\"private-toggle\\\\\"", docs_src, @addr(ml_toggle)) {
+            ok found => {
+                if found is some _ {
+                } else {
+                    assert false
+                }
+            }
+            err _ => {
+                assert false
+            }
+        }
+
+        val ml_home: mut i64 = 0
+        match regex.re_match("id=\\\\\"home-btn\\\\\"", docs_src, @addr(ml_home)) {
             ok found => {
                 if found is some _ {
                 } else {
