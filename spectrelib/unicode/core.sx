@@ -1,0 +1,1252 @@
+/// Unicode code point handling: UTF-8 and UTF-16 conversion, validation,
+/// classification, and simple case mapping.
+///
+/// The module operates on Unicode scalar values (code points in the range
+/// U+0000..=U+10FFFF excluding the surrogate range U+D800..=U+DFFF).  UTF-8
+/// routines take an explicit byte length so they work with both NUL-terminated
+/// C strings and binary strings that may contain embedded NUL bytes.
+///
+/// The classification and case tables are generated from Unicode 15.0 data.
+///
+/// Example:
+///
+/// ```
+/// val unicode = use("std/unicode")
+/// val text: ref u8 = "héllo"
+/// val len: i64 = unicode.utf8_count(text, 6)
+/// ```
+///
+/// Use the allocator-aware `utf8_to_codepoints` and `utf16_to_codepoints`
+/// helpers when a dynamic list is more convenient than iterating manually.
+
+val string     = use("../string")
+val allocators = use("../allocators")
+val tables     = use("tables.sx")
+
+/// The Unicode replacement character, U+FFFD.
+pub val REPLACEMENT_CHARACTER: u32 = 0xfffd
+
+/// The largest valid Unicode code point, U+10FFFF.
+pub val MAX_CODEPOINT: u32 = 0x10ffff
+
+/// The first high-surrogate code unit.
+pub val HIGH_SURROGATE_START: u32 = 0xd800
+
+/// The last low-surrogate code unit.
+pub val LOW_SURROGATE_END: u32 = 0xdfff
+
+fn make_decoded(codepoint: u32, size: i64) u64 = {
+    return ((codepoint as u64) << 32) | (size as u64)
+}
+
+/// Extract the code point from a value returned by `utf8_decode` or
+/// `utf16_decode`.
+pub fn decoded_codepoint(decoded: u64) u32 = {
+    return (decoded >> 32) as u32
+}
+
+/// Extract the number of UTF-8 bytes or UTF-16 code units consumed from a
+/// value returned by `utf8_decode` or `utf16_decode`.
+pub fn decoded_size(decoded: u64) i64 = {
+    return (decoded & 0xffffffff) as i64
+}
+
+/// Errors produced by the UTF-8 and UTF-16 routines.
+pub enum UnicodeError = {
+    InvalidUtf8
+    Truncated
+    InvalidCodepoint
+    InvalidUtf16
+    BufferTooSmall
+    InvalidIndex
+    OutOfMemory
+}
+
+/// The Unicode general category of a code point.
+pub enum Category = {
+    UppercaseLetter
+    LowercaseLetter
+    TitlecaseLetter
+    ModifierLetter
+    OtherLetter
+    NonspacingMark
+    SpacingMark
+    EnclosingMark
+    DecimalNumber
+    LetterNumber
+    OtherNumber
+    ConnectorPunctuation
+    DashPunctuation
+    OpenPunctuation
+    ClosePunctuation
+    InitialPunctuation
+    FinalPunctuation
+    OtherPunctuation
+    MathSymbol
+    CurrencySymbol
+    ModifierSymbol
+    OtherSymbol
+    SpaceSeparator
+    LineSeparator
+    ParagraphSeparator
+    Control
+    Format
+    Surrogate
+    PrivateUse
+    Unassigned
+}
+
+fn is_continuation(byte: u32) bool = {
+    return byte >= 0x80 && byte <= 0xbf
+}
+
+/// Return true when `cp` is a Unicode scalar value.
+///
+/// Surrogate code points and values above U+10FFFF are not scalar values.
+pub fn is_valid_codepoint(cp: u32) bool = {
+    if cp > MAX_CODEPOINT {
+        return false
+    }
+    return !(cp >= HIGH_SURROGATE_START && cp <= LOW_SURROGATE_END)
+}
+
+/// Return true when `cp` is in the UTF-16 surrogate range.
+pub fn is_surrogate(cp: u32) bool = {
+    return cp >= HIGH_SURROGATE_START && cp <= LOW_SURROGATE_END
+}
+
+/// Return true when `cp` is an ASCII code point (U+0000..=U+007F).
+pub fn is_ascii(cp: u32) bool = {
+    return cp <= 0x7f
+}
+
+/// Return true when `cp` is an ASCII decimal digit.
+pub fn is_ascii_digit(cp: u32) bool = {
+    return cp >= 0x30 && cp <= 0x39
+}
+
+/// Return true when `cp` is an ASCII letter.
+pub fn is_ascii_alpha(cp: u32) bool = {
+    return (cp >= 0x41 && cp <= 0x5a) || (cp >= 0x61 && cp <= 0x7a)
+}
+
+/// Return true when `cp` is an ASCII letter or digit.
+pub fn is_ascii_alphanumeric(cp: u32) bool = {
+    return is_ascii_alpha(cp) || is_ascii_digit(cp)
+}
+
+/// Return true when `cp` is an ASCII hexadecimal digit.
+pub fn is_ascii_hex_digit(cp: u32) bool = {
+    return is_ascii_digit(cp)
+    || (cp >= 0x41 && cp <= 0x46)
+    || (cp >= 0x61 && cp <= 0x66)
+}
+
+/// Return true when `cp` is an ASCII whitespace character.
+pub fn is_ascii_whitespace(cp: u32) bool = {
+    return cp == 0x20 || (cp >= 0x09 && cp <= 0x0d)
+}
+
+/// Return true when `cp` is an ASCII control character.
+pub fn is_ascii_control(cp: u32) bool = {
+    return cp <= 0x1f || cp == 0x7f
+}
+
+fn category_code(cp: u32) u8 = {
+    val lo: mut i64 = 0
+    val hi: mut i64 = tables.CATEGORY_COUNT - 1
+    for {
+        if lo > hi {
+            break
+        }
+        val mid: i64 = lo + (hi - lo) / 2
+        val start: mut u32 = 0
+        val end: mut u32 = 0
+        val code: mut u8 = 29
+        if @get(tables.CATEGORY_STARTS, mid as usize) is some v {
+            start = v
+        }
+        if @get(tables.CATEGORY_ENDS, mid as usize) is some v {
+            end = v
+        }
+        if @get(tables.CATEGORY_CODES, mid as usize) is some v {
+            code = v
+        }
+
+        if cp < start {
+            hi = mid - 1
+        } elif cp > end {
+            lo = mid + 1
+        } else {
+            return code
+        }
+    }
+    return 29
+}
+
+/// Return the Unicode general category of `cp`.
+///
+/// Unassigned code points and invalid scalar values both report
+/// `Category.Unassigned`.
+pub fn category(cp: u32) Category = {
+    val code: u8 = category_code(cp)
+    if code == 0 {
+        return Category.UppercaseLetter
+    } elif code == 1 {
+        return Category.LowercaseLetter
+    } elif code == 2 {
+        return Category.TitlecaseLetter
+    } elif code == 3 {
+        return Category.ModifierLetter
+    } elif code == 4 {
+        return Category.OtherLetter
+    } elif code == 5 {
+        return Category.NonspacingMark
+    } elif code == 6 {
+        return Category.SpacingMark
+    } elif code == 7 {
+        return Category.EnclosingMark
+    } elif code == 8 {
+        return Category.DecimalNumber
+    } elif code == 9 {
+        return Category.LetterNumber
+    } elif code == 10 {
+        return Category.OtherNumber
+    } elif code == 11 {
+        return Category.ConnectorPunctuation
+    } elif code == 12 {
+        return Category.DashPunctuation
+    } elif code == 13 {
+        return Category.OpenPunctuation
+    } elif code == 14 {
+        return Category.ClosePunctuation
+    } elif code == 15 {
+        return Category.InitialPunctuation
+    } elif code == 16 {
+        return Category.FinalPunctuation
+    } elif code == 17 {
+        return Category.OtherPunctuation
+    } elif code == 18 {
+        return Category.MathSymbol
+    } elif code == 19 {
+        return Category.CurrencySymbol
+    } elif code == 20 {
+        return Category.ModifierSymbol
+    } elif code == 21 {
+        return Category.OtherSymbol
+    } elif code == 22 {
+        return Category.SpaceSeparator
+    } elif code == 23 {
+        return Category.LineSeparator
+    } elif code == 24 {
+        return Category.ParagraphSeparator
+    } elif code == 25 {
+        return Category.Control
+    } elif code == 26 {
+        return Category.Format
+    } elif code == 27 {
+        return Category.Surrogate
+    } elif code == 28 {
+        return Category.PrivateUse
+    }
+    return Category.Unassigned
+}
+
+/// Return true when `cp` is a letter (categories Lu, Ll, Lt, Lm, Lo).
+pub fn is_letter(cp: u32) bool = {
+    val code: u8 = category_code(cp)
+    return code <= 4
+}
+
+/// Alias for `is_letter`.
+pub fn is_alphabetic(cp: u32) bool = {
+    return is_letter(cp)
+}
+
+/// Return true when `cp` is an uppercase letter.
+pub fn is_uppercase(cp: u32) bool = {
+    val code: u8 = category_code(cp)
+    return code == 0 || code == 2
+}
+
+/// Return true when `cp` is a lowercase letter.
+pub fn is_lowercase(cp: u32) bool = {
+    return category_code(cp) == 1
+}
+
+/// Return true when `cp` is a decimal digit (category Nd).
+pub fn is_digit(cp: u32) bool = {
+    return category_code(cp) == 8
+}
+
+/// Alias for `is_digit`.
+pub fn is_decimal(cp: u32) bool = {
+    return is_digit(cp)
+}
+
+/// Return true when `cp` is any kind of numeric character (Nd, Nl, No).
+pub fn is_numeric(cp: u32) bool = {
+    val code: u8 = category_code(cp)
+    return code >= 8 && code <= 10
+}
+
+/// Return true when `cp` is a letter or a number.
+pub fn is_alphanumeric(cp: u32) bool = {
+    val code: u8 = category_code(cp)
+    return code <= 4 || (code >= 8 && code <= 10)
+}
+
+/// Return true when `cp` is a combining mark (Mn, Mc, Me).
+pub fn is_mark(cp: u32) bool = {
+    val code: u8 = category_code(cp)
+    return code >= 5 && code <= 7
+}
+
+/// Return true when `cp` is a punctuation character (category P*).
+pub fn is_punctuation(cp: u32) bool = {
+    val code: u8 = category_code(cp)
+    return code >= 11 && code <= 17
+}
+
+/// Return true when `cp` is a symbol (category S*).
+pub fn is_symbol(cp: u32) bool = {
+    val code: u8 = category_code(cp)
+    return code >= 18 && code <= 21
+}
+
+/// Return true when `cp` is a separator (category Z*).
+pub fn is_separator(cp: u32) bool = {
+    val code: u8 = category_code(cp)
+    return code >= 22 && code <= 24
+}
+
+/// Return true when `cp` is a control character (category Cc).
+pub fn is_control(cp: u32) bool = {
+    return category_code(cp) == 25
+}
+
+/// Return true when `cp` is a format character (category Cf).
+pub fn is_format(cp: u32) bool = {
+    return category_code(cp) == 26
+}
+
+/// Return true when `cp` is a private-use character (category Co).
+pub fn is_private_use(cp: u32) bool = {
+    return category_code(cp) == 28
+}
+
+/// Return true when `cp` has the Unicode White_Space property.
+pub fn is_whitespace(cp: u32) bool = {
+    if cp == 0x20 || (cp >= 0x09 && cp <= 0x0d) {
+        return true
+    }
+    if cp == 0x85 || cp == 0xa0 || cp == 0x1680 {
+        return true
+    }
+    if cp >= 0x2000 && cp <= 0x200a {
+        return true
+    }
+    if cp == 0x2028 || cp == 0x2029 || cp == 0x202f {
+        return true
+    }
+    if cp == 0x205f || cp == 0x3000 {
+        return true
+    }
+    return false
+}
+
+/// Alias for `is_whitespace`.
+pub fn is_space(cp: u32) bool = {
+    return is_whitespace(cp)
+}
+
+fn find_upper(cp: u32) u32 = {
+    val lo: mut i64 = 0
+    val hi: mut i64 = tables.UPPER_COUNT - 1
+    for {
+        if lo > hi {
+            break
+        }
+        val mid: i64 = lo + (hi - lo) / 2
+        val from: mut u32 = 0
+        if @get(tables.UPPER_FROM, mid as usize) is some v {
+            from = v
+        }
+        if cp < from {
+            hi = mid - 1
+        } elif cp > from {
+            lo = mid + 1
+        } else {
+            if @get(tables.UPPER_TO, mid as usize) is some v {
+                return v
+            }
+            break
+        }
+    }
+    return cp
+}
+
+fn find_lower(cp: u32) u32 = {
+    val lo: mut i64 = 0
+    val hi: mut i64 = tables.LOWER_COUNT - 1
+    for {
+        if lo > hi {
+            break
+        }
+        val mid: i64 = lo + (hi - lo) / 2
+        val from: mut u32 = 0
+        if @get(tables.LOWER_FROM, mid as usize) is some v {
+            from = v
+        }
+        if cp < from {
+            hi = mid - 1
+        } elif cp > from {
+            lo = mid + 1
+        } else {
+            if @get(tables.LOWER_TO, mid as usize) is some v {
+                return v
+            }
+            break
+        }
+    }
+    return cp
+}
+
+fn find_title(cp: u32) u32 = {
+    val lo: mut i64 = 0
+    val hi: mut i64 = tables.TITLE_COUNT - 1
+    for {
+        if lo > hi {
+            break
+        }
+        val mid: i64 = lo + (hi - lo) / 2
+        val from: mut u32 = 0
+        if @get(tables.TITLE_FROM, mid as usize) is some v {
+            from = v
+        }
+        if cp < from {
+            hi = mid - 1
+        } elif cp > from {
+            lo = mid + 1
+        } else {
+            if @get(tables.TITLE_TO, mid as usize) is some v {
+                return v
+            }
+            break
+        }
+    }
+    return cp
+}
+
+fn find_fold(cp: u32) u32 = {
+    val lo: mut i64 = 0
+    val hi: mut i64 = tables.FOLD_COUNT - 1
+    for {
+        if lo > hi {
+            break
+        }
+        val mid: i64 = lo + (hi - lo) / 2
+        val from: mut u32 = 0
+        if @get(tables.FOLD_FROM, mid as usize) is some v {
+            from = v
+        }
+        if cp < from {
+            hi = mid - 1
+        } elif cp > from {
+            lo = mid + 1
+        } else {
+            if @get(tables.FOLD_TO, mid as usize) is some v {
+                return v
+            }
+            break
+        }
+    }
+    return cp
+}
+
+/// Return the simple uppercase mapping of `cp`, or `cp` when it has none.
+pub fn to_upper(cp: u32) u32 = {
+    return find_upper(cp)
+}
+
+/// Alias for `to_upper`.
+pub fn to_uppercase(cp: u32) u32 = {
+    return to_upper(cp)
+}
+
+/// Return the simple lowercase mapping of `cp`, or `cp` when it has none.
+pub fn to_lower(cp: u32) u32 = {
+    return find_lower(cp)
+}
+
+/// Alias for `to_lower`.
+pub fn to_lowercase(cp: u32) u32 = {
+    return to_lower(cp)
+}
+
+/// Return the simple titlecase mapping of `cp`, or `cp` when it has none.
+pub fn to_title(cp: u32) u32 = {
+    return find_title(cp)
+}
+
+/// Alias for `to_title`.
+pub fn to_titlecase(cp: u32) u32 = {
+    return to_title(cp)
+}
+
+/// Return the simple case-folded mapping of `cp`.
+///
+/// This is the single-code-point subset of Unicode case folding.  A few
+/// characters have multi-code-point folds (for example U+00DF); this function
+/// leaves those unchanged.
+pub fn to_casefold(cp: u32) u32 = {
+    return find_fold(cp)
+}
+
+/// Decode one UTF-8 code point at `offset`.
+///
+/// `len` is the number of readable bytes at `text`.  On success the result
+/// packs the code point and the number of bytes consumed; use
+/// `decoded_codepoint` and `decoded_size` to inspect it.
+pub fn utf8_decode(
+    text: ref u8,
+    len: i64,
+    offset: i64
+) result[u64, UnicodeError] = {
+    if offset < 0 || offset >= len {
+        return err UnicodeError.Truncated
+    }
+
+    val b0: u32 = trust @load8(@ptradd(text, offset)) as u32
+    if b0 <= 0x7f {
+        return ok make_decoded(b0, 1)
+    }
+
+    if b0 >= 0xc2 && b0 <= 0xdf {
+        if offset + 1 >= len {
+            return err UnicodeError.Truncated
+        }
+        val b1: u32 = trust @load8(@ptradd(text, offset + 1)) as u32
+        if !is_continuation(b1) {
+            return err UnicodeError.InvalidUtf8
+        }
+        val cp: u32 = ((b0 & 0x1f) << 6) | (b1 & 0x3f)
+        return ok make_decoded(cp, 2)
+    }
+
+    if b0 >= 0xe0 && b0 <= 0xef {
+        if offset + 2 >= len {
+            return err UnicodeError.Truncated
+        }
+        val b1: u32 = trust @load8(@ptradd(text, offset + 1)) as u32
+        val b2: u32 = trust @load8(@ptradd(text, offset + 2)) as u32
+        if !is_continuation(b1) || !is_continuation(b2) {
+            return err UnicodeError.InvalidUtf8
+        }
+        if b0 == 0xe0 && b1 < 0xa0 {
+            return err UnicodeError.InvalidUtf8
+        }
+        if b0 == 0xed && b1 >= 0xa0 {
+            return err UnicodeError.InvalidUtf8
+        }
+        val cp: u32 = ((b0 & 0x0f) << 12) | ((b1 & 0x3f) << 6) | (b2 & 0x3f)
+        return ok make_decoded(cp, 3)
+    }
+
+    if b0 >= 0xf0 && b0 <= 0xf4 {
+        if offset + 3 >= len {
+            return err UnicodeError.Truncated
+        }
+        val b1: u32 = trust @load8(@ptradd(text, offset + 1)) as u32
+        val b2: u32 = trust @load8(@ptradd(text, offset + 2)) as u32
+        val b3: u32 = trust @load8(@ptradd(text, offset + 3)) as u32
+        if !is_continuation(b1) || !is_continuation(b2) || !is_continuation(b3) {
+            return err UnicodeError.InvalidUtf8
+        }
+        if b0 == 0xf0 && b1 < 0x90 {
+            return err UnicodeError.InvalidUtf8
+        }
+        if b0 == 0xf4 && b1 > 0x8f {
+            return err UnicodeError.InvalidUtf8
+        }
+        val cp: u32 = ((b0 & 0x07) << 18)
+        | ((b1 & 0x3f) << 12)
+        | ((b2 & 0x3f) << 6)
+        | (b3 & 0x3f)
+        return ok make_decoded(cp, 4)
+    }
+
+    return err UnicodeError.InvalidUtf8
+}
+
+/// Decode one UTF-8 code point from a NUL-terminated string at `offset`.
+pub fn utf8_decode_cstr(
+    text: ref u8,
+    offset: i64
+) result[u64, UnicodeError] = {
+    if text == none || offset < 0 {
+        return err UnicodeError.InvalidIndex
+    }
+    val len: mut i64 = 0
+    trust {
+        for {
+            if @load8(@ptradd(text, len)) == 0 as u8 {
+                break
+            }
+            len++
+        }
+    }
+    return utf8_decode(text, len, offset)
+}
+
+/// Decode the next UTF-8 code point starting at `offset`.
+///
+/// This is an alias for `utf8_decode` that reads naturally in loops:
+///
+/// ```
+/// val first = unicode.utf8_next(text, len, 0)
+/// ```
+pub fn utf8_next(
+    text: ref u8,
+    len: i64,
+    offset: i64
+) result[u64, UnicodeError] = {
+    return utf8_decode(text, len, offset)
+}
+
+/// Return true when every byte in `text[0..len]` is a valid UTF-8 sequence.
+pub fn utf8_validate(text: ref u8, len: i64) bool = {
+    if len < 0 {
+        return false
+    }
+    val offset: mut i64 = 0
+    for {
+        if offset >= len {
+            return true
+        }
+        val decoded = utf8_decode(text, len, offset)
+        match decoded {
+            ok d => {
+                offset = offset + decoded_size(d)
+            }
+            err _ => {
+                return false
+            }
+        }
+    }
+    return true
+}
+
+/// Count the Unicode code points in valid UTF-8 text.
+///
+/// Returns -1 when the input is not valid UTF-8.
+pub fn utf8_count(text: ref u8, len: i64) i64 = {
+    if len < 0 {
+        return -1
+    }
+    val offset: mut i64 = 0
+    val count: mut i64 = 0
+    for {
+        if offset >= len {
+            return count
+        }
+        val decoded = utf8_decode(text, len, offset)
+        match decoded {
+            ok d => {
+                offset = offset + decoded_size(d)
+                count++
+            }
+            err _ => {
+                return -1
+            }
+        }
+    }
+    return count
+}
+
+/// Return the code point at Unicode index `index` as a u64.
+///
+/// `index` counts code points, not bytes.  An out-of-range index yields
+/// `UnicodeError.InvalidIndex`.  The value is widened to u64 so the result is
+/// portable across all compiler backends.
+pub fn utf8_codepoint_at(
+    text: ref u8,
+    len: i64,
+    index: i64
+) result[u64, UnicodeError] = {
+    if index < 0 {
+        return err UnicodeError.InvalidIndex
+    }
+    val offset: mut i64 = 0
+    val current: mut i64 = 0
+    for {
+        if offset >= len {
+            return err UnicodeError.InvalidIndex
+        }
+        val decoded = utf8_decode(text, len, offset)
+        match decoded {
+            ok d => {
+                if current == index {
+                    return ok decoded_codepoint(d) as u64
+                }
+                offset = offset + decoded_size(d)
+                current++
+            }
+            err e => {
+                return err e
+            }
+        }
+    }
+    return err UnicodeError.InvalidIndex
+}
+
+/// Return the byte offset of Unicode index `index`.
+///
+/// The returned offset may equal `len`, which denotes the end of the text.
+pub fn utf8_byte_index(text: ref u8, len: i64, index: i64) result[i64, UnicodeError] = {
+    if index < 0 {
+        return err UnicodeError.InvalidIndex
+    }
+    val offset: mut i64 = 0
+    val current: mut i64 = 0
+    for {
+        if current == index {
+            return ok offset
+        }
+        if offset >= len {
+            return err UnicodeError.InvalidIndex
+        }
+        val decoded = utf8_decode(text, len, offset)
+        match decoded {
+            ok d => {
+                offset = offset + decoded_size(d)
+                current++
+            }
+            err e => {
+                return err e
+            }
+        }
+    }
+    return ok offset
+}
+
+/// Return the number of bytes needed to encode `cp` as UTF-8.
+///
+/// Returns 0 when `cp` is not a valid scalar value.
+pub fn utf8_encoded_len(cp: u32) i64 = {
+    if !is_valid_codepoint(cp) {
+        return 0
+    }
+    if cp <= 0x7f {
+        return 1
+    }
+    if cp <= 0x7ff {
+        return 2
+    }
+    if cp <= 0xffff {
+        return 3
+    }
+    return 4
+}
+
+/// Encode `cp` as UTF-8 into `out` and return the number of bytes written.
+///
+/// Returns 0 for an invalid scalar value.  The caller must provide at least
+/// `utf8_encoded_len(cp)` writable bytes.  The result is not NUL-terminated.
+pub fn utf8_encode(cp: u32, out: ref u8) i64 = {
+    val n: i64 = utf8_encoded_len(cp)
+    if n == 0 {
+        return 0
+    }
+
+    trust {
+        if n == 1 {
+            @store8(out, cp as u8)
+        } elif n == 2 {
+            @store8(out, (0xc0 | (cp >> 6)) as u8)
+            @store8(@ptradd(out, 1), (0x80 | (cp & 0x3f)) as u8)
+        } elif n == 3 {
+            @store8(out, (0xe0 | (cp >> 12)) as u8)
+            @store8(@ptradd(out, 1), (0x80 | ((cp >> 6) & 0x3f)) as u8)
+            @store8(@ptradd(out, 2), (0x80 | (cp & 0x3f)) as u8)
+        } else {
+            @store8(out, (0xf0 | (cp >> 18)) as u8)
+            @store8(@ptradd(out, 1), (0x80 | ((cp >> 12) & 0x3f)) as u8)
+            @store8(@ptradd(out, 2), (0x80 | ((cp >> 6) & 0x3f)) as u8)
+            @store8(@ptradd(out, 3), (0x80 | (cp & 0x3f)) as u8)
+        }
+    }
+    return n
+}
+
+/// Encode `cp` as UTF-8 into a bounded buffer.
+pub fn utf8_encode_result(
+    cp: u32,
+    out: ref u8,
+    cap: i64
+) result[i64, UnicodeError] = {
+    if !is_valid_codepoint(cp) {
+        return err UnicodeError.InvalidCodepoint
+    }
+    val needed: i64 = utf8_encoded_len(cp)
+    if cap < needed {
+        return err UnicodeError.BufferTooSmall
+    }
+    val written: i64 = utf8_encode(cp, out)
+    return ok written
+}
+
+/// Return the number of bytes needed to encode `count` code points as UTF-8.
+///
+/// Returns -1 if any code point is invalid.
+pub fn utf8_encoded_size(codepoints: ref u32, count: i64) i64 = {
+    if count < 0 {
+        return -1
+    }
+    val total: mut i64 = 0
+    val i: mut i64 = 0
+    for {
+        if i >= count {
+            return total
+        }
+        val cp: u32 = trust @load32(@ptradd(codepoints, i * 4)) as u32
+        val n: i64 = utf8_encoded_len(cp)
+        if n == 0 {
+            return -1
+        }
+        total = total + n
+        i++
+    }
+    return total
+}
+
+/// Encode `count` code points as UTF-8 into `out`.
+///
+/// Returns the number of bytes written, or `BufferTooSmall` when `cap` is not
+/// large enough.  The output is not NUL-terminated.
+pub fn utf8_encode_codepoints(
+    codepoints: ref u32,
+    count: i64,
+    out: ref u8,
+    cap: i64
+) result[i64, UnicodeError] = {
+    val needed: i64 = utf8_encoded_size(codepoints, count)
+    if needed < 0 {
+        return err UnicodeError.InvalidCodepoint
+    }
+    if cap < needed {
+        return err UnicodeError.BufferTooSmall
+    }
+
+    val offset: mut i64 = 0
+    val i: mut i64 = 0
+    for {
+        if i >= count {
+            return ok offset
+        }
+        val cp: u32 = trust @load32(@ptradd(codepoints, i * 4)) as u32
+        offset = offset + utf8_encode(cp, trust @ptradd(out, offset) as ref u8)
+        i++
+    }
+    return ok offset
+}
+
+/// Encode `count` code points into an allocator-owned `String`.
+///
+/// The returned string is owned by `ac`; release it with the same allocator's
+/// deallocation operation (or by freeing the enclosing arena).
+pub fn utf8_from_codepoints[A: allocators.Allocator](
+    ac: A,
+    codepoints: ref u32,
+    count: i64
+) result[string.String, UnicodeError] = trust {
+    val needed: i64 = utf8_encoded_size(codepoints, count)
+    if needed < 0 {
+        return err UnicodeError.InvalidCodepoint
+    }
+
+    val raw: ref u8 = @alloc((needed + 1) as usize) as ref u8
+    if raw == none {
+        return err UnicodeError.OutOfMemory
+    }
+
+    @store8(@ptradd(raw, needed), 0)
+    val encoded = utf8_encode_codepoints(codepoints, count, raw, needed)
+    match encoded {
+        ok _ => {}
+        err e => {
+            @free(raw)
+            return err e
+        }
+    }
+
+    val out: string.String = string.from[A](ac, raw as ref u8)
+    @free(raw)
+    if out == none {
+        return err UnicodeError.OutOfMemory
+    }
+    return ok out
+}
+
+/// Return the number of UTF-16 code units needed to encode `cp`.
+///
+/// Returns 0 when `cp` is not a valid scalar value.
+pub fn utf16_encoded_len(cp: u32) i64 = {
+    if !is_valid_codepoint(cp) {
+        return 0
+    }
+    if cp <= 0xffff {
+        return 1
+    }
+    return 2
+}
+
+/// Encode `cp` as UTF-16 into `out` and return the number of code units written.
+///
+/// Returns 0 for an invalid scalar value.
+pub fn utf16_encode(cp: u32, out: ref u16) i64 = {
+    val n: i64 = utf16_encoded_len(cp)
+    if n == 0 {
+        return 0
+    }
+    if n == 1 {
+        @store16(out, cp as u16)
+        return 1
+    }
+
+    val v: u32 = cp - 0x10000
+    val hi: u16 = (0xd800 | ((v >> 10) & 0x3ff)) as u16
+    val lo: u16 = (0xdc00 | (v & 0x3ff)) as u16
+    trust {
+        @store16(out, hi)
+        @store16(@ptradd(out, 2), lo)
+    }
+    return 2
+}
+
+/// Decode one UTF-16 code point at unit index `index`.
+pub fn utf16_decode(
+    units: ref u16,
+    len: i64,
+    index: i64
+) result[u64, UnicodeError] = {
+    if index < 0 || index >= len {
+        return err UnicodeError.Truncated
+    }
+    val first: u32 = trust @load16(@ptradd(units, index * 2)) as u32
+    if first < HIGH_SURROGATE_START || first > LOW_SURROGATE_END {
+        return ok make_decoded(first, 1)
+    }
+    if first >= 0xdc00 {
+        return err UnicodeError.InvalidUtf16
+    }
+    if index + 1 >= len {
+        return err UnicodeError.Truncated
+    }
+    val second: u32 = trust @load16(@ptradd(units, (index + 1) * 2)) as u32
+    if second < 0xdc00 || second > LOW_SURROGATE_END {
+        return err UnicodeError.InvalidUtf16
+    }
+    val cp: u32 = 0x10000 + ((first - HIGH_SURROGATE_START) << 10) + (second - 0xdc00)
+    return ok make_decoded(cp, 2)
+}
+
+/// Return true when `units[0..len]` is valid UTF-16.
+pub fn utf16_validate(units: ref u16, len: i64) bool = {
+    if len < 0 {
+        return false
+    }
+    val index: mut i64 = 0
+    for {
+        if index >= len {
+            return true
+        }
+        val decoded = utf16_decode(units, len, index)
+        match decoded {
+            ok d => {
+                index = index + decoded_size(d)
+            }
+            err _ => {
+                return false
+            }
+        }
+    }
+    return true
+}
+
+/// Count the Unicode code points in valid UTF-16 text.
+///
+/// Returns -1 when the input is not valid UTF-16.
+pub fn utf16_count(units: ref u16, len: i64) i64 = {
+    if len < 0 {
+        return -1
+    }
+    val index: mut i64 = 0
+    val count: mut i64 = 0
+    for {
+        if index >= len {
+            return count
+        }
+        val decoded = utf16_decode(units, len, index)
+        match decoded {
+            ok d => {
+                index = index + decoded_size(d)
+                count++
+            }
+            err _ => {
+                return -1
+            }
+        }
+    }
+    return count
+}
+
+/// Decode valid UTF-8 into an allocator-owned list of code points.
+pub fn utf8_to_codepoints[A: allocators.GeneralAllocator](
+    ac: A,
+    text: ref u8,
+    len: i64
+) result[list[u64], UnicodeError] = {
+    if len < 0 {
+        return err UnicodeError.InvalidIndex
+    }
+    val out: mut list[u64] = @listalloc[A, u64](ac)?
+    val offset: mut i64 = 0
+    for {
+        if offset >= len {
+            return ok out
+        }
+        val decoded = utf8_decode(text, len, offset)
+        match decoded {
+            ok d => {
+                @append(out, decoded_codepoint(d) as u64)
+                offset = offset + decoded_size(d)
+            }
+            err e => {
+                @listfree(out)
+                return err e
+            }
+        }
+    }
+    return ok out
+}
+
+/// Decode valid UTF-16 into an allocator-owned list of code points.
+pub fn utf16_to_codepoints[A: allocators.GeneralAllocator](
+    ac: A,
+    units: ref u16,
+    len: i64
+) result[list[u64], UnicodeError] = {
+    if len < 0 {
+        return err UnicodeError.InvalidIndex
+    }
+    val out: mut list[u64] = @listalloc[A, u64](ac)?
+    val index: mut i64 = 0
+    for {
+        if index >= len {
+            return ok out
+        }
+        val decoded = utf16_decode(units, len, index)
+        match decoded {
+            ok d => {
+                @append(out, decoded_codepoint(d) as u64)
+                index = index + decoded_size(d)
+            }
+            err e => {
+                @listfree(out)
+                return err e
+            }
+        }
+    }
+    return ok out
+}
+
+/// Validate a `String` as UTF-8.
+pub fn utf8_validate_string(text: string.String) bool = {
+    return utf8_validate(trust string.cstr(text), string.len(text))
+}
+
+/// Count code points in a `String`.
+///
+/// Returns -1 when the string is not valid UTF-8.
+pub fn utf8_count_string(text: string.String) i64 = {
+    return utf8_count(trust string.cstr(text), string.len(text))
+}
+
+/// Decode a `String` into an allocator-owned list of code points.
+pub fn utf8_to_codepoints_string[A: allocators.GeneralAllocator](
+    ac: A,
+    text: string.String
+) result[list[u64], UnicodeError] = {
+    return utf8_to_codepoints[A](ac, trust string.cstr(text), string.len(text))
+}
+
+test "unicode utf8 decodes encodes and classifies" {
+    val text: ref u8 = "héllo 🌍"
+    val len: i64 = string.len_raw(text)
+
+    assert utf8_validate(text, len)
+    assert utf8_count(text, len) == 7
+
+    val first = utf8_decode(text, len, 0)
+    match first {
+        ok d => {
+            assert decoded_codepoint(d) == 0x68 as u32
+            assert decoded_size(d) == 1
+        }
+        err _ => {
+            assert false
+        }
+    }
+
+    val second = utf8_decode(text, len, 1)
+    match second {
+        ok d => {
+            assert decoded_codepoint(d) == 0xe9 as u32
+            assert decoded_size(d) == 2
+        }
+        err _ => {
+            assert false
+        }
+    }
+
+    val globe = utf8_codepoint_at(text, len, 6)
+    match globe {
+        ok cp => {
+            assert cp == 0x1f30d as u64
+        }
+        err _ => {
+            assert false
+        }
+    }
+
+    val buf: [8]u8 = @zeroed
+    val written: i64 = utf8_encode(0x1f30d as u32, buf as ref u8)
+    assert written == 4
+    val roundtrip = utf8_decode(buf as ref u8, written, 0)
+    match roundtrip {
+        ok d => {
+            assert decoded_codepoint(d) == 0x1f30d as u32
+            assert decoded_size(d) == 4
+        }
+        err _ => {
+            assert false
+        }
+    }
+
+    assert is_letter(0xe9 as u32)
+    assert is_uppercase(0xc9 as u32)
+    assert is_lowercase(0xe9 as u32)
+    assert is_digit(0x0661 as u32)
+    assert is_whitespace(0x3000 as u32)
+    assert is_punctuation(0x2e as u32)
+    assert category(0x41 as u32) == Category.UppercaseLetter
+    assert category(0x1f30d as u32) == Category.OtherSymbol
+    assert to_upper(0xe9 as u32) == 0xc9 as u32
+    assert to_lower(0xc9 as u32) == 0xe9 as u32
+    assert to_upper(0x3b1 as u32) == 0x391 as u32
+    assert to_casefold(0x41 as u32) == 0x61 as u32
+}
+
+test "unicode utf16 roundtrips surrogate pairs" {
+    val units: [4]u16 = @zeroed
+    val written: i64 = utf16_encode(0x1f30d as u32, units as ref u16)
+    assert written == 2
+    assert utf16_validate(units as ref u16, written)
+    assert utf16_count(units as ref u16, written) == 1
+
+    val decoded = utf16_decode(units as ref u16, written, 0)
+    match decoded {
+        ok d => {
+            assert decoded_codepoint(d) == 0x1f30d as u32
+            assert decoded_size(d) == 2
+        }
+        err _ => {
+            assert false
+        }
+    }
+
+    val ascii: [2]u16 = @zeroed
+    assert utf16_encode(0x41 as u32, ascii as ref u16) == 1
+    val a = utf16_decode(ascii as ref u16, 1 as i64, 0)
+    match a {
+        ok d => {
+            assert decoded_codepoint(d) == 0x41 as u32
+            assert decoded_size(d) == 1
+        }
+        err _ => {
+            assert false
+        }
+    }
+}
+
+test "unicode rejects malformed utf8" {
+    val overlong: [2]u8 = [0xc0, 0xaf]
+    assert !utf8_validate(overlong as ref u8, 2)
+    assert utf8_count(overlong as ref u8, 2) == -1
+
+    val truncated: [2]u8 = [0xe2, 0x82]
+    assert !utf8_validate(truncated as ref u8, 2)
+
+    val surrogate: [3]u8 = [0xed, 0xa0, 0x80]
+    assert !utf8_validate(surrogate as ref u8, 3)
+
+    val good: [4]u8 = [0xf0, 0x9f, 0x8c, 0x8d]
+    assert utf8_validate(good as ref u8, 4)
+
+    val bad_units: [1]u16 = [0xd800]
+    assert !utf16_validate(bad_units as ref u16, 1)
+    assert utf16_count(bad_units as ref u16, 1) == -1
+}
+
+test "unicode builds strings from code points" {
+    val arena: allocators.Arena = trust allocators.Arena.new(256 as usize)?
+    val cps: [3]u32 = [0x48 as u32, 0xe9 as u32, 0x1f30d as u32]
+    val built = trust utf8_from_codepoints[allocators.Arena](arena, cps as ref u32, 3)
+    match built {
+        ok text => {
+            assert string.len(text) == 7 as i64
+            assert utf8_validate_string(text)
+            assert utf8_count_string(text) == 3 as i64
+        }
+        err _ => {
+            assert false
+        }
+    }
+    trust allocators.Arena.free(arena)
+}
+
+test "unicode converts code point lists and byte indexes" {
+    val heap: allocators.HeapAllocator = @zeroed
+    val text: ref u8 = "aé🌍"
+    val len: i64 = string.len_raw(text)
+
+    val index = utf8_byte_index(text, len, 2)
+    match index {
+        ok offset => {
+            assert offset == 3 as i64
+        }
+        err _ => {
+            assert false
+        }
+    }
+
+    val cps: list[u64] = utf8_to_codepoints[allocators.HeapAllocator](heap, text, len)?
+    assert @len(cps) == 3 as usize
+    if @get(cps, 1 as usize) is some v {
+        assert v == 0xe9 as u64
+    }
+    @listfree(cps)
+
+    val units: [4]u16 = [0x61 as u16, 0xe9 as u16, 0xd83c as u16, 0xdf0d as u16]
+    val from_units: list[u64] = utf16_to_codepoints[allocators.HeapAllocator](
+        heap,
+        units as ref u16,
+        4 as i64
+    )?
+    assert @len(from_units) == 3 as usize
+    if @get(from_units, 2 as usize) is some v {
+        assert v == 0x1f30d as u64
+    }
+    @listfree(from_units)
+}

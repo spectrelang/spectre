@@ -1,0 +1,402 @@
+/// Fast, non-cryptographic pseudorandom number generation.
+///
+/// This module is intended for simulations, games, sampling, procedural
+/// generation, and other places where speed matters more than
+/// unpredictability.  It must not be used to generate keys, tokens, nonces,
+/// passwords, or anything else that an attacker must not be able to predict.
+/// Use `std/crypto/random` for those purposes.
+///
+/// The generator is xoshiro256++ seeded through SplitMix64.  It has a
+/// 2^256 - 1 period and produces 64 bits per step.
+
+val crypto_random = use("../crypto/random")
+val allocators    = use("../allocators")
+
+/// A fast xoshiro256++ generator.
+///
+/// The state is held by value so an `Rng` can live on the stack, inside
+/// another type, or in a global.  Methods declared with `mut self` advance the
+/// state in place.
+pub type Rng = {
+    s0: mut u64
+    s1: mut u64
+    s2: mut u64
+    s3: mut u64
+}
+
+/// The default/global generator.
+///
+/// It is seeded from the operating system once at program start.  Call
+/// `fastrand.seed` to make it reproducible.
+val global_rng: mut Rng = Rng.new(crypto_random.random_u64())
+
+fn rotl(x: u64, n: u64) u64 = {
+    return (x << n) | (x >> (64 - n))
+}
+
+fn mix64(x: u64) u64 = {
+    val z: mut u64 = x
+    z = (z ^ (z >> 30)) * 0xbf58476d1ce4e5b9
+    z = (z ^ (z >> 27)) * 0x94d049bb133111eb
+    return z ^ (z >> 31)
+}
+
+/// Create a generator from a 64-bit seed.
+///
+/// The same seed always produces the same sequence.  This is useful for
+/// reproducible tests and simulations.  The splitmix64 expansion makes even
+/// very small or very similar seeds produce well-separated states.
+pub fn (Rng) new(seed: u64) Rng = {
+    val out: mut Rng = {s0: 0, s1: 0, s2: 0, s3: 0}
+    Rng.reseed(out, seed)
+    return out
+}
+
+/// Re-seed an existing generator.
+pub fn (Rng) reseed(rng: mut self, seed: u64) void = {
+    val z: mut u64 = seed
+    z += 0x9e3779b97f4a7c15
+    rng.s0 = mix64(z)
+    z += 0x9e3779b97f4a7c15
+    rng.s1 = mix64(z)
+    z += 0x9e3779b97f4a7c15
+    rng.s2 = mix64(z)
+    z += 0x9e3779b97f4a7c15
+    rng.s3 = mix64(z)
+
+    // The all-zero state is a fixed point of xoshiro; make sure it cannot
+    // occur even for pathological externally supplied seeds.
+    if rng.s0 == 0 && rng.s1 == 0 && rng.s2 == 0 && rng.s3 == 0 {
+        rng.s0 = 1
+    }
+}
+
+/// Return the next 64 random bits.
+pub fn (Rng) next_u64(rng: mut self) u64 = {
+    val result: u64 = rotl(rng.s0 + rng.s3, 23) + rng.s0
+    val t: u64 = rng.s1 << 17
+
+    rng.s2 = rng.s2 ^ rng.s0
+    rng.s3 = rng.s3 ^ rng.s1
+    rng.s1 = rng.s1 ^ rng.s2
+    rng.s0 = rng.s0 ^ rng.s3
+    rng.s2 = rng.s2 ^ t
+    rng.s3 = rotl(rng.s3, 45)
+
+    return result
+}
+
+/// Return the next 32 random bits.
+pub fn (Rng) next_u32(rng: mut self) u32 = {
+    return (Rng.next_u64(rng) >> 32) as u32
+}
+
+/// Return the next 16 random bits.
+pub fn (Rng) next_u16(rng: mut self) u16 = {
+    return (Rng.next_u64(rng) >> 48) as u16
+}
+
+/// Return the next 8 random bits.
+pub fn (Rng) next_u8(rng: mut self) u8 = {
+    return (Rng.next_u64(rng) >> 56) as u8
+}
+
+/// Return a random boolean.
+pub fn (Rng) next_bool(rng: mut self) bool = {
+    return (Rng.next_u64(rng) & 1) != 0
+}
+
+/// Return a uniformly distributed u64 in [0, bound).
+///
+/// `bound` must be greater than zero.  Rejection sampling removes the modulo
+/// bias while keeping the common path fast.
+pub fn (Rng) next_u64_below(rng: mut self, bound: u64) u64 = {
+    pre {
+        positive_bound: bound > 0
+    }
+    if bound <= 1 {
+        return 0
+    }
+
+    // 2^64 mod bound, computed without relying on wrapping 2^64.
+    val threshold: u64 = ((~bound) + 1) % bound
+    for {
+        val r: u64 = Rng.next_u64(rng)
+        if r >= threshold {
+            return r % bound
+        }
+    }
+    return 0
+}
+
+/// Return a uniformly distributed u32 in [0, bound).
+///
+/// `bound` must be greater than zero.
+pub fn (Rng) next_u32_below(rng: mut self, bound: u32) u32 = {
+    pre {
+        positive_bound: bound > 0 as u32
+    }
+    if bound <= 1 as u32 {
+        return 0 as u32
+    }
+
+    val b: u64 = bound as u64
+    val threshold: u64 = (0x100000000 - b) % b
+    for {
+        val r: u64 = Rng.next_u64(rng) & 0xffffffff
+        if r >= threshold {
+            return (r % b) as u32
+        }
+    }
+    return 0 as u32
+}
+
+/// Return a uniformly distributed usize in [0, bound).
+pub fn (Rng) next_usize_below(rng: mut self, bound: usize) usize = {
+    pre {
+        positive_bound: bound > 0
+    }
+    return Rng.next_u64_below(rng, bound as u64) as usize
+}
+
+/// Return a uniformly distributed i64 in [lo, hi).
+///
+/// Requires lo < hi.  The full i64 range is supported.
+pub fn (Rng) next_range(rng: mut self, lo: i64, hi: i64) i64 = {
+    pre {
+        valid_range: lo < hi
+    }
+    val span: u64 = (hi as u64) - (lo as u64)
+    return (lo as u64 + Rng.next_u64_below(rng, span)) as i64
+}
+
+/// Return a random f64 in [0.0, 1.0).
+pub fn (Rng) next_f64(rng: mut self) f64 = {
+    val bits: u64 = Rng.next_u64(rng) >> 11
+    return (bits as f64) * (1.0 / 9007199254740992.0)
+}
+
+/// Return a random f32 in [0.0, 1.0).
+pub fn (Rng) next_f32(rng: mut self) f32 = {
+    val bits: u32 = (Rng.next_u64(rng) >> 40) as u32
+    return (bits as f32) * (1.0 / 16777216.0)
+}
+
+/// Fill `len` bytes at `buf` with random data.
+pub fn (Rng) fill_bytes(rng: mut self, buf: ref u8, len: usize) void = {
+    val i: mut usize = 0
+    for {
+        if i >= len {
+            break
+        }
+        val word: u64 = Rng.next_u64(rng)
+        val remaining: usize = len - i
+        val n: mut usize = 8 as usize
+        if remaining < n {
+            n = remaining
+        }
+        val j: mut usize = 0
+        for {
+            if j >= n {
+                break
+            }
+            val byte: u8 = ((word >> ((j * 8) as u64)) & 255) as u8
+            trust @store8(@ptradd(buf, (i + j) as i64), byte)
+            j++
+        }
+        i = i + n
+    }
+}
+
+/// Fill a byte buffer with random data.
+pub fn (Rng) fill(rng: mut self, buf: ref u8, len: usize) void = {
+    Rng.fill_bytes(rng, buf, len)
+}
+
+/// Return a uniformly distributed index in [0, n).
+pub fn (Rng) choose(rng: mut self, n: usize) usize = {
+    pre {
+        positive_count: n > 0
+    }
+    return Rng.next_usize_below(rng, n)
+}
+
+/// Shuffle a list in place using Fisher-Yates.
+///
+/// Call with an explicit element type: `Rng.shuffle[i64](rng, items)`.
+pub fn (Rng) shuffle[T](rng: mut self, items: mut list[T]) void = {
+    val n: i64 = @len(items) as i64
+    if n <= 1 {
+        return
+    }
+
+    val i: mut i64 = n - 1
+    for {
+        if i <= 0 {
+            break
+        }
+        val j: i64 = Rng.next_u64_below(rng, (i + 1) as u64) as i64
+        val a = @get(items, i as usize)
+        val b = @get(items, j as usize)
+        if a is some av {
+            if b is some bv {
+                @set(items, i as usize, bv)
+                @set(items, j as usize, av)
+            }
+        }
+        i--
+    }
+}
+
+/// Seed the module-level generator.
+///
+/// The module-level functions (`random_u64`, `random_range`, ...) use this
+/// generator.  Seeding it makes their output reproducible across runs.
+pub fn seed(s: u64) void = {
+    Rng.reseed(global_rng, s)
+}
+
+/// Return a fast random u64 from the module-level generator.
+pub fn random_u64() u64 = {
+    return Rng.next_u64(global_rng)
+}
+
+/// Return a fast random u32 from the module-level generator.
+pub fn random_u32() u32 = {
+    return Rng.next_u32(global_rng)
+}
+
+/// Return a fast random boolean from the module-level generator.
+pub fn random_bool() bool = {
+    return Rng.next_bool(global_rng)
+}
+
+/// Return a fast random u64 in [0, bound) from the module-level generator.
+pub fn random_u64_below(bound: u64) u64 = {
+    return Rng.next_u64_below(global_rng, bound)
+}
+
+/// Return a fast random u32 in [0, bound) from the module-level generator.
+pub fn random_u32_below(bound: u32) u32 = {
+    return Rng.next_u32_below(global_rng, bound)
+}
+
+/// Return a fast random i64 in [lo, hi) from the module-level generator.
+pub fn random_range(lo: i64, hi: i64) i64 = {
+    return Rng.next_range(global_rng, lo, hi)
+}
+
+/// Return a fast random f64 in [0.0, 1.0) from the module-level generator.
+pub fn random_f64() f64 = {
+    return Rng.next_f64(global_rng)
+}
+
+/// Return a fast random f32 in [0.0, 1.0) from the module-level generator.
+pub fn random_f32() f32 = {
+    return Rng.next_f32(global_rng)
+}
+
+/// Fill a byte buffer from the module-level generator.
+pub fn fill(buf: ref u8, len: usize) void = {
+    Rng.fill(global_rng, buf, len)
+}
+
+/// Return a random lowercase ASCII letter ('a'..='z').
+pub fn random_lowercase() u8 = {
+    return 97 + (Rng.next_u64_below(global_rng, 26) as u8)
+}
+
+/// Return a random uppercase ASCII letter ('A'..='Z').
+pub fn random_uppercase() u8 = {
+    return 65 + (Rng.next_u64_below(global_rng, 26) as u8)
+}
+
+/// Return a random ASCII letter.
+pub fn random_alphabetic() u8 = {
+    if Rng.next_bool(global_rng) {
+        return random_lowercase()
+    }
+    return random_uppercase()
+}
+
+/// Return a random ASCII digit ('0'..='9').
+pub fn random_digit() u8 = {
+    return 48 + (Rng.next_u64_below(global_rng, 10) as u8)
+}
+
+/// Return a random ASCII letter or digit.
+pub fn random_alphanumeric() u8 = {
+    val choice: u64 = Rng.next_u64_below(global_rng, 62)
+    if choice < 26 {
+        return 97 + (choice as u8)
+    }
+    if choice < 52 {
+        return 65 + ((choice - 26) as u8)
+    }
+    return 48 + ((choice - 52) as u8)
+}
+
+test "fastrand is deterministic and bounded" {
+    val a: mut Rng = Rng.new(12345 as u64)
+    val b: mut Rng = Rng.new(12345 as u64)
+
+    val a1 = Rng.next_u64(a)
+    val b1 = Rng.next_u64(b)
+    assert a1 == b1
+    assert a1 != 0
+
+    val r = Rng.next_u64_below(a, 100 as u64)
+    assert r < 100 as u64
+
+    val r32 = Rng.next_u32_below(a, 100 as u32)
+    assert r32 < 100 as u32
+
+    val signed = Rng.next_range(a, -50 as i64, 50 as i64)
+    assert signed >= -50 as i64
+    assert signed < 50 as i64
+
+    val x = Rng.next_f64(a)
+    val y = Rng.next_f32(a)
+    assert x >= 0.0
+    assert x < 1.0
+    assert y >= 0.0
+    assert y < 1.0
+
+    val buf: [16]u8 = @zeroed
+    Rng.fill(a, buf as ref u8, 16 as usize)
+    val nonzero: mut bool = false
+    for i = 0, i < 16, i++ {
+        if @get(buf, i as usize) is some v {
+            if v != 0 as u8 {
+                nonzero = true
+            }
+        }
+    }
+    assert nonzero
+
+    seed(999 as u64)
+    val first = random_u64()
+    seed(999 as u64)
+    val second = random_u64()
+    assert first == second
+
+    val letter = random_lowercase()
+    assert letter >= 97 as u8
+    assert letter <= 122 as u8
+}
+
+test "fastrand shuffles lists" {
+    val rng: mut Rng = Rng.new(7 as u64)
+    val heap: allocators.HeapAllocator = @zeroed
+    val items: mut list[i64] = @listalloc[allocators.HeapAllocator, i64](heap)?
+    @append(items, 1 as i64)
+    @append(items, 2 as i64)
+    @append(items, 3 as i64)
+    @append(items, 4 as i64)
+
+    Rng.shuffle[i64](rng, items)
+    assert @len(items) == 4 as usize
+    assert Rng.choose(rng, @len(items)) < @len(items)
+
+    @listfree(items)
+}
