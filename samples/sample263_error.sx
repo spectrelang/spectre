@@ -1,0 +1,20 @@
+pub type Percentage = {
+    value: f64
+
+    invariant {
+        value >= 0.0
+        value <= 100.0
+    }
+}
+
+pub fn (Percentage) halve(p: self) f64 = {
+    guarded pre {
+        positive: p.value > 0.0
+    }
+    return p.value / 2.0
+}
+
+pub fn main() void = {
+    val x: Percentage = {value: -0.5}
+    trust @print("{f}", {x.value})
+}

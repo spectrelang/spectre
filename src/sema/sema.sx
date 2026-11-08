@@ -26,7 +26,9 @@ type ScopeEntry = {
 /// represent every i64 value, including -1.
 type SemaConstVal = {
     known: bool
+    is_float: bool
     value: i64
+    fvalue: f64
 }
 
 type SemaCtx = {
@@ -6265,7 +6267,19 @@ fn type_matches_union_variant(
 fn sema_const_known(v: i64) SemaConstVal = trust {
     val r: SemaConstVal = {
         known: true
+        is_float: false
         value: v
+        fvalue: 0.0
+    }
+    return r
+}
+
+fn sema_const_known_float(v: f64) SemaConstVal = trust {
+    val r: SemaConstVal = {
+        known: true
+        is_float: true
+        value: 0
+        fvalue: v
     }
     return r
 }
@@ -6273,9 +6287,40 @@ fn sema_const_known(v: i64) SemaConstVal = trust {
 fn sema_const_unknown() SemaConstVal = trust {
     val r: SemaConstVal = {
         known: false
+        is_float: false
         value: 0
+        fvalue: 0.0
     }
     return r
+}
+
+fn sema_const_bool(cond: bool) SemaConstVal = trust {
+    if cond {
+        return sema_const_known(1)
+    }
+    return sema_const_known(0)
+}
+
+fn sema_const_is_false(v: SemaConstVal) bool = {
+    if v.is_float {
+        return v.fvalue == 0.0
+    }
+    return v.value == 0
+}
+
+fn sema_const_is_true(v: SemaConstVal) bool = {
+    if v.is_float {
+        return v.fvalue != 0.0
+    }
+    return v.value != 0
+}
+
+/// Return the value as f64, promoting integer constants when needed.
+fn sema_const_as_float(v: SemaConstVal) f64 = {
+    if v.is_float {
+        return v.fvalue
+    }
+    return v.value as f64
 }
 
 /// Parse the text of an integer literal, including hexadecimal literals.
@@ -6327,10 +6372,21 @@ fn sema_parse_int_lit_text(text: ref u8) SemaConstVal = trust {
     }
 }
 
+fn sema_parse_float_lit_text(text: ref u8) SemaConstVal = trust {
+    if text == none {
+        return sema_const_unknown()
+    }
+    match fmt.string_to_f64(text) {
+        ok parsed => {
+            return sema_const_known_float(parsed)
+        }
+        err _ => {
+            return sema_const_unknown()
+        }
+    }
+}
+
 /// Constant-fold a simple comparison/boolean expression.
-/// field_names and field_vals are parallel lists of (ref u8, i64) containing
-/// only values known at compile time. The result records whether the expression
-/// could be fully evaluated.
 fn sema_const_eval(
     expr: ref parser.Node,
     field_names: ref void,
@@ -6343,6 +6399,10 @@ fn sema_const_eval(
     if k == parser.NK_INT_LIT {
         val s: ref u8 = expr.d0 as ref u8
         return sema_parse_int_lit_text(s)
+    }
+    if k == parser.NK_FLOAT_LIT {
+        val s: ref u8 = parser.float_lit_text(expr)
+        return sema_parse_float_lit_text(s)
     }
     if k == parser.NK_BOOL {
         return sema_const_known(expr.d0 as i64)
@@ -6364,8 +6424,14 @@ fn sema_const_eval(
             val fn_opt = @get(field_names as list[ref u8], fi as usize)
             if fn_opt is some func {
                 if string.raw_cmp(func as ref u8, iname) == 0 {
-                    val buf: ref void = @load(field_vals) as ref void
-                    return sema_const_known(@load(@ptradd(buf, fi * 8)) as i64)
+                    val value_opt = @get(
+                        field_vals as list[SemaConstVal],
+                        fi as usize
+                    )
+                    if value_opt is some value {
+                        return value as SemaConstVal
+                    }
+                    return sema_const_unknown()
                 }
             }
             fi++
@@ -6380,9 +6446,15 @@ fn sema_const_eval(
             return sema_const_unknown()
         }
         if uop == parser.UOP_NEG {
+            if iv.is_float {
+                return sema_const_known_float(-iv.fvalue)
+            }
             return sema_const_known(-iv.value)
         }
         if uop == parser.UOP_NOT {
+            if iv.is_float {
+                return sema_const_unknown()
+            }
             if iv.value == 0 {
                 return sema_const_known(1)
             } else {
@@ -6404,6 +6476,44 @@ fn sema_const_eval(
             field_vals
         )
         if !lv.known || !rv.known {
+            return sema_const_unknown()
+        }
+        if lv.is_float || rv.is_float {
+            val fa: f64 = sema_const_as_float(lv)
+            val fb: f64 = sema_const_as_float(rv)
+            if op == parser.OP_GT {
+                return sema_const_bool(fa > fb)
+            }
+            if op == parser.OP_GE {
+                return sema_const_bool(fa >= fb)
+            }
+            if op == parser.OP_LT {
+                return sema_const_bool(fa < fb)
+            }
+            if op == parser.OP_LE {
+                return sema_const_bool(fa <= fb)
+            }
+            if op == parser.OP_EQ {
+                return sema_const_bool(fa == fb)
+            }
+            if op == parser.OP_NE {
+                return sema_const_bool(fa != fb)
+            }
+            if op == parser.OP_ADD {
+                return sema_const_known_float(fa + fb)
+            }
+            if op == parser.OP_SUB {
+                return sema_const_known_float(fa - fb)
+            }
+            if op == parser.OP_MUL {
+                return sema_const_known_float(fa * fb)
+            }
+            if op == parser.OP_DIV {
+                if fb == 0.0 {
+                    return sema_const_unknown()
+                }
+                return sema_const_known_float(fa / fb)
+            }
             return sema_const_unknown()
         }
         val a: i64 = lv.value
@@ -6492,7 +6602,7 @@ fn sema_check_invariant_lit(ctx: ref SemaCtx, typedef_node: ref parser.Node,
     }
 
     val fnames: mut list[ref u8] = mem.new[ref u8]()
-    val fvals: mut list[i64] = mem.new[i64]()
+    val fvals: mut list[SemaConstVal] = mem.new[SemaConstVal]()
     val flen: i64 = @len(fields as list[ref parser.Node]) as i64
     val alen: i64 = @len(args as list[ref parser.Node]) as i64
     val fi: mut i64 = 0
@@ -6504,16 +6614,21 @@ fn sema_check_invariant_lit(ctx: ref SemaCtx, typedef_node: ref parser.Node,
         val arg_opt = @get(args as list[ref parser.Node], fi as usize)
         if field_opt is some fld {
             if arg_opt is some arg {
-                val fname: ref u8 = (fld as ref parser.Node).d0 as ref u8
+                val fld_node: ref parser.Node = fld as ref parser.Node
+                val fname: ref u8 = fld_node.d0 as ref u8
+                val ftype: ref u8 = extract_type_name(fld_node.d2 as ref parser.Node)
                 val anode: ref parser.Node = arg as ref parser.Node
-                val aval: SemaConstVal = sema_const_eval(
+                val aval: mut SemaConstVal = sema_const_eval(
                     anode,
                     fnames as ref void,
                     fvals as ref void
                 )
+                if aval.known && !aval.is_float && sema_is_float_type_name(ftype) {
+                    aval = sema_const_known_float(aval.value as f64)
+                }
                 if aval.known {
                     @append(fnames, fname)
-                    @append(fvals, aval.value)
+                    @append(fvals, aval)
                 }
             }
         }
@@ -6534,7 +6649,7 @@ fn sema_check_invariant_lit(ctx: ref SemaCtx, typedef_node: ref parser.Node,
                 fnames as ref void,
                 fvals as ref void
             )
-            if result.known && result.value == 0 {
+            if result.known && sema_const_is_false(result) {
                 val type_name: ref u8 = typedef_node.d1 as ref u8
                 val buf: ref u8 = allocators.ScopedArena.alloc_or_none(
                     ctx.arena,
@@ -6555,8 +6670,12 @@ fn sema_check_invariant_lit(ctx: ref SemaCtx, typedef_node: ref parser.Node,
 
 fn sema_const_eval_no_fields(expr: ref parser.Node) SemaConstVal = trust {
     val field_names: list[ref u8] = mem.new[ref u8]()
-    val field_vals: list[i64] = mem.new[i64]()
+    val field_vals: list[SemaConstVal] = mem.new[SemaConstVal]()
     return sema_const_eval(expr, field_names as ref void, field_vals as ref void)
+}
+
+fn sema_is_float_type_name(name: ref u8) bool = trust {
+    return string.str_eql(name, "f32") || string.str_eql(name, "f64")
 }
 
 fn sema_is_int_type_name(name: ref u8) bool = trust {
@@ -7100,6 +7219,9 @@ fn sema_check_int_literal_range(
         }
         return
     }
+    if value.is_float {
+        return
+    }
     val lo: i64 = sema_int_type_lo(type_name)
     val hi: i64 = sema_int_type_hi(type_name)
     if value.value < lo || value.value > hi {
@@ -7176,7 +7298,7 @@ fn sema_check_call_preconditions(
     }
 
     val pnames: mut list[ref u8] = mem.new[ref u8]()
-    val pvals: mut list[i64] = mem.new[i64]()
+    val pvals: mut list[SemaConstVal] = mem.new[SemaConstVal]()
     val plen: i64 = @len(params as list[ref parser.Node]) as i64
     val alen: mut i64 = 0
     if cargs != none {
@@ -7200,7 +7322,7 @@ fn sema_check_call_preconditions(
             }
             if pval.known {
                 @append(pnames, pname)
-                @append(pvals, pval.value)
+                @append(pvals, pval)
             }
         }
         pi++
@@ -7223,7 +7345,7 @@ fn sema_check_call_preconditions(
                 pnames as ref void,
                 pvals as ref void
             )
-            if !result.known || result.value != 0 {
+            if !result.known || !sema_const_is_false(result) {
                 continue
             }
             val buf: ref u8 = allocators.ScopedArena.alloc_or_none(
@@ -7313,7 +7435,7 @@ fn sema_match_value_is_exhaustive(ctx: ref SemaCtx, stmt: ref parser.Node) bool 
     val has_false: mut bool = false
     for arm in arms as list[ref parser.Node] {
         val pat: SemaConstVal = sema_const_eval_no_fields(arm.d0 as ref parser.Node)
-        if pat.known {
+        if pat.known && !pat.is_float {
             if pat.value == 0 {
                 has_false = true
             } elif pat.value == 1 {
@@ -7382,7 +7504,7 @@ fn sema_match_tagged_union_is_exhaustive(ctx: ref SemaCtx, stmt: ref parser.Node
 fn sema_if_stmt_guarantees_return(ctx: ref SemaCtx, stmt: ref parser.Node) bool = trust {
     val cond: SemaConstVal = sema_const_eval_no_fields(stmt.d0 as ref parser.Node)
     if cond.known {
-        if cond.value == 1 {
+        if sema_const_is_true(cond) {
             return stmts_guarantee_return(ctx, stmt.d1 as ref void)
         }
     } else {
@@ -7396,7 +7518,7 @@ fn sema_if_stmt_guarantees_return(ctx: ref SemaCtx, stmt: ref parser.Node) bool 
         for ep in elif_list as list[ref parser.Node] {
             val elif_v: SemaConstVal = sema_const_eval_no_fields(ep.d0 as ref parser.Node)
             if elif_v.known {
-                if elif_v.value == 1 {
+                if sema_const_is_true(elif_v) {
                     return stmts_guarantee_return(ctx, ep.d1 as ref void)
                 }
             } else {
