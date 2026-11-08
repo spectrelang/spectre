@@ -1105,7 +1105,7 @@ fn cg_type_needs_aggregate_copy(ctx: mut ref CgCtx, ty: ref parser.Node) bool = 
     if k == parser.TY_MUT {
         return cg_type_needs_aggregate_copy(ctx, resolved.d0 as ref parser.Node)
     }
-    if k == parser.TY_LIST || k == parser.TY_RESULT || k == parser.TY_SLICE || k == parser.TY_FIXED_ARR {
+    if k == parser.TY_RESULT || k == parser.TY_SLICE || k == parser.TY_FIXED_ARR {
         return true
     }
     if k == parser.TY_NAMED {
@@ -2012,9 +2012,17 @@ fn cg_alloc_runtime_c_source() ref u8 = trust {
     \\long long* sxqbe_list_alloc(void* aft,void* fft,void* rft,long long ctx){sxqbe_alloc_fn af=(sxqbe_alloc_fn)aft;sxqbe_free_fn ff=(sxqbe_free_fn)fft;sxqbe_realloc_fn rf=(sxqbe_realloc_fn)rft;long long* hdr;sxqbe_alloc_desc* d;if(af){hdr=(long long*)sxqbe_alloc_call(af,ctx,32);d=(sxqbe_alloc_desc*)sxqbe_alloc_call(af,ctx,sizeof(sxqbe_alloc_desc));}else{hdr=(long long*)calloc(1,32);d=(sxqbe_alloc_desc*)calloc(1,sizeof(sxqbe_alloc_desc));}if(!hdr||!d){if(af){if(hdr)ff(ctx,(long long)(intptr_t)hdr);if(d)ff(ctx,(long long)(intptr_t)d);}else{if(hdr)free(hdr);if(d)free(d);}return sxqbe_err_af(af,ctx,0);}memset(hdr,0,32);memset(d,0,sizeof(sxqbe_alloc_desc));long long cap=8;long long buf=(long long)(intptr_t)sxqbe_alloc_call(af,ctx,cap*8);if(!buf){if(af){ff(ctx,(long long)(intptr_t)hdr);ff(ctx,(long long)(intptr_t)d);}else{free(hdr);free(d);}return sxqbe_err_af(af,ctx,0);}d->alloc=af;d->free=ff;d->realloc=rf;d->ctx=ctx;d->owner_hdr=(long long)(intptr_t)hdr;hdr[0]=buf;hdr[1]=0;hdr[2]=cap;hdr[3]=(long long)(intptr_t)d;return sxqbe_ok_af(af,ctx,(long long)(intptr_t)hdr);}
     \\void sxqbe_list_free(long long*);
     \\long long* sxqbe_list_from(void* aft,void* fft,void* rft,long long ctx,long long* elems,long long count){long long* r=sxqbe_list_alloc(aft,fft,rft,ctx);if(!r||r[0]!=0)return r;long long* hdr=(long long*)r[1];if(count>0){if(!sxqbe_list_grow(hdr,count)){sxqbe_list_free(hdr);return sxqbe_err_af((sxqbe_alloc_fn)aft,ctx,0);}long long* buf=(long long*)hdr[0];long long i;for(i=0;i<count;i++)buf[i]=elems[i];hdr[1]=count;}return r;}
-    \\long long* sxqbe_args_alloc(void* aft,void* fft,void* rft,long long ctx,long long argc,long long argv){sxqbe_alloc_fn af=(sxqbe_alloc_fn)aft;sxqbe_free_fn ff=(sxqbe_free_fn)fft;sxqbe_realloc_fn rf=(sxqbe_realloc_fn)rft;long long* hdr=(long long*)calloc(1,32);sxqbe_alloc_desc* d=(sxqbe_alloc_desc*)calloc(1,sizeof(sxqbe_alloc_desc));if(!hdr||!d){if(hdr)free(hdr);if(d)free(d);return sxqbe_err(0);}long long bytes=argc>0?argc*8:8;long long buf=(long long)(intptr_t)sxqbe_alloc_call(af,ctx,bytes);if(!buf){free(hdr);free(d);return sxqbe_err(0);}d->alloc=af;d->free=ff;d->realloc=rf;d->ctx=ctx;d->owner_hdr=(long long)(intptr_t)hdr;hdr[0]=buf;hdr[1]=argc;hdr[2]=argc>0?argc:1;hdr[3]=(long long)(intptr_t)d;char** av=(char**)(intptr_t)argv;long long i;for(i=0;i<argc;i++)((long long*)(intptr_t)buf)[i]=(long long)(intptr_t)av[i];return sxqbe_ok((long long)(intptr_t)hdr);}
+    \\long long* sxqbe_args_alloc(void* aft,void* fft,void* rft,long long ctx,long long argc,long long argv){sxqbe_alloc_fn af=(sxqbe_alloc_fn)aft;sxqbe_free_fn ff=(sxqbe_free_fn)fft;sxqbe_realloc_fn rf=(sxqbe_realloc_fn)rft;long long* hdr;sxqbe_alloc_desc* d;if(af){hdr=(long long*)sxqbe_alloc_call(af,ctx,32);d=(sxqbe_alloc_desc*)sxqbe_alloc_call(af,ctx,sizeof(sxqbe_alloc_desc));}else{hdr=(long long*)calloc(1,32);d=(sxqbe_alloc_desc*)calloc(1,sizeof(sxqbe_alloc_desc));}if(!hdr||!d){if(af){if(hdr)ff(ctx,(long long)(intptr_t)hdr);if(d)ff(ctx,(long long)(intptr_t)d);}else{if(hdr)free(hdr);if(d)free(d);}return sxqbe_err(0);}long long bytes=argc>0?argc*8:8;long long buf=(long long)(intptr_t)sxqbe_alloc_call(af,ctx,bytes);if(!buf){if(af){ff(ctx,(long long)(intptr_t)hdr);ff(ctx,(long long)(intptr_t)d);}else{free(hdr);free(d);}return sxqbe_err(0);}d->alloc=af;d->free=ff;d->realloc=rf;d->ctx=ctx;d->owner_hdr=(long long)(intptr_t)hdr;hdr[0]=buf;hdr[1]=argc;hdr[2]=argc>0?argc:1;hdr[3]=(long long)(intptr_t)d;char** av=(char**)(intptr_t)argv;long long i;for(i=0;i<argc;i++)((long long*)(intptr_t)buf)[i]=(long long)(intptr_t)av[i];return sxqbe_ok((long long)(intptr_t)hdr);}
     \\long long* sxqbe_fmt_alloc(void* aft,void* fft,void* rft,long long ctx,const char* f,long long* p){sxqbe_alloc_fn af=(sxqbe_alloc_fn)aft;sxqbe_free_fn ff=(sxqbe_free_fn)fft;sxqbe_realloc_fn rf=(sxqbe_realloc_fn)rft;long long cap=4096;char* b=(char*)sxqbe_alloc_call(af,ctx,cap);if(!b)return sxqbe_err(0);int n=p?snprintf(b,(size_t)cap,f,p[0],p[1],p[2],p[3],p[4],p[5],p[6],p[7],p[8],p[9],p[10],p[11],p[12],p[13],p[14],p[15]):snprintf(b,(size_t)cap,"%s",f);if(n<0){ff(ctx,(long long)(intptr_t)b);return sxqbe_err(0);}if((long long)n>=cap){long long ncap=(long long)n+1;long long nb=sxqbe_realloc_call(rf,ctx,b,ncap);if(!nb){ff(ctx,(long long)(intptr_t)b);return sxqbe_err(0);}b=(char*)(intptr_t)nb;cap=ncap;n=p?snprintf(b,(size_t)cap,f,p[0],p[1],p[2],p[3],p[4],p[5],p[6],p[7],p[8],p[9],p[10],p[11],p[12],p[13],p[14],p[15]):snprintf(b,(size_t)cap,"%s",f);if(n<0){ff(ctx,(long long)(intptr_t)b);return sxqbe_err(0);}}return sxqbe_ok((long long)(intptr_t)b);}
-    \\void sxqbe_list_free(long long* h){if(!h)return;long long buf=h[0];sxqbe_alloc_desc* d=(sxqbe_alloc_desc*)(intptr_t)h[3];if(d){if(buf)d->free(d->ctx,buf);if(d->owner_hdr)d->free(d->ctx,d->owner_hdr);d->free(d->ctx,(long long)(intptr_t)d);}else{if(buf)free((void*)(intptr_t)buf);}}
+    \\void sxqbe_list_free(long long* h){if(!h)return;long long buf=h[0];sxqbe_alloc_desc* d=(sxqbe_alloc_desc*)(intptr_t)h[3];if(d){if(buf){if(d->free)d->free(d->ctx,buf);else free((void*)(intptr_t)buf);}if(d->owner_hdr){if(d->free)d->free(d->ctx,d->owner_hdr);else free((void*)(intptr_t)d->owner_hdr);}if(d->free)d->free(d->ctx,(long long)(intptr_t)d);else free(d);}else{if(buf)free((void*)(intptr_t)buf);free(h);}}
+    \\long long* sxqbe_list_ensure(long long** slot){if(!slot)return 0;if(!*slot){long long* h=(long long*)calloc(1,32);if(!h)return 0;h[0]=0;h[1]=0;h[2]=0;h[3]=0;*slot=h;}return *slot;}
+    \\long long sxqbe_list_len(long long* h){return h?h[1]:0;}
+    \\long long sxqbe_list_cap(long long* h){return h?h[2]:0;}
+    \\long long sxqbe_list_buf(long long* h){return h?h[0]:0;}
+    \\int sxqbe_list_valid(long long* h,long long idx){return h&&idx>=0&&idx<h[1];}
+    \\int sxqbe_list_append(long long* h,long long v){if(!h)return 0;if(!sxqbe_list_grow(h,h[1]+1))return 0;((long long*)(intptr_t)h[0])[h[1]++]=v;return 1;}
+    \\int sxqbe_list_insert(long long* h,long long idx,long long v){if(!h||idx<0||idx>h[1])return 0;if(!sxqbe_list_grow(h,h[1]+1))return 0;long long* b=(long long*)(intptr_t)h[0];long long i;for(i=h[1];i>idx;i--)b[i]=b[i-1];b[idx]=v;h[1]++;return 1;}
+    \\long long sxqbe_list_remove(long long* h,long long idx){if(!h||idx<0||idx>=h[1])return 0;long long* b=(long long*)(intptr_t)h[0];long long v=b[idx];long long i;for(i=idx;i<h[1]-1;i++)b[i]=b[i+1];h[1]--;return v;}
     \\void sxqbe_list_reserve(long long* h,long long cap){if(!h)return;if(cap>h[2])sxqbe_list_grow(h,cap);}
     \\typedef void* (*sxqbe_raw_alloc_fn)(long long,unsigned long long);
     \\static void* sxqbe_raw_alloc_call(sxqbe_raw_alloc_fn f,long long ctx,long long size){return f(ctx,(unsigned long long)size);}
@@ -3341,7 +3349,7 @@ fn cg_c_abi_type_size(ctx: mut ref CgCtx, ty: ref parser.Node) i64 = trust {
         return 8
     }
     if k == parser.TY_LIST {
-        return 32
+        return 8
     }
     if k == parser.TY_RESULT || k == parser.TY_SLICE {
         return 16
@@ -5321,7 +5329,7 @@ fn type_size(ty: ref parser.Node) i64 = trust {
         return 8
     }
     if k == parser.TY_LIST {
-        return 32
+        return 8
     }
     if k == parser.TY_OPTION {
         return 8
@@ -5390,7 +5398,7 @@ fn type_size(ty: ref parser.Node) i64 = trust {
         return count * elem_size
     }
     if k == parser.TY_LIST {
-        return 32
+        return 8
     }
     return 8
 }
@@ -7412,7 +7420,7 @@ fn gen_expr(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
             return res10
         }
         if inner4.kind == parser.NK_FIELD {
-            return gen_list_ptr(ctx, inner4)
+            return gen_field_storage_addr(ctx, inner4)
         }
         return gen_expr(ctx, inner4)
     }
@@ -8983,7 +8991,6 @@ fn gen_field(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
 
     val field_is_fa: mut bool = false
     val field_is_union: mut bool = false
-    val field_is_list: mut bool = false
     val field_is_multi_word_struct: mut bool = false
     val field_load_instr: mut ref u8 = "loadl"
     if base_expr.kind == parser.NK_IDENT {
@@ -9015,8 +9022,6 @@ fn gen_field(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
                             if sfty3 != none {
                                 if sfty3.kind == parser.TY_FIXED_ARR {
                                     field_is_fa = true
-                                } elif sfty3.kind == parser.TY_LIST {
-                                    field_is_list = true
                                 } elif sfty3.kind == parser.TY_NAMED {
                                     val type_name: ref u8 = sfty3.d0 as ref u8
                                     if is_union_type_name(ctx, type_name) {
@@ -9058,8 +9063,6 @@ fn gen_field(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
                             if sfty3 != none {
                                 if sfty3.kind == parser.TY_FIXED_ARR {
                                     field_is_fa = true
-                                } elif sfty3.kind == parser.TY_LIST {
-                                    field_is_list = true
                                 } elif sfty3.kind == parser.TY_NAMED {
                                     val ftype_name: ref u8 = sfty3.d0 as ref u8
                                     if is_union_type_name(ctx, ftype_name) {
@@ -9105,8 +9108,6 @@ fn gen_field(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
                             if sfty4 != none {
                                 if sfty4.kind == parser.TY_FIXED_ARR {
                                     field_is_fa = true
-                                } elif sfty4.kind == parser.TY_LIST {
-                                    field_is_list = true
                                 } elif sfty4.kind == parser.TY_NAMED {
                                     val ftype_name: ref u8 = sfty4.d0 as ref u8
                                     if is_union_type_name(ctx, ftype_name) {
@@ -9147,7 +9148,7 @@ fn gen_field(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
     val buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 256 as usize) as ref u8
 
     if base_is_ref {
-        if field_is_fa || field_is_union || field_is_list || field_is_multi_word_struct {
+        if field_is_fa || field_is_union || field_is_multi_word_struct {
             if offset == 0 {
                 @snprintf(buf, 256, "    %%t{lld} =l add {s}, 0\n", {tmp, base})
             } else {
@@ -9185,7 +9186,7 @@ fn gen_field(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
                 )
             }
         }
-    } elif field_is_fa || field_is_union || field_is_list || field_is_multi_word_struct {
+    } elif field_is_fa || field_is_union || field_is_multi_word_struct {
         if offset == 0 {
             @snprintf(buf, 256, "    %%t{lld} =l add {s}, 0\n", {tmp, base})
         } else {
@@ -9219,65 +9220,90 @@ fn gen_field(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
 
 /// Returns the address of a field (or list variable) without loading its value.
 /// Used by list builtins (@append, @len, @get, etc.) that need the list header address.
+/// Returns the address of the storage that holds a list handle. This is used
+/// to write a freshly-created header back into a zeroed list field/local.
+fn gen_field_storage_addr(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
+    if expr == none || expr.kind != parser.NK_FIELD {
+        return none
+    }
+    val base_expr: ref parser.Node = parser.field_base(expr)
+    val field_name: ref u8 = parser.field_name(expr)
+    val offset: mut i64 = 0
+    val base_lookup: mut ref u8 = ""
+    if base_expr.kind == parser.NK_IDENT {
+        val base_name: ref u8 = base_expr.d0 as ref u8
+        val local_type: ref u8 = cg_local_type(ctx, base_name)
+        if str.raw_cmp(local_type, "") != 0 {
+            base_lookup = cg_ann_deref(local_type)
+        }
+    } else {
+        val base_ann: ref u8 = infer_type_annotation(ctx, base_expr)
+        if str.raw_cmp(base_ann, "") != 0 {
+            base_lookup = cg_ann_deref(base_ann)
+        }
+    }
+    if str.raw_cmp(base_lookup, "") != 0 {
+        val fields: ref void = cg_lookup_struct(ctx, base_lookup)
+        if fields != none {
+            val off: i64 = field_offset(ctx, fields, field_name)
+            if off >= 0 {
+                offset = off
+            }
+        }
+    }
+    val base: mut ref u8 = none
+    if base_expr.kind == parser.NK_IDENT {
+        val base_name2: ref u8 = base_expr.d0 as ref u8
+        val dqt: ref u8 = cg_direct_type(ctx, base_name2)
+        if str.raw_cmp(dqt, "") != 0 {
+            val direct_buf: ref u8 = allocators.ScopedArena.alloc_or_none(
+                ctx.arena,
+                32 as usize
+            ) as ref u8
+            @snprintf(direct_buf, 32, "%%{s}", {base_name2})
+            base = direct_buf
+        }
+    }
+    if base == none {
+        base = gen_expr(ctx, base_expr)
+    }
+    if offset == 0 {
+        return base
+    }
+    val ptr_tmp: i64 = fresh_tmp(ctx)
+    val buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 128 as usize) as ref u8
+    @snprintf(buf, 128, "    %%t{lld} =l add {s}, {lld}\n", {ptr_tmp, base, offset})
+    emit(
+        ctx,
+        buf
+    )
+    val res: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 16 as usize) as ref u8
+    @snprintf(res, 16, "%%t{lld}", {ptr_tmp})
+    return res
+}
+
 fn gen_list_ptr(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
     if expr == none {
         return "0"
     }
     if expr.kind == parser.NK_FIELD {
-        val base_expr: ref parser.Node = parser.field_base(expr)
-        val field_name: ref u8 = parser.field_name(expr)
-        val offset: mut i64 = 0
-        val base_lookup: mut ref u8 = ""
-        if base_expr.kind == parser.NK_IDENT {
-            val base_name: ref u8 = base_expr.d0 as ref u8
-            val local_type: ref u8 = cg_local_type(ctx, base_name)
-            if str.raw_cmp(local_type, "") != 0 {
-                base_lookup = cg_ann_deref(local_type)
-            }
-        } else {
-            val base_ann: ref u8 = infer_type_annotation(ctx, base_expr)
-            if str.raw_cmp(base_ann, "") != 0 {
-                base_lookup = cg_ann_deref(base_ann)
-            }
+        val addr: ref u8 = gen_field_storage_addr(ctx, expr)
+        if addr == none {
+            return "0"
         }
-        if str.raw_cmp(base_lookup, "") != 0 {
-            val fields: ref void = cg_lookup_struct(ctx, base_lookup)
-            if fields != none {
-                val off: i64 = field_offset(ctx, fields, field_name)
-                if off >= 0 {
-                    offset = off
-                }
-            }
-        }
-        val base: mut ref u8 = none
-        if base_expr.kind == parser.NK_IDENT {
-            val base_name2: ref u8 = base_expr.d0 as ref u8
-            val dqt: ref u8 = cg_direct_type(ctx, base_name2)
-            if str.raw_cmp(dqt, "") != 0 {
-                val direct_buf: ref u8 = allocators.ScopedArena.alloc_or_none(
-                    ctx.arena,
-                    32 as usize
-                ) as ref u8
-                @snprintf(direct_buf, 32, "%%{s}", {base_name2})
-                base = direct_buf
-            }
-        }
-        if base == none {
-            base = gen_expr(ctx, base_expr)
-        }
-        if offset == 0 {
-            return base
-        }
-        val ptr_tmp: i64 = fresh_tmp(ctx)
-        val buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 128 as usize) as ref u8
-        @snprintf(buf, 128, "    %%t{lld} =l add {s}, {lld}\n", {ptr_tmp, base, offset})
-        emit(
-            ctx,
-            buf
-        )
-        val res: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 16 as usize) as ref u8
-        @snprintf(res, 16, "%%t{lld}", {ptr_tmp})
-        return res
+        val ptr_tmp2: i64 = fresh_tmp(ctx)
+        val buf2: ref u8 = allocators.ScopedArena.alloc_or_none(
+            ctx.arena,
+            128 as usize
+        ) as ref u8
+        @snprintf(buf2, 128, "    %%t{lld} =l loadl {s}\n", {ptr_tmp2, addr})
+        emit(ctx, buf2)
+        val res2: ref u8 = allocators.ScopedArena.alloc_or_none(
+            ctx.arena,
+            16 as usize
+        ) as ref u8
+        @snprintf(res2, 16, "%%t{lld}", {ptr_tmp2})
+        return res2
     }
     if expr.kind == parser.NK_IDENT {
         val vname: ref u8 = expr.d0 as ref u8
@@ -9307,6 +9333,62 @@ fn gen_list_ptr(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
         }
     }
     return gen_expr(ctx, expr)
+}
+
+/// Returns the address of the storage holding a list handle for lvalues that
+/// can be written back to, or none when the expression is not addressable.
+fn gen_list_slot(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
+    if expr == none {
+        return none
+    }
+    if expr.kind == parser.NK_FIELD {
+        return gen_field_storage_addr(ctx, expr)
+    }
+    if expr.kind == parser.NK_IDENT {
+        val vname: ref u8 = expr.d0 as ref u8
+        val qbe_var: ref u8 = cg_lookup_local_var(ctx, vname)
+        if str.raw_cmp(qbe_var, "") != 0 && cg_is_slot(ctx, vname) {
+            return cg_qbe_value_ref(ctx, qbe_var)
+        }
+        return none
+    }
+    if expr.kind == parser.NK_DEREF {
+        return gen_expr(ctx, expr.d0 as ref parser.Node)
+    }
+    return none
+}
+
+/// Load a list argument, creating and storing a fresh header first when the
+/// argument is an addressable list that is currently null.
+fn cg_list_arg_ensured(
+    ctx: mut ref CgCtx,
+    args: ref void,
+    idx: i64
+) ref u8 = trust {
+    val node_opt = @get(args, idx as usize)
+    val node: mut ref parser.Node = none
+    if node_opt is some n {
+        node = n as ref parser.Node
+    }
+    val slot: ref u8 = gen_list_slot(ctx, node)
+    if slot != none {
+        val tmp_ens: i64 = fresh_tmp(ctx)
+        val buf_ens: ref u8 = allocators.ScopedArena.alloc_or_none(
+            ctx.arena,
+            128 as usize
+        ) as ref u8
+        @snprintf(buf_ens, 128, "    %%t{lld} =l call $sxqbe_list_ensure(l {s})\n",
+            {tmp_ens, slot})
+        emit(ctx, buf_ens)
+        ctx.alloc_runtime = true
+        val res_ens: ref u8 = allocators.ScopedArena.alloc_or_none(
+            ctx.arena,
+            16 as usize
+        ) as ref u8
+        @snprintf(res_ens, 16, "%%t{lld}", {tmp_ens})
+        return res_ens
+    }
+    return get_list_arg(ctx, args, idx)
 }
 
 fn gen_store_field_value(
@@ -9394,7 +9476,6 @@ fn gen_store_field_value(
             emit(ctx, buf3u)
         }
     } else {
-        val field_is_list: mut bool = false
         val field_size_write: mut i64 = 8
         val field_store_op: mut ref u8 = "storel"
 
@@ -9423,18 +9504,14 @@ fn gen_store_field_value(
                         if str.raw_cmp(sf3name, fname) == 0 {
                             val sf3ty: ref parser.Node = sf3n.d2 as ref parser.Node
                             if sf3ty != none {
-                                if sf3ty.kind == parser.TY_LIST {
-                                    field_is_list = true
-                                } else {
-                                    if sf3ty.kind == parser.TY_NAMED {
-                                        val ftnm: ref u8 = sf3ty.d0 as ref u8
-                                        val sflds: ref void = cg_lookup_struct(ctx, ftnm)
-                                        if sflds != none {
-                                            field_size_write = struct_size(ctx, sflds)
-                                        }
+                                if sf3ty.kind == parser.TY_NAMED {
+                                    val ftnm: ref u8 = sf3ty.d0 as ref u8
+                                    val sflds: ref void = cg_lookup_struct(ctx, ftnm)
+                                    if sflds != none {
+                                        field_size_write = struct_size(ctx, sflds)
                                     }
-                                    field_store_op = field_store_instr_for_struct(ctx, flds3, sf3ty)
                                 }
+                                field_store_op = field_store_instr_for_struct(ctx, flds3, sf3ty)
                             }
                             sf3i = sf3len
                         }
@@ -9479,25 +9556,7 @@ fn gen_store_field_value(
 
         val base: ref u8 = gen_expr(ctx, ftarget)
         val buf3: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 128 as usize) as ref u8
-        if field_is_list {
-            if foffset == 0 {
-                @snprintf(buf3, 128, "    call $memcpy(l {s}, l {s}, l 32)\n", {base, val_to_store})
-            } else {
-                val fptr: i64 = fresh_tmp(ctx)
-                val buf3b: ref u8 = allocators.ScopedArena.alloc_or_none(
-                    ctx.arena,
-                    128 as usize
-                ) as ref u8
-                @snprintf(buf3b, 128, "    %%t{lld} =l add {s}, {lld}\n", {fptr, base, foffset})
-                emit(ctx, buf3b)
-                @snprintf(
-                    buf3,
-                    128,
-                    "    call $memcpy(l %%t{lld}, l {s}, l 32)\n",
-                    {fptr, val_to_store}
-                )
-            }
-        } elif field_size_write > 8 {
+        if field_size_write > 8 {
             if foffset == 0 {
                 @snprintf(
                     buf3,
@@ -11184,20 +11243,16 @@ fn gen_get_unboxed(
             idx_qt = expr_qtype(ctx, idx_node as ref parser.Node)
         }
         val idx: ref u8 = cg_coerce_qtype(ctx, idx_raw, idx_qt, "l")
-        val data_tmp: i64 = fresh_tmp(ctx)
-        val len_tmp: i64 = fresh_tmp(ctx)
-        val in_bounds: i64 = fresh_tmp(ctx)
-        val hbuf1: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 256 as usize) as ref u8
-        @snprintf(hbuf1, 256, "    %%t{lld} =l loadl {s}\n", {data_tmp, lst})
-        emit(ctx, hbuf1)
-        val hbuf2: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 256 as usize) as ref u8
-        @snprintf(hbuf2, 256, "    %%t{lld} =l add {s}, 8\n    %%t{lld} =l loadl %%t{lld}\n",
-            {len_tmp, lst, len_tmp, len_tmp})
-        emit(ctx, hbuf2)
+        val valid_tmp: i64 = fresh_tmp(ctx)
         val hbuf3: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 256 as usize) as ref u8
-        @snprintf(hbuf3, 256, "    %%t{lld} =w csltl {s}, %%t{lld}\n    jnz %%t{lld}, @lbl{lld}, @lbl{lld}\n@lbl{lld}\n",
-            {in_bounds, idx, len_tmp, in_bounds, some_lbl, none_lbl, some_lbl})
+        @snprintf(hbuf3, 256, "    %%t{lld} =w call $sxqbe_list_valid(l {s}, l {s})\n    jnz %%t{lld}, @lbl{lld}, @lbl{lld}\n@lbl{lld}\n",
+            {valid_tmp, lst, idx, valid_tmp, some_lbl, none_lbl, some_lbl})
         emit(ctx, hbuf3)
+        ctx.alloc_runtime = true
+        val data_tmp: i64 = fresh_tmp(ctx)
+        val hbuf1: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 256 as usize) as ref u8
+        @snprintf(hbuf1, 256, "    %%t{lld} =l call $sxqbe_list_buf(l {s})\n", {data_tmp, lst})
+        emit(ctx, hbuf1)
         val off_tmp: i64 = fresh_tmp(ctx)
         val elem_addr: i64 = fresh_tmp(ctx)
         val abuf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 256 as usize) as ref u8
@@ -11809,7 +11864,7 @@ fn gen_builtin(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
         @snprintf(buf, 512, "    %%t{lld} =l call $sxqbe_atoi(l {s})\n", {tmp, s3})
         emit(ctx, buf)
     } elif str.raw_cmp(name, "append") == 0 {
-        val lst: ref u8 = get_list_arg(ctx, args, 0)
+        val lst: ref u8 = cg_list_arg_ensured(ctx, args, 0)
         val val5_node_opt = @get(args, 1)
         val val5_qtype: mut ref u8 = "l"
         ctx.aggregate_heap++
@@ -11868,7 +11923,7 @@ fn gen_builtin(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
             ctx.arena,
             256 as usize
         ) as ref u8
-        @snprintf(buf_app8a, 256, "    %%t{lld} =l loadl {s}\n    %%t{lld} =l mul %%t{lld}, 8\n    %%t{lld} =l add %%t{lld}, %%t{lld}\n",
+        @snprintf(buf_app8a, 256, "    %%t{lld} =l call $sxqbe_list_buf(l {s})\n    %%t{lld} =l mul %%t{lld}, 8\n    %%t{lld} =l add %%t{lld}, %%t{lld}\n",
             {buf_tmp, lst, off, len_val, elem_ptr, buf_tmp, off})
         emit(ctx, buf_app8a)
         val store_val: mut ref u8 = val5
@@ -12014,15 +12069,15 @@ fn gen_builtin(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
         emit(ctx, buf)
     } elif str.raw_cmp(name, "len") == 0 {
         val lst2: ref u8 = get_list_arg(ctx, args, 0)
-        val len_slot: i64 = fresh_tmp(ctx)
         val len_val: i64 = fresh_tmp(ctx)
         @snprintf(
             buf,
             512,
-            "    %%t{lld} =l add {s}, 8\n    %%t{lld} =l loadl %%t{lld}\n",
-            {len_slot, lst2, len_val, len_slot}
+            "    %%t{lld} =l call $sxqbe_list_len(l {s})\n",
+            {len_val, lst2}
         )
         emit(ctx, buf)
+        ctx.alloc_runtime = true
         tmp = len_val
     } elif str.raw_cmp(name, "get") == 0 || str.raw_cmp(name, "getref") == 0
     || str.raw_cmp(name, "getmut") == 0 {
@@ -12456,7 +12511,7 @@ fn gen_builtin(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
         @snprintf(buf, 512, "    %%t{lld} =l copy 0\n", {tmp})
         emit(ctx, buf)
     } elif str.raw_cmp(name, "remove") == 0 {
-        val lst4: ref u8 = get_list_arg(ctx, args, 0)
+        val lst4: ref u8 = cg_list_arg_ensured(ctx, args, 0)
         val idx2: ref u8 = get_arg(ctx, args, 1)
 
         val len_slot: i64 = fresh_tmp(ctx)
@@ -12599,7 +12654,7 @@ fn gen_builtin(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
         emit(ctx, buf_rem10)
         tmp = elem_val
     } elif str.raw_cmp(name, "insert") == 0 {
-        val lst_ins: ref u8 = get_list_arg(ctx, args, 0)
+        val lst_ins: ref u8 = cg_list_arg_ensured(ctx, args, 0)
         val idx_ins: ref u8 = get_arg(ctx, args, 1)
         val val_ins_node_opt = @get(args, 2)
         ctx.aggregate_heap++
@@ -12754,7 +12809,7 @@ fn gen_builtin(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
         @snprintf(buf, 512, "    %%t{lld} =l copy 0\n", {tmp})
         emit(ctx, buf)
     } elif str.raw_cmp(name, "reserve") == 0 {
-        val lst5: ref u8 = get_list_arg(ctx, args, 0)
+        val lst5: ref u8 = cg_list_arg_ensured(ctx, args, 0)
         val cap: ref u8 = get_arg(ctx, args, 1)
 
         val cap_slot: i64 = fresh_tmp(ctx)
@@ -12781,15 +12836,15 @@ fn gen_builtin(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
         emit(ctx, buf)
     } elif str.raw_cmp(name, "capacity") == 0 {
         val lst6: ref u8 = get_list_arg(ctx, args, 0)
-        val cap_slot: i64 = fresh_tmp(ctx)
         val cap_val: i64 = fresh_tmp(ctx)
         @snprintf(
             buf,
             512,
-            "    %%t{lld} =l add {s}, 16\n    %%t{lld} =l loadl %%t{lld}\n",
-            {cap_slot, lst6, cap_val, cap_slot}
+            "    %%t{lld} =l call $sxqbe_list_cap(l {s})\n",
+            {cap_val, lst6}
         )
         emit(ctx, buf)
+        ctx.alloc_runtime = true
         tmp = cap_val
     } elif str.raw_cmp(name, "list") == 0 {
         val ac_node_opt = @get(args, 0)
@@ -15750,13 +15805,13 @@ fn gen_forin_stmt(ctx: mut ref CgCtx, stmt: ref parser.Node) void = trust {
         return
     }
 
-    val len_slot: i64 = fresh_tmp(ctx)
     val buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 512 as usize) as ref u8
 
     @snprintf(buf, 512,
-        "    %%t{lld} =l alloc8 8\n    storel 0, %%t{lld}\n    %%t{lld} =l add {s}, 8\n    %%t{lld} =l loadl %%t{lld}\n@lbl{lld}\n",
-        {idx, idx, len_slot, iter, len, len_slot, loop_lbl})
+        "    %%t{lld} =l alloc8 8\n    storel 0, %%t{lld}\n    %%t{lld} =l call $sxqbe_list_len(l {s})\n@lbl{lld}\n",
+        {idx, idx, len, iter, loop_lbl})
     emit(ctx, buf)
+    ctx.alloc_runtime = true
     val cur_idx: i64 = fresh_tmp(ctx)
     val cmp: i64 = fresh_tmp(ctx)
     val buf2: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 256 as usize) as ref u8
@@ -15828,7 +15883,7 @@ fn gen_forin_stmt(ctx: mut ref CgCtx, stmt: ref parser.Node) void = trust {
         val elem_raw: i64 = fresh_tmp(ctx)
         val d_buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 768 as usize) as ref u8
         @snprintf(d_buf, 768,
-            "    %%t{lld} =l loadl {s}\n    %%t{lld} =l mul %%t{lld}, 8\n    %%t{lld} =l add %%t{lld}, %%t{lld}\n    %%t{lld} =l loadl %%t{lld}\n    %%t{lld} =d cast %%t{lld}\n",
+            "    %%t{lld} =l call $sxqbe_list_buf(l {s})\n    %%t{lld} =l mul %%t{lld}, 8\n    %%t{lld} =l add %%t{lld}, %%t{lld}\n    %%t{lld} =l loadl %%t{lld}\n    %%t{lld} =d cast %%t{lld}\n",
             {
                 buf_tmp,
                 iter,
@@ -15848,7 +15903,7 @@ fn gen_forin_stmt(ctx: mut ref CgCtx, stmt: ref parser.Node) void = trust {
         val elem_word: i64 = fresh_tmp(ctx)
         val s_buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 768 as usize) as ref u8
         @snprintf(s_buf, 768,
-            "    %%t{lld} =l loadl {s}\n    %%t{lld} =l mul %%t{lld}, 8\n    %%t{lld} =l add %%t{lld}, %%t{lld}\n    %%t{lld} =l loadl %%t{lld}\n    %%t{lld} =w cast %%t{lld}\n    %%t{lld} =s cast %%t{lld}\n",
+            "    %%t{lld} =l call $sxqbe_list_buf(l {s})\n    %%t{lld} =l mul %%t{lld}, 8\n    %%t{lld} =l add %%t{lld}, %%t{lld}\n    %%t{lld} =l loadl %%t{lld}\n    %%t{lld} =w cast %%t{lld}\n    %%t{lld} =s cast %%t{lld}\n",
             {
                 buf_tmp,
                 iter,
@@ -15868,7 +15923,7 @@ fn gen_forin_stmt(ctx: mut ref CgCtx, stmt: ref parser.Node) void = trust {
     } else {
         val buf3: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 512 as usize) as ref u8
         @snprintf(buf3, 512,
-            "    %%t{lld} =l loadl {s}\n    %%t{lld} =l mul %%t{lld}, 8\n    %%t{lld} =l add %%t{lld}, %%t{lld}\n    %%t{lld} =l loadl %%t{lld}\n",
+            "    %%t{lld} =l call $sxqbe_list_buf(l {s})\n    %%t{lld} =l mul %%t{lld}, 8\n    %%t{lld} =l add %%t{lld}, %%t{lld}\n    %%t{lld} =l loadl %%t{lld}\n",
             {buf_tmp, iter, off, cur_idx, elem_ptr, buf_tmp, off, elem, elem_ptr})
         emit(ctx, buf3)
     }
