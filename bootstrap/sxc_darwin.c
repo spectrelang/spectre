@@ -632,7 +632,7 @@ static char sx__str272[]="lib syntax for linking is not supported on this platfo
 static char sx__str273[]="could not resolve library '%s' with pkg-config";
 static char sx__str274[]="could not find library '%s' on this system";
 static char sx__str275[]="v0.0.15";
-static char sx__str276[]="f67a5e5";
+static char sx__str276[]="c8ed2ba";
 static char sx__str277[]="unknown";
 static char sx__str278[]="usage:";
 static char sx__str279[]="  spectre <command> [args] | <input.sx> [options]";
@@ -3885,11 +3885,18 @@ static int64_t sema__sema_lookup_uniondef(int64_t,int64_t);
 static int64_t sema__sema_lookup_tagged_variant(int64_t,int64_t,int64_t);
 static int32_t sema__type_matches_union_variant(int64_t,int64_t,int64_t);
 static int64_t sema__sema_const_known(int64_t);
+static int64_t sema__sema_const_known_float(double);
 static int64_t sema__sema_const_unknown(void);
+static int64_t sema__sema_const_bool(int32_t);
+static int32_t sema__sema_const_is_false(int64_t);
+static int32_t sema__sema_const_is_true(int64_t);
+static double sema__sema_const_as_float(int64_t);
 static int64_t sema__sema_parse_int_lit_text(int64_t);
+static int64_t sema__sema_parse_float_lit_text(int64_t);
 static int64_t sema__sema_const_eval(int64_t,int64_t,int64_t);
 static int32_t sema__sema_check_invariant_lit(int64_t,int64_t,int64_t,int64_t,int64_t);
 static int64_t sema__sema_const_eval_no_fields(int64_t);
+static int32_t sema__sema_is_float_type_name(int64_t);
 static int32_t sema__sema_is_int_type_name(int64_t);
 static int32_t sema__sema_is_int_const_expr(int64_t);
 static int32_t sema__sema_int_const_arg_compatible(int64_t,int64_t,int64_t,int64_t,int64_t);
@@ -5113,9 +5120,10 @@ static int64_t sx__mem__new__GENMONO__ref_void(void);
 static int64_t sx__mem__new__GENMONO__String(void);
 static int32_t sx__parser__node_store_slot__GENMONO__i64(int64_t,int64_t);
 static int64_t sx__mem__new__GENMONO__ref_ScopeEntry(void);
-static int64_t sx__mem__new__GENMONO__i64(void);
+static int64_t sx__mem__new__GENMONO__SemaConstVal(void);
 static int64_t sx__mem__from1__GENMONO__ref_parser__Node(int64_t);
 static int64_t sx__mem__new__GENMONO__bool(void);
+static int64_t sx__mem__new__GENMONO__i64(void);
 static int64_t sx__mem__new__GENMONO__ref_GlobalInit(void);
 static int32_t sx__parser__node_store_slot__GENMONO__ref_parser__Node(int64_t,int64_t);
 static int64_t sx__parser__ptr_to_i64__GENMONO__ref_u8(int64_t);
@@ -6467,7 +6475,7 @@ int64_t sx__val0 = sx__try0[1];
 return(int64_t)(sx__val0);
 }
 
-static int64_t sx__mem__new__GENMONO__i64(void){
+static int64_t sx__mem__new__GENMONO__SemaConstVal(void){
 int64_t t_ac=(int64_t)(mem__allocator());
 int64_t* sx__try0 = (int64_t*)(intptr_t)(sx__rt_list_alloc(sx__allocadapt_allocators_ListArena_alloc,sx__allocadapt_allocators_ListArena_free,sx__allocadapt_allocators_ListArena_realloc,(int64_t)(t_ac)));
 if(sx__try0[0] != 0)
@@ -6486,6 +6494,17 @@ return(int64_t)(t_xs);
 }
 
 static int64_t sx__mem__new__GENMONO__bool(void){
+int64_t t_ac=(int64_t)(mem__allocator());
+int64_t* sx__try0 = (int64_t*)(intptr_t)(sx__rt_list_alloc(sx__allocadapt_allocators_ListArena_alloc,sx__allocadapt_allocators_ListArena_free,sx__allocadapt_allocators_ListArena_realloc,(int64_t)(t_ac)));
+if(sx__try0[0] != 0)
+{
+return (int64_t)(intptr_t)sx__try0;
+}
+int64_t sx__val0 = sx__try0[1];
+return(int64_t)(sx__val0);
+}
+
+static int64_t sx__mem__new__GENMONO__i64(void){
 int64_t t_ac=(int64_t)(mem__allocator());
 int64_t* sx__try0 = (int64_t*)(intptr_t)(sx__rt_list_alloc(sx__allocadapt_allocators_ListArena_alloc,sx__allocadapt_allocators_ListArena_free,sx__allocadapt_allocators_ListArena_realloc,(int64_t)(t_ac)));
 if(sx__try0[0] != 0)
@@ -37191,19 +37210,65 @@ return(int32_t)(0);
 }
 
 static int64_t sema__sema_const_known(int64_t t_v){
-int64_t*sx__sl0=(int64_t*)calloc(1,12);
+int64_t*sx__sl0=(int64_t*)calloc(1,24);
 *(int32_t*)((char*)sx__sl0+0)=(int32_t)(1);
-*(int64_t*)((char*)sx__sl0+4)=(int64_t)(t_v);
+*(int32_t*)((char*)sx__sl0+4)=(int32_t)(0);
+*(int64_t*)((char*)sx__sl0+8)=(int64_t)(t_v);
+*(double*)((char*)sx__sl0+16)=(double)(0.0);
+int64_t t_r=(int64_t)((int64_t)(intptr_t)sx__sl0);
+return(int64_t)(t_r);
+}
+
+static int64_t sema__sema_const_known_float(double t_v){
+int64_t*sx__sl0=(int64_t*)calloc(1,24);
+*(int32_t*)((char*)sx__sl0+0)=(int32_t)(1);
+*(int32_t*)((char*)sx__sl0+4)=(int32_t)(1);
+*(int64_t*)((char*)sx__sl0+8)=(int64_t)(INT64_C(0));
+*(double*)((char*)sx__sl0+16)=(double)(t_v);
 int64_t t_r=(int64_t)((int64_t)(intptr_t)sx__sl0);
 return(int64_t)(t_r);
 }
 
 static int64_t sema__sema_const_unknown(void){
-int64_t*sx__sl0=(int64_t*)calloc(1,12);
+int64_t*sx__sl0=(int64_t*)calloc(1,24);
 *(int32_t*)((char*)sx__sl0+0)=(int32_t)(0);
-*(int64_t*)((char*)sx__sl0+4)=(int64_t)(INT64_C(0));
+*(int32_t*)((char*)sx__sl0+4)=(int32_t)(0);
+*(int64_t*)((char*)sx__sl0+8)=(int64_t)(INT64_C(0));
+*(double*)((char*)sx__sl0+16)=(double)(0.0);
 int64_t t_r=(int64_t)((int64_t)(intptr_t)sx__sl0);
 return(int64_t)(t_r);
+}
+
+static int64_t sema__sema_const_bool(int32_t t_cond){
+if(t_cond)
+{
+return(int64_t)(sema__sema_const_known(INT64_C(1)));
+}
+return(int64_t)(sema__sema_const_known(INT64_C(0)));
+}
+
+static int32_t sema__sema_const_is_false(int64_t t_v){
+if((*(int32_t*)((char*)(intptr_t)(t_v)+4)))
+{
+return(int32_t)((((*(double*)((char*)(intptr_t)(t_v)+16)))==(0.0)));
+}
+return(int32_t)((((*(int64_t*)((char*)(intptr_t)(t_v)+8)))==(INT64_C(0))));
+}
+
+static int32_t sema__sema_const_is_true(int64_t t_v){
+if((*(int32_t*)((char*)(intptr_t)(t_v)+4)))
+{
+return(int32_t)((((*(double*)((char*)(intptr_t)(t_v)+16)))!=(0.0)));
+}
+return(int32_t)((((*(int64_t*)((char*)(intptr_t)(t_v)+8)))!=(INT64_C(0))));
+}
+
+static double sema__sema_const_as_float(int64_t t_v){
+if((*(int32_t*)((char*)(intptr_t)(t_v)+4)))
+{
+return(double)((*(double*)((char*)(intptr_t)(t_v)+16)));
+}
+return(double)((double)((*(int64_t*)((char*)(intptr_t)(t_v)+8))));
 }
 
 static int64_t sema__sema_parse_int_lit_text(int64_t t_text){
@@ -37265,6 +37330,24 @@ return(int64_t)(sema__sema_const_unknown());
 return 0;
 }
 
+static int64_t sema__sema_parse_float_lit_text(int64_t t_text){
+if(((t_text)==(0)))
+{
+return(int64_t)(sema__sema_const_unknown());
+}
+int64_t sx__rb0[3];
+(void)(std__fmt__string_to_f64((int64_t)(intptr_t)sx__rb0,t_text));
+{int64_t*sx__rp1=(int64_t*)(intptr_t)(((int64_t)(intptr_t)sx__rb0));if(sx__rp1[0]==0)
+{
+double t_parsed;memcpy(&t_parsed,&sx__rp1[1],sizeof(double));
+return(int64_t)(sema__sema_const_known_float(t_parsed));
+}else{
+int64_t t__=sx__rp1[1];
+return(int64_t)(sema__sema_const_unknown());
+}}
+return 0;
+}
+
 static int64_t sema__sema_const_eval(int64_t t_expr,int64_t t_field_names,int64_t t_field_vals){
 if(((t_expr)==(0)))
 {
@@ -37275,6 +37358,11 @@ if(((t_k)==((60))))
 {
 int64_t t_s=(int64_t)((int64_t)((*(int64_t*)((char*)(intptr_t)(t_expr)+16))));
 return(int64_t)(sema__sema_parse_int_lit_text(t_s));
+}
+if(((t_k)==((61))))
+{
+int64_t t_s=(int64_t)(parser__float_lit_text(t_expr));
+return(int64_t)(sema__sema_parse_float_lit_text(t_s));
 }
 if(((t_k)==((64))))
 {
@@ -37306,8 +37394,16 @@ int64_t t_fn_opt=(int64_t)(((int64_t)(intptr_t)sx__w0));
 int64_t t_func=*((int64_t*)(intptr_t)(&sx__mp2[1]));
 if(((std__str__raw_cmp((int64_t)(t_func),t_iname))==(INT64_C(0))))
 {
-int64_t t_buf=(int64_t)((int64_t)((*(int64_t*)(intptr_t)(t_field_vals))));
-return(int64_t)(sema__sema_const_known((int64_t)((*(int64_t*)(intptr_t)((int64_t)(intptr_t)((char*)(intptr_t)(t_buf)+(((t_fi)*(INT64_C(8))))))))));
+int64_t sx__w3[3];sx__w3[0]=0;sx__w3[1]=0;sx__w3[2]=0;
+int64_t* sx__lh4=(int64_t*)(intptr_t)((int64_t)(t_field_vals));int64_t sx__li4=(int64_t)((uint64_t)(t_fi));if(sx__lh4&&sx__li4>=0&&sx__li4<sx__lh4[1]){int64_t* sx__ld4=(int64_t*)(intptr_t)sx__lh4[0];sx__w3[0]=1;sx__w3[1]=sx__ld4[sx__li4];}
+int64_t t_value_opt=(int64_t)(((int64_t)(intptr_t)sx__w3));
+{int64_t* sx__mp5=(int64_t*)(intptr_t)(t_value_opt);if(sx__mp5[0]!=0)
+{
+int64_t t_value=*((int64_t*)(intptr_t)(&sx__mp5[1]));
+return(int64_t)((int64_t)(t_value));
+}else{
+}}
+return(int64_t)(sema__sema_const_unknown());
 }
 }else{
 }}
@@ -37326,11 +37422,19 @@ return(int64_t)(sema__sema_const_unknown());
 }
 if(((t_uop)==((2))))
 {
-return(int64_t)(sema__sema_const_known((-((*(int64_t*)((char*)(intptr_t)(t_iv)+4))))));
+if((*(int32_t*)((char*)(intptr_t)(t_iv)+4)))
+{
+return(int64_t)(sema__sema_const_known_float((-((*(double*)((char*)(intptr_t)(t_iv)+16))))));
+}
+return(int64_t)(sema__sema_const_known((-((*(int64_t*)((char*)(intptr_t)(t_iv)+8))))));
 }
 if(((t_uop)==((1))))
 {
-if((((*(int64_t*)((char*)(intptr_t)(t_iv)+4)))==(INT64_C(0))))
+if((*(int32_t*)((char*)(intptr_t)(t_iv)+4)))
+{
+return(int64_t)(sema__sema_const_unknown());
+}
+if((((*(int64_t*)((char*)(intptr_t)(t_iv)+8)))==(INT64_C(0))))
 {
 return(int64_t)(sema__sema_const_known(INT64_C(1)));
 }else{
@@ -37348,8 +37452,58 @@ if((((!((*(int32_t*)((char*)(intptr_t)(t_lv)+0)))))?(1):((!((*(int32_t*)((char*)
 {
 return(int64_t)(sema__sema_const_unknown());
 }
-int64_t t_a=(int64_t)((*(int64_t*)((char*)(intptr_t)(t_lv)+4)));
-int64_t t_b=(int64_t)((*(int64_t*)((char*)(intptr_t)(t_rv)+4)));
+if((((*(int32_t*)((char*)(intptr_t)(t_lv)+4)))?(1):((*(int32_t*)((char*)(intptr_t)(t_rv)+4)))))
+{
+double t_fa=(double)(sema__sema_const_as_float(t_lv));
+double t_fb=(double)(sema__sema_const_as_float(t_rv));
+if(((t_op)==((9))))
+{
+return(int64_t)(sema__sema_const_bool(((t_fa)>(t_fb))));
+}
+if(((t_op)==((11))))
+{
+return(int64_t)(sema__sema_const_bool(((t_fa)>=(t_fb))));
+}
+if(((t_op)==((8))))
+{
+return(int64_t)(sema__sema_const_bool(((t_fa)<(t_fb))));
+}
+if(((t_op)==((10))))
+{
+return(int64_t)(sema__sema_const_bool(((t_fa)<=(t_fb))));
+}
+if(((t_op)==((6))))
+{
+return(int64_t)(sema__sema_const_bool(((t_fa)==(t_fb))));
+}
+if(((t_op)==((7))))
+{
+return(int64_t)(sema__sema_const_bool(((t_fa)!=(t_fb))));
+}
+if(((t_op)==((1))))
+{
+return(int64_t)(sema__sema_const_known_float(((t_fa)+(t_fb))));
+}
+if(((t_op)==((2))))
+{
+return(int64_t)(sema__sema_const_known_float(((t_fa)-(t_fb))));
+}
+if(((t_op)==((3))))
+{
+return(int64_t)(sema__sema_const_known_float(((t_fa)*(t_fb))));
+}
+if(((t_op)==((4))))
+{
+if(((t_fb)==(0.0)))
+{
+return(int64_t)(sema__sema_const_unknown());
+}
+return(int64_t)(sema__sema_const_known_float(((t_fa)/(t_fb))));
+}
+return(int64_t)(sema__sema_const_unknown());
+}
+int64_t t_a=(int64_t)((*(int64_t*)((char*)(intptr_t)(t_lv)+8)));
+int64_t t_b=(int64_t)((*(int64_t*)((char*)(intptr_t)(t_rv)+8)));
 if(((t_op)==((9))))
 {
 if(((t_a)>(t_b)))
@@ -37452,7 +37606,7 @@ return 0;
 }
 int64_t sx__gv1=sx__mem__new__GENMONO__ref_u8();
 int64_t t_fnames=(int64_t)(sx__gv1);
-int64_t sx__gv2=sx__mem__new__GENMONO__i64();
+int64_t sx__gv2=sx__mem__new__GENMONO__SemaConstVal();
 int64_t t_fvals=(int64_t)(sx__gv2);
 int64_t t_flen=(int64_t)((int64_t)(((int64_t)(t_fields)==0?0:(*(int64_t*)((char*)(intptr_t)((int64_t)(t_fields))+8)))));
 int64_t t_alen=(int64_t)((int64_t)(((int64_t)(t_args)==0?0:(*(int64_t*)((char*)(intptr_t)((int64_t)(t_args))+8)))));
@@ -37474,13 +37628,19 @@ int64_t t_fld=*((int64_t*)(intptr_t)(&sx__mp6[1]));
 {int64_t* sx__mp7=(int64_t*)(intptr_t)(t_arg_opt);if(sx__mp7[0]!=0)
 {
 int64_t t_arg=*((int64_t*)(intptr_t)(&sx__mp7[1]));
-int64_t t_fname=(int64_t)((int64_t)((*(int64_t*)((char*)(intptr_t)((int64_t)(t_fld))+16))));
+int64_t t_fld_node=(int64_t)((int64_t)(t_fld));
+int64_t t_fname=(int64_t)((int64_t)((*(int64_t*)((char*)(intptr_t)(t_fld_node)+16))));
+int64_t t_ftype=(int64_t)(sema__extract_type_name((int64_t)((*(int64_t*)((char*)(intptr_t)(t_fld_node)+32)))));
 int64_t t_anode=(int64_t)((int64_t)(t_arg));
 int64_t t_aval=(int64_t)(sema__sema_const_eval(t_anode,(int64_t)(t_fnames),(int64_t)(t_fvals)));
+if((((((*(int32_t*)((char*)(intptr_t)(t_aval)+0)))?((!((*(int32_t*)((char*)(intptr_t)(t_aval)+4))))):(0)))?(sema__sema_is_float_type_name(t_ftype)):(0)))
+{
+t_aval=(sema__sema_const_known_float((double)((*(int64_t*)((char*)(intptr_t)(t_aval)+8)))));
+}
 if((*(int32_t*)((char*)(intptr_t)(t_aval)+0)))
 {
 (void)(sx__rt_append_f((int64_t*)&t_fnames,(int64_t)(t_fname)));
-(void)(sx__rt_append_f((int64_t*)&t_fvals,(int64_t)((*(int64_t*)((char*)(intptr_t)(t_aval)+4)))));
+(void)(sx__rt_append_f((int64_t*)&t_fvals,(int64_t)(t_aval)));
 }
 }else{
 }}
@@ -37503,7 +37663,7 @@ int64_t t_inv_opt=(int64_t)(((int64_t)(intptr_t)sx__w8));
 int64_t t_inv=*((int64_t*)(intptr_t)(&sx__mp10[1]));
 int64_t t_inode=(int64_t)((int64_t)(t_inv));
 int64_t t_result=(int64_t)(sema__sema_const_eval(t_inode,(int64_t)(t_fnames),(int64_t)(t_fvals)));
-if((((*(int32_t*)((char*)(intptr_t)(t_result)+0)))?((((*(int64_t*)((char*)(intptr_t)(t_result)+4)))==(INT64_C(0)))):(0)))
+if((((*(int32_t*)((char*)(intptr_t)(t_result)+0)))?(sema__sema_const_is_false(t_result)):(0)))
 {
 int64_t t_type_name=(int64_t)((int64_t)((*(int64_t*)((char*)(intptr_t)(t_typedef_node)+24))));
 int64_t t_buf=(int64_t)((int64_t)(std__allocators__ScopedArena__alloc_or_none((*(int64_t*)((char*)(intptr_t)(t_ctx)+200)),(uint64_t)(INT64_C(256)))));
@@ -37520,9 +37680,13 @@ return 0;
 static int64_t sema__sema_const_eval_no_fields(int64_t t_expr){
 int64_t sx__gv1=sx__mem__new__GENMONO__ref_u8();
 int64_t t_field_names=(int64_t)(sx__gv1);
-int64_t sx__gv2=sx__mem__new__GENMONO__i64();
+int64_t sx__gv2=sx__mem__new__GENMONO__SemaConstVal();
 int64_t t_field_vals=(int64_t)(sx__gv2);
 return(int64_t)(sema__sema_const_eval(t_expr,(int64_t)(t_field_names),(int64_t)(t_field_vals)));
+}
+
+static int32_t sema__sema_is_float_type_name(int64_t t_name){
+return(int32_t)(((std__str__str_eql(t_name,((int64_t)(intptr_t)sx__str861)))?(1):(std__str__str_eql(t_name,((int64_t)(intptr_t)sx__str860)))));
 }
 
 static int32_t sema__sema_is_int_type_name(int64_t t_name){
@@ -37606,7 +37770,7 @@ return(int32_t)(0);
 }
 int64_t t_lo=(int64_t)(sema__sema_int_type_lo(t_tn));
 int64_t t_hi=(int64_t)(sema__sema_int_type_hi(t_tn));
-if((((((*(int64_t*)((char*)(intptr_t)(t_value)+4)))<(t_lo)))?(1):((((*(int64_t*)((char*)(intptr_t)(t_value)+4)))>(t_hi)))))
+if((((((*(int64_t*)((char*)(intptr_t)(t_value)+8)))<(t_lo)))?(1):((((*(int64_t*)((char*)(intptr_t)(t_value)+8)))>(t_hi)))))
 {
 (void)(sema__sema_check_int_literal_range(t_ctx,t_tn,t_expr,t_filename,t_line));
 return(int32_t)(1);
@@ -38052,14 +38216,18 @@ if(((((std__str__raw_cmp(t_lit,((int64_t)(intptr_t)sx__str1)))!=(INT64_C(0))))?(
 }
 return 0;
 }
+if((*(int32_t*)((char*)(intptr_t)(t_value)+4)))
+{
+return 0;
+}
 int64_t t_lo=(int64_t)(sema__sema_int_type_lo(t_type_name));
 int64_t t_hi=(int64_t)(sema__sema_int_type_hi(t_type_name));
-if((((((*(int64_t*)((char*)(intptr_t)(t_value)+4)))<(t_lo)))?(1):((((*(int64_t*)((char*)(intptr_t)(t_value)+4)))>(t_hi)))))
+if((((((*(int64_t*)((char*)(intptr_t)(t_value)+8)))<(t_lo)))?(1):((((*(int64_t*)((char*)(intptr_t)(t_value)+8)))>(t_hi)))))
 {
 int64_t t_vbuf=(int64_t)((int64_t)(std__allocators__ScopedArena__alloc_or_none((*(int64_t*)((char*)(intptr_t)(t_ctx)+200)),(uint64_t)(INT64_C(64)))));
 int64_t t_lobuf=(int64_t)((int64_t)(std__allocators__ScopedArena__alloc_or_none((*(int64_t*)((char*)(intptr_t)(t_ctx)+200)),(uint64_t)(INT64_C(64)))));
 int64_t t_hibuf=(int64_t)((int64_t)(std__allocators__ScopedArena__alloc_or_none((*(int64_t*)((char*)(intptr_t)(t_ctx)+200)),(uint64_t)(INT64_C(64)))));
-(void)(snprintf((char*)(intptr_t)(t_vbuf),(size_t)(INT64_C(64)),(const char*)(intptr_t)(sx__str947),((*(int64_t*)((char*)(intptr_t)(t_value)+4)))));
+(void)(snprintf((char*)(intptr_t)(t_vbuf),(size_t)(INT64_C(64)),(const char*)(intptr_t)(sx__str947),((*(int64_t*)((char*)(intptr_t)(t_value)+8)))));
 (void)(snprintf((char*)(intptr_t)(t_lobuf),(size_t)(INT64_C(64)),(const char*)(intptr_t)(sx__str947),(t_lo)));
 (void)(snprintf((char*)(intptr_t)(t_hibuf),(size_t)(INT64_C(64)),(const char*)(intptr_t)(sx__str947),(t_hi)));
 (void)(sema__sema_emit_int_overflow_error(t_ctx,t_filename,t_line,t_vbuf,t_type_name,t_lobuf,t_hibuf));
@@ -38117,7 +38285,7 @@ return 0;
 }
 int64_t sx__gv2=sx__mem__new__GENMONO__ref_u8();
 int64_t t_pnames=(int64_t)(sx__gv2);
-int64_t sx__gv3=sx__mem__new__GENMONO__i64();
+int64_t sx__gv3=sx__mem__new__GENMONO__SemaConstVal();
 int64_t t_pvals=(int64_t)(sx__gv3);
 int64_t t_plen=(int64_t)((int64_t)(((int64_t)(t_params)==0?0:(*(int64_t*)((char*)(intptr_t)((int64_t)(t_params))+8)))));
 int64_t t_alen=(int64_t)(INT64_C(0));
@@ -38155,7 +38323,7 @@ t_pval=(sema__sema_const_eval_no_fields((int64_t)(t_a)));
 if((*(int32_t*)((char*)(intptr_t)(t_pval)+0)))
 {
 (void)(sx__rt_append_f((int64_t*)&t_pnames,(int64_t)(t_pname)));
-(void)(sx__rt_append_f((int64_t*)&t_pvals,(int64_t)((*(int64_t*)((char*)(intptr_t)(t_pval)+4)))));
+(void)(sx__rt_append_f((int64_t*)&t_pvals,(int64_t)(t_pval)));
 }
 }else{
 }}
@@ -38176,7 +38344,7 @@ continue;
 int64_t t_label=(int64_t)((int64_t)((*(int64_t*)((char*)(intptr_t)(t_c)+16))));
 int64_t t_cexpr=(int64_t)((int64_t)((*(int64_t*)((char*)(intptr_t)(t_c)+24))));
 int64_t t_result=(int64_t)(sema__sema_const_eval(t_cexpr,(int64_t)(t_pnames),(int64_t)(t_pvals)));
-if((((!((*(int32_t*)((char*)(intptr_t)(t_result)+0)))))?(1):((((*(int64_t*)((char*)(intptr_t)(t_result)+4)))!=(INT64_C(0))))))
+if((((!((*(int32_t*)((char*)(intptr_t)(t_result)+0)))))?(1):((!(sema__sema_const_is_false(t_result))))))
 {
 continue;
 }
@@ -38276,12 +38444,12 @@ int32_t t_has_true=(int32_t)(0);
 int32_t t_has_false=(int32_t)(0);
 {int64_t sx__it0=(int64_t)(t_arms);int64_t sx__len0=(sx__it0==0?0:*(int64_t*)((char*)(intptr_t)sx__it0+8));int64_t*sx__buf0=(sx__it0==0?0:*(int64_t**)(intptr_t)sx__it0);int64_t sx__i0=0;for(;sx__i0<sx__len0;sx__i0++){int64_t t_arm=sx__buf0[sx__i0];
 int64_t t_pat=(int64_t)(sema__sema_const_eval_no_fields((int64_t)((*(int64_t*)((char*)(intptr_t)(t_arm)+16)))));
-if((*(int32_t*)((char*)(intptr_t)(t_pat)+0)))
+if((((*(int32_t*)((char*)(intptr_t)(t_pat)+0)))?((!((*(int32_t*)((char*)(intptr_t)(t_pat)+4))))):(0)))
 {
-if((((*(int64_t*)((char*)(intptr_t)(t_pat)+4)))==(INT64_C(0))))
+if((((*(int64_t*)((char*)(intptr_t)(t_pat)+8)))==(INT64_C(0))))
 {
 t_has_false=(1);
-}else if((((*(int64_t*)((char*)(intptr_t)(t_pat)+4)))==(INT64_C(1))))
+}else if((((*(int64_t*)((char*)(intptr_t)(t_pat)+8)))==(INT64_C(1))))
 {
 t_has_true=(1);
 }
@@ -38357,7 +38525,7 @@ static int32_t sema__sema_if_stmt_guarantees_return(int64_t t_ctx,int64_t t_stmt
 int64_t t_cond=(int64_t)(sema__sema_const_eval_no_fields((int64_t)((*(int64_t*)((char*)(intptr_t)(t_stmt)+16)))));
 if((*(int32_t*)((char*)(intptr_t)(t_cond)+0)))
 {
-if((((*(int64_t*)((char*)(intptr_t)(t_cond)+4)))==(INT64_C(1))))
+if(sema__sema_const_is_true(t_cond))
 {
 return(int32_t)(sema__stmts_guarantee_return(t_ctx,(int64_t)((*(int64_t*)((char*)(intptr_t)(t_stmt)+24)))));
 }
@@ -38374,7 +38542,7 @@ if(((t_elif_list)!=(0)))
 int64_t t_elif_v=(int64_t)(sema__sema_const_eval_no_fields((int64_t)((*(int64_t*)((char*)(intptr_t)(t_ep)+16)))));
 if((*(int32_t*)((char*)(intptr_t)(t_elif_v)+0)))
 {
-if((((*(int64_t*)((char*)(intptr_t)(t_elif_v)+4)))==(INT64_C(1))))
+if(sema__sema_const_is_true(t_elif_v))
 {
 return(int32_t)(sema__stmts_guarantee_return(t_ctx,(int64_t)((*(int64_t*)((char*)(intptr_t)(t_ep)+24)))));
 }
