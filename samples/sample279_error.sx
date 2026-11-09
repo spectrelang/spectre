@@ -1,0 +1,38 @@
+val stdio = use("std/stdio")
+val allocators = use("std/allocators")
+
+type Node = {
+    value: mut u32,
+    next: mut ref Node,
+}
+
+pub fn push_front[A: allocators.Allocator](ac: A, head: ref Node, value: u32) ref Node = {
+    val new_node = A.alloc(ac, @sizeof(Node))
+    if new_node is some nn {
+        nn.value = value
+        nn.next = head
+        return nn
+    }
+    val nn_zero: ref Node = @zeroed
+    return nn_zero
+}
+
+pub fn print_list(head: ref Node) void = {
+    val current: mut ref Node = head
+    for current.next != none {
+        trust stdio.print("Node value: {d}\n", {current.value})
+        current = current.next
+    }
+}
+
+pub fn main() void = trust {
+    val ac = allocators.Arena.new(1024)?
+    val head: mut ref Node = @zeroed
+
+    head = push_front[allocators.Arena](ac, head, 30)
+    head = push_front[allocators.Arena](ac, head, 20)
+    head = push_front[allocators.Arena](ac, head, 10)
+
+    stdio.print("Spectre Linked List Contents:\n", {})
+    print_list(head)
+}
