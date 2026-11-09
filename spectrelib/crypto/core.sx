@@ -50,10 +50,13 @@ fn bytes_ptr[T](data: T) ref void = {
     when T is str.String {
         return trust @load(data) as ref void
     }
+    when T is str.StringView {
+        return data.ptr as ref void
+    }
     when T is ref u8 {
         return data as ref void
     }
-    when T !in (str.String, ref u8) {
+    when T !in (str.String, str.StringView, ref u8) {
         @staticerror("invalid type for bytes_ptr")
     }
     return none
@@ -63,10 +66,13 @@ fn bytes_len[T](data: T) i64 = trust {
     when T is str.String {
         return ostr.len(data)
     }
+    when T is str.StringView {
+        return data.len
+    }
     when T is ref u8 {
         return cstr.len(data)
     }
-    when T !in (str.String, ref u8) {
+    when T !in (str.String, str.StringView, ref u8) {
         @staticerror("invalid type for bytes_len")
     }
     return 0

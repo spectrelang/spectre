@@ -1,5 +1,4 @@
 val allocators = use("../allocators")
-val str     = use("std/string")
 val cstr = use("std/string/cstr")
 val stdio      = use("../stdio")
 

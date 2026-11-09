@@ -8677,6 +8677,17 @@ fn check_stmt(ctx: mut ref SemaCtx, stmt: ref parser.Node, filename: ref u8) voi
     }
 
     if k == parser.NK_GENERIC_WHEN {
+        val gconds: ref void = stmt.d0 as ref void
+        if gconds != none {
+            for gc in gconds as list[ref parser.Node] {
+                val gtypes: ref void = gc.d2 as ref void
+                if gtypes != none {
+                    for gt in gtypes as list[ref parser.Node] {
+                        canonicalize_import_aliases_in_type_node(ctx, gt)
+                    }
+                }
+            }
+        }
         push_scope(ctx)
         check_stmts(ctx, stmt.d1 as ref void, filename)
         pop_scope(ctx, filename, line)
