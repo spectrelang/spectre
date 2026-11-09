@@ -1,0 +1,15 @@
+// The reverse direction must also be rejected: a C string pointer cannot be
+// appended to a list of StringView values.
+
+val allocators = use("std/allocators")
+val string     = use("std/string")
+
+pub fn main() void = trust {
+    val alloc: allocators.HeapAllocator = @zeroed
+    val items: mut list[string.StringView] = @listalloc[
+        allocators.HeapAllocator,
+        string.StringView
+    ](alloc)?
+
+    @append(items, c"not a StringView")
+}

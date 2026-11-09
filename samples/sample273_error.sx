@@ -1,0 +1,11 @@
+// Appending an ordinary StringView literal to list[ref u8] must be rejected.
+// The element type is a C string pointer, not a borrowed view.
+
+val allocators = use("std/allocators")
+
+pub fn main() void = trust {
+    val alloc: allocators.HeapAllocator = @zeroed
+    val items: mut list[ref u8] = @listalloc[allocators.HeapAllocator, ref u8](alloc)?
+
+    @append(items, "not a C string")
+}

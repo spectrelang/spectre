@@ -3859,6 +3859,172 @@ fn expr_known_type_name(ctx: ref SemaCtx, expr: ref parser.Node) ref u8 = trust 
     return sema_try_operand_type_name(ctx, expr)
 }
 
+/// Infer the declared type of a list-valued expression, including fields.
+fn expr_container_type_name(ctx: ref SemaCtx, expr: ref parser.Node) ref u8 = trust {
+    if expr == none {
+        return c""
+    }
+    if expr.kind == parser.NK_FIELD {
+        val base: ref parser.Node = parser.field_base(expr)
+        val base_ty: ref u8 = expr_container_type_name(ctx, base)
+        if base_ty == none || cstr.eql(base_ty, c"") {
+            return c""
+        }
+        val field_name: ref u8 = parser.field_name_raw(expr)
+        if field_name == none {
+            return c""
+        }
+        val field_ty: ref parser.Node = find_field_type_node(ctx, base_ty, field_name)
+        if field_ty == none {
+            return c""
+        }
+        return extract_type_name(field_ty)
+    }
+    val inferred: ref u8 = infer_expr_scope_type_name(ctx, expr)
+    if inferred != none && !cstr.eql(inferred, c"") {
+        return inferred
+    }
+    return sema_try_operand_type_name(ctx, expr)
+}
+
+/// Extract T from a type name spelled "list[T]".
+fn list_element_type_name(ctx: ref SemaCtx, tname: ref u8) ref u8 = trust {
+    if tname == none || cstr.eql(tname, c"") || !cstr.starts_with(tname, c"list[") {
+        return none
+    }
+    val nlen: i64 = cstr.len(tname)
+    if nlen <= 6 || @load8(@ptradd(tname, nlen - 1)) != 93 {
+        return none
+    }
+    val inner_len: i64 = nlen - 6
+    val out: ref u8 = allocators.ScopedArena.alloc_or_none(
+        ctx.arena,
+        (inner_len + 1) as usize
+    ) as ref u8
+    @memcpy(out, @ptradd(tname, 5) as ref void, inner_len as usize)
+    @store8(@ptradd(out, inner_len), 0)
+    return out
+}
+
+/// Pretty-print a type expression for the sema type strings, preserving
+/// nested reference and container information.
+fn sema_type_expr_name(ctx: ref SemaCtx, ty: ref parser.Node) ref u8 = trust {
+    if ty == none {
+        return c"unknown"
+    }
+    val k: i64 = ty.kind
+    if k == parser.TY_NAMED {
+        return parser.node_str_raw(ty.d0)
+    }
+    if k == parser.TY_VOID {
+        return c"void"
+    }
+    if k == parser.TY_REF || k == parser.TY_MUT || k == parser.TY_LIST ||
+    k == parser.TY_OPTION || k == parser.TY_SLICE {
+        val inner: ref parser.Node = ty.d0 as ref parser.Node
+        val inner_name: ref u8 = sema_type_expr_name(ctx, inner)
+        val buf: ref u8 = allocators.ScopedArena.alloc_or_none(
+            ctx.arena,
+            (512) as usize
+        ) as ref u8
+        if k == parser.TY_REF {
+            @snprintf(buf, 512, "ref {s}", {inner_name})
+        } elif k == parser.TY_MUT {
+            @snprintf(buf, 512, "mut {s}", {inner_name})
+        } elif k == parser.TY_LIST {
+            @snprintf(buf, 512, "list[{s}]", {inner_name})
+        } elif k == parser.TY_OPTION {
+            @snprintf(buf, 512, "option[{s}]", {inner_name})
+        } else {
+            @snprintf(buf, 512, "slice[{s}]", {inner_name})
+        }
+        return buf
+    }
+    if k == parser.TY_RESULT {
+        val ok_ty: ref parser.Node = ty.d0 as ref parser.Node
+        val err_ty: ref parser.Node = ty.d1 as ref parser.Node
+        val buf2: ref u8 = allocators.ScopedArena.alloc_or_none(
+            ctx.arena,
+            (512) as usize
+        ) as ref u8
+        @snprintf(
+            buf2,
+            512,
+            "result[{s}, {s}]",
+            {sema_type_expr_name(ctx, ok_ty), sema_type_expr_name(ctx, err_ty)}
+        )
+        return buf2
+    }
+    return c"unknown"
+}
+
+fn type_name_is_ref_spelling(tname: ref u8) bool = trust {
+    return cstr.starts_with(tname, c"ref ") || cstr.starts_with(tname, c"mut ref ")
+}
+
+fn type_name_strip_ref(tname: ref u8) ref u8 = trust {
+    if cstr.starts_with(tname, c"mut ref ") {
+        return @ptradd(tname, 8) as ref u8
+    }
+    if cstr.starts_with(tname, c"ref ") {
+        return @ptradd(tname, 4) as ref u8
+    }
+    return tname
+}
+
+fn check_list_element_value(
+    ctx: ref SemaCtx,
+    list_ty: ref u8,
+    value: ref parser.Node,
+    filename: ref u8,
+    line: i64,
+    builtin_name: ref u8
+) void = trust {
+    val elem_ty: ref u8 = list_element_type_name(ctx, list_ty)
+    if elem_ty == none || cstr.eql(elem_ty, c"") {
+        return
+    }
+    val value_ty: ref u8 = expr_known_type_name(ctx, value)
+    if value_ty == none || cstr.eql(value_ty, c"") || is_type_parameter(ctx, elem_ty) {
+        return
+    }
+    val elem_is_ref: bool = type_name_is_ref_spelling(elem_ty)
+    val value_is_ref: bool = expr_is_ref_value(ctx, value) == 1
+    val elem_name: ref u8 = type_name_strip_ref(elem_ty)
+    val compatible: mut bool = false
+    if elem_is_ref == value_is_ref {
+        if elem_is_ref && cstr.eql(elem_name, c"void") {
+            compatible = true
+        } elif types_compatible(ctx, elem_name, value_ty) {
+            compatible = true
+        } elif cstr.eql(
+            unqualified_type_name(elem_name),
+            unqualified_type_name(value_ty)
+        ) {
+            compatible = true
+        } elif sema_int_const_arg_compatible(ctx, elem_name, value, filename, line) {
+            compatible = true
+        } elif sema_float_const_arg_compatible(ctx, elem_name, value, filename, line) {
+            compatible = true
+        }
+    }
+    if !compatible {
+        val expected: ref u8 = format_type_for_error(ctx, elem_name, elem_is_ref)
+        val actual: ref u8 = format_type_for_error(ctx, value_ty, value_is_ref)
+        val buf: ref u8 = allocators.ScopedArena.alloc_or_none(
+            ctx.arena,
+            (768) as usize
+        ) as ref u8
+        @snprintf(
+            buf,
+            768,
+            "{s}:{lld}: builtin '@{s}' cannot insert value of type '{s}' into '{s}' (expected '{s}')",
+            {filename, line, builtin_name, actual, list_ty, expected}
+        )
+        add_error(ctx, buf)
+    }
+}
+
 /// True when the expression is definitely not a reference value.
 fn expr_definitely_non_ref(ctx: ref SemaCtx, expr: ref parser.Node) bool = trust {
     if expr == none {
@@ -6344,6 +6510,37 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
             }
         }
 
+        if (cstr.eql(bname, c"append") || cstr.eql(bname, c"insert") ||
+        cstr.eql(bname, c"set")) &&
+        bargs != none {
+            val blist: list[ref parser.Node] = bargs as list[ref parser.Node]
+            val alen: i64 = @len(blist) as i64
+            val value_index: mut i64 = 1
+            if cstr.eql(bname, c"insert") || cstr.eql(bname, c"set") {
+                value_index = 2
+            }
+            if alen > value_index {
+                val list_arg_opt = @get(blist, 0 as usize)
+                val value_arg_opt = @get(blist, value_index as usize)
+                if list_arg_opt is some list_arg_raw {
+                    if value_arg_opt is some value_arg_raw {
+                        val list_arg: ref parser.Node = list_arg_raw as ref parser.Node
+                        val list_ty: ref u8 = expr_container_type_name(ctx, list_arg)
+                        if list_ty != none && cstr.starts_with(list_ty, c"list[") {
+                            check_list_element_value(
+                                ctx,
+                                list_ty,
+                                value_arg_raw as ref parser.Node,
+                                filename,
+                                line,
+                                bname
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
         if cstr.eql(bname, c"sizeof") {
             if bargs != none {
                 for barg in bargs as list[ref parser.Node] {
@@ -8139,7 +8336,7 @@ fn infer_builtin_list_decl_type(
             if @len(targs) as i64 >= 2 {
                 val e_opt = @get(targs, 1 as usize)
                 if e_opt is some e {
-                    elem = extract_type_name(e as ref parser.Node)
+                    elem = sema_type_expr_name(ctx, e as ref parser.Node)
                 }
             }
         } else {
@@ -8214,6 +8411,10 @@ fn val_decl_type_name(
     ty_node: ref parser.Node,
     init_expr: ref parser.Node
 ) ref u8 = trust {
+    val unwrapped_ty: ref parser.Node = unwrap_mut_type(ty_node)
+    if unwrapped_ty != none && unwrapped_ty.kind == parser.TY_LIST {
+        return sema_type_expr_name(ctx, unwrapped_ty)
+    }
     val explicit: ref u8 = extract_type_name(ty_node)
     if explicit != none {
         return explicit

@@ -1,0 +1,11 @@
+// insert and set must enforce the same element type as append.
+
+val allocators = use("std/allocators")
+
+pub fn main() void = trust {
+    val alloc: allocators.HeapAllocator = @zeroed
+    val items: mut list[ref u8] = @listalloc[allocators.HeapAllocator, ref u8](alloc)?
+
+    @insert(items, 0, "not a C string")
+    @set(items, 0, "not a C string")
+}
