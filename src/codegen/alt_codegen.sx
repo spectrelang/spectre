@@ -6377,10 +6377,11 @@ fn gen_builtin(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
     if cstr.cmp(bname, c"store") == 0 || cstr.cmp(bname, c"store64") == 0 {
         val p: ref u8 = get_arg(ctx, args, 0)
         val v: ref u8 = get_arg(ctx, args, 1)
-        val buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 256 as usize) as ref u8
+        val cap: i64 = cstr.len(p) + cstr.len(v) + 128
+        val buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, cap as usize) as ref u8
         @snprintf(
             buf,
-            256,
+            cap,
             "(*(int64_t*)(intptr_t)({s})=(int64_t)({s}))",
             {p, v}
         )
@@ -6389,10 +6390,11 @@ fn gen_builtin(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
     if cstr.cmp(bname, c"store8") == 0 {
         val p: ref u8 = get_arg(ctx, args, 0)
         val v: ref u8 = get_arg(ctx, args, 1)
-        val buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 256 as usize) as ref u8
+        val cap: i64 = cstr.len(p) + cstr.len(v) + 128
+        val buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, cap as usize) as ref u8
         @snprintf(
             buf,
-            256,
+            cap,
             "(*(uint8_t*)(intptr_t)({s})=(uint8_t)({s}))",
             {p, v}
         )
@@ -6401,10 +6403,11 @@ fn gen_builtin(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
     if cstr.cmp(bname, c"store16") == 0 {
         val p: ref u8 = get_arg(ctx, args, 0)
         val v: ref u8 = get_arg(ctx, args, 1)
-        val buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 256 as usize) as ref u8
+        val cap: i64 = cstr.len(p) + cstr.len(v) + 128
+        val buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, cap as usize) as ref u8
         @snprintf(
             buf,
-            256,
+            cap,
             "(*(uint16_t*)(intptr_t)({s})=(uint16_t)({s}))",
             {p, v}
         )
@@ -6413,10 +6416,11 @@ fn gen_builtin(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
     if cstr.cmp(bname, c"store32") == 0 {
         val p: ref u8 = get_arg(ctx, args, 0)
         val v: ref u8 = get_arg(ctx, args, 1)
-        val buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 256 as usize) as ref u8
+        val cap: i64 = cstr.len(p) + cstr.len(v) + 128
+        val buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, cap as usize) as ref u8
         @snprintf(
             buf,
-            256,
+            cap,
             "(*(int32_t*)(intptr_t)({s})=(int32_t)({s}))",
             {p, v}
         )
