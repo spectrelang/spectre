@@ -3,51 +3,51 @@
 /// SPDX-License-Identifier: GPL-3.0-only
 /// (C) Navid Momtahen - 2026
 
-val string = use("std/string")
+val str = use("std/string")
 val mem    = use("../../src/meta/mem.sx")
 val builds = use("../../src/meta/builds.sx")
 val check  = use("lib/check.sx")
 
-fn compiler_kind(compiler: string.StringView) string.StringView = {
-    return string.view_cstr(builds.alt_compiler_kind(check.cptr(compiler)))
+fn compiler_kind(compiler: str.StringView) str.StringView = {
+    return str.cstr_raw(builds.alt_compiler_kind(check.cptr(compiler)))
 }
 
-fn std_flag(kind: string.StringView) string.StringView = {
-    return string.view_cstr(builds.compiler_std_flag(check.cptr(kind)))
+fn std_flag(kind: str.StringView) str.StringView = {
+    return str.cstr_raw(builds.compiler_std_flag(check.cptr(kind)))
 }
 
-fn opt_flag(kind: string.StringView, release: bool) string.StringView = {
-    return string.view_cstr(builds.compiler_opt_flag(check.cptr(kind), release))
+fn opt_flag(kind: str.StringView, release: bool) str.StringView = {
+    return str.cstr_raw(builds.compiler_opt_flag(check.cptr(kind), release))
 }
 
-fn warn_flag(compiler: string.StringView) string.StringView = {
-    return string.view_cstr(builds.compiler_warn_flag(check.cptr(compiler)))
+fn warn_flag(compiler: str.StringView) str.StringView = {
+    return str.cstr_raw(builds.compiler_warn_flag(check.cptr(compiler)))
 }
 
-fn parsed_alt_arg(arg: string.StringView) string.StringView = {
-    return string.view_cstr(builds.parse_alt_compiler_arg(check.cptr(arg)))
+fn parsed_alt_arg(arg: str.StringView) str.StringView = {
+    return str.cstr_raw(builds.parse_alt_compiler_arg(check.cptr(arg)))
 }
 
 test "build helpers do not leak" {
     trust {
         mem.init()
-        assert string.view_eql(compiler_kind("clang"), "gnu")
-        assert string.view_eql(compiler_kind("clang-cl"), "clang-cl")
-        assert string.view_eql(compiler_kind("cl"), "msvc")
-        assert string.view_eql(std_flag("gnu"), "-std=c99")
-        assert string.view_eql(opt_flag("gnu", true), "-O3")
-        assert string.view_eql(warn_flag("clang"), "-Wno-everything")
+        assert str.eql(compiler_kind("clang"), "gnu")
+        assert str.eql(compiler_kind("clang-cl"), "clang-cl")
+        assert str.eql(compiler_kind("cl"), "msvc")
+        assert str.eql(std_flag("gnu"), "-std=c99")
+        assert str.eql(opt_flag("gnu", true), "-O3")
+        assert str.eql(warn_flag("clang"), "-Wno-everything")
         assert builds.supports_static_linking(check.cptr("linux"))
         assert !builds.supports_static_linking(check.cptr("windows"))
-        assert string.view_eql(parsed_alt_arg("-alt:clang"), "clang")
+        assert str.eql(parsed_alt_arg("-alt:clang"), "clang")
 
         val plain: ref u8 = builds.get_tmp_path(check.cptr("spectre-checkmem.txt"))
-        assert string.view_len(string.view_cstr(plain)) > 0
+        assert str.len(str.cstr_raw(plain)) > 0
         @free(plain)
 
         val first: ref u8 = builds.get_unique_tmp_path(check.cptr("spectre-checkmem.txt"))
         val second: ref u8 = builds.get_unique_tmp_path(check.cptr("spectre-checkmem.txt"))
-        assert !string.view_eql(string.view_cstr(first), string.view_cstr(second))
+        assert !str.eql(str.cstr_raw(first), str.cstr_raw(second))
         @free(first)
         @free(second)
 

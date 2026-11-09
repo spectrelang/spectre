@@ -91,12 +91,12 @@ fn print_flag_help(
 }
 
 pub fn print_help(topic: str.StringView) i32 = trust {
-    if str.view_eql_cstr(topic, c"") == 0 {
+    if str.eql_cstr(topic, c"") == 0 {
         print_usage()
         return 0
     }
 
-    if str.view_eql_cstr(topic, c"init") == 0 {
+    if str.eql_cstr(topic, c"init") == 0 {
         stdio.puts("init - Initialize a new project")
         stdio.puts("")
         stdio.puts("usage:")
@@ -107,7 +107,7 @@ pub fn print_help(topic: str.StringView) i32 = trust {
         return 0
     }
 
-    if str.view_eql_cstr(topic, c"fmt") == 0 {
+    if str.eql_cstr(topic, c"fmt") == 0 {
         stdio.puts("fmt - Format Spectre source files")
         stdio.puts("")
         stdio.puts("usage:")
@@ -126,7 +126,7 @@ pub fn print_help(topic: str.StringView) i32 = trust {
         return 0
     }
 
-    if str.view_eql_cstr(topic, c"critic") == 0 {
+    if str.eql_cstr(topic, c"critic") == 0 {
         stdio.puts("critic - Point out antipatterns in Spectre source files")
         stdio.puts("")
         stdio.puts("usage:")
@@ -141,7 +141,7 @@ pub fn print_help(topic: str.StringView) i32 = trust {
         return 0
     }
 
-    if str.view_eql_cstr(topic, c"build") == 0 {
+    if str.eql_cstr(topic, c"build") == 0 {
         stdio.puts("build - Build using a configuration from sx.mod")
         stdio.puts("")
         stdio.puts("usage:")
@@ -154,7 +154,7 @@ pub fn print_help(topic: str.StringView) i32 = trust {
         return 0
     }
 
-    if str.view_eql_cstr(topic, c"install") == 0 {
+    if str.eql_cstr(topic, c"install") == 0 {
         stdio.puts("install - Build and install a Spectre project from a repository")
         stdio.puts("")
         stdio.puts("usage:")
@@ -185,7 +185,7 @@ pub fn print_help(topic: str.StringView) i32 = trust {
         return 0
     }
 
-    if str.view_eql_cstr(topic, c"run") == 0 {
+    if str.eql_cstr(topic, c"run") == 0 {
         stdio.puts("run - Compile and immediately run a program")
         stdio.puts("")
         stdio.puts("usage:")
@@ -195,7 +195,7 @@ pub fn print_help(topic: str.StringView) i32 = trust {
         return 0
     }
 
-    if str.view_eql_cstr(topic, c"doc") == 0 {
+    if str.eql_cstr(topic, c"doc") == 0 {
         stdio.puts("doc - Generate documentation for a source file")
         stdio.puts("")
         stdio.puts("usage:")
@@ -215,7 +215,7 @@ pub fn print_help(topic: str.StringView) i32 = trust {
         return 0
     }
 
-    if str.view_eql_cstr(topic, c"add") == 0 {
+    if str.eql_cstr(topic, c"add") == 0 {
         stdio.puts("add - Add a git dependency")
         stdio.puts("")
         stdio.puts("usage:")
@@ -225,7 +225,7 @@ pub fn print_help(topic: str.StringView) i32 = trust {
         return 0
     }
 
-    if str.view_eql_cstr(topic, c"remove") == 0 {
+    if str.eql_cstr(topic, c"remove") == 0 {
         stdio.puts("remove - Remove a dependency")
         stdio.puts("")
         stdio.puts("usage:")
@@ -235,7 +235,7 @@ pub fn print_help(topic: str.StringView) i32 = trust {
         return 0
     }
 
-    if str.view_eql_cstr(topic, c"upgrade") == 0 {
+    if str.eql_cstr(topic, c"upgrade") == 0 {
         stdio.puts("upgrade - Upgrade dependencies to their latest HEAD")
         stdio.puts("")
         stdio.puts("usage:")
@@ -247,7 +247,7 @@ pub fn print_help(topic: str.StringView) i32 = trust {
         return 0
     }
 
-    if str.view_eql_cstr(topic, c"restore") == 0 {
+    if str.eql_cstr(topic, c"restore") == 0 {
         stdio.puts("restore - Restore project dependencies")
         stdio.puts("")
         stdio.puts("usage:")
@@ -257,7 +257,7 @@ pub fn print_help(topic: str.StringView) i32 = trust {
         return 0
     }
 
-    if str.view_eql_cstr(topic, c"graph") == 0 {
+    if str.eql_cstr(topic, c"graph") == 0 {
         stdio.puts("graph - Visualize the project dependency tree")
         stdio.puts("")
         stdio.puts("usage:")
@@ -265,7 +265,7 @@ pub fn print_help(topic: str.StringView) i32 = trust {
         return 0
     }
 
-    if str.view_eql_cstr(topic, c"ref") == 0 {
+    if str.eql_cstr(topic, c"ref") == 0 {
         stdio.puts("ref - Generate the language reference")
         stdio.puts("")
         stdio.puts("usage:")
@@ -275,7 +275,7 @@ pub fn print_help(topic: str.StringView) i32 = trust {
         return 0
     }
 
-    if str.view_eql_cstr(topic, c"clean") == 0 {
+    if str.eql_cstr(topic, c"clean") == 0 {
         stdio.puts("clean - Remove build artifacts")
         stdio.puts("")
         stdio.puts("usage:")
@@ -285,7 +285,7 @@ pub fn print_help(topic: str.StringView) i32 = trust {
         return 0
     }
 
-    if str.view_eql_cstr(topic, c"doctor") == 0 {
+    if str.eql_cstr(topic, c"doctor") == 0 {
         stdio.puts("doctor - Show system and Spectre installation information")
         stdio.puts("")
         stdio.puts("usage:")
@@ -293,7 +293,7 @@ pub fn print_help(topic: str.StringView) i32 = trust {
         return 0
     }
 
-    if str.view_eql_cstr(topic, c"help") == 0 {
+    if str.eql_cstr(topic, c"help") == 0 {
         stdio.puts("help - Show detailed help for a command or flag")
         stdio.puts("")
         stdio.puts("usage:")
@@ -306,7 +306,7 @@ pub fn print_help(topic: str.StringView) i32 = trust {
         return 0
     }
 
-    if str.view_eql_cstr(topic, c"-ast") == 0 {
+    if str.eql_cstr(topic, c"-ast") == 0 {
         print_flag_help(
             "-ast",
             "Print the AST in a unicode tree and exit.",
@@ -315,7 +315,7 @@ pub fn print_help(topic: str.StringView) i32 = trust {
         return 0
     }
 
-    if str.view_eql_cstr(topic, c"-syntax-check") == 0 {
+    if str.eql_cstr(topic, c"-syntax-check") == 0 {
         print_flag_help(
             "-syntax-check",
             "Check the validity of the syntax without compiling.",
@@ -324,7 +324,7 @@ pub fn print_help(topic: str.StringView) i32 = trust {
         return 0
     }
 
-    if str.view_eql_cstr(topic, c"-emit-ssa") == 0 {
+    if str.eql_cstr(topic, c"-emit-ssa") == 0 {
         print_flag_help(
             "-emit-ssa",
             "Print QBE IR to stdout and exit (POSIX only).",
@@ -333,7 +333,7 @@ pub fn print_help(topic: str.StringView) i32 = trust {
         return 0
     }
 
-    if str.view_eql_cstr(topic, c"-emit-alt") == 0 {
+    if str.eql_cstr(topic, c"-emit-alt") == 0 {
         print_flag_help(
             "-emit-alt",
             "Print alternative IR to stdout and exit.",
@@ -342,7 +342,7 @@ pub fn print_help(topic: str.StringView) i32 = trust {
         return 0
     }
 
-    if str.view_eql_cstr(topic, c"-emit-asm") == 0 {
+    if str.eql_cstr(topic, c"-emit-asm") == 0 {
         print_flag_help(
             "-emit-asm",
             "Print assembly to stdout and exit.",
@@ -351,15 +351,15 @@ pub fn print_help(topic: str.StringView) i32 = trust {
         return 0
     }
 
-    if str.view_eql_cstr(
+    if str.eql_cstr(
         topic,
         c"-src-target"
-    ) == 0 || str.view_eql_cstr(topic, c"-src-target:<os>") == 0 {
+    ) == 0 || str.eql_cstr(topic, c"-src-target:<os>") == 0 {
         print_src_target_help()
         return 0
     }
 
-    if str.view_eql_cstr(topic, c"-translate-c") == 0 {
+    if str.eql_cstr(topic, c"-translate-c") == 0 {
         print_flag_help(
             "-translate-c",
             "Translate C input into a single .sx file.",
@@ -368,10 +368,10 @@ pub fn print_help(topic: str.StringView) i32 = trust {
         return 0
     }
 
-    if str.view_eql_cstr(
+    if str.eql_cstr(
         topic,
         c"-inc-path"
-    ) == 0 || str.view_eql_cstr(topic, c"-inc-path:<dir>") == 0 {
+    ) == 0 || str.eql_cstr(topic, c"-inc-path:<dir>") == 0 {
         print_flag_help(
             "-inc-path:<dir>",
             "Add an include search path for the alternative backend.",
@@ -380,7 +380,7 @@ pub fn print_help(topic: str.StringView) i32 = trust {
         return 0
     }
 
-    if str.view_eql_cstr(topic, c"-show-cmd") == 0 {
+    if str.eql_cstr(topic, c"-show-cmd") == 0 {
         print_flag_help(
             "-show-cmd",
             "Show the command used for linking.",
@@ -389,7 +389,7 @@ pub fn print_help(topic: str.StringView) i32 = trust {
         return 0
     }
 
-    if str.view_eql_cstr(topic, c"-test") == 0 {
+    if str.eql_cstr(topic, c"-test") == 0 {
         print_flag_help(
             "-test",
             "Run the unit tests in the current file.",
@@ -398,7 +398,7 @@ pub fn print_help(topic: str.StringView) i32 = trust {
         return 0
     }
 
-    if str.view_eql_cstr(topic, c"-test-all") == 0 {
+    if str.eql_cstr(topic, c"-test-all") == 0 {
         print_flag_help(
             "-test-all",
             "Run the unit tests in every .sx file under the current directory, recursively.",
@@ -407,7 +407,7 @@ pub fn print_help(topic: str.StringView) i32 = trust {
         return 0
     }
 
-    if str.view_eql_cstr(topic, c"-leak-check") == 0 {
+    if str.eql_cstr(topic, c"-leak-check") == 0 {
         print_flag_help(
             "-leak-check",
             "Route allocations made by @alloc through the leak tracker and enable the @dumpmemleaks intrinsic.",
@@ -416,7 +416,7 @@ pub fn print_help(topic: str.StringView) i32 = trust {
         return 0
     }
 
-    if str.view_eql_cstr(topic, c"-release") == 0 {
+    if str.eql_cstr(topic, c"-release") == 0 {
         print_flag_help(
             "-release",
             "Build in release mode with optimizations and stripped symbols.",
@@ -425,7 +425,7 @@ pub fn print_help(topic: str.StringView) i32 = trust {
         return 0
     }
 
-    if str.view_eql_cstr(topic, c"-native") == 0 {
+    if str.eql_cstr(topic, c"-native") == 0 {
         print_flag_help(
             "-native",
             "Optimize the alternative backend for the host CPU at the cost of portability across architectures.",
@@ -434,7 +434,7 @@ pub fn print_help(topic: str.StringView) i32 = trust {
         return 0
     }
 
-    if str.view_eql_cstr(topic, c"-unroll") == 0 {
+    if str.eql_cstr(topic, c"-unroll") == 0 {
         print_flag_help(
             "-unroll",
             "Enable aggressive loop unrolling in the alternative backend with -funroll-loops.",
@@ -443,7 +443,7 @@ pub fn print_help(topic: str.StringView) i32 = trust {
         return 0
     }
 
-    if str.view_eql_cstr(topic, c"-no-simd") == 0 {
+    if str.eql_cstr(topic, c"-no-simd") == 0 {
         print_flag_help(
             "-no-simd",
             "Disable autovectorization and emit scalar loops. Useful for debugging and for platforms without a supported SIMD backend.",
@@ -452,7 +452,7 @@ pub fn print_help(topic: str.StringView) i32 = trust {
         return 0
     }
 
-    if str.view_eql_cstr(topic, c"-dynamic") == 0 {
+    if str.eql_cstr(topic, c"-dynamic") == 0 {
         print_flag_help(
             "-dynamic",
             "Link dynamically instead of statically. Static linking is the default on platforms that support it.",
@@ -461,7 +461,7 @@ pub fn print_help(topic: str.StringView) i32 = trust {
         return 0
     }
 
-    if str.view_eql_cstr(topic, c"-dll") == 0 {
+    if str.eql_cstr(topic, c"-dll") == 0 {
         print_flag_help(
             "-dll",
             "Build a shared library.",
@@ -470,7 +470,7 @@ pub fn print_help(topic: str.StringView) i32 = trust {
         return 0
     }
 
-    if str.view_eql_cstr(topic, c"-a") == 0 || str.view_eql_cstr(topic, c"-alt") == 0 {
+    if str.eql_cstr(topic, c"-a") == 0 || str.eql_cstr(topic, c"-alt") == 0 {
         print_flag_help(
             "-a, -alt",
             "Compile with the fallback backend. Use -alt:<cc> to force a driver such as clang, clang-cl, cl, or tcc.",
@@ -479,7 +479,7 @@ pub fn print_help(topic: str.StringView) i32 = trust {
         return 0
     }
 
-    if str.view_eql_cstr(topic, c"-b") == 0 || str.view_eql_cstr(topic, c"-bootstrap") == 0 {
+    if str.eql_cstr(topic, c"-b") == 0 || str.eql_cstr(topic, c"-bootstrap") == 0 {
         print_flag_help(
             "-b, -bootstrap",
             "Display backend output on error.",
@@ -488,7 +488,7 @@ pub fn print_help(topic: str.StringView) i32 = trust {
         return 0
     }
 
-    if str.view_eql_cstr(topic, c"-c") == 0 || str.view_eql_cstr(topic, c"-compile") == 0 {
+    if str.eql_cstr(topic, c"-c") == 0 || str.eql_cstr(topic, c"-compile") == 0 {
         print_flag_help(
             "-c, -compile",
             "Compile only to produce an object file, without linking.",
@@ -497,7 +497,7 @@ pub fn print_help(topic: str.StringView) i32 = trust {
         return 0
     }
 
-    if str.view_eql_cstr(topic, c"-d") == 0 || str.view_starts_with(topic, "-d:") {
+    if str.eql_cstr(topic, c"-d") == 0 || str.starts_with(topic, "-d:") {
         print_flag_help(
             "-d:<NAME>=<value>",
             "Define a compile-time environment variable. Reads through env.get(\"NAME\") are replaced with the supplied value at compile time.",
@@ -506,13 +506,13 @@ pub fn print_help(topic: str.StringView) i32 = trust {
         return 0
     }
 
-    if str.view_eql_cstr(
+    if str.eql_cstr(
         topic,
         c"-o"
-    ) == 0 || str.view_eql_cstr(
+    ) == 0 || str.eql_cstr(
         topic,
         c"-output"
-    ) == 0 || str.view_eql_cstr(topic, c"-output=<file>") == 0 {
+    ) == 0 || str.eql_cstr(topic, c"-output=<file>") == 0 {
         print_flag_help(
             "-o, -output <file>",
             "Set the output path for a binary or build artifact.",
@@ -521,7 +521,7 @@ pub fn print_help(topic: str.StringView) i32 = trust {
         return 0
     }
 
-    if str.view_eql_cstr(topic, c"-l") == 0 || str.view_eql_cstr(topic, c"-loud") == 0 {
+    if str.eql_cstr(topic, c"-l") == 0 || str.eql_cstr(topic, c"-loud") == 0 {
         print_flag_help(
             "-l, -loud",
             "Show compilation stages with verbose output.",
@@ -530,7 +530,7 @@ pub fn print_help(topic: str.StringView) i32 = trust {
         return 0
     }
 
-    if str.view_eql_cstr(topic, c"-v") == 0 || str.view_eql_cstr(topic, c"-version") == 0 {
+    if str.eql_cstr(topic, c"-v") == 0 || str.eql_cstr(topic, c"-version") == 0 {
         print_flag_help(
             "-v, -version",
             "Show the version of the installed Spectre compiler.",
@@ -539,7 +539,7 @@ pub fn print_help(topic: str.StringView) i32 = trust {
         return 0
     }
 
-    if str.view_eql_cstr(topic, c"-h") == 0 || str.view_eql_cstr(topic, c"-help") == 0 {
+    if str.eql_cstr(topic, c"-h") == 0 || str.eql_cstr(topic, c"-help") == 0 {
         print_flag_help(
             "-h, -help",
             "Print the general help message.",
@@ -548,7 +548,7 @@ pub fn print_help(topic: str.StringView) i32 = trust {
         return 0
     }
 
-    if str.view_eql_cstr(topic, c"-stdio") == 0 {
+    if str.eql_cstr(topic, c"-stdio") == 0 {
         print_flag_help(
             "-stdio",
             "Write formatted output to stdout instead of editing files in place.",
@@ -557,7 +557,7 @@ pub fn print_help(topic: str.StringView) i32 = trust {
         return 0
     }
 
-    if str.view_eql_cstr(topic, c"-md") == 0 {
+    if str.eql_cstr(topic, c"-md") == 0 {
         print_flag_help(
             "-md",
             "Generate Markdown documentation instead of HTML.",
@@ -566,7 +566,7 @@ pub fn print_help(topic: str.StringView) i32 = trust {
         return 0
     }
 
-    if str.view_eql_cstr(topic, c"-fix") == 0 {
+    if str.eql_cstr(topic, c"-fix") == 0 {
         print_flag_help(
             "-fix",
             "Apply safe critic fixes to .sx files or directories.",

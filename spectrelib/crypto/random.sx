@@ -3,7 +3,7 @@
 /// No seeding is required; the OS manages entropy automatically.
 
 val stdio = use("../stdio")
-val str   = use("../string")
+val str   = use("std/string")
 
 when linux {
     // glibc >= 2.25 / musl provide getrandom(2) directly.
@@ -133,8 +133,8 @@ test "random values and uuids are generated" {
     assert uuid1 != none
     assert uuid2 != none
 
-    stdio.puts(str.view_cstr(uuid1))
-    stdio.puts(str.view_cstr(uuid2))
+    stdio.puts(str.cstr_raw(uuid1))
+    stdio.puts(str.cstr_raw(uuid2))
 
     trust @free(uuid1)
     trust @free(uuid2)

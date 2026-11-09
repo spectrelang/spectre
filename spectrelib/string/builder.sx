@@ -1,0 +1,158 @@
+/// Growable builder for owned heap-allocated strings.
+
+val allocators = use("../allocators")
+val str        = use("std/string")
+val ostr       = use("std/string/owned")
+
+extern (C, header) fn strlen(s: ref u8) i64 = "strlen"
+
+/// Ensure capacity (private helper)
+fn ensure_cap(ptr: ref void, needed: i64) void = trust {
+    val cap: i64 = @load(@ptradd(ptr, 16)) as i64
+    if (needed <= cap) {
+        return
+    }
+    val new_cap: i64 = needed * 2
+    val old_ptr: ref void = @load(ptr)
+    val new_ptr: ref void = @realloc(old_ptr, new_cap)
+    @store(ptr, new_ptr)
+    @store(@ptradd(ptr, 16), new_cap)
+}
+
+/// The almighty str.String builder
+pub type StringBuilder = {
+    ptr: ref u8
+    len: i64
+    cap: i64
+}
+
+/// Create a new empty StringBuilder
+pub fn (StringBuilder) new() StringBuilder = {
+    val s: ref void = @alloc(24)
+    val buf: ref void = @alloc(64)
+    trust {
+        @store8(buf, 0)
+        @store(s, buf)
+        @store(@ptradd(s, 8), 0)
+        @store(@ptradd(s, 16), 64)
+    }
+    return s as StringBuilder
+}
+
+/// Append a borrowed string view to the builder.
+pub fn (StringBuilder) append(sb: self, v: str.StringView) void = trust {
+    val l: i64 = @load(@ptradd(sb as ref void, 8)) as i64
+    val new_len: i64 = l + v.len
+
+    ensure_cap(sb as ref void, new_len + 1)
+
+    val ptr: ref void = @load(sb as ref void)
+
+    if v.len > 0 {
+        @memcpy(@ptradd(ptr, l), v.ptr as ref void, v.len as usize)
+    }
+    @store8(@ptradd(ptr, new_len), 0)
+    @store(@ptradd(sb as ref void, 8), new_len)
+}
+
+/// Append an owned str.String to the builder.
+pub fn (StringBuilder) append_string(sb: self, s: str.String) void = trust {
+    val other_ptr: ref void = @load(s as ref void)
+    val other_len: i64 = @load(@ptradd(s as ref void, 8)) as i64
+    val l: i64 = @load(@ptradd(sb as ref void, 8)) as i64
+    val new_len: i64 = l + other_len
+
+    ensure_cap(sb as ref void, new_len + 1)
+
+    val ptr: ref void = @load(sb as ref void)
+
+    @memcpy(@ptradd(ptr, l), other_ptr, other_len)
+    @store8(@ptradd(ptr, new_len), 0)
+    @store(@ptradd(sb as ref void, 8), new_len)
+}
+
+/// Append a C string to the builder
+pub fn (StringBuilder) append_raw(sb: self, cstr: ref u8) void = trust {
+    val l: i64 = @load(@ptradd(sb as ref void, 8)) as i64
+    val add_len: i64 = strlen(cstr)
+    val new_len: i64 = l + add_len
+
+    ensure_cap(sb as ref void, new_len + 1)
+
+    val ptr: ref void = @load(sb as ref void)
+
+    @memcpy(@ptradd(ptr, l), cstr, add_len)
+    @store8(@ptradd(ptr, new_len), 0)
+    @store(@ptradd(sb as ref void, 8), new_len)
+}
+
+/// Build — returns a new heap-allocated str.String with the accumulated content
+pub fn (StringBuilder) build(sb: self) str.String = trust {
+    val l: i64 = @load(@ptradd(sb as ref void, 8)) as i64
+    val ptr: ref void = @load(sb as ref void)
+    val buf: ref void = @alloc(l + 1)
+
+    @memcpy(buf, ptr, l)
+    @store8(@ptradd(buf, l), 0)
+
+    val out: ref void = @alloc(24)
+
+    @store(out, buf)
+    @store(@ptradd(out, 8), l)
+    @store(@ptradd(out, 16), l + 1)
+
+    return out as str.String
+}
+
+/// Free the StringBuilder's internal buffer and header
+pub fn (StringBuilder) free(sb: self) void = trust {
+    val ptr: ref void = @load(sb as ref void)
+    @free(ptr)
+    val hdr: mut ref void = sb as ref void
+    @free(hdr)
+}
+
+/// Append a single byte character
+pub fn (StringBuilder) append_char(sb: self, c: u8) void = trust {
+    val l: i64 = @load(@ptradd(sb as ref void, 8)) as i64
+    val new_len: i64 = l + 1
+
+    ensure_cap(sb as ref void, new_len + 1)
+
+    val ptr: ref void = @load(sb as ref void)
+    @store8(@ptradd(ptr, l), c)
+    @store8(@ptradd(ptr, new_len), 0)
+    @store(@ptradd(sb as ref void, 8), new_len)
+}
+
+/// Clear the builder (reset length to 0, keep allocation)
+pub fn (StringBuilder) clear(sb: self) void = trust {
+    val ptr: ref void = @load(sb as ref void)
+    @store8(ptr, 0)
+    @store(@ptradd(sb as ref void, 8), 0)
+}
+
+test "string builder builds and clears" {
+    val arena: allocators.Arena = trust allocators.Arena.new(32768 as usize)?
+    val sb = StringBuilder.new()
+    trust StringBuilder.append_raw(sb, c"hello")
+    trust StringBuilder.append_string(sb, ostr.from_raw[allocators.Arena](arena, c" "))
+    trust StringBuilder.append_raw(sb, c"world")
+    trust StringBuilder.append_char(sb, 33 as u8) // '!'
+
+    val built = trust StringBuilder.build(sb)
+    assert ostr.equals(built, trust ostr.from_raw[allocators.Arena](arena, c"hello world!"))
+    trust @free(@load(built))
+    val built_hdr: mut ref void = built as ref void
+    trust @free(built_hdr)
+
+    trust StringBuilder.clear(sb)
+    val built2 = trust StringBuilder.build(sb)
+    assert ostr.equals(built2, trust ostr.from_raw[allocators.Arena](arena, c""))
+    trust @free(@load(built2))
+    val built2_hdr: mut ref void = built2 as ref void
+    trust @free(built2_hdr)
+
+    trust StringBuilder.free(sb)
+    trust allocators.Arena.free(arena)
+}

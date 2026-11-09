@@ -1,6 +1,6 @@
 val allocators = use("std/allocators")
 val mem        = use("../meta/mem.sx")
-val string     = use("std/string")
+val str     = use("std/string")
 
 val SUPPRESS_UNUSED: i64 = 1
 
@@ -98,7 +98,7 @@ pub union TokenKind = {
 pub type Token = {
     kind: mut TokenKind
     /// Payload for ident, string, integer, and float tokens.
-    text: mut string.StringView
+    text: mut str.StringView
     line: mut i64
     col: mut i64
     /// Suppression directives attached to this token by preceding comments.
@@ -113,7 +113,7 @@ fn make_tok(l: mut ref Lexer, kind: TokenKind, line: i64, col: i64) ref Token = 
         @sizeof(Token) as usize
     ) as ref Token
     t.kind = kind
-    t.text = string.view(none, 0)
+    t.text = str.view(none, 0)
     t.line = line
     t.col = col
     t.suppress = l.pending_suppress
@@ -128,7 +128,7 @@ fn make_tok(l: mut ref Lexer, kind: TokenKind, line: i64, col: i64) ref Token = 
 
 
 type Lexer = {
-    src: mut string.StringView
+    src: mut str.StringView
     pos: mut i64
     line: mut i64
     col: mut i64
@@ -140,7 +140,7 @@ type Lexer = {
 fn lexer_new(
     arena: allocators.ScopedArenaAllocator,
     owns_arena: bool,
-    src: string.StringView
+    src: str.StringView
 ) ref Lexer = trust {
     val l: mut ref Lexer = @alloc(@sizeof(Lexer)) as ref Lexer
     l.src = src
@@ -205,147 +205,147 @@ fn is_space(c: i64) bool = trust {
 
 fn substr_view(
     arena: allocators.ScopedArenaAllocator,
-    src: string.StringView,
+    src: str.StringView,
     start: i64,
     end: i64
-) string.StringView = trust {
+) str.StringView = trust {
     val n: i64 = end - start
     val buf: ref u8 = allocators.ScopedArena.alloc_or_none(arena, (n + 1) as usize) as ref u8
     if n > 0 {
         @memcpy(buf, @ptradd(src.ptr, start), n)
     }
     @store8(@ptradd(buf, n), 0)
-    return string.view(buf, n)
+    return str.view(buf, n)
 }
 
-fn keyword_kind(s: string.StringView) TokenKind = trust {
-    if string.view_eql_cstr(s, c"fn") {
+fn keyword_kind(s: str.StringView) TokenKind = trust {
+    if str.eql_cstr(s, c"fn") {
         return Fn()
     }
-    if string.view_eql_cstr(s, c"spec") {
+    if str.eql_cstr(s, c"spec") {
         return Spec()
     }
-    if string.view_eql_cstr(s, c"val") {
+    if str.eql_cstr(s, c"val") {
         return Val()
     }
-    if string.view_eql_cstr(s, c"mut") {
+    if str.eql_cstr(s, c"mut") {
         return Mut()
     }
-    if string.view_eql_cstr(s, c"pub") {
+    if str.eql_cstr(s, c"pub") {
         return Pub()
     }
-    if string.view_eql_cstr(s, c"type") {
+    if str.eql_cstr(s, c"type") {
         return Type()
     }
-    if string.view_eql_cstr(s, c"pre") {
+    if str.eql_cstr(s, c"pre") {
         return Pre()
     }
-    if string.view_eql_cstr(s, c"post") {
+    if str.eql_cstr(s, c"post") {
         return Post()
     }
-    if string.view_eql_cstr(s, c"return") {
+    if str.eql_cstr(s, c"return") {
         return Return()
     }
-    if string.view_eql_cstr(s, c"if") {
+    if str.eql_cstr(s, c"if") {
         return If()
     }
-    if string.view_eql_cstr(s, c"else") {
+    if str.eql_cstr(s, c"else") {
         return Else()
     }
-    if string.view_eql_cstr(s, c"elif") {
+    if str.eql_cstr(s, c"elif") {
         return Elif()
     }
-    if string.view_eql_cstr(s, c"trust") {
+    if str.eql_cstr(s, c"trust") {
         return Trust()
     }
-    if string.view_eql_cstr(s, c"inline") {
+    if str.eql_cstr(s, c"inline") {
         return Inline()
     }
-    if string.view_eql_cstr(s, c"use") {
+    if str.eql_cstr(s, c"use") {
         return Use()
     }
-    if string.view_eql_cstr(s, c"ref") {
+    if str.eql_cstr(s, c"ref") {
         return Ref()
     }
-    if string.view_eql_cstr(s, c"for") {
+    if str.eql_cstr(s, c"for") {
         return For()
     }
-    if string.view_eql_cstr(s, c"in") {
+    if str.eql_cstr(s, c"in") {
         return In()
     }
-    if string.view_eql_cstr(s, c"some") {
+    if str.eql_cstr(s, c"some") {
         return Some()
     }
-    if string.view_eql_cstr(s, c"none") {
+    if str.eql_cstr(s, c"none") {
         return None()
     }
-    if string.view_eql_cstr(s, c"ok") {
+    if str.eql_cstr(s, c"ok") {
         return Ok()
     }
-    if string.view_eql_cstr(s, c"err") {
+    if str.eql_cstr(s, c"err") {
         return Err()
     }
-    if string.view_eql_cstr(s, c"match") {
+    if str.eql_cstr(s, c"match") {
         return Match()
     }
-    if string.view_eql_cstr(s, c"true") {
+    if str.eql_cstr(s, c"true") {
         return True()
     }
-    if string.view_eql_cstr(s, c"false") {
+    if str.eql_cstr(s, c"false") {
         return False()
     }
-    if string.view_eql_cstr(s, c"defer") {
+    if str.eql_cstr(s, c"defer") {
         return Defer()
     }
-    if string.view_eql_cstr(s, c"break") {
+    if str.eql_cstr(s, c"break") {
         return Break()
     }
-    if string.view_eql_cstr(s, c"continue") {
+    if str.eql_cstr(s, c"continue") {
         return Continue()
     }
-    if string.view_eql_cstr(s, c"as") {
+    if str.eql_cstr(s, c"as") {
         return As()
     }
-    if string.view_eql_cstr(s, c"assert") {
+    if str.eql_cstr(s, c"assert") {
         return Assert()
     }
-    if string.view_eql_cstr(s, c"when") {
+    if str.eql_cstr(s, c"when") {
         return When()
     }
-    if string.view_eql_cstr(s, c"union") {
+    if str.eql_cstr(s, c"union") {
         return Union()
     }
-    if string.view_eql_cstr(s, c"enum") {
+    if str.eql_cstr(s, c"enum") {
         return Enum()
     }
-    if string.view_eql_cstr(s, c"extern") {
+    if str.eql_cstr(s, c"extern") {
         return Extern()
     }
-    if string.view_eql_cstr(s, c"link") {
+    if str.eql_cstr(s, c"link") {
         return Link()
     }
-    if string.view_eql_cstr(s, c"lib") {
+    if str.eql_cstr(s, c"lib") {
         return Lib()
     }
-    if string.view_eql_cstr(s, c"guarded") {
+    if str.eql_cstr(s, c"guarded") {
         return Guarded()
     }
-    if string.view_eql_cstr(s, c"not") {
+    if str.eql_cstr(s, c"not") {
         return Not()
     }
-    if string.view_eql_cstr(s, c"test") {
+    if str.eql_cstr(s, c"test") {
         return Test()
     }
-    if string.view_eql_cstr(s, c"guard") {
+    if str.eql_cstr(s, c"guard") {
         return Guard()
     }
-    if string.view_eql_cstr(s, c"invariant") {
+    if str.eql_cstr(s, c"invariant") {
         return Invariant()
     }
     return Ident(s.ptr)
 }
 
-fn lex_string(l: mut ref Lexer) string.StringView = trust {
+fn lex_string(l: mut ref Lexer) str.StringView = trust {
     val buf_cap: mut i64 = 4096
     val buf: mut ref u8 = @alloc(buf_cap) as ref u8
     val i: mut i64 = 0
@@ -404,7 +404,7 @@ fn lex_string(l: mut ref Lexer) string.StringView = trust {
     val result: ref u8 = allocators.ScopedArena.alloc_or_none(l.arena, (i + 1) as usize) as ref u8
     @memcpy(result, buf, i + 1)
     @free(buf)
-    return string.view(result, i)
+    return str.view(result, i)
 }
 
 fn lex_number(l: mut ref Lexer, line: i64, col: i64) ref Token = trust {
@@ -420,7 +420,7 @@ fn lex_number(l: mut ref Lexer, line: i64, col: i64) ref Token = trust {
             }
             lx_advance(l)
         }
-        val hex_text: string.StringView = substr_view(l.arena, l.src, start, l.pos)
+        val hex_text: str.StringView = substr_view(l.arena, l.src, start, l.pos)
         val hex_tok: mut ref Token = make_tok(l, Int(hex_text.ptr), line, col)
         hex_tok.text = hex_text
         return hex_tok
@@ -455,7 +455,7 @@ fn lex_number(l: mut ref Lexer, line: i64, col: i64) ref Token = trust {
             }
         }
     }
-    val text: string.StringView = substr_view(l.arena, l.src, start, l.pos)
+    val text: str.StringView = substr_view(l.arena, l.src, start, l.pos)
     if is_float {
         val ftok: mut ref Token = make_tok(l, Float(text.ptr), line, col)
         ftok.text = text
@@ -476,7 +476,7 @@ fn skip_whitespace(l: mut ref Lexer) void = trust {
 }
 
 fn lx_match_text(l: ref Lexer, start: i64, end: i64, text: ref u8) bool = trust {
-    val n: i64 = string.len_raw(text)
+    val n: i64 = str.len_raw(text)
     if start < 0 || start + n > end {
         return false
     }
@@ -502,7 +502,7 @@ fn comment_suppresses_unused(l: ref Lexer, start: i64, end: i64) bool = trust {
     if !lx_match_text(l, start, end, prefix) {
         return false
     }
-    val p: mut i64 = start + string.len_raw(prefix)
+    val p: mut i64 = start + str.len_raw(prefix)
     if p >= end {
         return false
     }
@@ -532,7 +532,7 @@ fn comment_suppresses_unused(l: ref Lexer, start: i64, end: i64) bool = trust {
     if !lx_match_text(l, p, end, feature) {
         return false
     }
-    p = p + string.len_raw(feature)
+    p = p + str.len_raw(feature)
     if p >= end {
         return false
     }
@@ -613,7 +613,7 @@ fn lex_raw_string(l: mut ref Lexer, line: i64, col: i64) ref Token = trust {
     val result: ref u8 = allocators.ScopedArena.alloc_or_none(l.arena, (i + 1) as usize) as ref u8
     @memcpy(result, buf, i + 1)
     @free(buf)
-    val sv: string.StringView = string.view(result, i)
+    val sv: str.StringView = str.view(result, i)
     val stok: mut ref Token = make_tok(l, Str(sv.ptr), line, col)
     stok.text = sv
     return stok
@@ -652,7 +652,7 @@ fn lex_identifier(l: mut ref Lexer, line: i64, col: i64) ref Token = trust {
         }
         lx_advance(l)
     }
-    val text: string.StringView = substr_view(l.arena, l.src, start, l.pos)
+    val text: str.StringView = substr_view(l.arena, l.src, start, l.pos)
     val kind: TokenKind = keyword_kind(text)
     val tok: mut ref Token = make_tok(l, kind, line, col)
     tok.text = text
@@ -858,7 +858,7 @@ pub fn free_tokens(tokens: list[ref Token]) void = trust {
 fn tokenize_in(
     arena: allocators.ScopedArenaAllocator,
     owns_arena: bool,
-    src: string.StringView
+    src: str.StringView
 ) result[list[ref Token], ref u8] = trust {
     val l: mut ref Lexer = lexer_new(arena, owns_arena, src)
     val tokens: mut list[ref Token] = mem.new[ref Token]()
@@ -885,14 +885,14 @@ fn tokenize_in(
         }
         if c == 99 && lx_peek(l) == 34 {
             lx_advance(l)
-            val cstr_view: string.StringView = lex_string(l)
+            val cstr_view: str.StringView = lex_string(l)
             val cstr_tok: mut ref Token = make_tok(l, CStr(cstr_view.ptr), line, col)
             cstr_tok.text = cstr_view
             @append(tokens, cstr_tok)
             continue
         }
         if c == 34 {
-            val str_view: string.StringView = lex_string(l)
+            val str_view: str.StringView = lex_string(l)
             val str_tok: mut ref Token = make_tok(l, Str(str_view.ptr), line, col)
             str_tok.text = str_view
             @append(tokens, str_tok)
@@ -936,7 +936,7 @@ fn tokenize_in(
 }
 
 /// Convenience form that owns a private arena for the returned token list.
-pub fn tokenize_view(src: string.StringView) result[list[ref Token], ref u8] = trust {
+pub fn tokenize_view(src: str.StringView) result[list[ref Token], ref u8] = trust {
     val arena: allocators.ScopedArenaAllocator = allocators.ScopedArena.new(1048576 as usize)?
     val res = tokenize_in(arena, true, src)
     match res {
@@ -952,13 +952,13 @@ pub fn tokenize_view(src: string.StringView) result[list[ref Token], ref u8] = t
 
 /// Convenience form that owns a private arena for the returned token list.
 pub fn tokenize(src: ref u8) result[list[ref Token], ref u8] = trust {
-    return tokenize_view(string.view_cstr(src))
+    return tokenize_view(str.cstr_raw(src))
 }
 
 /// Tokenize using a caller-owned arena. The arena must outlive the tokens.
 pub fn tokenize_with_view(
     arena: allocators.ScopedArenaAllocator,
-    src: string.StringView
+    src: str.StringView
 ) result[list[ref Token], ref u8] = trust {
     return tokenize_in(arena, false, src)
 }
@@ -968,7 +968,7 @@ pub fn tokenize_with(
     arena: allocators.ScopedArenaAllocator,
     src: ref u8
 ) result[list[ref Token], ref u8] = trust {
-    return tokenize_with_view(arena, string.view_cstr(src))
+    return tokenize_with_view(arena, str.cstr_raw(src))
 }
 
 pub fn tok_kind(tokens: list[ref Token], i: i64) TokenKind = {
@@ -981,19 +981,19 @@ pub fn tok_kind(tokens: list[ref Token], i: i64) TokenKind = {
 }
 
 // Extract text payload from Ident/Str/Int/Float variants, empty otherwise.
-pub fn tok_text(tokens: list[ref Token], i: i64) string.StringView = {
+pub fn tok_text(tokens: list[ref Token], i: i64) str.StringView = {
     val opt = @get(tokens, i as usize)
     if opt is some t {
         val tok: ref Token = t as ref Token
         return tok.text
     } else {
-        return string.view(none, 0)
+        return str.view(none, 0)
     }
 }
 
 /// Compatibility helper for code that still requires a null-terminated pointer.
 pub fn tok_text_raw(tokens: list[ref Token], i: i64) ref u8 = {
-    val v: string.StringView = tok_text(tokens, i)
+    val v: str.StringView = tok_text(tokens, i)
     return v.ptr
 }
 
@@ -1455,8 +1455,8 @@ test "lexer tokenizes keywords, literals, operators and comments" {
             assert kind_is_ident(tok_kind(toks, 0))
             assert kind_is_ident(tok_kind(toks, 1))
             assert kind_is_ident(tok_kind(toks, 2))
-            assert string.raw_cmp(tok_text_raw(toks, 0), c"foobar") == 0
-            assert string.raw_cmp(tok_text_raw(toks, 1), c"hello_world") == 0
+            assert str.cmp_raw(tok_text_raw(toks, 0), c"foobar") == 0
+            assert str.cmp_raw(tok_text_raw(toks, 1), c"hello_world") == 0
         }
     }
 
@@ -1470,8 +1470,8 @@ test "lexer tokenizes keywords, literals, operators and comments" {
             assert kind_is_int(tok_kind(toks, 0))
             assert kind_is_float(tok_kind(toks, 1))
             assert kind_is_int(tok_kind(toks, 2))
-            assert string.raw_cmp(tok_text_raw(toks, 0), c"42") == 0
-            assert string.raw_cmp(tok_text_raw(toks, 2), c"0xff") == 0
+            assert str.cmp_raw(tok_text_raw(toks, 0), c"42") == 0
+            assert str.cmp_raw(tok_text_raw(toks, 2), c"0xff") == 0
         }
     }
 
@@ -1483,7 +1483,7 @@ test "lexer tokenizes keywords, literals, operators and comments" {
         }
         ok toks => {
             assert kind_is_str(tok_kind(toks, 0))
-            assert string.raw_cmp(tok_text_raw(toks, 0), c"hello") == 0
+            assert str.cmp_raw(tok_text_raw(toks, 0), c"hello") == 0
         }
     }
 
@@ -1510,7 +1510,7 @@ test "lexer tokenizes keywords, literals, operators and comments" {
         ok toks => {
             assert kind_is_str(tok_kind(toks, 0))
             val text: ref u8 = tok_text_raw(toks, 0)
-            assert string.len_raw(text) == 3
+            assert str.len_raw(text) == 3
             assert trust @load8(@ptradd(text, 1)) as i64 == 13
         }
     }

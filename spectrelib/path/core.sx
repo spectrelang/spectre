@@ -1,4 +1,6 @@
-val str        = use("../string")
+val str        = use("std/string")
+val ostr = use("std/string/owned")
+val builder = use("std/string/builder")
 val stdio      = use("../stdio")
 val allocators = use("../allocators")
 val os         = use("../os")
@@ -21,7 +23,7 @@ pub fn get_name_without_ext_raw(arena: ref allocators.Arena, path: ref u8) ref u
             break
         }
         val c: mut u8 = '\0'
-        if str.byte_at(path, i) is some v {
+        if str.byte_at_raw(path, i) is some v {
             c = v
         }
         if (c == 47) {
@@ -45,7 +47,7 @@ pub fn get_name_without_ext_raw(arena: ref allocators.Arena, path: ref u8) ref u
             break
         }
         val c: mut u8 = '\0'
-        if str.byte_at(path, filename_start + j) is some v {
+        if str.byte_at_raw(path, filename_start + j) is some v {
             c = v
         }
         if (c == 46) {
@@ -119,7 +121,7 @@ pub fn get_name_without_ext(
     return buf as ref u8
 }
 
-/// Join dir + "/" + name, returning a heap-allocated string.
+/// Join dir + "/" + name, returning a heap-allocated str.
 /// Does not add a second separator when `dir` already ends with one.
 pub fn join_raw(dir: ref u8, name: ref u8) ref u8 = trust {
     val dlen: i64 = str.len_raw(dir)
@@ -141,7 +143,7 @@ pub fn join_raw(dir: ref u8, name: ref u8) ref u8 = trust {
     return buf
 }
 
-/// Join two views, returning a newly allocated null-terminated string.
+/// Join two views, returning a newly allocated null-terminated str.
 pub fn join(dir: str.StringView, name: str.StringView) ref u8 = trust {
     val dlen: i64 = dir.len
     val nlen: i64 = name.len
@@ -189,7 +191,7 @@ pub fn dir(path: str.StringView) str.StringView = trust {
     if last_slash < 0 {
         return "."
     }
-    return str.view_slice(path, 0, last_slash + 1)
+    return str.slice(path, 0, last_slash + 1)
 }
 
 /// Return the directory part of a path (everything up to and including last separator).
@@ -268,17 +270,17 @@ pub fn canonicalize_path_raw(path: ref u8) ref u8 = trust {
         val seg: ref u8 = @alloc((seg_len + 1) as usize) as ref u8
         @memcpy(seg, @ptradd(path, start), seg_len as usize)
         @store8(@ptradd(seg, seg_len), 0)
-        if str.raw_cmp(seg, c".") == 0 {
+        if str.cmp_raw(seg, c".") == 0 {
             @free(seg as ref void)
             continue
         }
-        if str.raw_cmp(seg, c"..") == 0 {
+        if str.cmp_raw(seg, c"..") == 0 {
             val segs_len: i64 = @len(segs) as i64
             if segs_len > 0 {
                 val last_opt = @get(segs, (segs_len - 1) as usize)
                 match last_opt {
                     some last => {
-                        if str.raw_cmp(last as ref u8, c"..") != 0 {
+                        if str.cmp_raw(last as ref u8, c"..") != 0 {
                             @free(last as ref void)
                             @remove(segs, segs_len - 1)
                             @free(seg as ref void)
@@ -315,9 +317,9 @@ pub fn canonicalize_path_raw(path: ref u8) ref u8 = trust {
         @store8(@ptradd(leaf, 1), 0)
         return leaf
     }
-    val sb: ref void = str.StringBuilder.new()
+    val sb: ref void = builder.StringBuilder.new()
     if is_abs {
-        str.StringBuilder.append_char(sb, 47 as u8)
+        builder.StringBuilder.append_char(sb, 47 as u8)
     }
     val si: mut i64 = 0
     for {
@@ -327,17 +329,17 @@ pub fn canonicalize_path_raw(path: ref u8) ref u8 = trust {
         val s_opt = @get(segs, si as usize)
         if s_opt is some s {
             if si > 0 {
-                str.StringBuilder.append_char(sb, 47 as u8)
+                builder.StringBuilder.append_char(sb, 47 as u8)
             } elif keep_dot_prefix && !is_abs {
-                str.StringBuilder.append_cstr(sb, c"./")
+                builder.StringBuilder.append_raw(sb, c"./")
             }
-            str.StringBuilder.append_cstr(sb, s as ref u8)
+            builder.StringBuilder.append_raw(sb, s as ref u8)
         }
         si++
     }
-    val built: ref void = str.StringBuilder.build(sb)
-    val out: ref u8 = str.cstr(built)
-    str.StringBuilder.free(sb)
+    val built: ref void = builder.StringBuilder.build(sb)
+    val out: ref u8 = ostr.cstr(built)
+    builder.StringBuilder.free(sb)
     @free(built)
     val fi: mut i64 = 0
     for fi < @len(segs) as i64 {
@@ -358,7 +360,7 @@ pub fn canonicalize_path_raw(path: ref u8) ref u8 = trust {
     return out
 }
 
-/// Canonicalize a path held in a view, returning an owned string.
+/// Canonicalize a path held in a view, returning an owned str.
 pub fn canonicalize_path(path: str.StringView) ref u8 = trust {
     val heap: allocators.HeapAllocator = @zeroed
     val tmp: str.CString = str.cstring_from[allocators.HeapAllocator](heap, path)
@@ -395,7 +397,7 @@ pub fn path_sep() u8 = {
 /// Returns the final component of a path.
 ///
 /// Both '/' and '\\' are accepted as separators. A path consisting only of
-/// separators yields an empty string.
+/// separators yields an empty str.
 pub fn base_name_raw(path: ref u8) ref u8 = trust {
     val len: i64 = str.len_raw(path)
     if len == 0 {
@@ -422,11 +424,11 @@ pub fn base_name_raw(path: ref u8) ref u8 = trust {
         }
         val c: u8 = @load8(@ptradd(path, i)) as u8
         if is_path_sep(c) {
-            return str.substr(path, i + 1, end - i - 1)
+            return str.substr_raw(path, i + 1, end - i - 1)
         }
         i--
     }
-    return str.substr(path, 0, end)
+    return str.substr_raw(path, 0, end)
 }
 
 /// Return the final component of a path as a borrowed view.
@@ -455,11 +457,11 @@ pub fn base_name(path: str.StringView) str.StringView = trust {
         }
         val c: u8 = @load8(@ptradd(path.ptr, i)) as u8
         if is_path_sep(c) {
-            return str.view_slice(path, i + 1, end)
+            return str.slice(path, i + 1, end)
         }
         i--
     }
-    return str.view_slice(path, 0, end)
+    return str.slice(path, 0, end)
 }
 
 fn lower_char(c: u8) u8 = {
@@ -491,7 +493,7 @@ pub fn normalize_shell_raw(name: ref u8) ref u8 = trust {
     val len: i64 = str.len_raw(base)
     val trimmed: mut ref u8 = base
     if has_exe_suffix(base) {
-        trimmed = str.substr(base, 0, len - 4)
+        trimmed = str.substr_raw(base, 0, len - 4)
     }
 
     val lower: ref u8 = @alloc(str.len_raw(trimmed) + 1) as ref u8
@@ -519,7 +521,7 @@ pub fn normalize_shell(name: str.StringView) ref u8 = trust {
         val x: u8 = lower_char(@load8(@ptradd(base.ptr, len - 2)) as u8)
         val e2: u8 = lower_char(@load8(@ptradd(base.ptr, len - 1)) as u8)
         if dot == 46 && e1 == 101 && x == 120 && e2 == 101 {
-            trimmed = str.view_slice(base, 0, len - 4)
+            trimmed = str.slice(base, 0, len - 4)
         }
     }
 
@@ -562,7 +564,7 @@ fn make_directory(path: ref u8) bool = trust {
 /// are treated as success.
 pub fn ensure_dir_raw(path: ref u8) bool = trust {
     val len: i64 = str.len_raw(path)
-    if len == 0 || str.raw_cmp(path, c".") == 0 {
+    if len == 0 || str.cmp_raw(path, c".") == 0 {
         return true
     }
     if is_directory(path) {
@@ -576,7 +578,7 @@ pub fn ensure_dir_raw(path: ref u8) bool = trust {
         }
         val c: u8 = @load8(@ptradd(path, i)) as u8
         if is_path_sep(c) {
-            val parent: ref u8 = str.substr(path, 0, i)
+            val parent: ref u8 = str.substr_raw(path, 0, i)
             if str.len_raw(parent) > 0 && !is_directory(parent) {
                 make_directory(parent)
             }
@@ -642,8 +644,8 @@ pub fn path_contains_dir_raw(target: ref u8) bool = trust {
             c = @load8(@ptradd(value, i)) as u8
         }
         if at_end || c == sep {
-            val part: ref u8 = str.substr(value, start, i - start)
-            if str.len_raw(part) > 0 && str.raw_cmp(part, target) == 0 {
+            val part: ref u8 = str.substr_raw(value, start, i - start)
+            if str.len_raw(part) > 0 && str.cmp_raw(part, target) == 0 {
                 return true
             }
             start = i + 1
@@ -657,23 +659,23 @@ pub fn path_contains_dir_raw(target: ref u8) bool = trust {
 }
 
 test "path helpers split names, normalize shells and detect PATH entries" {
-    assert str.raw_cmp(trust base_name_raw(c"/usr/local/bin/spectre"), c"spectre") == 0
-    assert str.raw_cmp(trust base_name_raw(c"C:\\Tools\\phantom.exe"), c"phantom.exe") == 0
-    assert str.raw_cmp(trust normalize_shell_raw(c"/bin/Bash"), c"bash") == 0
-    assert str.raw_cmp(trust normalize_shell_raw(c"C:\\Windows\\System32\\BASH.EXE"), c"bash") == 0
+    assert str.cmp_raw(trust base_name_raw(c"/usr/local/bin/spectre"), c"spectre") == 0
+    assert str.cmp_raw(trust base_name_raw(c"C:\\Tools\\phantom.exe"), c"phantom.exe") == 0
+    assert str.cmp_raw(trust normalize_shell_raw(c"/bin/Bash"), c"bash") == 0
+    assert str.cmp_raw(trust normalize_shell_raw(c"C:\\Windows\\System32\\BASH.EXE"), c"bash") == 0
     assert is_path_sep(47)
     assert is_path_sep(92)
     assert !is_path_sep(65)
 }
 
 test "path canonicalization normalizes segments" {
-    assert str.raw_cmp(
+    assert str.cmp_raw(
         trust canonicalize_path_raw(c"./samples/bigproj/hi/../mod1.sx"),
         c"./samples/bigproj/mod1.sx"
     ) == 0
-    assert str.raw_cmp(
+    assert str.cmp_raw(
         trust canonicalize_path_raw(c"samples/bigproj/hi//../mod1.sx"),
         c"samples/bigproj/mod1.sx"
     ) == 0
-    assert str.raw_cmp(trust canonicalize_path_raw(c"../samples/../mod1.sx"), c"../mod1.sx") == 0
+    assert str.cmp_raw(trust canonicalize_path_raw(c"../samples/../mod1.sx"), c"../mod1.sx") == 0
 }

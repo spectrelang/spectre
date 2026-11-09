@@ -55,7 +55,9 @@ when windows {
     extern (C, header) fn GetFileAttributesA(path: ref u8) u32 = "GetFileAttributesA"
 }
 
-val str = use("../string")
+val str = use("std/string")
+val ostr = use("std/string/owned")
+val builder = use("std/string/builder")
 
 when linux {
     extern type Dirent = {
@@ -267,7 +269,7 @@ pub fn copy_dir_recursive(src_dir: ref u8, dst_dir: ref u8) bool = trust {
         val its_ok: mut bool = true
         for {
             val name: ref u8 = @addr(data.cFileName) as ref u8
-            if !(str.raw_cmp(name, c".") == 0 || str.raw_cmp(name, c"..") == 0) {
+            if !(str.cmp_raw(name, c".") == 0 || str.cmp_raw(name, c"..") == 0) {
                 val src_child: ref u8 = @fmtalloc("{s}{s}{s}", {src_dir, sep, name})
                 val dst_child: ref u8 = @fmtalloc("{s}{s}{s}", {dst_dir, sep, name})
                 val attrs: u32 = GetFileAttributesA(src_child)
@@ -315,15 +317,15 @@ pub fn copy_dir_recursive(src_dir: ref u8, dst_dir: ref u8) bool = trust {
                 continue
             }
 
-            if str.raw_cmp(src_dir, c"") == 0 {
+            if str.cmp_raw(src_dir, c"") == 0 {
                 break
             }
 
-            if str.raw_cmp(dst_dir, c"") == 0 {
+            if str.cmp_raw(dst_dir, c"") == 0 {
                 break
             }
 
-            if str.raw_cmp(name, c"") == 0 {
+            if str.cmp_raw(name, c"") == 0 {
                 break
             }
 
@@ -382,7 +384,7 @@ pub fn exec(cmd: ref u8) result[String, ProcessError] = trust {
         return err ProcessError.FailedToStart
     }
 
-    val sb: ref void = string.StringBuilder.new()
+    val sb: ref void = builder.StringBuilder.new()
     val buf_size: i64 = 1024
     val buf: ref void = @alloc(buf_size)
 
@@ -405,7 +407,7 @@ pub fn exec(cmd: ref u8) result[String, ProcessError] = trust {
                 break
             }
             val c: u8 = @load8(@ptradd(buf, i))
-            string.StringBuilder.append_char(sb, c)
+            builder.StringBuilder.append_char(sb, c)
             i++
         }
     }
@@ -413,8 +415,8 @@ pub fn exec(cmd: ref u8) result[String, ProcessError] = trust {
     @free(buf)
     pclose(pipe)
 
-    val out: String = string.StringBuilder.build(sb) as String
-    string.StringBuilder.free(sb)
+    val out: String = builder.StringBuilder.build(sb) as String
+    builder.StringBuilder.free(sb)
 
     return ok out
 }
@@ -469,7 +471,7 @@ pub fn exec_trim(cmd: ref u8) result[ref void, ProcessError] = trust {
     val res = exec(cmd)?
     match res {
         ok s => {
-            string.trim(s)
+            ostr.trim(s)
             return ok s
         }
         err e => {
@@ -478,7 +480,6 @@ pub fn exec_trim(cmd: ref u8) result[ref void, ProcessError] = trust {
     }
 }
 
-val string = use("../string")
 val stdio  = use("../stdio")
 
 test "file, exec and recursive copy operations" {
@@ -504,7 +505,7 @@ test "file, exec and recursive copy operations" {
     val res = trust exec(c"echo hello")
     match res {
         ok s => {
-            trust stdio.print("{s}", {string.cstr(s)})
+            trust stdio.print("{s}", {ostr.cstr(s)})
         }
         err _ => {
             assert false

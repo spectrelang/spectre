@@ -1,20 +1,20 @@
-val string     = use("std/string")
+val str     = use("std/string")
 val allocators = use("std/allocators")
 
 pub fn main() void = trust {
     val literal: mut ref u8 = @fmtalloc("lit={s}", {"view-literal"})
-    assert string.raw_cmp(literal, c"lit=view-literal") == 0
+    assert str.cmp_raw(literal, c"lit=view-literal") == 0
     @free(literal)
 
     val base = c"prefix:body:suffix"
-    val view: string.StringView = string.view_slice(string.view_cstr(base), 7, 11)
+    val view: str.StringView = str.slice(str.cstr_raw(base), 7, 11)
 
     val sliced: mut ref u8 = @fmtalloc("slice={s}!", {view})
-    assert string.raw_cmp(sliced, c"slice=body!") == 0
+    assert str.cmp_raw(sliced, c"slice=body!") == 0
     @free(sliced)
 
     val mixed: mut ref u8 = @fmtalloc("{d}:{s}:{d}", {3, view, 7})
-    assert string.raw_cmp(mixed, c"3:body:7") == 0
+    assert str.cmp_raw(mixed, c"3:body:7") == 0
     @free(mixed)
 
     val ac: allocators.HeapAllocator = @zeroed
@@ -23,12 +23,12 @@ pub fn main() void = trust {
         "alloc {d}:{s}",
         {5, view}
     )?
-    assert string.raw_cmp(allocated, c"alloc 5:body") == 0
+    assert str.cmp_raw(allocated, c"alloc 5:body") == 0
     allocators.HeapAllocator.free(ac, allocated as ref void)
 
     val buf: mut ref u8 = @alloc(64) as mut ref u8
     @snprintf(buf, 64, "sn={d}:{s}", {11, view})
-    assert string.raw_cmp(buf, c"sn=11:body") == 0
+    assert str.cmp_raw(buf, c"sn=11:body") == 0
     @free(buf)
 
     @print("print={s}\n", {view})

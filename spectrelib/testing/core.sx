@@ -8,7 +8,8 @@
 /// (C) Navid Momtahen - 2026
 
 val stdio  = use("../stdio")
-val string = use("../string")
+val str = use("std/string")
+val builder = use("std/string/builder")
 
 /// One live allocation reported by -leak-check.
 pub type LeakRecord = {
@@ -80,8 +81,8 @@ pub fn (LeakDiagnostics) pprint(ld: self) void = {
 }
 
 /// Return the same summary as a heap-allocated String.
-pub fn (LeakDiagnostics) pprint_str(ld: self) string.String = {
-    val sb = string.StringBuilder.new()
+pub fn (LeakDiagnostics) pprint_str(ld: self) str.String = {
+    val sb = builder.StringBuilder.new()
 
     val summary: mut ref u8 = @alloc(4096 as usize) as ref u8
     @snprintf(summary, 4096, LEAK_TABLE_FMT, {
@@ -94,11 +95,11 @@ pub fn (LeakDiagnostics) pprint_str(ld: self) string.String = {
             ld.peak_live_bytes,
             ld.invalid_frees
         })
-    trust string.StringBuilder.append_cstr(sb, summary)
+    trust builder.StringBuilder.append_raw(sb, summary)
     trust @free(summary as ref void)
 
     if ld.record_count > (0 as i64) && ld.records != none {
-        trust string.StringBuilder.append_cstr(sb, c"\nleaked allocations\n        size  location\n")
+        trust builder.StringBuilder.append_raw(sb, c"\nleaked allocations\n        size  location\n")
         val index: mut i64 = 0 as i64
         for index < ld.record_count {
             val record = leak_record_at(ld.records, index)
@@ -108,13 +109,13 @@ pub fn (LeakDiagnostics) pprint_str(ld: self) string.String = {
                     record.file,
                     record.line
                 })
-            trust string.StringBuilder.append_cstr(sb, row)
+            trust builder.StringBuilder.append_raw(sb, row)
             trust @free(row as ref void)
             index += 1
         }
     }
 
-    val result = trust string.StringBuilder.build(sb)
-    trust string.StringBuilder.free(sb)
+    val result = trust builder.StringBuilder.build(sb)
+    trust builder.StringBuilder.free(sb)
     return result
 }

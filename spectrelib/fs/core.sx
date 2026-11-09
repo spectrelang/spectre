@@ -1,5 +1,5 @@
 val stdio      = use("../stdio")
-val str        = use("../string")
+val str        = use("std/string")
 val pathutil   = use("../path")
 val allocators = use("../allocators")
 
@@ -697,7 +697,7 @@ pub fn remove_dir_all_raw(path: ref u8) bool = trust {
     }
 }
 
-/// Return the current working directory as an allocator-backed string.
+/// Return the current working directory as an allocator-backed str.
 /// Returns none on failure.
 pub fn cwd[A: allocators.Allocator](ac: A) option[ref u8] = trust {
     val buf: ref u8 = alloc_cstr[A](ac, 4095)

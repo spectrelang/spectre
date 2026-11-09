@@ -1,4 +1,4 @@
-val str = use("../string")
+val str = use("std/string")
 
 extern (C, header) fn fwrite(
     ptr: ref void,

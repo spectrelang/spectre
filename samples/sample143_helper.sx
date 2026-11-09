@@ -1,10 +1,10 @@
 val allocators = use("std/allocators")
 val fs         = use("std/fs")
-val string     = use("std/string")
+val str     = use("std/string")
 
 pub fn read_len[A: allocators.Allocator](ac: A, path: ref u8) i64 = trust {
     if fs.read_all_raw[A](ac, path) is some text {
-        return string.len_raw(text as ref u8)
+        return str.len_raw(text as ref u8)
     } else {
         return -1
     }
@@ -12,7 +12,7 @@ pub fn read_len[A: allocators.Allocator](ac: A, path: ref u8) i64 = trust {
 
 pub fn cwd_len[A: allocators.Allocator](ac: A) i64 = trust {
     if fs.cwd[A](ac) is some dir {
-        return string.len_raw(dir as ref u8)
+        return str.len_raw(dir as ref u8)
     } else {
         return -1
     }

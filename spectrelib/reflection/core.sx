@@ -65,7 +65,7 @@ when netbsd {
 }
 
 val stdio      = use("../stdio")
-val string     = use("../string")
+val str     = use("std/string")
 val allocators = use("../allocators")
 val env        = use("../env")
 
@@ -105,31 +105,31 @@ pub fn get_current_platform[T: allocators.Allocator](ac: T) Platform = trust {
         val r = uname(@addr(buf))
         if r == 0 {
             val sysname: ref u8 = @addr(buf.sysname) as ref u8
-            if string.raw_cmp(sysname, c"Linux") == 0 {
+            if str.cmp_raw(sysname, c"Linux") == 0 {
                 return Platform.Linux
             }
-            if string.raw_cmp(sysname, c"Darwin") == 0 {
+            if str.cmp_raw(sysname, c"Darwin") == 0 {
                 return Platform.Darwin
             }
-            if string.raw_cmp(sysname, c"FreeBSD") == 0 {
+            if str.cmp_raw(sysname, c"FreeBSD") == 0 {
                 return Platform.FreeBSD
             }
-            if string.raw_cmp(sysname, c"OpenBSD") == 0 {
+            if str.cmp_raw(sysname, c"OpenBSD") == 0 {
                 return Platform.OpenBSD
             }
-            if string.raw_cmp(sysname, c"NetBSD") == 0 {
+            if str.cmp_raw(sysname, c"NetBSD") == 0 {
                 return Platform.NetBSD
             }
-            if string.raw_cmp(sysname, c"DragonFly") == 0 {
+            if str.cmp_raw(sysname, c"DragonFly") == 0 {
                 return Platform.DragonflyBSD
             }
-            if string.raw_cmp(sysname, c"Haiku") == 0 {
+            if str.cmp_raw(sysname, c"Haiku") == 0 {
                 return Platform.Haiku
             }
-            if string.raw_cmp(sysname, c"Redox") == 0 {
+            if str.cmp_raw(sysname, c"Redox") == 0 {
                 return Platform.Redox
             }
-            if string.raw_cmp(sysname, c"Plan9") == 0 || string.raw_cmp(sysname, c"Plan 9") == 0 {
+            if str.cmp_raw(sysname, c"Plan9") == 0 || str.cmp_raw(sysname, c"Plan 9") == 0 {
                 return Platform.Plan9
             }
         }
@@ -184,13 +184,13 @@ pub fn current_platform_name[T: allocators.Allocator](ac: T) ref u8 = trust {
 pub fn current_arch_name[T: allocators.Allocator](ac: T) ref u8 = trust {
     when windows {
         val raw: ref u8 = env.get(c"PROCESSOR_ARCHITECTURE")
-        if string.raw_cmp(raw, c"AMD64") == 0 || string.raw_cmp(raw, c"amd64") == 0 {
+        if str.cmp_raw(raw, c"AMD64") == 0 || str.cmp_raw(raw, c"amd64") == 0 {
             return c"x86_64"
         }
-        if string.raw_cmp(raw, c"ARM64") == 0 || string.raw_cmp(raw, c"arm64") == 0 {
+        if str.cmp_raw(raw, c"ARM64") == 0 || str.cmp_raw(raw, c"arm64") == 0 {
             return c"aarch64"
         }
-        if string.raw_cmp(raw, c"x86") == 0 || string.raw_cmp(raw, c"X86") == 0 {
+        if str.cmp_raw(raw, c"x86") == 0 || str.cmp_raw(raw, c"X86") == 0 {
             return c"x86"
         }
         return raw
@@ -207,19 +207,19 @@ pub fn current_arch_name[T: allocators.Allocator](ac: T) ref u8 = trust {
         val r = uname(@addr(buf))
         if r == 0 {
             val machine: ref u8 = @addr(buf.machine) as ref u8
-            if string.raw_cmp(machine, c"x86_64") == 0 || string.raw_cmp(machine, c"amd64") == 0 {
+            if str.cmp_raw(machine, c"x86_64") == 0 || str.cmp_raw(machine, c"amd64") == 0 {
                 return c"x86_64"
             }
-            if string.raw_cmp(machine, c"aarch64") == 0 || string.raw_cmp(machine, c"arm64") == 0 {
+            if str.cmp_raw(machine, c"aarch64") == 0 || str.cmp_raw(machine, c"arm64") == 0 {
                 return c"aarch64"
             }
-            if string.raw_cmp(machine, c"riscv64") == 0 {
+            if str.cmp_raw(machine, c"riscv64") == 0 {
                 return c"riscv64"
             }
-            if string.raw_cmp(
+            if str.cmp_raw(
                 machine,
                 c"i386"
-            ) == 0 || string.raw_cmp(machine, c"i686") == 0 || string.raw_cmp(machine, c"x86") == 0 {
+            ) == 0 || str.cmp_raw(machine, c"i686") == 0 || str.cmp_raw(machine, c"x86") == 0 {
                 return c"x86"
             }
         }

@@ -27,7 +27,7 @@ pub type Plan = {
 }
 
 fn text_eq(a: str.StringView, b: str.StringView) bool = {
-    return trust str.view_eql(a, b)
+    return trust str.eql(a, b)
 }
 
 fn unwrap(node: ref parser.Node) ref parser.Node = {

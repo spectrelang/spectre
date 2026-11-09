@@ -1,5 +1,5 @@
 val allocators = use("../allocators")
-val string     = use("../string")
+val str     = use("std/string")
 val stdio      = use("../stdio")
 
 when darwin {
@@ -283,7 +283,7 @@ fn win_url_free(url: ref WinUrl) void = trust {
 
 /// Parse an http:// or https:// URL into the pieces WinINet needs.
 fn win_parse_url(url: ref u8) ref WinUrl = trust {
-    val len: i64 = string.len_raw(url)
+    val len: i64 = str.len_raw(url)
     val scheme_end: mut i64 = -1
     val i: mut i64 = 0
     for {
@@ -345,7 +345,7 @@ fn win_parse_url(url: ref u8) ref WinUrl = trust {
         return none
     }
     parsed.secure = secure
-    parsed.host = string.substr(url, host_start, host_end - host_start)
+    parsed.host = str.substr_raw(url, host_start, host_end - host_start)
     parsed.path = none
     parsed.port = 80 as u16
     if secure {
@@ -390,15 +390,15 @@ fn win_parse_url(url: ref u8) ref WinUrl = trust {
             }
             pi++
         }
-        val raw_path: ref u8 = string.substr(url, path_start, path_end - path_start)
+        val raw_path: ref u8 = str.substr_raw(url, path_start, path_end - path_start)
         if win_char(raw_path, 0) == 47 {
             parsed.path = raw_path
         } else {
-            parsed.path = string.concat_raw(c"/", raw_path)
+            parsed.path = str.concat_raw(c"/", raw_path)
             @free(raw_path)
         }
     } else {
-        parsed.path = string.concat_raw(c"/", c"")
+        parsed.path = str.concat_raw(c"/", c"")
     }
 
     if parsed.host == none || parsed.path == none {
@@ -462,7 +462,7 @@ fn win_headers_build(list: ref void) ref u8 = trust {
             break
         }
         if cur.value != none {
-            total += string.len_raw(cur.value) + 2
+            total += str.len_raw(cur.value) + 2
         }
         cur = cur.next as mut ref WinHeader
     }
@@ -481,7 +481,7 @@ fn win_headers_build(list: ref void) ref u8 = trust {
             break
         }
         if cur.value != none {
-            val vlen: i64 = string.len_raw(cur.value)
+            val vlen: i64 = str.len_raw(cur.value)
             if vlen > 0 {
                 @memcpy(@ptradd(out, pos), cur.value, vlen)
                 pos += vlen
@@ -590,11 +590,11 @@ when windows {
         val headers: ref u8 = win_headers_build(header_list)
         val headers_len: mut u32 = 0 as u32
         if headers != none {
-            headers_len = string.len_raw(headers) as u32
+            headers_len = str.len_raw(headers) as u32
         }
         val body_len: mut u32 = 0 as u32
         if body != none {
-            body_len = string.len_raw(body) as u32
+            body_len = str.len_raw(body) as u32
         }
 
         val sent: i32 = HttpSendRequestA(req, headers, headers_len, body, body_len)
@@ -705,7 +705,7 @@ pub fn (Http) get[A: allocators.GeneralAllocator](ac: A, url: ref u8) ref Respon
     return none
 }
 
-/// Perform an HTTP POST request with a body string.
+/// Perform an HTTP POST request with a body str.
 /// Returns a Response allocated with the provided allocator; caller must call Http.free_response().
 pub fn (Http) post_request[A: allocators.GeneralAllocator](
     ac: A,
@@ -733,7 +733,7 @@ pub fn (Http) post_request[A: allocators.GeneralAllocator](
 
         curl_easy_setopt(handle, CURLOPT_URL, url)
         curl_easy_setopt(handle, CURLOPT_POSTFIELDS, body)
-        curl_easy_setopt(handle, CURLOPT_POSTFIELDSIZE, string.len_raw(body))
+        curl_easy_setopt(handle, CURLOPT_POSTFIELDSIZE, str.len_raw(body))
         curl_easy_setopt(handle, CURLOPT_HTTPHEADER, headers)
 
         val resp: ref Response = do_request[A](ac, handle)
@@ -767,7 +767,7 @@ pub fn (Http) request[A: allocators.GeneralAllocator](
 
         if (body != none) {
             curl_easy_setopt(handle, CURLOPT_POSTFIELDS, body)
-            curl_easy_setopt(handle, CURLOPT_POSTFIELDSIZE, string.len_raw(body))
+            curl_easy_setopt(handle, CURLOPT_POSTFIELDSIZE, str.len_raw(body))
         }
         if (headers != none) {
             curl_easy_setopt(handle, CURLOPT_HTTPHEADER, headers)
@@ -804,7 +804,7 @@ pub fn (Http) body_len(resp: ref Response) i64 = {
     return resp.len
 }
 
-/// Build a header list from a single "Key: Value" string.
+/// Build a header list from a single "Key: Value" str.
 pub fn (Http) make_headers(header: ref u8) ref void = trust {
     when windows {
         return win_header_new(header)

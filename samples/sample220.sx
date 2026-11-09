@@ -29,12 +29,12 @@ fn forward(args: argspack) ref u8 = trust {
 pub fn main() void = trust {
     val h: allocators.HeapAllocator = @zeroed
     val msg = unwrap(@fmtalloc[allocators.HeapAllocator](h, "result {d}", {7}))
-    stdio.puts(str.view_cstr(msg))
+    stdio.puts(str.cstr_raw(msg))
     stdio.puts("\n")
     allocators.HeapAllocator.free(h, msg as ref void)
 
     val packed: mut ref u8 = forward({"pack", "forwarded"})
-    stdio.puts(str.view_cstr(packed))
+    stdio.puts(str.cstr_raw(packed))
     stdio.puts("\n")
     @free(packed as ref void)
 }

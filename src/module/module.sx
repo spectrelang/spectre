@@ -1,4 +1,5 @@
 val str        = use("std/string")
+val ostr = use("std/string/owned")
 val mem        = use("../meta/mem.sx")
 val path       = use("std/path")
 val fs         = use("std/fs")
@@ -92,13 +93,13 @@ fn find_workspace_root(start_dir: ref u8) ref u8 = trust {
             return cur
         }
         val parent: mut ref u8 = path.dir_raw(cur)
-        if str.raw_cmp(parent, cur) == 0 {
-            if str.raw_cmp(parent, c".") != 0 {
+        if str.cmp_raw(parent, cur) == 0 {
+            if str.cmp_raw(parent, c".") != 0 {
                 @free(parent)
             }
             break
         }
-        if str.raw_cmp(parent, c".") == 0 {
+        if str.cmp_raw(parent, c".") == 0 {
             break
         }
         if cur != start_dir {
@@ -145,7 +146,7 @@ pub fn resolve_use_path(
     workspace: ref u8
 ) ref u8 = trust {
     val owned_use: mut ref u8 = none
-    if str.raw_starts_with(use_path, c"std/") {
+    if str.starts_with_raw(use_path, c"std/") {
         owned_use = @fmtalloc("spectrelib/{s}", {@ptradd(use_path, 4) as ref u8})
         use_path = owned_use
     }
@@ -249,7 +250,7 @@ pub fn resolve_use_path(
 
 fn in_progress_contains(in_progress: list[ref u8], path: ref u8) bool = trust {
     for p in in_progress {
-        if str.raw_cmp(p, path) == 0 {
+        if str.cmp_raw(p, path) == 0 {
             return true
         }
     }
@@ -1008,7 +1009,7 @@ fn expr_references_import_shallow(node: ref parser.Node, import_name: ref u8) bo
 
     if node.kind == parser.NK_IDENT {
         val name: ref u8 = parser.node_str_raw(node.d0)
-        if str.raw_cmp(name, import_name) == 0 {
+        if str.cmp_raw(name, import_name) == 0 {
             return true
         }
     } elif node.kind == parser.NK_FIELD {
@@ -1016,7 +1017,7 @@ fn expr_references_import_shallow(node: ref parser.Node, import_name: ref u8) bo
         if base != none {
             if base.kind == parser.NK_IDENT {
                 val base_name: ref u8 = parser.node_str_raw(base.d0)
-                if str.raw_cmp(base_name, import_name) == 0 {
+                if str.cmp_raw(base_name, import_name) == 0 {
                     return true
                 }
             } elif base.kind == parser.NK_FIELD {
@@ -1188,7 +1189,7 @@ fn resolve_module_impl(
         }
         val ck_opt = @get(cache_keys, ci as usize)
         if ck_opt is some ck {
-            if str.raw_cmp(ck as ref u8, canonical_path) == 0 {
+            if str.cmp_raw(ck as ref u8, canonical_path) == 0 {
                 val cv_opt = @get(cache_vals, ci as usize)
                 if cv_opt is some cv {
                     return ok (cv as ref ResolvedModule)
@@ -1217,7 +1218,7 @@ fn resolve_module_impl(
         return err @fmtalloc("cannot read module: {s}", {canonical_path})
     }
 
-    val lex_result = lexer.tokenize_with_view(arena, str.view_cstr(src))
+    val lex_result = lexer.tokenize_with_view(arena, str.cstr_raw(src))
     allocators.Arena.free(src_arena)
     val tokens: mut list[ref lexer.Token] = mem.new[ref lexer.Token]()
     match lex_result {
@@ -1243,10 +1244,10 @@ fn resolve_module_impl(
 
     val dir_part: mut ref u8 = path.dir_raw(canonical_path)
     val file_dir = arena_string(arena, dir_part)
-    if str.raw_cmp(dir_part, c".") != 0 {
+    if str.cmp_raw(dir_part, c".") != 0 {
         @free(dir_part)
     }
-    val file_dir_c = str.cstr(file_dir)
+    val file_dir_c = ostr.cstr(file_dir)
     val workspace = find_workspace_root(file_dir_c)
     val module_path = arena_string(arena, canonical_path)
     val m: ref ResolvedModule = new_resolved(arena, items, module_path, file_dir)
@@ -1254,9 +1255,9 @@ fn resolve_module_impl(
     val cur_progress: mut list[ref u8] = in_progress
     @append(cur_progress, canonical_path)
 
-    val is_std_module: bool = str.raw_cmp(canonical_path, c"std/sx") == 0 ||
+    val is_std_module: bool = str.cmp_raw(canonical_path, c"std/sx") == 0 ||
     (str.len_raw(canonical_path) >= 10 &&
-        str.raw_cmp(
+        str.cmp_raw(
             @ptradd(canonical_path, str.len_raw(canonical_path) - 10) as ref u8,
             c"std/sx"
         ) == 0)
@@ -1266,8 +1267,8 @@ fn resolve_module_impl(
         if node.kind == parser.NK_USE {
             val import_name: ref u8 = parser.node_str_raw(node.d1)
             val use_path: mut ref u8 = parser.node_str_raw(node.d2)
-            val is_json_or_net: bool = str.raw_cmp(import_name, c"json") == 0 ||
-            str.raw_cmp(import_name, c"net") == 0
+            val is_json_or_net: bool = str.cmp_raw(import_name, c"json") == 0 ||
+            str.cmp_raw(import_name, c"net") == 0
             val skip_std_dce: bool = is_std_module && !is_json_or_net
             val needed_subs: list[ref u8] = collect_needed_subnames_transitive(
                 items,
@@ -1304,8 +1305,8 @@ fn resolve_module_impl(
                 exe_dir,
                 workspace
             )
-            if defines.is_env_module_path(str.view_cstr(resolved_path)) {
-                defines.register_env_alias(str.view_cstr(import_name))
+            if defines.is_env_module_path(str.cstr_raw(resolved_path)) {
+                defines.register_env_alias(str.cstr_raw(import_name))
             }
             val needed_grandchildren: mut ref void = none
             if @len(needed_subs) > 0 {
@@ -1386,7 +1387,7 @@ pub fn find_import_by_name(m: ref ResolvedModule, name: ref u8) ref ResolvedModu
         }
         val n_opt = @get(m.import_names, i as usize)
         if n_opt is some n {
-            if str.raw_cmp(n as ref u8, name) == 0 {
+            if str.cmp_raw(n as ref u8, name) == 0 {
                 val mod_opt = @get(m.import_modules, i as usize)
                 if mod_opt is some child {
                     return child as ref ResolvedModule
@@ -1413,14 +1414,14 @@ pub fn fn_is_public_in_module(m: ref ResolvedModule, fn_name: ref u8) bool = tru
             if item.kind == parser.NK_FN || item.kind == parser.NK_GENERIC_FN {
                 val iname: ref u8 = parser.node_str_raw(item.d2)
                 if iname != none {
-                    if str.raw_cmp(iname, fn_name) == 0 {
+                    if str.cmp_raw(iname, fn_name) == 0 {
                         return (item.d0 & 1) != 0
                     }
                 }
             } elif item.kind == parser.NK_EXTERN_FN {
                 val iname: ref u8 = parser.node_str_raw(item.d1)
                 if iname != none {
-                    if str.raw_cmp(iname, fn_name) == 0 {
+                    if str.cmp_raw(iname, fn_name) == 0 {
                         return item.d0 == 1
                     }
                 }
@@ -1444,7 +1445,7 @@ pub fn fn_is_unsafe_in_module(m: ref ResolvedModule, fn_name: ref u8) bool = tru
             if item.kind == parser.NK_FN || item.kind == parser.NK_GENERIC_FN {
                 val iname: ref u8 = parser.node_str_raw(item.d2)
                 if iname != none {
-                    if str.raw_cmp(iname, fn_name) == 0 {
+                    if str.cmp_raw(iname, fn_name) == 0 {
                         return parser.fn_is_unsafe(item)
                     }
                 }
@@ -1480,9 +1481,9 @@ pub fn import_name_at(m: ref ResolvedModule, i: usize) ref u8 = trust {
     }
 }
 
-/// Return the filename of module `m` as a raw C string.
+/// Return the filename of module `m` as a raw C str.
 pub fn module_filename(m: ref ResolvedModule) ref u8 = trust {
-    return str.cstr(m.filename)
+    return ostr.cstr(m.filename)
 }
 
 /// Return the top-level items list of module `m`.
@@ -1504,7 +1505,7 @@ fn collect_seen(m: ref ResolvedModule, seen: ref void) void = trust {
             if s == 0 {
                 continue
             }
-            if str.equals(s, m.filename) {
+            if ostr.equals(s, m.filename) {
                 return
             }
         }
@@ -1547,7 +1548,7 @@ pub fn flatten_modules(
             if s == 0 {
                 continue
             }
-            if str.equals(s, m.filename) {
+            if ostr.equals(s, m.filename) {
                 return
             }
         }
@@ -1603,7 +1604,7 @@ pub fn flatten_modules_with_files(
             if s == 0 {
                 continue
             }
-            if str.equals(s, m.filename) {
+            if ostr.equals(s, m.filename) {
                 return
             }
         }
@@ -1635,7 +1636,7 @@ pub fn flatten_modules_with_files(
     @append(seen as list[String], m.filename)
     @append(out_prefixes as list[ref u8], prefix)
     @append(out_items as list[ref void], m.items)
-    @append(out_filenames as list[ref u8], str.cstr(m.filename))
+    @append(out_filenames as list[ref u8], ostr.cstr(m.filename))
 }
 
 fn link_path_is_absolute(flag: ref u8) bool = trust {
@@ -1681,7 +1682,7 @@ fn link_workspace_root() ref u8 = trust {
 /// upward; otherwise the first parent lookup compares equal to the current
 /// directory and the walk stops immediately.
 fn module_link_root(m: ref ResolvedModule) ref u8 = trust {
-    val start_dir: ref u8 = str.cstr(m.dir)
+    val start_dir: ref u8 = ostr.cstr(m.dir)
     val cur: mut ref u8 = path.canonicalize_path_raw(start_dir)
     val limit: mut i64 = 32
     for {
@@ -1694,7 +1695,7 @@ fn module_link_root(m: ref ResolvedModule) ref u8 = trust {
             return cur
         }
         val parent: ref u8 = path.canonicalize_path_raw(path.dir_raw(cur))
-        if str.raw_cmp(parent, cur) == 0 {
+        if str.cmp_raw(parent, cur) == 0 {
             break
         }
         cur = parent
@@ -1738,7 +1739,7 @@ fn resolve_link_path(flag: ref u8, workspace: ref u8) ref u8 = trust {
     if !link_path_has_separator(flag) {
         return flag
     }
-    if workspace == none || str.raw_cmp(workspace, c"") == 0 || str.raw_cmp(workspace, c".") == 0 {
+    if workspace == none || str.cmp_raw(workspace, c"") == 0 || str.cmp_raw(workspace, c".") == 0 {
         return flag
     }
     val name: mut ref u8 = flag
@@ -1761,7 +1762,7 @@ fn resolve_link_directive(
     if item.kind == parser.NK_LINK {
         @append(flags, parser.node_str_raw(item.d0))
     } elif item.kind == parser.NK_LIB {
-        return libfind.resolve(parser.node_str(item.d0), str.view_cstr(platform), static_link)
+        return libfind.resolve(parser.node_str(item.d0), str.cstr_raw(platform), static_link)
     }
     return ok flags
 }
@@ -1859,7 +1860,7 @@ fn collect_links_with_root(
     val result: mut list[ref u8] = mem.new[ref u8]()
     val workspace: ref u8 = link_root
     for the_link in links {
-        if str.raw_cmp(the_link, c"__sx__internal__json__") == 0 {
+        if str.cmp_raw(the_link, c"__sx__internal__json__") == 0 {
             val shim_c: ref u8 = path.join_raw(exe_dir, c"spectrelib/csources/yyjson_shim.c")
             val shim_o: ref u8 = path.join_raw(exe_dir, c"spectrelib/csources/yyjson_shim.o")
 
@@ -1909,7 +1910,7 @@ pub fn collect_links_filtered(
             if s == 0 {
                 continue
             }
-            if str.equals(s, m.filename) {
+            if ostr.equals(s, m.filename) {
                 return ok mem.new[ref u8]()
             }
         }
@@ -1929,7 +1930,7 @@ pub fn collect_links_filtered(
         }
         val u_opt = @get(used_prefixes, ui as usize)
         if u_opt is some u {
-            if str.raw_cmp(u as ref u8, prefix) == 0 {
+            if str.cmp_raw(u as ref u8, prefix) == 0 {
                 is_used = true
                 break
             }
@@ -1960,7 +1961,7 @@ pub fn collect_links_filtered(
         if name_opt is some name {
             if mod_opt is some child {
                 val child_prefix: mut ref u8 = c""
-                if str.raw_cmp(prefix, c"") == 0 {
+                if str.cmp_raw(prefix, c"") == 0 {
                     child_prefix = name as ref u8
                 } else {
                     child_prefix = @fmtalloc("{s}__{s}", {prefix, name as ref u8})
@@ -2003,7 +2004,7 @@ pub fn collect_links_all(
             if s == 0 {
                 continue
             }
-            if str.equals(s, m.filename) {
+            if ostr.equals(s, m.filename) {
                 return ok mem.new[ref u8]()
             }
         }
@@ -2035,7 +2036,7 @@ pub fn collect_links_all(
         if name_opt is some name {
             if mod_opt is some child {
                 val child_prefix: mut ref u8 = c""
-                if str.raw_cmp(prefix, c"") == 0 {
+                if str.cmp_raw(prefix, c"") == 0 {
                     child_prefix = name as ref u8
                 } else {
                     child_prefix = @fmtalloc("{s}__{s}", {prefix, name as ref u8})
@@ -2077,41 +2078,41 @@ fn selector_segment_eq(seg: ref u8, seg_len: i64, lit: ref u8) bool = trust {
 }
 
 fn platform_is_posix(current: ref u8) bool = trust {
-    if str.raw_cmp(current, c"linux") == 0 {
+    if str.cmp_raw(current, c"linux") == 0 {
         return true
     }
-    if str.raw_cmp(current, c"darwin") == 0 {
+    if str.cmp_raw(current, c"darwin") == 0 {
         return true
     }
-    if str.raw_cmp(current, c"freebsd") == 0 {
+    if str.cmp_raw(current, c"freebsd") == 0 {
         return true
     }
-    if str.raw_cmp(current, c"openbsd") == 0 {
+    if str.cmp_raw(current, c"openbsd") == 0 {
         return true
     }
-    if str.raw_cmp(current, c"netbsd") == 0 {
+    if str.cmp_raw(current, c"netbsd") == 0 {
         return true
     }
-    if str.raw_cmp(current, c"dragonflybsd") == 0 {
+    if str.cmp_raw(current, c"dragonflybsd") == 0 {
         return true
     }
-    if str.raw_cmp(current, c"haiku") == 0 {
+    if str.cmp_raw(current, c"haiku") == 0 {
         return true
     }
-    if str.raw_cmp(current, c"android") == 0 {
+    if str.cmp_raw(current, c"android") == 0 {
         return true
     }
-    if str.raw_cmp(current, c"redox") == 0 {
+    if str.cmp_raw(current, c"redox") == 0 {
         return true
     }
     return false
 }
 
 fn platform_is_bsd(current: ref u8) bool = trust {
-    return str.raw_cmp(current, c"freebsd") == 0 ||
-    str.raw_cmp(current, c"openbsd") == 0 ||
-    str.raw_cmp(current, c"netbsd") == 0 ||
-    str.raw_cmp(current, c"dragonflybsd") == 0
+    return str.cmp_raw(current, c"freebsd") == 0 ||
+    str.cmp_raw(current, c"openbsd") == 0 ||
+    str.cmp_raw(current, c"netbsd") == 0 ||
+    str.cmp_raw(current, c"dragonflybsd") == 0
 }
 
 /// Match a platform segment that may be a concrete OS or a group alias.
@@ -2130,38 +2131,38 @@ fn platform_segment_matches(current: ref u8, seg: ref u8, seg_len: i64) bool = t
 }
 
 fn is_arch_selector(name: ref u8) bool = trust {
-    return str.raw_cmp(name, c"x86_64") == 0 ||
-    str.raw_cmp(name, c"amd64") == 0 ||
-    str.raw_cmp(name, c"aarch64") == 0 ||
-    str.raw_cmp(name, c"arm64") == 0 ||
-    str.raw_cmp(name, c"riscv64") == 0 ||
-    str.raw_cmp(name, c"riscv32") == 0 ||
-    str.raw_cmp(name, c"riscv") == 0 ||
-    str.raw_cmp(name, c"x86") == 0 ||
-    str.raw_cmp(name, c"i386") == 0 ||
-    str.raw_cmp(name, c"i686") == 0 ||
-    str.raw_cmp(name, c"arm") == 0 ||
-    str.raw_cmp(name, c"armv7") == 0 ||
-    str.raw_cmp(name, c"mips") == 0 ||
-    str.raw_cmp(name, c"mips64") == 0 ||
-    str.raw_cmp(name, c"ppc64") == 0 ||
-    str.raw_cmp(name, c"powerpc64") == 0 ||
-    str.raw_cmp(name, c"s390x") == 0 ||
-    str.raw_cmp(name, c"wasm32") == 0 ||
-    str.raw_cmp(name, c"wasm64") == 0
+    return str.cmp_raw(name, c"x86_64") == 0 ||
+    str.cmp_raw(name, c"amd64") == 0 ||
+    str.cmp_raw(name, c"aarch64") == 0 ||
+    str.cmp_raw(name, c"arm64") == 0 ||
+    str.cmp_raw(name, c"riscv64") == 0 ||
+    str.cmp_raw(name, c"riscv32") == 0 ||
+    str.cmp_raw(name, c"riscv") == 0 ||
+    str.cmp_raw(name, c"x86") == 0 ||
+    str.cmp_raw(name, c"i386") == 0 ||
+    str.cmp_raw(name, c"i686") == 0 ||
+    str.cmp_raw(name, c"arm") == 0 ||
+    str.cmp_raw(name, c"armv7") == 0 ||
+    str.cmp_raw(name, c"mips") == 0 ||
+    str.cmp_raw(name, c"mips64") == 0 ||
+    str.cmp_raw(name, c"ppc64") == 0 ||
+    str.cmp_raw(name, c"powerpc64") == 0 ||
+    str.cmp_raw(name, c"s390x") == 0 ||
+    str.cmp_raw(name, c"wasm32") == 0 ||
+    str.cmp_raw(name, c"wasm64") == 0
 }
 
 fn normalize_arch_name(name: ref u8) ref u8 = trust {
-    if str.raw_cmp(name, c"amd64") == 0 {
+    if str.cmp_raw(name, c"amd64") == 0 {
         return c"x86_64"
     }
-    if str.raw_cmp(name, c"arm64") == 0 {
+    if str.cmp_raw(name, c"arm64") == 0 {
         return c"aarch64"
     }
-    if str.raw_cmp(name, c"i386") == 0 || str.raw_cmp(name, c"i686") == 0 {
+    if str.cmp_raw(name, c"i386") == 0 || str.cmp_raw(name, c"i686") == 0 {
         return c"x86"
     }
-    if str.raw_cmp(name, c"powerpc64") == 0 {
+    if str.cmp_raw(name, c"powerpc64") == 0 {
         return c"ppc64"
     }
     return name
@@ -2171,7 +2172,7 @@ fn normalize_arch_name(name: ref u8) ref u8 = trust {
 pub fn arch_matches(name: ref u8) bool = trust {
     val arena: allocators.Arena = allocators.Arena.new(256 as usize)?
     val current: ref u8 = reflection.current_arch_name[allocators.Arena](arena)
-    val matched: bool = str.raw_cmp(normalize_arch_name(name), normalize_arch_name(current)) == 0
+    val matched: bool = str.cmp_raw(normalize_arch_name(name), normalize_arch_name(current)) == 0
     allocators.Arena.free(arena)
     return matched
 }
@@ -2228,7 +2229,7 @@ fn import_in_list(import_names: list[ref u8], name: ref u8) bool = trust {
         }
         val opt = @get(import_names, i as usize)
         if opt is some n {
-            if str.raw_cmp(n as ref u8, name) == 0 {
+            if str.cmp_raw(n as ref u8, name) == 0 {
                 return true
             }
         }
@@ -2603,7 +2604,7 @@ fn collect_needed_subnames_in_expr(
 
         if base != none && base.kind == parser.NK_IDENT {
             val base_name: ref u8 = parser.node_str_raw(base.d0)
-            if str.raw_cmp(base_name, import_name) == 0 {
+            if str.cmp_raw(base_name, import_name) == 0 {
                 if !import_in_list(needed, field_name) {
                     @append(needed, field_name)
                 }
@@ -3617,7 +3618,7 @@ pub fn collect_used_links(
             val name_opt = @get(m.import_names, ci as usize)
             val mod_opt = @get(m.import_modules, ci as usize)
             if name_opt is some name {
-                if str.raw_cmp(name as ref u8, used_name) == 0 {
+                if str.cmp_raw(name as ref u8, used_name) == 0 {
                     if mod_opt is some child {
                         val child_links: list[ref u8] = collect_used_links_recursive(
                             child as ref ResolvedModule,
@@ -3647,7 +3648,7 @@ pub fn collect_used_links(
             }
             val d_opt = @get(deduped, di as usize)
             if d_opt is some d {
-                if str.raw_cmp(d as ref u8, lnk) == 0 {
+                if str.cmp_raw(d as ref u8, lnk) == 0 {
                     already = true
                     break
                 }
@@ -3680,7 +3681,7 @@ fn collect_used_links_recursive(
             if s == 0 {
                 continue
             }
-            if str.equals(s, m.filename) {
+            if ostr.equals(s, m.filename) {
                 return ok mem.new[ref u8]()
             }
         }
@@ -3714,7 +3715,7 @@ fn collect_used_links_recursive(
             val name_opt = @get(m.import_names, ci as usize)
             val mod_opt = @get(m.import_modules, ci as usize)
             if name_opt is some name {
-                if str.raw_cmp(name as ref u8, used_name) == 0 {
+                if str.cmp_raw(name as ref u8, used_name) == 0 {
                     if mod_opt is some child {
                         val child_links: list[ref u8] = collect_used_links_recursive(
                             child as ref ResolvedModule,

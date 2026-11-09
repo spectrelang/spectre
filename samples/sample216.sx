@@ -10,7 +10,7 @@ pub fn main() void = trust {
         "allocatorized stage {d}: {s}",
         {3, "fmtalloc"}
     )?
-    stdio.puts(str.view_cstr(msg))
+    stdio.puts(str.cstr_raw(msg))
     stdio.puts("\n")
     allocators.HeapAllocator.free(ac, msg as ref void)
 

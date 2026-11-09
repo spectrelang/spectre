@@ -16,7 +16,7 @@ fn ll_lookup_fn_params(ctx: ref LLCtx, name: ref u8) ref void = trust {
         }
         val n_opt = @get(ctx.fn_names, i as usize)
         if n_opt is some n {
-            if str.raw_cmp(n as ref u8, name) == 0 {
+            if str.cmp_raw(n as ref u8, name) == 0 {
                 val p_opt = @get(ctx.fn_params, i as usize)
                 if p_opt is some p {
                     return p as ref void

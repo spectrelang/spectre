@@ -65,7 +65,7 @@ when netbsd {
 }
 
 val stdio      = use("std/stdio")
-val string     = use("std/string")
+val str     = use("std/string")
 val allocators = use("std/allocators")
 
 when posix {
@@ -98,19 +98,19 @@ pub fn get_current_platform[T: allocators.Allocator](ac: T) Platform = trust {
         val r = uname(@addr(buf))
         if r == 0 {
             val sysname: ref u8 = @addr(buf.sysname) as ref u8
-            if string.raw_cmp(sysname, c"Linux") == 0 {
+            if str.cmp_raw(sysname, c"Linux") == 0 {
                 return Platform.Linux
             }
-            if string.raw_cmp(sysname, c"Darwin") == 0 {
+            if str.cmp_raw(sysname, c"Darwin") == 0 {
                 return Platform.Darwin
             }
-            if string.raw_cmp(sysname, c"FreeBSD") == 0 {
+            if str.cmp_raw(sysname, c"FreeBSD") == 0 {
                 return Platform.FreeBSD
             }
-            if string.raw_cmp(sysname, c"OpenBSD") == 0 {
+            if str.cmp_raw(sysname, c"OpenBSD") == 0 {
                 return Platform.OpenBSD
             }
-            if string.raw_cmp(sysname, c"NetBSD") == 0 {
+            if str.cmp_raw(sysname, c"NetBSD") == 0 {
                 return Platform.NetBSD
             }
         }

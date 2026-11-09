@@ -4,11 +4,11 @@ pub fn main() void = trust {
     // old syntax, should no longer compile:
     //     stdio.puts(`
     // Hello, world.
-    // This is a multiline string.
+    // This is a multiline str.
     //     `)
 
     stdio.puts(
         \\Hello, world.
-        \\This is a multiline string.
+        \\This is a multiline str.
     )
 }

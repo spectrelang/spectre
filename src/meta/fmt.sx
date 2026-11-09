@@ -53,7 +53,7 @@ type ImportRec = {
     has_nl: mut bool
 }
 
-fn byte_at(src: ref u8, i: i64) i64 = trust {
+fn byte_at_raw(src: ref u8, i: i64) i64 = trust {
     return @load8(@ptradd(src, i)) as i64
 }
 
@@ -213,7 +213,7 @@ fn range_is_whitespace(src: ref u8, start: i64, end: i64) bool = {
         if i >= end {
             break
         }
-        if !is_space_byte(trust byte_at(src, i)) {
+        if !is_space_byte(trust byte_at_raw(src, i)) {
             return false
         }
         i++
@@ -229,7 +229,7 @@ fn collect_line_starts(src: ref u8, len: i64) list[i64] = trust {
         if i >= len {
             break
         }
-        if byte_at(src, i) == 10 {
+        if byte_at_raw(src, i) == 10 {
             @append(starts, i + 1)
         }
         i++
@@ -959,7 +959,7 @@ fn token_ident_is(tokens: list[ref lexer.Token], idx: i64, text: ref u8) bool = 
     if tok_text == none {
         return false
     }
-    return str.raw_cmp(tok_text, text) == 0
+    return str.cmp_raw(tok_text, text) == 0
 }
 
 /// Returns the index of the paren that matches the closing paren at `close_idx`.
@@ -1597,7 +1597,7 @@ fn rewrite_match_at(
         if ws_start <= 0 {
             break
         }
-        val c: i64 = byte_at(src, ws_start - 1)
+        val c: i64 = byte_at_raw(src, ws_start - 1)
         if !is_space_byte(c) {
             break
         }
@@ -1613,7 +1613,7 @@ fn rewrite_match_at(
         if nl_scan >= s_start {
             break
         }
-        if byte_at(src, nl_scan) == 10 {
+        if byte_at_raw(src, nl_scan) == 10 {
             some_removal_start = nl_scan + 1
         }
         nl_scan++
@@ -1626,19 +1626,19 @@ fn rewrite_match_at(
             if after_open >= len_src {
                 break
             }
-            val c: i64 = byte_at(src, after_open)
+            val c: i64 = byte_at_raw(src, after_open)
             if c != 32 && c != 9 {
                 break
             }
             after_open++
         }
         if after_open < len_src {
-            val c2: i64 = byte_at(src, after_open)
+            val c2: i64 = byte_at_raw(src, after_open)
             if c2 == 10 {
                 some_removal_end = after_open + 1
             } elif c2 == 13 {
                 some_removal_end = after_open + 1
-                if some_removal_end < len_src && byte_at(src, some_removal_end) == 10 {
+                if some_removal_end < len_src && byte_at_raw(src, some_removal_end) == 10 {
                     some_removal_end++
                 }
             }
@@ -1847,7 +1847,7 @@ fn format_else_join(src: ref u8) ref u8 = trust {
         val after_pos: i64 = token_start(tokens, starts, after_idx)
         if range_is_whitespace(src, close_pos + 1, after_pos) {
             val already_one: bool =
-            after_pos - (close_pos + 1) == 1 && byte_at(src, close_pos + 1) == 32
+            after_pos - (close_pos + 1) == 1 && byte_at_raw(src, close_pos + 1) == 32
             if !already_one {
                 @append(edits, edit_new(close_pos + 1, after_pos, c" "))
             }
@@ -1922,7 +1922,7 @@ fn format_match_arm_spacing(src: ref u8) ref u8 = trust {
                         if ws_before <= 0 {
                             break
                         }
-                        val c: i64 = byte_at(src, ws_before - 1)
+                        val c: i64 = byte_at_raw(src, ws_before - 1)
                         if c != 32 && c != 9 {
                             break
                         }
@@ -1952,7 +1952,7 @@ fn format_match_arm_spacing(src: ref u8) ref u8 = trust {
                 if ws_arrow <= 0 {
                     break
                 }
-                val c: i64 = byte_at(src, ws_arrow - 1)
+                val c: i64 = byte_at_raw(src, ws_arrow - 1)
                 if c != 32 && c != 9 {
                     break
                 }
@@ -1961,12 +1961,12 @@ fn format_match_arm_spacing(src: ref u8) ref u8 = trust {
 
             val arrow_at_line_start: bool =
             ws_arrow == 0 ||
-            byte_at(src, ws_arrow - 1) == 10 ||
-            byte_at(src, ws_arrow - 1) == 13
+            byte_at_raw(src, ws_arrow - 1) == 10 ||
+            byte_at_raw(src, ws_arrow - 1) == 13
 
             if !arrow_at_line_start {
                 val arrow_gap: i64 = arrow_pos - ws_arrow
-                val arrow_one: bool = arrow_gap == 1 && byte_at(src, ws_arrow) == 32
+                val arrow_one: bool = arrow_gap == 1 && byte_at_raw(src, ws_arrow) == 32
                 if !arrow_one {
                     @append(edits, edit_new(ws_arrow, arrow_pos, c" "))
                 }
@@ -2115,7 +2115,7 @@ fn format_paren_separators(src: ref u8) ref u8 = trust {
                     if ws_before <= 0 {
                         break
                     }
-                    val c: i64 = byte_at(src, ws_before - 1)
+                    val c: i64 = byte_at_raw(src, ws_before - 1)
                     if c != 32 && c != 9 {
                         break
                     }
@@ -2180,7 +2180,7 @@ fn format_colon_spacing(src: ref u8) ref u8 = trust {
                 if ws_before <= 0 {
                     break
                 }
-                val c: i64 = byte_at(src, ws_before - 1)
+                val c: i64 = byte_at_raw(src, ws_before - 1)
                 if c != 32 && c != 9 {
                     break
                 }
@@ -2244,7 +2244,7 @@ fn format_eq_spacing(src: ref u8) ref u8 = trust {
                 if ws_before <= 0 {
                     break
                 }
-                val c: i64 = byte_at(src, ws_before - 1)
+                val c: i64 = byte_at_raw(src, ws_before - 1)
                 if c != 32 && c != 9 {
                     break
                 }
@@ -2253,12 +2253,12 @@ fn format_eq_spacing(src: ref u8) ref u8 = trust {
 
             val at_line_start: bool =
             ws_before == 0 ||
-            byte_at(src, ws_before - 1) == 10 ||
-            byte_at(src, ws_before - 1) == 13
+            byte_at_raw(src, ws_before - 1) == 10 ||
+            byte_at_raw(src, ws_before - 1) == 13
 
             if !at_line_start {
                 val gap: i64 = eq_pos - ws_before
-                val already_one: bool = gap == 1 && byte_at(src, ws_before) == 32
+                val already_one: bool = gap == 1 && byte_at_raw(src, ws_before) == 32
                 if !already_one {
                     @append(edits, edit_new(ws_before, eq_pos, c" "))
                 }
@@ -2268,7 +2268,7 @@ fn format_eq_spacing(src: ref u8) ref u8 = trust {
                 val next_pos: i64 = token_start(tokens, starts, i + 1)
                 if range_is_whitespace(src, eq_pos + 1, next_pos) {
                     val already_one_after: bool =
-                    next_pos - (eq_pos + 1) == 1 && byte_at(src, eq_pos + 1) == 32
+                    next_pos - (eq_pos + 1) == 1 && byte_at_raw(src, eq_pos + 1) == 32
                     if !already_one_after {
                         @append(edits, edit_new(eq_pos + 1, next_pos, c" "))
                     }
@@ -2319,7 +2319,7 @@ fn format_as_spacing(src: ref u8) ref u8 = trust {
                 if ws_before <= 0 {
                     break
                 }
-                val c: i64 = byte_at(src, ws_before - 1)
+                val c: i64 = byte_at_raw(src, ws_before - 1)
                 if c != 32 && c != 9 {
                     break
                 }
@@ -2328,12 +2328,12 @@ fn format_as_spacing(src: ref u8) ref u8 = trust {
 
             val at_line_start: bool =
             ws_before == 0 ||
-            byte_at(src, ws_before - 1) == 10 ||
-            byte_at(src, ws_before - 1) == 13
+            byte_at_raw(src, ws_before - 1) == 10 ||
+            byte_at_raw(src, ws_before - 1) == 13
 
             if !at_line_start {
                 val gap: i64 = as_pos - ws_before
-                val already_one: bool = gap == 1 && byte_at(src, ws_before) == 32
+                val already_one: bool = gap == 1 && byte_at_raw(src, ws_before) == 32
                 if !already_one {
                     @append(edits, edit_new(ws_before, as_pos, c" "))
                 }
@@ -2343,7 +2343,7 @@ fn format_as_spacing(src: ref u8) ref u8 = trust {
                 val next_pos: i64 = token_start(tokens, starts, i + 1)
                 if range_is_whitespace(src, as_pos + 1, next_pos) {
                     val already_one_after: bool =
-                    next_pos - (as_pos + 1) == 1 && byte_at(src, as_pos + 1) == 32
+                    next_pos - (as_pos + 1) == 1 && byte_at_raw(src, as_pos + 1) == 32
                     if !already_one_after {
                         @append(edits, edit_new(as_pos + 1, next_pos, c" "))
                     }
@@ -2396,7 +2396,7 @@ fn format_operator_spacing(src: ref u8) ref u8 = trust {
                 if ws_before <= 0 {
                     break
                 }
-                val c: i64 = byte_at(src, ws_before - 1)
+                val c: i64 = byte_at_raw(src, ws_before - 1)
                 if c != 32 && c != 9 {
                     break
                 }
@@ -2405,12 +2405,12 @@ fn format_operator_spacing(src: ref u8) ref u8 = trust {
 
             val at_line_start: bool =
             ws_before == 0 ||
-            byte_at(src, ws_before - 1) == 10 ||
-            byte_at(src, ws_before - 1) == 13
+            byte_at_raw(src, ws_before - 1) == 10 ||
+            byte_at_raw(src, ws_before - 1) == 13
 
             if !at_line_start {
                 val gap: i64 = op_pos - ws_before
-                val already_one: bool = gap == 1 && byte_at(src, ws_before) == 32
+                val already_one: bool = gap == 1 && byte_at_raw(src, ws_before) == 32
                 if !already_one {
                     @append(edits, edit_new(ws_before, op_pos, c" "))
                 }
@@ -2420,7 +2420,7 @@ fn format_operator_spacing(src: ref u8) ref u8 = trust {
                 val next_pos: i64 = token_start(tokens, starts, i + 1)
                 if range_is_whitespace(src, op_pos + op_len, next_pos) {
                     val already_one_after: bool =
-                    next_pos - (op_pos + op_len) == 1 && byte_at(src, op_pos + op_len) == 32
+                    next_pos - (op_pos + op_len) == 1 && byte_at_raw(src, op_pos + op_len) == 32
                     if !already_one_after {
                         @append(edits, edit_new(op_pos + op_len, next_pos, c" "))
                     }
@@ -2493,7 +2493,7 @@ fn format_assert_spacing(src: ref u8) ref u8 = trust {
                                 if content_start >= close_pos {
                                     break
                                 }
-                                val c: i64 = byte_at(src, content_start)
+                                val c: i64 = byte_at_raw(src, content_start)
                                 if c != 32 && c != 9 {
                                     break
                                 }
@@ -2506,7 +2506,7 @@ fn format_assert_spacing(src: ref u8) ref u8 = trust {
                                 if content_end <= content_start {
                                     break
                                 }
-                                val c: i64 = byte_at(src, content_end - 1)
+                                val c: i64 = byte_at_raw(src, content_end - 1)
                                 if c != 32 && c != 9 {
                                     break
                                 }
@@ -2527,7 +2527,7 @@ fn format_assert_spacing(src: ref u8) ref u8 = trust {
                     val next_pos: i64 = token_start(tokens, starts, i + 1)
                     if range_is_whitespace(src, keyword_end, next_pos) {
                         val already_one: bool =
-                        next_pos - keyword_end == 1 && byte_at(src, keyword_end) == 32
+                        next_pos - keyword_end == 1 && byte_at_raw(src, keyword_end) == 32
                         if !already_one {
                             @append(edits, edit_new(keyword_end, next_pos, c" "))
                         }
@@ -2579,7 +2579,7 @@ fn format_block_brace_spacing(src: ref u8) ref u8 = trust {
                 if ws_start <= 0 {
                     break
                 }
-                val c: i64 = byte_at(src, ws_start - 1)
+                val c: i64 = byte_at_raw(src, ws_start - 1)
                 if c != 32 && c != 9 {
                     break
                 }
@@ -2588,12 +2588,12 @@ fn format_block_brace_spacing(src: ref u8) ref u8 = trust {
 
             val at_line_start: bool =
             ws_start == 0 ||
-            byte_at(src, ws_start - 1) == 10 ||
-            byte_at(src, ws_start - 1) == 13
+            byte_at_raw(src, ws_start - 1) == 10 ||
+            byte_at_raw(src, ws_start - 1) == 13
 
             if !at_line_start {
                 val gap: i64 = brace_pos - ws_start
-                val already_one: bool = gap == 1 && byte_at(src, ws_start) == 32
+                val already_one: bool = gap == 1 && byte_at_raw(src, ws_start) == 32
                 if !already_one {
                     @append(edits, edit_new(ws_start, brace_pos, c" "))
                 }
@@ -2679,7 +2679,7 @@ fn format_fn_return_spacing(src: ref u8) ref u8 = trust {
                         val next_pos: i64 = token_start(tokens, starts, params_close + 1)
                         if range_is_whitespace(src, close_end, next_pos) {
                             val already_one: bool =
-                            next_pos - close_end == 1 && byte_at(src, close_end) == 32
+                            next_pos - close_end == 1 && byte_at_raw(src, close_end) == 32
                             if !already_one {
                                 @append(edits, edit_new(close_end, next_pos, c" "))
                             }
@@ -2705,7 +2705,7 @@ fn segment_starts_with(src: ref u8, start: i64, end: i64, prefix: ref u8) bool =
         if i >= plen {
             break
         }
-        if byte_at(src, start + i) != byte_at(prefix, i) {
+        if byte_at_raw(src, start + i) != byte_at_raw(prefix, i) {
             return false
         }
         i++
@@ -2721,7 +2721,7 @@ fn segment_starts_with_keyword(src: ref u8, start: i64, end: i64, keyword: ref u
     if after >= end {
         return false
     }
-    val c: i64 = byte_at(src, after)
+    val c: i64 = byte_at_raw(src, after)
     return c == 32 || c == 40 || c == 9
 }
 
@@ -2774,7 +2774,7 @@ fn import_eq_pos(src: ref u8, start: i64, end: i64) i64 = trust {
         if i >= end {
             break
         }
-        if byte_at(src, i) == 61 {
+        if byte_at_raw(src, i) == 61 {
             eq = i
             break
         }
@@ -2789,7 +2789,7 @@ fn import_eq_pos(src: ref u8, start: i64, end: i64) i64 = trust {
         if use_start >= end {
             break
         }
-        val c: i64 = byte_at(src, use_start)
+        val c: i64 = byte_at_raw(src, use_start)
         if c != 32 && c != 9 {
             break
         }
@@ -2857,7 +2857,7 @@ fn format_import_alignment(src: ref u8) ref u8 = trust {
             if line_end >= len {
                 break
             }
-            if byte_at(src, line_end) == 10 {
+            if byte_at_raw(src, line_end) == 10 {
                 break
             }
             line_end++
@@ -2870,7 +2870,7 @@ fn format_import_alignment(src: ref u8) ref u8 = trust {
                 if left_end <= line_start {
                     break
                 }
-                val c: i64 = byte_at(src, left_end - 1)
+                val c: i64 = byte_at_raw(src, left_end - 1)
                 if c != 32 && c != 9 {
                     break
                 }
@@ -2999,7 +2999,7 @@ fn format_bulk_val_alignment(src: ref u8) ref u8 = trust {
                             if left_end <= line_start {
                                 break
                             }
-                            val c: i64 = byte_at(src, left_end - 1)
+                            val c: i64 = byte_at_raw(src, left_end - 1)
                             if c != 32 && c != 9 {
                                 break
                             }
@@ -3023,7 +3023,7 @@ fn format_bulk_val_alignment(src: ref u8) ref u8 = trust {
                             if left_end <= line_start {
                                 break
                             }
-                            val c: i64 = byte_at(src, left_end - 1)
+                            val c: i64 = byte_at_raw(src, left_end - 1)
                             if c != 32 && c != 9 {
                                 break
                             }
@@ -3065,7 +3065,7 @@ fn format_top_level_decl_gaps(src: ref u8) ref u8 = trust {
             if line_end >= len {
                 break
             }
-            if byte_at(src, line_end) == 10 {
+            if byte_at_raw(src, line_end) == 10 {
                 break
             }
             line_end++
@@ -3076,7 +3076,7 @@ fn format_top_level_decl_gaps(src: ref u8) ref u8 = trust {
             if content_start >= line_end {
                 break
             }
-            val c: i64 = byte_at(src, content_start)
+            val c: i64 = byte_at_raw(src, content_start)
             if c != 32 && c != 9 {
                 break
             }
@@ -3088,7 +3088,7 @@ fn format_top_level_decl_gaps(src: ref u8) ref u8 = trust {
             if content_end <= content_start {
                 break
             }
-            val c: i64 = byte_at(src, content_end - 1)
+            val c: i64 = byte_at_raw(src, content_end - 1)
             if c != 32 && c != 9 && c != 13 {
                 break
             }
@@ -3152,12 +3152,12 @@ fn scan_nesting(src: ref u8, start: i64, end: i64, out: mut ref Nesting) void = 
         if i >= end {
             break
         }
-        val c: i64 = byte_at(src, i)
+        val c: i64 = byte_at_raw(src, i)
 
-        if c == 47 && i + 1 < end && byte_at(src, i + 1) == 47 {
+        if c == 47 && i + 1 < end && byte_at_raw(src, i + 1) == 47 {
             break
         }
-        if c == 92 && i + 1 < end && byte_at(src, i + 1) == 92 {
+        if c == 92 && i + 1 < end && byte_at_raw(src, i + 1) == 92 {
             break
         }
         if c == 34 {
@@ -3166,7 +3166,7 @@ fn scan_nesting(src: ref u8, start: i64, end: i64, out: mut ref Nesting) void = 
                 if i >= end {
                     break
                 }
-                val sc: i64 = byte_at(src, i)
+                val sc: i64 = byte_at_raw(src, i)
                 if sc == 92 {
                     i += 2
                 } elif sc == 34 {
@@ -3182,7 +3182,7 @@ fn scan_nesting(src: ref u8, start: i64, end: i64, out: mut ref Nesting) void = 
                 if i >= end {
                     break
                 }
-                val cc: i64 = byte_at(src, i)
+                val cc: i64 = byte_at_raw(src, i)
                 if cc == 92 {
                     i += 2
                 } elif cc == 39 {
@@ -3235,7 +3235,7 @@ fn reindent(src: ref u8) ref u8 = trust {
             if line_end >= len {
                 break
             }
-            if byte_at(src, line_end) == 10 {
+            if byte_at_raw(src, line_end) == 10 {
                 break
             }
             line_end++
@@ -3246,7 +3246,7 @@ fn reindent(src: ref u8) ref u8 = trust {
             if content_start >= line_end {
                 break
             }
-            val c: i64 = byte_at(src, content_start)
+            val c: i64 = byte_at_raw(src, content_start)
             if c != 32 && c != 9 {
                 break
             }
@@ -3258,7 +3258,7 @@ fn reindent(src: ref u8) ref u8 = trust {
             if content_end <= content_start {
                 break
             }
-            val c: i64 = byte_at(src, content_end - 1)
+            val c: i64 = byte_at_raw(src, content_end - 1)
             if c != 32 && c != 9 && c != 13 {
                 break
             }
@@ -3266,7 +3266,7 @@ fn reindent(src: ref u8) ref u8 = trust {
         }
 
         if content_start < content_end {
-            val first: i64 = byte_at(src, content_start)
+            val first: i64 = byte_at_raw(src, content_start)
             val total_depth: i64 = depth + paren_depth + bracket_depth
             val indent_depth: mut i64 = total_depth
             val starts_close: bool = first == 125 || first == 41 || first == 93
@@ -3411,7 +3411,7 @@ fn append_remove_paren_close(
             if ws_start <= prev_pos {
                 break
             }
-            val c: i64 = byte_at(src, ws_start - 1)
+            val c: i64 = byte_at_raw(src, ws_start - 1)
             if c != 32 && c != 9 {
                 break
             }
@@ -3438,7 +3438,7 @@ fn append_for_separator(
         if ws_start <= 0 {
             break
         }
-        val c: i64 = byte_at(src, ws_start - 1)
+        val c: i64 = byte_at_raw(src, ws_start - 1)
         if c != 32 && c != 9 {
             break
         }
@@ -3515,7 +3515,7 @@ fn format_for_headers(src: ref u8) ref u8 = trust {
                             if token_line(tokens, header_start) == token_line(tokens, i) &&
                             range_is_whitespace(src, keyword_end, header_pos) {
                                 val already_one: bool =
-                                header_pos - keyword_end == 1 && byte_at(src, keyword_end) == 32
+                                header_pos - keyword_end == 1 && byte_at_raw(src, keyword_end) == 32
                                 if !already_one {
                                     @append(edits, edit_new(keyword_end, header_pos, c" "))
                                 }
@@ -3690,7 +3690,7 @@ fn line_length_at(src: ref u8, len: i64, starts: list[i64], line_idx: i64) i64 =
             if end >= len {
                 break
             }
-            if byte_at(src, end) == 10 {
+            if byte_at_raw(src, end) == 10 {
                 break
             }
             end++
@@ -3888,7 +3888,7 @@ fn format_long_lines(src: ref u8) ref u8 = trust {
             break
         }
         val next: ref u8 = wrap_one_long_line(current)
-        if str.raw_cmp(next, current) == 0 {
+        if str.cmp_raw(next, current) == 0 {
             if next != current {
                 @free(next)
             }
@@ -3916,7 +3916,7 @@ fn trim_leading_newlines(src: ref u8) ref u8 = trust {
         if start >= len - 1 {
             break
         }
-        if byte_at(src, start) != 10 {
+        if byte_at_raw(src, start) != 10 {
             break
         }
         start++
@@ -3963,7 +3963,7 @@ fn line_end_at(src: ref u8, start: i64, len: i64) i64 = trust {
         if i >= len {
             break
         }
-        if byte_at(src, i) == 10 {
+        if byte_at_raw(src, i) == 10 {
             break
         }
         i++
@@ -3977,7 +3977,7 @@ fn skip_horizontal_space(src: ref u8, start: i64, end: i64) i64 = trust {
         if i >= end {
             break
         }
-        val c: i64 = byte_at(src, i)
+        val c: i64 = byte_at_raw(src, i)
         if c != 32 && c != 9 {
             break
         }
@@ -3992,7 +3992,7 @@ fn trim_horizontal_space(src: ref u8, start: i64, end: i64) i64 = trust {
         if i <= start {
             break
         }
-        val c: i64 = byte_at(src, i - 1)
+        val c: i64 = byte_at_raw(src, i - 1)
         if c != 32 && c != 9 && c != 13 {
             break
         }
@@ -4011,7 +4011,7 @@ fn segment_equals(src: ref u8, start: i64, end: i64, text: ref u8) bool = trust 
         if i >= text_len {
             break
         }
-        if byte_at(src, start + i) != byte_at(text, i) {
+        if byte_at_raw(src, start + i) != byte_at_raw(text, i) {
             return false
         }
         i++
@@ -4323,7 +4323,7 @@ fn unmask_ignore_regions(
             if replace_start <= 0 {
                 break
             }
-            if byte_at(formatted, replace_start - 1) == 10 {
+            if byte_at_raw(formatted, replace_start - 1) == 10 {
                 break
             }
             replace_start--
@@ -4334,7 +4334,7 @@ fn unmask_ignore_regions(
             if replace_start >= marker_pos {
                 break
             }
-            val c: i64 = byte_at(formatted, replace_start)
+            val c: i64 = byte_at_raw(formatted, replace_start)
             if c != 32 && c != 9 {
                 prefix_ok = false
                 break
@@ -4355,7 +4355,7 @@ fn unmask_ignore_regions(
             if replace_end >= line_end {
                 break
             }
-            val c: i64 = byte_at(formatted, replace_end)
+            val c: i64 = byte_at_raw(formatted, replace_end)
             if c != 32 && c != 9 && c != 13 {
                 suffix_ok = false
                 break
@@ -4485,7 +4485,7 @@ fn format_source(src: ref u8) ref u8 = trust {
 }
 
 fn has_sx_suffix(file: ref u8) bool = {
-    return str.raw_ends_with(file, c".sx")
+    return str.ends_with_raw(file, c".sx")
 }
 
 fn format_file(file: ref u8, to_stdout: bool) i32 = trust {
@@ -4512,7 +4512,7 @@ fn format_file(file: ref u8, to_stdout: bool) i32 = trust {
         if i >= size {
             break
         }
-        if byte_at(content, i) == 0 {
+        if byte_at_raw(content, i) == 0 {
             stdio.print("error: '{s}' is not a plaintext .sx file\n", {file})
             @free(content)
             return 1
@@ -4523,7 +4523,7 @@ fn format_file(file: ref u8, to_stdout: bool) i32 = trust {
     val formatted: mut ref u8 = format_source(content)
     if to_stdout {
         stdio.print("{s}", {formatted})
-    } elif str.raw_cmp(formatted, content) != 0 {
+    } elif str.cmp_raw(formatted, content) != 0 {
         if !fs.write_all_raw(file, formatted) {
             stdio.print("error: could not write '{s}'\n", {file})
             if formatted != content {

@@ -19,7 +19,8 @@
 /// Use the allocator-aware `utf8_to_codepoints` and `utf16_to_codepoints`
 /// helpers when a dynamic list is more convenient than iterating manually.
 
-val string     = use("../string")
+val str     = use("std/string")
+val ostr = use("std/string/owned")
 val allocators = use("../allocators")
 val tables     = use("tables.sx")
 
@@ -859,7 +860,7 @@ pub fn utf8_from_codepoints[A: allocators.Allocator](
     ac: A,
     codepoints: ref u32,
     count: i64
-) result[string.String, UnicodeError] = trust {
+) result[str.String, UnicodeError] = trust {
     val needed: i64 = utf8_encoded_size(codepoints, count)
     if needed < 0 {
         return err UnicodeError.InvalidCodepoint
@@ -880,7 +881,7 @@ pub fn utf8_from_codepoints[A: allocators.Allocator](
         }
     }
 
-    val out: string.String = string.from[A](ac, raw as ref u8)
+    val out: str.String = ostr.from_raw[A](ac, raw as ref u8)
     @free(raw)
     if out == none {
         return err UnicodeError.OutOfMemory
@@ -1062,28 +1063,28 @@ pub fn utf16_to_codepoints[A: allocators.GeneralAllocator](
 }
 
 /// Validate a `String` as UTF-8.
-pub fn utf8_validate_string(text: string.String) bool = {
-    return utf8_validate(trust string.cstr(text), string.len(text))
+pub fn utf8_validate_string(text: str.String) bool = {
+    return utf8_validate(trust ostr.cstr(text), ostr.len(text))
 }
 
 /// Count code points in a `String`.
 ///
 /// Returns -1 when the string is not valid UTF-8.
-pub fn utf8_count_string(text: string.String) i64 = {
-    return utf8_count(trust string.cstr(text), string.len(text))
+pub fn utf8_count_string(text: str.String) i64 = {
+    return utf8_count(trust ostr.cstr(text), ostr.len(text))
 }
 
 /// Decode a `String` into an allocator-owned list of code points.
 pub fn utf8_to_codepoints_string[A: allocators.GeneralAllocator](
     ac: A,
-    text: string.String
+    text: str.String
 ) result[list[u64], UnicodeError] = {
-    return utf8_to_codepoints[A](ac, trust string.cstr(text), string.len(text))
+    return utf8_to_codepoints[A](ac, trust ostr.cstr(text), ostr.len(text))
 }
 
 test "unicode utf8 decodes encodes and classifies" {
     val text: ref u8 = c"héllo 🌍"
-    val len: i64 = string.len_raw(text)
+    val len: i64 = str.len_raw(text)
 
     assert utf8_validate(text, len)
     assert utf8_count(text, len) == 7
@@ -1205,7 +1206,7 @@ test "unicode builds strings from code points" {
     val built = trust utf8_from_codepoints[allocators.Arena](arena, cps as ref u32, 3)
     match built {
         ok text => {
-            assert string.len(text) == 7 as i64
+            assert ostr.len(text) == 7 as i64
             assert utf8_validate_string(text)
             assert utf8_count_string(text) == 3 as i64
         }
@@ -1219,7 +1220,7 @@ test "unicode builds strings from code points" {
 test "unicode converts code point lists and byte indexes" {
     val heap: allocators.HeapAllocator = @zeroed
     val text: ref u8 = c"aé🌍"
-    val len: i64 = string.len_raw(text)
+    val len: i64 = str.len_raw(text)
 
     val index = utf8_byte_index(text, len, 2)
     match index {

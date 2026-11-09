@@ -1,4 +1,6 @@
 val str        = use("std/string")
+val ostr = use("std/string/owned")
+val builder = use("std/string/builder")
 val mem        = use("mem.sx")
 val fs         = use("std/fs")
 val path       = use("std/path")
@@ -240,7 +242,7 @@ fn parse_env_entries(ctx: mut ref ParseCtx, out: mut list[ref u8]) void = trust 
             break
         }
         val env_name: ref u8 = ctx_read_ident(ctx)
-        if str.raw_cmp(env_name, c"") == 0 {
+        if str.cmp_raw(env_name, c"") == 0 {
             break
         }
         ctx_skip_ws(ctx)
@@ -262,23 +264,23 @@ fn parse_override_field(
     target: mut ref SxBuildRule,
     name: ref u8
 ) bool = trust {
-    if str.raw_cmp(name, c"action") == 0 {
+    if str.cmp_raw(name, c"action") == 0 {
         target.action = ctx_read_quoted(ctx)
         return true
     }
-    if str.raw_cmp(name, c"flags") == 0 {
+    if str.cmp_raw(name, c"flags") == 0 {
         target.flags = ctx_read_quoted(ctx)
         return true
     }
-    if str.raw_cmp(name, c"output") == 0 {
+    if str.cmp_raw(name, c"output") == 0 {
         target.output = ctx_read_quoted(ctx)
         return true
     }
-    if str.raw_cmp(name, c"entry") == 0 {
+    if str.cmp_raw(name, c"entry") == 0 {
         target.entry = ctx_read_quoted(ctx)
         return true
     }
-    if str.raw_cmp(name, c"env") == 0 {
+    if str.cmp_raw(name, c"env") == 0 {
         parse_env_entries(ctx, target.envs)
         return true
     }
@@ -293,7 +295,7 @@ fn parse_rule_fields(ctx: mut ref ParseCtx, rule: mut ref SxBuildRule) void = tr
             break
         }
         val name: ref u8 = ctx_read_ident(ctx)
-        if str.raw_cmp(name, c"") == 0 {
+        if str.cmp_raw(name, c"") == 0 {
             break
         }
         if !parse_override_field(ctx, rule, name) {
@@ -315,7 +317,7 @@ fn parse_build_body(ctx: mut ref ParseCtx, cfg: mut ref SxBuildConfig) void = tr
             break
         }
         val name: ref u8 = ctx_read_ident(ctx)
-        if str.raw_cmp(name, c"") == 0 {
+        if str.cmp_raw(name, c"") == 0 {
             break
         }
         if parse_override_field(ctx, base, name) {
@@ -335,8 +337,8 @@ fn parse_build_body(ctx: mut ref ParseCtx, cfg: mut ref SxBuildConfig) void = tr
         val platform: mut ref u8 = name
         val arch: mut ref u8 = c""
         if dot >= 0 {
-            val platform_tmp: ref u8 = str.substr(name, 0, dot)
-            val arch_tmp: ref u8 = str.substr(name, dot + 1, name_len - dot - 1)
+            val platform_tmp: ref u8 = str.substr_raw(name, 0, dot)
+            val arch_tmp: ref u8 = str.substr_raw(name, dot + 1, name_len - dot - 1)
             platform = mem_dup_cstr(platform_tmp)
             arch = mem_dup_cstr(arch_tmp)
             @free(platform_tmp)
@@ -373,20 +375,20 @@ pub fn parse_sxmod(content: ref u8) ref SxMod = trust {
             break
         }
         val kw: ref u8 = ctx_read_ident(ctx)
-        if str.raw_cmp(kw, c"") == 0 {
+        if str.cmp_raw(kw, c"") == 0 {
             break
         }
-        if str.raw_cmp(kw, c"entry") == 0 {
+        if str.cmp_raw(kw, c"entry") == 0 {
             m.entry = ctx_read_quoted(ctx)
-        } elif str.raw_cmp(kw, c"version") == 0 {
+        } elif str.cmp_raw(kw, c"version") == 0 {
             m.version = ctx_read_quoted(ctx)
-        } elif str.raw_cmp(kw, c"spectre_version") == 0 {
+        } elif str.cmp_raw(kw, c"spectre_version") == 0 {
             m.spectre_version = ctx_read_quoted(ctx)
-        } elif str.raw_cmp(kw, c"single_flags") == 0 {
+        } elif str.cmp_raw(kw, c"single_flags") == 0 {
             m.single_flags = ctx_read_quoted(ctx)
-        } elif str.raw_cmp(kw, c"dep") == 0 {
+        } elif str.cmp_raw(kw, c"dep") == 0 {
             @append(m.deps, ctx_read_quoted(ctx))
-        } elif str.raw_cmp(kw, c"build") == 0 {
+        } elif str.cmp_raw(kw, c"build") == 0 {
             val cfg: mut ref SxBuildConfig = mem.alloc(@sizeof(SxBuildConfig) as usize) as mut ref SxBuildConfig
             @memset(cfg, 0, @sizeof(SxBuildConfig))
             cfg.name = ctx_read_ident(ctx)
@@ -407,16 +409,16 @@ pub fn parse_sxmod(content: ref u8) ref SxMod = trust {
 }
 
 fn validate_sxmod(m: ref SxMod) bool = {
-    if str.raw_cmp(m.entry, c"") == 0 {
+    if str.cmp_raw(m.entry, c"") == 0 {
         return true
     }
     for cfg in m.builds {
-        if str.raw_cmp(cfg.base.entry, c"") != 0 {
+        if str.cmp_raw(cfg.base.entry, c"") != 0 {
             stdio.puts("error: sx.mod cannot mix a top-level 'entry' with per-build 'entry' fields")
             return false
         }
         for rule in cfg.rules {
-            if str.raw_cmp(rule.entry, c"") != 0 {
+            if str.cmp_raw(rule.entry, c"") != 0 {
                 stdio.puts("error: sx.mod cannot mix a top-level 'entry' with per-build 'entry' fields")
                 return false
             }
@@ -427,13 +429,13 @@ fn validate_sxmod(m: ref SxMod) bool = {
 
 fn validate_spectre_version(m: ref SxMod) bool = trust {
     val installed: str.StringView = meta.get_spectre_version()
-    if str.raw_cmp(m.spectre_version, c"") == 0 {
+    if str.cmp_raw(m.spectre_version, c"") == 0 {
         stdio.puts("error: sx.mod is missing the required 'spectre_version' field")
         stdio.print("-> installed compiler: {s}\n", {installed})
         stdio.print("-> add this line to sx.mod: spectre_version \"{s}\"\n", {installed})
         return false
     }
-    if !str.view_eql_cstr(installed, m.spectre_version) {
+    if !str.eql_cstr(installed, m.spectre_version) {
         stdio.puts("error: Spectre version mismatch")
         stdio.print("  installed compiler:      {s}\n", {installed})
         stdio.print("  project spectre_version: {s}\n", {m.spectre_version})
@@ -484,13 +486,13 @@ fn parse_sxlock(content: ref u8) list[ref SxLockDep] = trust {
             break
         }
         val kw: ref u8 = ctx_read_ident(ctx)
-        if str.raw_cmp(kw, c"") == 0 {
+        if str.cmp_raw(kw, c"") == 0 {
             break
         }
-        if str.raw_cmp(kw, c"dep") == 0 {
+        if str.cmp_raw(kw, c"dep") == 0 {
             val url: ref u8 = ctx_read_quoted(ctx)
             val hash: ref u8 = ctx_read_quoted(ctx)
-            if str.raw_cmp(url, c"") != 0 && str.raw_cmp(hash, c"") != 0 {
+            if str.cmp_raw(url, c"") != 0 && str.cmp_raw(hash, c"") != 0 {
                 val dep: mut ref SxLockDep = mem.alloc(@sizeof(SxLockDep) as usize) as ref SxLockDep
                 @memset(dep, 0, @sizeof(SxLockDep) as usize)
                 dep.url = url
@@ -565,7 +567,7 @@ pub fn is_project_sxmod_at(dir: ref u8) bool = trust {
             return false
         }
         some m => {
-            if str.raw_cmp(m.entry, c"") != 0 {
+            if str.cmp_raw(m.entry, c"") != 0 {
                 return true
             }
             if @len(m.builds) > 0 {
@@ -600,7 +602,7 @@ fn parent_dir(dir: ref u8) ref u8 = trust {
             if i == 0 {
                 return c"/"
             }
-            return str.substr(dir, 0, i)
+            return str.substr_raw(dir, 0, i)
         }
         i--
     }
@@ -612,7 +614,7 @@ fn parent_dir(dir: ref u8) ref u8 = trust {
 pub fn load_version_for(input: ref u8) ref u8 = trust {
     val raw_dir: ref u8 = path.dir_raw(input)
     val start_dir: mut ref u8 = raw_dir
-    if str.raw_cmp(raw_dir, c".") == 0 {
+    if str.cmp_raw(raw_dir, c".") == 0 {
         val cwd_opt = fs.cwd_raw()
         if cwd_opt is some cwd {
             start_dir = cwd
@@ -620,7 +622,7 @@ pub fn load_version_for(input: ref u8) ref u8 = trust {
     }
     val same_opt = load_sxmod_at(start_dir)
     if same_opt is some same_mod {
-        if str.raw_cmp(same_mod.version, c"") != 0 {
+        if str.cmp_raw(same_mod.version, c"") != 0 {
             return same_mod.version
         }
     }
@@ -629,17 +631,17 @@ pub fn load_version_for(input: ref u8) ref u8 = trust {
     val depth: mut i32 = 0 as i32
     for depth < (16 as i32) {
         val parent: ref u8 = parent_dir(cur)
-        if str.raw_cmp(parent, cur) == 0 {
+        if str.cmp_raw(parent, cur) == 0 {
             break
         }
         cur = parent
         val mod_opt = load_sxmod_at(cur)
         if mod_opt is some found_mod {
-            if str.raw_cmp(found_mod.version, c"") != 0 {
+            if str.cmp_raw(found_mod.version, c"") != 0 {
                 return found_mod.version
             }
         }
-        if str.raw_cmp(cur, c".") == 0 || str.raw_cmp(cur, c"/") == 0 {
+        if str.cmp_raw(cur, c".") == 0 || str.cmp_raw(cur, c"/") == 0 {
             break
         }
         depth = depth + (1 as i32)
@@ -657,7 +659,7 @@ pub fn load_single_flags_for(input: ref u8) result[ref u8, ref u8] = trust {
             return ok c""
         }
         some m => {
-            if str.raw_cmp(m.spectre_version, c"") != 0 {
+            if str.cmp_raw(m.spectre_version, c"") != 0 {
                 if !validate_spectre_version(m) {
                     return err c""
                 }
@@ -692,7 +694,7 @@ pub fn split_single_flags(s: ref u8) list[ref u8] = trust {
             }
             i++
         }
-        @append(out, str.substr(s, start, i - start))
+        @append(out, str.substr_raw(s, start, i - start))
     }
     return out
 }
@@ -727,7 +729,7 @@ fn load_sxlock_at(dir: ref u8) option[list[ref SxLockDep]] = trust {
 
 fn lock_hash_for_url(lock_deps: list[ref SxLockDep], url: ref u8) ref u8 = {
     for dep in lock_deps {
-        if str.raw_cmp(dep.url, url) == 0 {
+        if str.cmp_raw(dep.url, url) == 0 {
             return dep.hash
         }
     }
@@ -735,12 +737,12 @@ fn lock_hash_for_url(lock_deps: list[ref SxLockDep], url: ref u8) ref u8 = {
 }
 
 fn build_rule_matches(rule: ref SxBuildRule) bool = trust {
-    if str.raw_cmp(rule.platform, c"") != 0 {
+    if str.cmp_raw(rule.platform, c"") != 0 {
         if !builds.platform_matches_with_target(rule.platform, c"") {
             return false
         }
     }
-    if str.raw_cmp(rule.arch, c"") != 0 {
+    if str.cmp_raw(rule.arch, c"") != 0 {
         if !builds.arch_matches(rule.arch) {
             return false
         }
@@ -749,16 +751,16 @@ fn build_rule_matches(rule: ref SxBuildRule) bool = trust {
 }
 
 fn apply_build_rule(target: mut ref SxBuildRule, source: ref SxBuildRule) void = {
-    if str.raw_cmp(source.action, c"") != 0 {
+    if str.cmp_raw(source.action, c"") != 0 {
         target.action = source.action
     }
-    if str.raw_cmp(source.flags, c"") != 0 {
+    if str.cmp_raw(source.flags, c"") != 0 {
         target.flags = source.flags
     }
-    if str.raw_cmp(source.output, c"") != 0 {
+    if str.cmp_raw(source.output, c"") != 0 {
         target.output = source.output
     }
-    if str.raw_cmp(source.entry, c"") != 0 {
+    if str.cmp_raw(source.entry, c"") != 0 {
         target.entry = source.entry
     }
     for env_entry in source.envs {
@@ -784,20 +786,20 @@ pub fn resolve_build_rule(cfg: ref SxBuildConfig, target: mut ref SxBuildRule) v
 
 fn build_config_cmd(cfg: ref SxBuildRule, exe_path: ref u8, entry: ref u8) ref u8 = trust {
     val cmd: mut ref u8 = c""
-    if str.raw_cmp(cfg.action, c"") != 0 {
+    if str.cmp_raw(cfg.action, c"") != 0 {
         cmd = mem_dup_cstr(cfg.action)
     } else {
         cmd = mem_concat2(mem_concat3(exe_path, c" ", entry), c" -no-single-flags")
     }
-    if str.raw_cmp(cfg.flags, c"") != 0 {
+    if str.cmp_raw(cfg.flags, c"") != 0 {
         cmd = mem_concat3(cmd, c" ", cfg.flags)
     }
-    if str.raw_cmp(cfg.output, c"") != 0 {
+    if str.cmp_raw(cfg.output, c"") != 0 {
         cmd = mem_concat3(cmd, c" -o ", cfg.output)
     }
     val nenv: i64 = @len(cfg.envs) as i64
     if nenv > 0 {
-        if str.raw_cmp(cfg.action, c"") == 0 {
+        if str.cmp_raw(cfg.action, c"") == 0 {
             for e in cfg.envs {
                 cmd = mem_concat3(cmd, c" -d:", e)
             }
@@ -877,7 +879,7 @@ fn drop_dep_lines(filepath: ref u8, needle: ref u8) void = trust {
             return
         }
         some content => {
-            val sb: ref void = str.StringBuilder.new()
+            val sb: ref void = builder.StringBuilder.new()
             val text: ref u8 = content as ref u8
             val tlen: i64 = str.len_raw(text)
             val line_start: mut i64 = 0
@@ -896,12 +898,12 @@ fn drop_dep_lines(filepath: ref u8, needle: ref u8) void = trust {
                     val line: ref u8 = @alloc(line_len + 1) as ref u8
                     @memcpy(line, @ptradd(text, line_start), line_len as usize)
                     @store8(@ptradd(line, line_len), 0)
-                    val is_dep: bool = str.raw_starts_with(line, c"dep ")
-                    val has_needle: bool = str.raw_contains(line, needle)
+                    val is_dep: bool = str.starts_with_raw(line, c"dep ")
+                    val has_needle: bool = str.contains_raw(line, needle)
                     if !(is_dep && has_needle) {
-                        str.StringBuilder.append_cstr(sb, line)
+                        builder.StringBuilder.append_raw(sb, line)
                         if !at_end {
-                            str.StringBuilder.append_char(sb, 10 as u8)
+                            builder.StringBuilder.append_char(sb, 10 as u8)
                         }
                     }
                     @free(line)
@@ -909,10 +911,10 @@ fn drop_dep_lines(filepath: ref u8, needle: ref u8) void = trust {
                 }
                 i++
             }
-            val result: ref void = str.StringBuilder.build(sb)
+            val result: ref void = builder.StringBuilder.build(sb)
             allocators.Arena.free(arena)
-            fs.write_all_raw(filepath, str.cstr(result))
-            str.StringBuilder.free(sb)
+            fs.write_all_raw(filepath, ostr.cstr(result))
+            builder.StringBuilder.free(sb)
         }
     }
 }
@@ -921,7 +923,7 @@ fn output_trimmed(cmd: ref u8) ref u8 = trust {
     val res = os.exec(cmd)
     match res {
         ok v => {
-            val raw: ref u8 = str.cstr(v)
+            val raw: ref u8 = ostr.cstr(v)
             val raw_len: i64 = str.len_raw(raw)
             val end: mut i64 = raw_len
             for {
@@ -950,11 +952,11 @@ fn output_trimmed(cmd: ref u8) ref u8 = trust {
 }
 
 fn dep_name_matches(dep_url: ref u8, dep_name: ref u8) bool = trust {
-    if str.raw_cmp(dep_name, c"") == 0 {
+    if str.cmp_raw(dep_name, c"") == 0 {
         return true
     }
     val url_name: ref u8 = repo_name_from_url(dep_url)
-    return str.raw_cmp(url_name, dep_name) == 0
+    return str.cmp_raw(url_name, dep_name) == 0
 }
 
 fn set_lock_hash(filepath: ref u8, url: ref u8, hash: ref u8) void = trust {
@@ -969,7 +971,7 @@ fn upgrade_dir(
     visited: mut list[ref u8]
 ) i32 = trust {
     for v in visited {
-        if str.raw_cmp(v, base_dir) == 0 {
+        if str.cmp_raw(v, base_dir) == 0 {
             return 0
         }
     }
@@ -1035,15 +1037,15 @@ fn upgrade_dir(
                     "git -C {s} rev-parse HEAD",
                     {lib_path}
                 ))
-            if str.raw_cmp(new_hash, c"") == 0 {
+            if str.cmp_raw(new_hash, c"") == 0 {
                 stdio.print("error: could not determine HEAD for {s}\n", {dep_url})
                 return 1
             }
 
             set_lock_hash(@fmtalloc("{s}/sx.lock", {base_dir}), dep_url, new_hash)
-            if str.raw_cmp(old_hash, c"") == 0 {
+            if str.cmp_raw(old_hash, c"") == 0 {
                 stdio.print("Upgraded '{s}' to {s}\n", {name, new_hash})
-            } elif str.raw_cmp(old_hash, new_hash) == 0 {
+            } elif str.cmp_raw(old_hash, new_hash) == 0 {
                 stdio.print("'{s}' is already up to date ({s})\n", {name, new_hash})
             } else {
                 stdio.print("Upgraded '{s}' {s} -> {s}\n", {name, old_hash, new_hash})
@@ -1073,7 +1075,7 @@ pub fn cmd_upgrade(dep_name: ref u8) i32 = trust {
     }
 
     if (@len(matched) as i64) == 0 {
-        if str.raw_cmp(dep_name, c"") == 0 {
+        if str.cmp_raw(dep_name, c"") == 0 {
             stdio.puts("No dependencies to upgrade.")
             return 0
         }
@@ -1085,7 +1087,7 @@ pub fn cmd_upgrade(dep_name: ref u8) i32 = trust {
 }
 
 fn add_stdlib_candidate(candidates: mut list[ref u8], dir: ref u8) void = trust {
-    if str.raw_cmp(dir, c"") == 0 {
+    if str.cmp_raw(dir, c"") == 0 {
         return
     }
     @append(candidates, dir)
@@ -1123,7 +1125,7 @@ fn copy_current_stdlib(snapshot_dir: ref u8) bool = trust {
         }
     }
 
-    if str.raw_cmp(std_dir, c"") == 0 {
+    if str.cmp_raw(std_dir, c"") == 0 {
         stdio.puts("error: could not locate the Spectre standard library ('spectrelib')")
         stdio.print("  executable: {s}\n", {exe_path})
         stdio.print("  directory:  {s}\n", {exe_dir})
@@ -1184,7 +1186,7 @@ pub fn cmd_init(name_arg: ref u8) i32 = {
     }
 
     val proj_name: mut ref u8 = name_arg
-    if str.raw_cmp(proj_name, c"") == 0 {
+    if str.cmp_raw(proj_name, c"") == 0 {
         val cwd_arena: allocators.Arena = trust allocators.Arena.new(4096 as usize)?
         val cwd_opt = trust fs.cwd[allocators.Arena](cwd_arena)
         if cwd_opt is some cwd {
@@ -1195,19 +1197,19 @@ pub fn cmd_init(name_arg: ref u8) i32 = {
         trust allocators.Arena.free(cwd_arena)
     }
 
-    val sb: ref void = str.StringBuilder.new()
+    val sb: ref void = builder.StringBuilder.new()
     val init_header: ref u8 = trust @fmtalloc(
         "entry \"./src/main.sx\"\nversion \"v0.0.1\"\nspectre_version \"{s}\"\n\nbuild release {\n    flags \"-release\"\n    output \"./",
         {meta.get_spectre_version()}
     )
-    trust str.StringBuilder.append_cstr(sb, init_header)
-    trust str.StringBuilder.append_cstr(sb, proj_name)
-    trust str.StringBuilder.append_cstr(sb, c"\"\n}\n\nbuild dev {\n    output \"./")
-    trust str.StringBuilder.append_cstr(sb, proj_name)
-    trust str.StringBuilder.append_cstr(sb, c"-dev\"\n}\n")
-    val sxmod_built: ref void = trust str.StringBuilder.build(sb)
-    trust fs.write_all_raw(c"sx.mod", str.cstr(sxmod_built))
-    trust str.StringBuilder.free(sb)
+    trust builder.StringBuilder.append_raw(sb, init_header)
+    trust builder.StringBuilder.append_raw(sb, proj_name)
+    trust builder.StringBuilder.append_raw(sb, c"\"\n}\n\nbuild dev {\n    output \"./")
+    trust builder.StringBuilder.append_raw(sb, proj_name)
+    trust builder.StringBuilder.append_raw(sb, c"-dev\"\n}\n")
+    val sxmod_built: ref void = trust builder.StringBuilder.build(sb)
+    trust fs.write_all_raw(c"sx.mod", ostr.cstr(sxmod_built))
+    trust builder.StringBuilder.free(sb)
     trust fs.write_all_raw(c"sx.lock", c"version \"1\"\n")
     trust fs.write_all_raw(
         c".gitignore",
@@ -1241,7 +1243,7 @@ pub fn cmd_build(config_name: ref u8, exe_path: ref u8) i32 = {
             val found_cfg: mut ref SxBuildConfig = none
             val builds: list[ref SxBuildConfig] = m.builds
             for cfg in builds {
-                if str.raw_cmp(cfg.name, config_name) == 0 {
+                if str.cmp_raw(cfg.name, config_name) == 0 {
                     found_cfg = cfg
                     break
                 }
@@ -1255,7 +1257,7 @@ pub fn cmd_build(config_name: ref u8, exe_path: ref u8) i32 = {
             trust resolve_build_rule(found_cfg, resolved)
 
             val entry: mut ref u8 = m.entry
-            if str.raw_cmp(resolved.entry, c"") != 0 {
+            if str.cmp_raw(resolved.entry, c"") != 0 {
                 entry = resolved.entry
             }
             val cmd: ref u8 = trust build_config_cmd(resolved, exe_path, entry)
@@ -1300,7 +1302,7 @@ pub fn cmd_add(url: ref u8) i32 = trust {
     val hash: mut ref u8 = c"unknown"
     match hash_res {
         ok v => {
-            val raw: ref u8 = str.cstr(v)
+            val raw: ref u8 = ostr.cstr(v)
             val raw_len: i64 = str.len_raw(raw)
             val trimmed_len: mut i64 = raw_len
             for {
@@ -1352,7 +1354,7 @@ pub fn cmd_remove(dep_name: ref u8) i32 = {
 
 fn restore_in_dir(base_dir: ref u8, visited: mut list[ref u8]) i32 = trust {
     for v in visited {
-        if str.raw_cmp(v, base_dir) == 0 {
+        if str.cmp_raw(v, base_dir) == 0 {
             return 0
         }
     }
@@ -1398,7 +1400,7 @@ fn restore_in_dir(base_dir: ref u8, visited: mut list[ref u8]) i32 = trust {
 
     for dep_url in sxmod.deps {
         val hash: ref u8 = lock_hash_for_url(lock_deps, dep_url)
-        if str.raw_cmp(hash, c"") == 0 {
+        if str.cmp_raw(hash, c"") == 0 {
             stdio.print("error: '{s}' missing from sx.lock in {s}\n", {dep_url, base_dir})
             return 1
         }
@@ -1411,7 +1413,7 @@ fn restore_in_dir(base_dir: ref u8, visited: mut list[ref u8]) i32 = trust {
             return 1
         }
 
-        if str.raw_cmp(hash, c"unknown") != 0 {
+        if str.cmp_raw(hash, c"unknown") != 0 {
             if os.run(@fmtalloc("git -C {s} checkout --quiet {s}", {lib_path, hash})) != 0 {
                 stdio.print("error: failed to checkout {s} for {s}\n", {hash, dep_url})
                 return 1
@@ -1467,7 +1469,7 @@ pub fn cmd_restore() i32 = trust {
 
     for dep_url in sxmod.deps {
         val hash: ref u8 = lock_hash_for_url(lock_deps, dep_url)
-        if str.raw_cmp(hash, c"") == 0 {
+        if str.cmp_raw(hash, c"") == 0 {
             stdio.print("error: dependency '{s}' is missing from sx.lock\n", {dep_url})
             return 1
         }
@@ -1481,7 +1483,7 @@ pub fn cmd_restore() i32 = trust {
             return 1
         }
 
-        if str.raw_cmp(hash, c"unknown") != 0 {
+        if str.cmp_raw(hash, c"unknown") != 0 {
             val checkout_cmd: ref u8 = @fmtalloc(
                 "git -C {s} checkout --quiet {s}",
                 {lib_path, hash}
@@ -1516,13 +1518,13 @@ fn print_graph_node(
     }
 
     val line: mut ref u8 = @fmtalloc("{s}{s}{s}", {prefix, conn, name})
-    if str.raw_cmp(url, c"") != 0 {
+    if str.cmp_raw(url, c"") != 0 {
         line = @fmtalloc("{s} ({s})", {line, url})
     }
-    stdio.puts(str.view_cstr(line))
+    stdio.puts(str.cstr_raw(line))
 
     for v in visited {
-        if str.raw_cmp(v, base_dir) == 0 {
+        if str.cmp_raw(v, base_dir) == 0 {
             return
         }
     }
@@ -1574,10 +1576,10 @@ pub fn cmd_graph() i32 = trust {
     }
     allocators.Arena.free(cwd_arena)
 
-    if str.raw_cmp(sxmod.version, c"") == 0 {
-        stdio.puts(str.view_cstr(proj_name))
+    if str.cmp_raw(sxmod.version, c"") == 0 {
+        stdio.puts(str.cstr_raw(proj_name))
     } else {
-        stdio.puts(str.view_cstr(@fmtalloc("{s} ({s})", {proj_name, sxmod.version})))
+        stdio.puts(str.cstr_raw(@fmtalloc("{s} ({s})", {proj_name, sxmod.version})))
     }
 
     val ndeps: i64 = @len(sxmod.deps) as i64
@@ -1601,8 +1603,8 @@ pub fn cmd_graph() i32 = trust {
 }
 
 pub fn shell_quote(s: ref u8) ref u8 = trust {
-    val sb: ref void = str.StringBuilder.new()
-    str.StringBuilder.append_char(sb, 39)
+    val sb: ref void = builder.StringBuilder.new()
+    builder.StringBuilder.append_char(sb, 39)
     val n: i64 = str.len_raw(s)
     val i: mut i64 = 0
     for {
@@ -1611,22 +1613,22 @@ pub fn shell_quote(s: ref u8) ref u8 = trust {
         }
         val c: u8 = @load8(@ptradd(s, i))
         if c == 39 {
-            str.StringBuilder.append_char(sb, 39)
-            str.StringBuilder.append_char(sb, 92)
-            str.StringBuilder.append_char(sb, 39)
-            str.StringBuilder.append_char(sb, 39)
+            builder.StringBuilder.append_char(sb, 39)
+            builder.StringBuilder.append_char(sb, 92)
+            builder.StringBuilder.append_char(sb, 39)
+            builder.StringBuilder.append_char(sb, 39)
         } else {
-            str.StringBuilder.append_char(sb, c)
+            builder.StringBuilder.append_char(sb, c)
         }
         i++
     }
-    str.StringBuilder.append_char(sb, 39)
-    val built: ref void = str.StringBuilder.build(sb)
-    val raw: ref u8 = str.cstr(built)
+    builder.StringBuilder.append_char(sb, 39)
+    val built: ref void = builder.StringBuilder.build(sb)
+    val raw: ref u8 = ostr.cstr(built)
     val out: ref u8 = @alloc(str.len_raw(raw) + 1) as ref u8
     @memcpy(out, raw, str.len_raw(raw) as usize)
     @store8(@ptradd(out, str.len_raw(raw)), 0)
-    str.StringBuilder.free(sb)
+    builder.StringBuilder.free(sb)
     return out
 }
 
@@ -1637,7 +1639,7 @@ fn collect_test_files(
     out: mut list[ref u8]
 ) void = trust {
     if !fs.is_directory_raw(target) {
-        if str.raw_ends_with(target, c".sx") {
+        if str.ends_with_raw(target, c".sx") {
             @append(out, target)
         }
         return
@@ -1655,7 +1657,7 @@ fn collect_test_files(
                     collect_test_files(child, depth + 1, max_depth, out)
                 }
                 @free(child)
-            } elif str.raw_ends_with(entry, c".sx") {
+            } elif str.ends_with_raw(entry, c".sx") {
                 @append(out, child)
             } else {
                 @free(child)
@@ -1686,19 +1688,19 @@ pub fn cmd_test_all(
     for file in files {
         i++
         stdio.print("[{lld}/{lld}] {s}\n", {i, count, file})
-        val sb: ref void = str.StringBuilder.new()
-        str.StringBuilder.append_cstr(sb, shell_quote(exe_path))
-        str.StringBuilder.append_cstr(sb, c" ")
-        str.StringBuilder.append_cstr(sb, shell_quote(file))
-        str.StringBuilder.append_cstr(sb, c" -test")
+        val sb: ref void = builder.StringBuilder.new()
+        builder.StringBuilder.append_raw(sb, shell_quote(exe_path))
+        builder.StringBuilder.append_raw(sb, c" ")
+        builder.StringBuilder.append_raw(sb, shell_quote(file))
+        builder.StringBuilder.append_raw(sb, c" -test")
         for flag in extra_flags {
-            str.StringBuilder.append_cstr(sb, c" ")
-            str.StringBuilder.append_cstr(sb, flag)
+            builder.StringBuilder.append_raw(sb, c" ")
+            builder.StringBuilder.append_raw(sb, flag)
         }
-        val built: ref void = str.StringBuilder.build(sb)
-        val cmd: ref u8 = str.cstr(built)
+        val built: ref void = builder.StringBuilder.build(sb)
+        val cmd: ref u8 = ostr.cstr(built)
         val code: i32 = os.run(cmd)
-        str.StringBuilder.free(sb)
+        builder.StringBuilder.free(sb)
         if code != 0 {
             failures++
             stdio.print("[fail] {s}\n", {file})
@@ -1733,7 +1735,7 @@ fn tool_version(cmd: ref u8) ref u8 = {
     val res = trust os.exec(cmd)
     match res {
         ok v => {
-            val raw: ref u8 = trust str.cstr(v)
+            val raw: ref u8 = trust ostr.cstr(v)
             val raw_len: i64 = str.len_raw(raw)
             val end: mut i64 = raw_len
             for {
@@ -1767,7 +1769,7 @@ pub fn cmd_doctor() i32 = {
     val platform_res = trust os.exec(c"uname -srm 2>&1")
     match platform_res {
         ok v => {
-            trust stdio.print("os:      {s}", {str.cstr(v)})
+            trust stdio.print("os:      {s}", {ostr.cstr(v)})
         }
         err _ => {
             stdio.puts("os:      unknown")
@@ -1777,9 +1779,9 @@ pub fn cmd_doctor() i32 = {
     val qbe_ver: ref u8 = tool_version(c"qbe -d 2>&1")
     val qbe_installed_str: mut ref u8 = c"installed"
     val arena: allocators.Arena = trust allocators.Arena.new(256 as usize)?
-    val qbe_ver_string = trust str.from[allocators.Arena](arena, qbe_ver)
-    val not_found = trust str.from[allocators.Arena](arena, c"not found")
-    if str.contains(qbe_ver_string, not_found) {
+    val qbe_ver_string = trust ostr.from_raw[allocators.Arena](arena, qbe_ver)
+    val not_found = trust ostr.from_raw[allocators.Arena](arena, c"not found")
+    if ostr.contains(qbe_ver_string, not_found) {
         qbe_installed_str = c"not installed"
     }
     trust allocators.Arena.free(arena)

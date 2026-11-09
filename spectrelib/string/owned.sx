@@ -1,0 +1,1021 @@
+/// Operations on owned heap-allocated `String` values.
+///
+/// StringView operations live in `std/string`.
+
+val collections = use("../collections")
+val allocators  = use("../allocators")
+val str         = use("std/string")
+
+extern (C, header) fn strlen(s: ref u8) i64 = "strlen"
+
+fn alloc_in[T: allocators.Allocator](ac: T, size: i64) ref void = {
+    pre {
+        size_positive: size > 0
+    }
+    val out_opt = T.alloc(ac, size as usize)
+    match out_opt {
+        some out => {
+            return out as ref void
+        }
+        none => {
+            return none
+        }
+    }
+}
+
+fn alloc_string_in[T: allocators.Allocator](ac: T, len: i64) str.String = trust {
+    val buf: ref void = alloc_in[T](ac, len + 1)
+    if buf == none {
+        return none
+    }
+    @memset(buf, 0, len + 1)
+
+    val s: ref void = alloc_in[T](ac, 24)
+    if s == none {
+        return none
+    }
+
+    @store(s, buf)
+    @store(@ptradd(s, 8), len)
+    @store(@ptradd(s, 16), len + 1)
+    return s as str.String
+}
+
+fn alloc_in_general[T: allocators.GeneralAllocator](ac: T, size: i64) ref void = {
+    pre {
+        size_positive: size > 0
+    }
+    val out_opt = T.alloc(ac, size as usize)
+    match out_opt {
+        some out => {
+            return out as ref void
+        }
+        none => {
+            return none
+        }
+    }
+}
+
+fn alloc_string_in_general[T: allocators.GeneralAllocator](ac: T, len: i64) str.String = trust {
+    val buf: ref void = alloc_in_general[T](ac, len + 1)
+    if buf == none {
+        return none
+    }
+    @memset(buf, 0, len + 1)
+
+    val s: ref void = alloc_in_general[T](ac, 24)
+    if s == none {
+        T.free(ac, buf)
+        return none
+    }
+
+    @store(s, buf)
+    @store(@ptradd(s, 8), len)
+    @store(@ptradd(s, 16), len + 1)
+    return s as str.String
+}
+
+/// Create empty string
+pub fn new() str.String = trust {
+    val s: ref void = @alloc(24)
+    val buf: ref void = @alloc(1)
+    @store8(buf, 0)
+    @store(s, buf)
+    @store(@ptradd(s, 8), 0)
+    @store(@ptradd(s, 16), 1)
+    return s as str.String
+}
+
+/// Create from_raw raw C string using the provided allocator.
+pub fn from_raw[T: allocators.Allocator](ac: T, cstr: ref u8) str.String = trust {
+    val l: i64 = strlen(cstr)
+    val s: str.String = alloc_string_in[T](ac, l)
+    if s == none {
+        return none
+    }
+    val buf: ref void = @load(s as ref void)
+    if l > 0 {
+        @memcpy(buf, cstr, l)
+    }
+    return s
+}
+
+/// Free string
+pub fn free(s: str.String) void = trust {
+    val ptr: ref void = @load(s as ref void)
+    @free(ptr)
+    val header: mut ref void = s as ref void
+    @free(header)
+}
+
+/// Length of a str.String
+pub fn len(s: str.String) i64 = {
+    return trust @load(@ptradd(s, 8)) as i64
+}
+
+/// Raw pointer
+pub fn cstr(s: str.String) ref u8 = trust {
+    return @load(s as ref void) as ref u8
+}
+
+/// Ensure capacity (private helper)
+fn ensure_cap(ptr: ref void, needed: i64) void = trust {
+    val cap: i64 = @load(@ptradd(ptr, 16)) as i64
+    if (needed <= cap) {
+        return
+    }
+    val new_cap: i64 = needed * 2
+    val old_ptr: ref void = @load(ptr)
+    val new_ptr: ref void = @realloc(old_ptr, new_cap)
+    @store(ptr, new_ptr)
+    @store(@ptradd(ptr, 16), new_cap)
+}
+
+/// Append a C string in place
+pub fn push_raw(s: str.String, other: ref u8) void = trust {
+    val l: i64 = @load(@ptradd(s, 8)) as i64
+    val add_len: i64 = strlen(other)
+    val new_len: i64 = l + add_len
+
+    ensure_cap(s as ref void, new_len + 1)
+
+    val ptr: ref void = @load(s)
+
+    @memcpy(@ptradd(ptr, l), other, add_len)
+    @store8(@ptradd(ptr, new_len), 0)
+    @store(@ptradd(s, 8), new_len)
+}
+
+/// Append another str.String in place
+pub fn push(s: str.String, other: str.String) void = trust {
+    val other_ptr: ref void = @load(other as ref void)
+    val other_len: i64 = @load(@ptradd(other as ref void, 8)) as i64
+
+    val l: i64 = @load(@ptradd(s as ref void, 8)) as i64
+    val new_len: i64 = l + other_len
+
+    ensure_cap(s as ref void, new_len + 1)
+
+    val ptr: ref void = @load(s as ref void)
+
+    @memcpy(@ptradd(ptr, l), other_ptr, other_len)
+    @store8(@ptradd(ptr, new_len), 0)
+    @store(@ptradd(s as ref void, 8), new_len)
+}
+
+/// Clone — returns a new heap-allocated str.String
+pub fn clone(s: str.String) str.String = trust {
+    val l: i64 = @load(@ptradd(s as ref void, 8)) as i64
+    val ptr: ref void = @load(s as ref void)
+    val buf: ref void = @alloc(l + 1)
+
+    @memcpy(buf, ptr, l)
+    @store8(@ptradd(buf, l), 0)
+
+    val out: ref void = @alloc(24)
+
+    @store(out, buf)
+    @store(@ptradd(out, 8), l)
+    @store(@ptradd(out, 16), l + 1)
+
+    return out as str.String
+}
+
+/// Reverse in place
+pub fn reverse(s: str.String) void = trust {
+    val ptr: ref void = @load(s as ref void)
+    val l: i64 = @load(@ptradd(s as ref void, 8)) as i64
+
+    val i: mut i64 = 0
+    val j: mut i64 = l - 1
+
+    for {
+        if (i >= j) {
+            break
+        }
+        val a: u8 = @load8(@ptradd(ptr, i)) as u8
+        val b: u8 = @load8(@ptradd(ptr, j)) as u8
+
+        @store8(@ptradd(ptr, i), b)
+        @store8(@ptradd(ptr, j), a)
+
+        i++
+        j--
+    }
+}
+
+/// Concat — returns a new heap-allocated str.String
+pub fn concat(a: str.String, b: str.String) str.String = trust {
+    val out: str.String = clone(a)
+    push(out, b)
+    return out
+}
+
+/// Reserve at least cap bytes of capacity
+pub fn reserve(s: str.String, cap: i64) void = trust {
+    ensure_cap(s as ref void, cap)
+}
+
+/// Clear contents (set length to 0, keep allocation)
+pub fn clear(s: str.String) void = trust {
+    val ptr: ref void = @load(s as ref void)
+    @store8(ptr, 0)
+    @store(@ptradd(s as ref void, 8), 0)
+}
+
+/// Append a single byte character
+pub fn push_char(s: str.String, c: u8) void = trust {
+    val l: i64 = @load(@ptradd(s as ref void, 8)) as i64
+    val new_len: i64 = l + 1
+
+    ensure_cap(s as ref void, new_len + 1)
+
+    val ptr: ref void = @load(s as ref void)
+    @store8(@ptradd(ptr, l), c)
+    @store8(@ptradd(ptr, new_len), 0)
+    @store(@ptradd(s as ref void, 8), new_len)
+}
+
+/// Get byte at index i, returns none if out of bounds
+pub fn get(s: str.String, i: i64) option[u8] = {
+    pre {
+        s_not_null: s != none
+        i_nonneg: i >= 0
+    }
+    val l: i64 = trust @load(@ptradd(s as ref void, 8)) as i64
+    if (i >= l) {
+        return none
+    }
+    val ptr: ref void = trust @load(s as ref void)
+    post {
+        i_nonneg: i >= 0
+    }
+    return some (trust @load8(@ptradd(ptr, i)) as u8)
+}
+
+/// Set byte at index i (no-op if out of bounds)
+pub fn set(s: str.String, i: i64, c: u8) void = trust {
+    val l: i64 = @load(@ptradd(s as ref void, 8)) as i64
+    if (i >= l) {
+        return
+    }
+    val ptr: ref void = @load(s as ref void)
+    @store8(@ptradd(ptr, i), c)
+}
+
+/// Return a new heap str.String containing bytes [start, end)
+pub fn slice(s: str.String, start: i64, end: i64) str.String = trust {
+    val l: i64 = @load(@ptradd(s as ref void, 8)) as i64
+
+    val real_start: mut i64 = start
+    val real_end: mut i64 = end
+    if (real_start < 0) {
+        real_start = 0
+    }
+    if (real_end > l) {
+        real_end = l
+    }
+
+    val slice_len: mut i64 = real_end - real_start
+    if (slice_len < 0) {
+        slice_len = 0
+    }
+
+    val src_ptr: ref void = @load(s as ref void)
+    val buf: ref void = @alloc(slice_len + 1)
+    @memcpy(buf, @ptradd(src_ptr, real_start), slice_len)
+    @store8(@ptradd(buf, slice_len), 0)
+
+    val out: ref void = @alloc(24)
+    @store(out, buf)
+    @store(@ptradd(out, 8), slice_len)
+    @store(@ptradd(out, 16), slice_len + 1)
+    return out as str.String
+}
+
+fn slice_general[T: allocators.GeneralAllocator](
+    ac: T,
+    s: str.String,
+    start: i64,
+    end: i64
+) str.String = trust {
+    val l: i64 = @load(@ptradd(s as ref void, 8)) as i64
+
+    val real_start: mut i64 = start
+    val real_end: mut i64 = end
+    if (real_start < 0) {
+        real_start = 0
+    }
+    if (real_end > l) {
+        real_end = l
+    }
+
+    val slice_len: mut i64 = real_end - real_start
+    if (slice_len < 0) {
+        slice_len = 0
+    }
+
+    val out: str.String = alloc_string_in_general[T](ac, slice_len)
+    if out == none {
+        return none
+    }
+
+    val src_ptr: ref void = @load(s as ref void)
+    val out_ptr: ref void = @load(out as ref void)
+    if slice_len > 0 {
+        @memcpy(out_ptr, @ptradd(src_ptr, real_start), slice_len)
+    }
+    return out
+}
+
+/// Find first occurrence of sub in s — returns some(index) or none
+pub fn find(s: str.String, sub: str.String) option[i64] = {
+    pre {
+        s_not_null: s != none
+        sub_not_null: sub != none
+    }
+
+    val sl: i64 = trust @load(@ptradd(s as ref void, 8)) as i64
+    val subl: i64 = trust @load(@ptradd(sub as ref void, 8)) as i64
+
+    if (subl == 0) {
+        return some 0
+    }
+    if (subl > sl) {
+        return none
+    }
+
+    val sp: ref void = trust @load(s as ref void)
+    val subp: ref void = trust @load(sub as ref void)
+
+    val limit: i64 = sl - subl
+    val i: mut i64 = 0
+    val j: mut i64 = 0
+    val matched: mut i64 = 0
+    for {
+        if (i > limit) {
+            break
+        }
+        j = 0
+        matched = 1
+        for {
+            if (j >= subl) {
+                break
+            }
+            val a: u8 = trust @load8(@ptradd(sp, i + j))
+            val b: u8 = trust @load8(@ptradd(subp, j))
+            if (a != b) {
+                matched = 0
+                break
+            }
+            j++
+        }
+        if (matched != 0) {
+            return some i
+        }
+        i++
+    }
+
+    post {
+        s_not_null: s != none
+    }
+
+    return none
+}
+
+/// Returns true if sub appears anywhere in s
+pub fn contains(s: str.String, sub: str.String) bool = {
+    pre {
+        s_not_null: s != none
+        sub_not_null: sub != none
+    }
+
+    val result = find(s, sub)
+    val found: mut i64 = 0
+    match result {
+        some _ => {
+            found = 1
+        }
+        none => {
+            found = 0
+        }
+    }
+
+    post {
+        s_not_null: s != none
+    }
+
+    return found != 0
+}
+
+/// Convert to uppercase in place
+pub fn to_upper(s: str.String) void = trust {
+    pre {
+        s_not_null: s != none
+    }
+    val l: i64 = @load(@ptradd(s as ref void, 8)) as i64
+    val ptr: ref void = @load(s as ref void)
+    val i: mut i64 = 0
+    for {
+        if (i >= l) {
+            break
+        }
+        val c: u8 = @load8(@ptradd(ptr, i)) as u8
+        if (c >= 97) {
+            if (c <= 122) {
+                @store8(@ptradd(ptr, i), c - 32)
+            }
+        }
+        i++
+    }
+}
+
+/// Convert to lowercase in place
+pub fn to_lower(s: str.String) void = trust {
+    pre {
+        s_not_null: s != none
+    }
+    val l: i64 = @load(@ptradd(s as ref void, 8)) as i64
+    val ptr: ref void = @load(s as ref void)
+    val i: mut i64 = 0
+    for {
+        if (i >= l) {
+            break
+        }
+        val c: u8 = @load8(@ptradd(ptr, i)) as u8
+        if (c >= 65) {
+            if (c <= 90) {
+                @store8(@ptradd(ptr, i), c + 32)
+            }
+        }
+        i++
+    }
+}
+
+/// Trim leading whitespace in place
+pub fn trim_left(s: str.String) void = trust {
+    pre {
+        s_not_null: s != none
+    }
+    val l: i64 = @load(@ptradd(s as ref void, 8)) as i64
+    val ptr: ref void = @load(s as ref void)
+    val start: mut i64 = 0
+    for {
+        if (start >= l) {
+            break
+        }
+        val c: u8 = @load8(@ptradd(ptr, start))
+        if (c != 32) {
+            if (c != 9) {
+                if (c != 10) {
+                    if (c != 13) {
+                        break
+                    }
+                }
+            }
+        }
+        start++
+    }
+    if (start == 0) {
+        return
+    }
+    val new_len: i64 = l - start
+    @memcpy(ptr, @ptradd(ptr, start), new_len)
+    @store8(@ptradd(ptr, new_len), 0)
+    @store(@ptradd(s as ref void, 8), new_len)
+}
+
+/// Trim trailing whitespace in place
+pub fn trim_right(s: str.String) void = trust {
+    pre {
+        s_not_null: s != none
+    }
+    val l: mut i64 = @load(@ptradd(s as ref void, 8)) as i64
+    val ptr: ref void = @load(s as ref void)
+    for {
+        if (l <= 0) {
+            break
+        }
+        val c: u8 = @load8(@ptradd(ptr, l - 1)) as u8
+        if (c != 32) {
+            if (c != 9) {
+                if (c != 10) {
+                    if (c != 13) {
+                        break
+                    }
+                }
+            }
+        }
+        l--
+    }
+    @store8(@ptradd(ptr, l), 0)
+    @store(@ptradd(s as ref void, 8), l)
+}
+
+/// Trim leading and trailing whitespace in place
+pub fn trim(s: str.String) void = trust {
+    pre {
+        s_not_null: s != none
+    }
+    trim_right(s)
+    trim_left(s)
+}
+
+/// Return a new str.String with all occurrences of `from_raw` replaced by `to`
+pub fn replace(s: str.String, from_raw: str.String, to: str.String) str.String = trust {
+    val sl: i64 = @load(@ptradd(s as ref void, 8)) as i64
+    val froml: i64 = @load(@ptradd(from_raw as ref void, 8)) as i64
+    val tol: i64 = @load(@ptradd(to as ref void, 8)) as i64
+    val out: str.String = new()
+
+    if (froml == 0) {
+        push(out, s)
+        return out
+    }
+
+    val sp: ref void = @load(s as ref void)
+    val fromp: ref void = @load(from_raw as ref void)
+    val top: ref void = @load(to as ref void)
+
+    val i: mut i64 = 0
+    val j: mut i64 = 0
+    val matched: mut i64 = 0
+    val limit: mut i64 = 0
+    val a: mut u8 = 0
+    val b: mut u8 = 0
+    val out_l: mut i64 = 0
+    val new_len: mut i64 = 0
+    val out_ptr: mut ref void = none
+    val c: mut u8 = 0
+
+    for {
+        if (i >= sl) {
+            break
+        }
+        limit = sl - froml
+        if (i <= limit) {
+            j = 0
+            matched = 1
+            for {
+                if (j >= froml) {
+                    break
+                }
+                a = @load8(@ptradd(sp, i + j)) as u8
+                b = @load8(@ptradd(fromp, j)) as u8
+                if (a != b) {
+                    matched = 0
+                    break
+                }
+                j++
+            }
+            if (matched != 0) {
+                out_l = @load(@ptradd(out as ref void, 8)) as i64
+                new_len = out_l + tol
+                ensure_cap(out as ref void, new_len + 1)
+                out_ptr = @load(out as ref void)
+                @memcpy(@ptradd(out_ptr, out_l), top, tol)
+                @store8(@ptradd(out_ptr, new_len), 0)
+                @store(@ptradd(out as ref void, 8), new_len)
+                i += froml
+            } else {
+                c = @load8(@ptradd(sp, i)) as u8
+                push_char(out, c)
+                i++
+            }
+        } else {
+            c = @load8(@ptradd(sp, i)) as u8
+            push_char(out, c)
+            i++
+        }
+    }
+
+    return out
+}
+
+/// Split s by delim, returns an opaque list of Strings allocated with the provided general allocator.
+pub fn split[T: allocators.GeneralAllocator](
+    ac: T,
+    s: str.String,
+    delim: str.String
+) result[ref void, ListAllocError] = trust {
+    val result: mut ref void = collections.PtrList.new[T](ac, 8 as usize)?
+    val sl: i64 = @load(@ptradd(s as ref void, 8)) as i64
+    val dl: i64 = @load(@ptradd(delim as ref void, 8)) as i64
+    val sp: ref void = @load(s as ref void)
+    val dp: ref void = @load(delim as ref void)
+    val seg_start: mut i64 = 0
+    val i: mut i64 = 0
+    val j: mut i64 = 0
+    val matched: mut i64 = 0
+
+    for {
+        if (i > sl) {
+            break
+        }
+
+        val is_delim: mut i64 = 0
+        if (i <= sl - dl) {
+            j = 0
+            matched = 1
+            for {
+                if (j >= dl) {
+                    break
+                }
+                val a: u8 = @load8(@ptradd(sp, i + j)) as u8
+                val b: u8 = @load8(@ptradd(dp, j)) as u8
+                if (a != b) {
+                    matched = 0
+                    break
+                }
+                j++
+            }
+            if (matched != 0) {
+                is_delim = 1
+            }
+        }
+
+        if (is_delim != 0) {
+            val seg: str.String = slice_general[T](ac, s, seg_start, i)
+            collections.PtrList.push[T](ac, result, seg as usize)?
+            seg_start = i + dl
+            i += dl
+        } else {
+            if (i == sl) {
+                val seg: str.String = slice_general[T](ac, s, seg_start, sl)
+                collections.PtrList.push[T](ac, result, seg as usize)?
+                break
+            }
+            i++
+        }
+    }
+
+    return result
+}
+
+/// Check if two strings are equal
+pub fn equals(x: str.String, y: str.String) bool = {
+    pre {
+        x_not_null: x != none
+        y_not_null: y != none
+    }
+
+    val lx: i64 = trust @load(@ptradd(x, 8)) as i64
+    val ly: i64 = trust @load(@ptradd(y, 8)) as i64
+
+    if (lx != ly) {
+        return false
+    }
+
+    val px: ref void = trust @load(x)
+    val py: ref void = trust @load(y)
+
+    val i: mut i64 = 0
+    for {
+        if (i >= lx) {
+            break
+        }
+        val a: u8 = trust @load8(@ptradd(px, i))
+        val b: u8 = trust @load8(@ptradd(py, i))
+        if (a != b) {
+            return false
+        }
+        i++
+    }
+
+    post {
+        same_length: lx == ly
+    }
+
+    return true
+}
+
+/// If s starts with prefix, return s without it, otherwise clone
+pub fn trim_prefix(s: str.String, prefix: str.String) str.String = trust {
+    if (!starts_with(s, prefix)) {
+        return clone(s)
+    }
+
+    val pl: i64 = @load(@ptradd(prefix as ref void, 8)) as i64
+    val sl: i64 = @load(@ptradd(s as ref void, 8)) as i64
+
+    return slice(s, pl, sl)
+}
+
+/// If s ends with suffix, return s without it, otherwise clone
+pub fn trim_suffix(s: str.String, suffix: str.String) str.String = trust {
+    if (!ends_with(s, suffix)) {
+        return clone(s)
+    }
+
+    val sl: i64 = @load(@ptradd(s as ref void, 8)) as i64
+    val sul: i64 = @load(@ptradd(suffix as ref void, 8)) as i64
+
+    return slice(s, 0, sl - sul)
+}
+
+/// Check if s starts with prefix
+pub fn starts_with(s: str.String, prefix: str.String) bool = {
+    pre {
+        s_not_null: s != none
+        prefix_not_null: prefix != none
+    }
+
+    val sl: i64 = trust @load(@ptradd(s as ref void, 8)) as i64
+    val pl: i64 = trust @load(@ptradd(prefix as ref void, 8)) as i64
+
+    if (pl > sl) {
+        return false
+    }
+
+    val sp: ref void = trust @load(s as ref void)
+    val pp: ref void = trust @load(prefix as ref void)
+
+    val i: mut i64 = 0
+    for {
+        if (i >= pl) {
+            break
+        }
+        val a: u8 = trust @load8(@ptradd(sp, i))
+        val b: u8 = trust @load8(@ptradd(pp, i))
+        if (a != b) {
+            return false
+        }
+        i++
+    }
+
+    post {
+        prefix_fits: pl <= sl
+    }
+
+    return true
+}
+
+/// Check if s ends with suffix
+pub fn ends_with(s: str.String, suffix: str.String) bool = {
+    pre {
+        s_not_null: s != none
+        suffix_not_null: suffix != none
+    }
+
+    val sl: i64 = trust @load(@ptradd(s as ref void, 8)) as i64
+    val sul: i64 = trust @load(@ptradd(suffix as ref void, 8)) as i64
+
+    if (sul > sl) {
+        return false
+    }
+
+    val sp: ref void = trust @load(s as ref void)
+    val sup: ref void = trust @load(suffix as ref void)
+    val offset: i64 = sl - sul
+    val i: mut i64 = 0
+
+    for {
+        if (i >= sul) {
+            break
+        }
+        val a: u8 = trust @load8(@ptradd(sp, offset + i))
+        val b: u8 = trust @load8(@ptradd(sup, i))
+        if (a != b) {
+            return false
+        }
+        i++
+    }
+
+    post {
+        suffix_fits: sul <= sl
+    }
+
+    return true
+}
+
+test "string operations build, search and transform" {
+    assert str.eql_raw(c"abc", c"abc")
+    assert !str.eql_raw(c"abc", c"abd")
+    val no_string: ref u8 = none
+    assert str.eql_raw(no_string, none)
+    assert !str.eql_raw(c"", none)
+    assert !str.eql_raw(none, c"")
+    val arena: allocators.Arena = trust allocators.Arena.new(32768 as usize)?
+    val empty = trust new()
+    assert len(empty) == 0
+
+    val s = trust from_raw[allocators.Arena](arena, c"hello")
+    assert len(s) == 5
+    assert equals(s, trust from_raw[allocators.Arena](arena, c"hello"))
+    val a = trust new()
+    trust push_raw(a, c"foo")
+    trust push_raw(a, c"bar")
+    assert equals(a, trust from_raw[allocators.Arena](arena, c"foobar"))
+
+    val b = trust new()
+    trust push_raw(b, c"foo")
+    val c = trust from_raw[allocators.Arena](arena, c"bar")
+    trust push(b, c)
+    assert equals(b, trust from_raw[allocators.Arena](arena, c"foobar"))
+
+    val pc = trust new()
+    trust push_raw(pc, c"ab")
+    trust push_char(pc, 99 as u8) // 'c'
+    assert equals(pc, trust from_raw[allocators.Arena](arena, c"abc"))
+
+    val orig = trust from_raw[allocators.Arena](arena, c"clone me")
+    val copy = trust clone(orig)
+    assert equals(orig, copy)
+    trust set(copy, 0, 88 as u8) // 'X'
+    assert !equals(orig, copy)
+
+    val cl = trust from_raw[allocators.Arena](arena, c"something")
+    trust clear(cl)
+    assert len(cl) == 0
+    assert equals(cl, trust from_raw[allocators.Arena](arena, c""))
+
+    val g = trust from_raw[allocators.Arena](arena, c"abc")
+    val g0 = get(g, 0)
+    val g1 = get(g, 1)
+    val g2 = get(g, 2)
+    val g3 = get(g, 3)
+
+    match g0 {
+        some v => {
+            assert v == 97
+        }
+        none => {
+            assert false
+        }
+    }
+    match g1 {
+        some v => {
+            assert v == 98
+        }
+        none => {
+            assert false
+        }
+    }
+    match g2 {
+        some v => {
+            assert v == 99
+        }
+        none => {
+            assert false
+        }
+    }
+    if g3 is some _ {
+        assert false
+    }
+
+    val st = trust from_raw[allocators.Arena](arena, c"abc")
+    trust set(st, 1, 120 as u8) // 'x'
+    assert equals(st, trust from_raw[allocators.Arena](arena, c"axc"))
+    trust set(st, 99, 121 as u8) // OOB no-op
+    assert equals(st, trust from_raw[allocators.Arena](arena, c"axc"))
+
+    val sl = trust from_raw[allocators.Arena](arena, c"hello world")
+    assert equals(trust slice(sl, 0, 5), trust from_raw[allocators.Arena](arena, c"hello"))
+    assert equals(trust slice(sl, 6, 11), trust from_raw[allocators.Arena](arena, c"world"))
+    assert equals(trust slice(sl, -5, 5), trust from_raw[allocators.Arena](arena, c"hello"))
+    assert equals(trust slice(sl, 6, 999), trust from_raw[allocators.Arena](arena, c"world"))
+    assert equals(trust slice(sl, 5, 5), trust from_raw[allocators.Arena](arena, c""))
+
+    val f = trust from_raw[allocators.Arena](arena, c"abc abc abc")
+    match find(f, trust from_raw[allocators.Arena](arena, c"abc")) {
+        some i => {
+            assert i == 0
+        }
+        none => {
+            assert false
+        }
+    }
+    if find(f, trust from_raw[allocators.Arena](arena, c"bca")) is some _ {
+        assert false
+    }
+    match find(f, trust from_raw[allocators.Arena](arena, c"")) {
+        some i => {
+            assert i == 0
+        }
+        none => {
+            assert false
+        }
+    }
+
+    assert contains(f, trust from_raw[allocators.Arena](arena, c"abc"))
+    assert !contains(f, trust from_raw[allocators.Arena](arena, c"zzz"))
+
+    val se = trust from_raw[allocators.Arena](arena, c"foobar")
+    assert starts_with(se, trust from_raw[allocators.Arena](arena, c"foo"))
+    assert !starts_with(se, trust from_raw[allocators.Arena](arena, c"bar"))
+    assert ends_with(se, trust from_raw[allocators.Arena](arena, c"bar"))
+    assert !ends_with(se, trust from_raw[allocators.Arena](arena, c"foo"))
+
+    val up = trust from_raw[allocators.Arena](arena, c"abcXYZ")
+    trust to_upper(up)
+    assert equals(up, trust from_raw[allocators.Arena](arena, c"ABCXYZ"))
+
+    val low = trust from_raw[allocators.Arena](arena, c"ABCxyz")
+    trust to_lower(low)
+    assert equals(low, trust from_raw[allocators.Arena](arena, c"abcxyz"))
+
+    val tr = trust from_raw[allocators.Arena](arena, c"  \t hello \n ")
+    trust trim(tr)
+    assert equals(tr, trust from_raw[allocators.Arena](arena, c"hello"))
+
+    val tl = trust from_raw[allocators.Arena](arena, c"   hello")
+    trust trim_left(tl)
+    assert equals(tl, trust from_raw[allocators.Arena](arena, c"hello"))
+
+    val trr = trust from_raw[allocators.Arena](arena, c"hello   ")
+
+    trust trim_right(trr)
+    assert equals(trr, trust from_raw[allocators.Arena](arena, c"hello"))
+
+    val rep = trust from_raw[allocators.Arena](arena, c"foo bar foo")
+
+    val rep2 = trust replace(
+        rep,
+        from_raw[allocators.Arena](arena, c"foo"),
+        from_raw[allocators.Arena](arena, c"baz")
+    )
+    assert equals(rep2, trust from_raw[allocators.Arena](arena, c"baz bar baz"))
+
+    val rep3 = trust replace(
+        rep,
+        from_raw[allocators.Arena](arena, c"xxx"),
+        from_raw[allocators.Arena](arena, c"yyy")
+    )
+    assert equals(rep3, trust from_raw[allocators.Arena](arena, c"foo bar foo"))
+    val sp = trust from_raw[allocators.Arena](arena, c"a,b,c")
+    val split_heap: allocators.HeapAllocator = @zeroed
+    val parts = trust split[allocators.HeapAllocator](
+        split_heap,
+        sp,
+        from_raw[allocators.Arena](arena, c",")
+    )?
+
+    assert collections.PtrList.len(parts) == 3
+    match collections.PtrList.get(parts, 0 as usize) {
+        some v => {
+            assert equals(v, trust from_raw[allocators.Arena](arena, c"a"))
+        }
+        none => {
+            assert false
+        }
+    }
+    match collections.PtrList.get(parts, 1 as usize) {
+        some v => {
+            assert equals(v, trust from_raw[allocators.Arena](arena, c"b"))
+        }
+        none => {
+            assert false
+        }
+    }
+    match collections.PtrList.get(parts, 2 as usize) {
+        some v => {
+            assert equals(v, trust from_raw[allocators.Arena](arena, c"c"))
+        }
+        none => {
+            assert false
+        }
+    }
+
+    val sp2 = trust from_raw[allocators.Arena](arena, c"a,b,")
+    val parts2 = trust split[allocators.HeapAllocator](
+        split_heap,
+        sp2,
+        from_raw[allocators.Arena](arena, c",")
+    )?
+    assert collections.PtrList.len(parts2) == 3
+    match collections.PtrList.get(parts2, 2 as usize) {
+        some v => {
+            assert equals(v, trust from_raw[allocators.Arena](arena, c""))
+        }
+        none => {
+            assert false
+        }
+    }
+
+    val ca = trust from_raw[allocators.Arena](arena, c"foo")
+    val cb = trust from_raw[allocators.Arena](arena, c"bar")
+    val cc = trust concat(ca, cb)
+    assert equals(cc, trust from_raw[allocators.Arena](arena, c"foobar"))
+
+    val rs = trust new()
+    trust push_raw(rs, c"abc")
+    trust reserve(rs, 100)
+    trust push_raw(rs, c"def")
+    assert equals(rs, trust from_raw[allocators.Arena](arena, c"abcdef"))
+
+    val viewed: str.StringView = "view me"
+    assert equals(
+        trust str.to_string[allocators.Arena](arena, viewed),
+        trust from_raw[allocators.Arena](arena, c"view me")
+    )
+
+    val rv = trust from_raw[allocators.Arena](arena, c"abcd")
+    trust reverse(rv)
+    assert equals(rv, trust from_raw[allocators.Arena](arena, c"dcba"))
+
+    val s2 = trust from_raw[allocators.Arena](arena, c"Hello world")
+    val out = trust trim_suffix(s2, from_raw[allocators.Arena](arena, c"world"))
+    assert equals(out, trust from_raw[allocators.Arena](arena, c"Hello "))
+
+    trust allocators.Arena.free(arena)
+}

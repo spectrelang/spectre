@@ -1,6 +1,8 @@
 val net        = use("../net/core.sx")
 val allocators = use("../allocators")
-val string     = use("../string")
+val str     = use("std/string")
+val ostr = use("std/string/owned")
+val builder = use("std/string/builder")
 
 pub val DEFAULT_MAX_ROUTES: i64 = 32
 pub val DEFAULT_MAX_CLIENTS: i64 = 64
@@ -259,7 +261,7 @@ pub fn (Response) write(res: mut self, text: ref u8) void = trust {
     if text == none || res.body == none || res.body_cap <= 1 {
         return
     }
-    val text_len: i64 = string.len_raw(text)
+    val text_len: i64 = str.len_raw(text)
     val available: i64 = res.body_cap - res.body_len - 1
     if available <= 0 {
         return
@@ -434,24 +436,24 @@ fn send_all(client: i64, data: ref u8, len: i64) void = trust {
 
 fn send_response(client: ref Client) void = trust {
     val res = client.response
-    val sb = string.StringBuilder.new()
-    string.StringBuilder.append_cstr(sb, c"HTTP/1.1 ")
-    string.StringBuilder.append_cstr(sb, @fmtalloc("{d}", {res.status_code}))
-    string.StringBuilder.append_cstr(sb, c" ")
-    string.StringBuilder.append_cstr(sb, status_text(res.status_code))
-    string.StringBuilder.append_cstr(sb, c"\r\nContent-Type: ")
-    string.StringBuilder.append_cstr(sb, res.content_type)
-    string.StringBuilder.append_cstr(sb, c"\r\nContent-Length: ")
-    string.StringBuilder.append_cstr(sb, @fmtalloc("{d}", {res.body_len}))
-    string.StringBuilder.append_cstr(sb, c"\r\nConnection: close\r\n\r\n")
+    val sb = builder.StringBuilder.new()
+    builder.StringBuilder.append_raw(sb, c"HTTP/1.1 ")
+    builder.StringBuilder.append_raw(sb, @fmtalloc("{d}", {res.status_code}))
+    builder.StringBuilder.append_raw(sb, c" ")
+    builder.StringBuilder.append_raw(sb, status_text(res.status_code))
+    builder.StringBuilder.append_raw(sb, c"\r\nContent-Type: ")
+    builder.StringBuilder.append_raw(sb, res.content_type)
+    builder.StringBuilder.append_raw(sb, c"\r\nContent-Length: ")
+    builder.StringBuilder.append_raw(sb, @fmtalloc("{d}", {res.body_len}))
+    builder.StringBuilder.append_raw(sb, c"\r\nConnection: close\r\n\r\n")
     if res.body_len > 0 {
-        string.StringBuilder.append_cstr(sb, @fmtalloc("{s}", {res.body}))
+        builder.StringBuilder.append_raw(sb, @fmtalloc("{s}", {res.body}))
     }
 
-    val response: string.String = string.StringBuilder.build(sb)
-    send_all(client.fd, string.cstr(response), string.len(response))
-    string.string_free(response)
-    string.StringBuilder.free(sb)
+    val response: str.String = builder.StringBuilder.build(sb)
+    send_all(client.fd, ostr.cstr(response), ostr.len(response))
+    ostr.free(response)
+    builder.StringBuilder.free(sb)
 }
 
 fn dispatch(server: ref WebServer, req: ref Request, res: mut ref Response) void = trust {
@@ -462,10 +464,10 @@ fn dispatch(server: ref WebServer, req: ref Request, res: mut ref Response) void
             break
         }
         val route = route_at(server, i)
-        if string.raw_cmp(
+        if str.cmp_raw(
             req.method,
             route.method
-        ) == 0 && string.raw_cmp(req.path, route.path) == 0 {
+        ) == 0 && str.cmp_raw(req.path, route.path) == 0 {
             @call(route.handler, req, res)
             return
         }
@@ -478,7 +480,7 @@ fn dispatch(server: ref WebServer, req: ref Request, res: mut ref Response) void
             break
         }
         val route = route_at(server, i)
-        if string.raw_cmp(req.path, route.path) == 0 {
+        if str.cmp_raw(req.path, route.path) == 0 {
             Response.set_status(res, 405 as i32)
             Response.json(res, c"{\"error\":\"Method not allowed\"}")
             return
