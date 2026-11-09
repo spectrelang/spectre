@@ -136,7 +136,7 @@ fn library_basename(name: str.StringView) str.StringView = trust {
 fn pkg_config_libs(module_name: str.StringView, static_link: bool) option[list[ref u8]] = trust {
     val static_arg: mut str.StringView = ""
     if static_link {
-        static_arg = c" --static"
+        static_arg = " --static"
     }
     val cmd: ref u8 = @fmtalloc(
         "pkg-config --exists {s} && pkg-config --libs{s} {s} 2>/dev/null",
@@ -228,9 +228,9 @@ fn library_suffixes(platform: str.StringView) list[ref u8] = trust {
 fn native_search_dirs(platform: str.StringView) list[ref u8] = trust {
     val dirs: mut list[ref u8] = mem.new[ref u8]()
 
-    val library_path = os.getenv(c"LIBRARY_PATH")
-    if library_path is some lib_path {
-        split_path_list(str.from_cstr(lib_path as ref u8), dirs)
+    val library_path: ref u8 = os.getenv(c"LIBRARY_PATH")
+    if library_path != none {
+        split_path_list(str.from_cstr(library_path), dirs)
     }
 
     @append(dirs, c"/usr/local/lib")
