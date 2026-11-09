@@ -231,11 +231,11 @@ fn emitln(ctx: ref CCtx, s: ref u8) void = trust {
 }
 
 fn emit_view(ctx: ref CCtx, s: str.StringView) void = trust {
-    str.StringBuilder.append_view(ctx.sb, s)
+    str.StringBuilder.append(ctx.sb, s)
 }
 
 fn emitln_view(ctx: ref CCtx, s: str.StringView) void = trust {
-    str.StringBuilder.append_view(ctx.sb, s)
+    str.StringBuilder.append(ctx.sb, s)
     str.StringBuilder.append_char(ctx.sb, 10 as u8)
 }
 
@@ -5129,7 +5129,7 @@ fn cc_embed_data(ctx: mut ref CCtx, path: ref u8, size: i64) ref u8 = trust {
     if size <= (0 as i64) {
         str.StringBuilder.append_cstr(sb, c"0")
     } else {
-        val data_opt = fs.read_all_raw(path)
+        val data_opt = fs.read_all_heap_raw(path)
         if data_opt is some data {
             val bi: mut i64 = 0
             for {
@@ -9898,11 +9898,11 @@ fn emitln_fwd(ctx: ref CCtx, s: ref u8) void = trust {
 }
 
 fn emit_view_fwd(ctx: ref CCtx, s: str.StringView) void = trust {
-    str.StringBuilder.append_view(ctx.fwd_sb, s)
+    str.StringBuilder.append(ctx.fwd_sb, s)
 }
 
 fn emitln_view_fwd(ctx: ref CCtx, s: str.StringView) void = trust {
-    str.StringBuilder.append_view(ctx.fwd_sb, s)
+    str.StringBuilder.append(ctx.fwd_sb, s)
     str.StringBuilder.append_char(ctx.fwd_sb, 10 as u8)
 }
 
@@ -10159,6 +10159,195 @@ fn emit_string_data(ctx: ref CCtx) void = trust {
     }
 }
 
+/// True when `symbol` is declared by one of the C headers that the generated
+/// translation unit includes unconditionally. Extern declarations for these
+/// symbols must not be emitted again: the generated prototype uses the
+/// Spectre ABI (integer pointers) and would conflict with the header's real
+/// C prototype. The declaration in the header is always the correct one.
+fn cc_symbol_from_c_header(symbol: ref u8) bool = trust {
+    val names: mut list[ref u8] = mem.new[ref u8]()
+    @append(names, c"malloc")
+    @append(names, c"calloc")
+    @append(names, c"realloc")
+    @append(names, c"free")
+    @append(names, c"abort")
+    @append(names, c"abs")
+    @append(names, c"exit")
+    @append(names, c"atexit")
+    @append(names, c"atof")
+    @append(names, c"atoi")
+    @append(names, c"atol")
+    @append(names, c"atoll")
+    @append(names, c"bsearch")
+    @append(names, c"qsort")
+    @append(names, c"rand")
+    @append(names, c"srand")
+    @append(names, c"getenv")
+    @append(names, c"setenv")
+    @append(names, c"unsetenv")
+    @append(names, c"realpath")
+    @append(names, c"mkstemp")
+    @append(names, c"mkdtemp")
+    @append(names, c"posix_memalign")
+    @append(names, c"aligned_alloc")
+    @append(names, c"strtod")
+    @append(names, c"strtof")
+    @append(names, c"strtol")
+    @append(names, c"strtold")
+    @append(names, c"strtoll")
+    @append(names, c"strtoul")
+    @append(names, c"strtoull")
+    @append(names, c"system")
+    @append(names, c"_putenv_s")
+    @append(names, c"memchr")
+    @append(names, c"memcmp")
+    @append(names, c"memcpy")
+    @append(names, c"memmove")
+    @append(names, c"memset")
+    @append(names, c"strcat")
+    @append(names, c"strchr")
+    @append(names, c"strcmp")
+    @append(names, c"strcoll")
+    @append(names, c"strcpy")
+    @append(names, c"strcspn")
+    @append(names, c"strdup")
+    @append(names, c"strerror")
+    @append(names, c"strlen")
+    @append(names, c"strncat")
+    @append(names, c"strncmp")
+    @append(names, c"strncpy")
+    @append(names, c"strndup")
+    @append(names, c"strnlen")
+    @append(names, c"strpbrk")
+    @append(names, c"strrchr")
+    @append(names, c"strspn")
+    @append(names, c"strstr")
+    @append(names, c"strtok")
+    @append(names, c"strtok_r")
+    @append(names, c"strxfrm")
+    @append(names, c"clearerr")
+    @append(names, c"fclose")
+    @append(names, c"feof")
+    @append(names, c"ferror")
+    @append(names, c"fflush")
+    @append(names, c"fgetc")
+    @append(names, c"fgetpos")
+    @append(names, c"fgets")
+    @append(names, c"fopen")
+    @append(names, c"fprintf")
+    @append(names, c"fputc")
+    @append(names, c"fputs")
+    @append(names, c"fread")
+    @append(names, c"freopen")
+    @append(names, c"fscanf")
+    @append(names, c"fseek")
+    @append(names, c"fsetpos")
+    @append(names, c"ftell")
+    @append(names, c"fwrite")
+    @append(names, c"getc")
+    @append(names, c"getchar")
+    @append(names, c"puts")
+    @append(names, c"putchar")
+    @append(names, c"perror")
+    @append(names, c"printf")
+    @append(names, c"remove")
+    @append(names, c"rename")
+    @append(names, c"rewind")
+    @append(names, c"scanf")
+    @append(names, c"snprintf")
+    @append(names, c"sprintf")
+    @append(names, c"sscanf")
+    @append(names, c"ungetc")
+    @append(names, c"vfprintf")
+    @append(names, c"vprintf")
+    @append(names, c"vsnprintf")
+    @append(names, c"vsprintf")
+    @append(names, c"fileno")
+    @append(names, c"fdopen")
+    @append(names, c"popen")
+    @append(names, c"pclose")
+    @append(names, c"clock")
+    @append(names, c"time")
+    @append(names, c"difftime")
+    @append(names, c"mktime")
+    @append(names, c"localtime")
+    @append(names, c"gmtime")
+    @append(names, c"strftime")
+    @append(names, c"gettimeofday")
+    @append(names, c"settimeofday")
+    @append(names, c"clock_gettime")
+    @append(names, c"clock_getres")
+    @append(names, c"nanosleep")
+    @append(names, c"localtime_r")
+    @append(names, c"gmtime_r")
+    @append(names, c"strptime")
+    @append(names, c"access")
+    @append(names, c"alarm")
+    @append(names, c"chdir")
+    @append(names, c"chown")
+    @append(names, c"close")
+    @append(names, c"dup")
+    @append(names, c"dup2")
+    @append(names, c"fork")
+    @append(names, c"ftruncate")
+    @append(names, c"getcwd")
+    @append(names, c"getpid")
+    @append(names, c"getuid")
+    @append(names, c"geteuid")
+    @append(names, c"getgid")
+    @append(names, c"getegid")
+    @append(names, c"getppid")
+    @append(names, c"kill")
+    @append(names, c"raise")
+    @append(names, c"isatty")
+    @append(names, c"link")
+    @append(names, c"lseek")
+    @append(names, c"pipe")
+    @append(names, c"read")
+    @append(names, c"rmdir")
+    @append(names, c"sleep")
+    @append(names, c"unlink")
+    @append(names, c"usleep")
+    @append(names, c"write")
+    @append(names, c"sysconf")
+    @append(names, c"fsync")
+    @append(names, c"symlink")
+    @append(names, c"readlink")
+    @append(names, c"gethostname")
+    @append(names, c"sethostname")
+    @append(names, c"getopt")
+    @append(names, c"chmod")
+    @append(names, c"fchmod")
+    @append(names, c"mkdir")
+    @append(names, c"mkfifo")
+    @append(names, c"stat")
+    @append(names, c"fstat")
+    @append(names, c"lstat")
+    @append(names, c"umask")
+    @append(names, c"opendir")
+    @append(names, c"readdir")
+    @append(names, c"readdir_r")
+    @append(names, c"closedir")
+    @append(names, c"rewinddir")
+    @append(names, c"seekdir")
+    @append(names, c"telldir")
+    @append(names, c"GetModuleFileNameA")
+    @append(names, c"GetVersionExA")
+    @append(names, c"GetStdHandle")
+    @append(names, c"WriteFile")
+    @append(names, c"SetConsoleOutputCP")
+    @append(names, c"FindFirstFileA")
+    @append(names, c"FindClose")
+    @append(names, c"Sleep")
+    @append(names, c"ExitProcess")
+    @append(names, c"GetLastError")
+    for name in names {
+        if str.raw_cmp(symbol, name) == 0 {
+            return true
+        }
+    }
+    return false
+}
 fn emit_forward_decls(ctx: ref CCtx) void = trust {
     val flen: i64 = @len(ctx.fn_names as list[ref u8]) as i64
     val fi: mut i64 = 0
@@ -10207,6 +10396,10 @@ fn emit_forward_decls(ctx: ref CCtx) void = trust {
                 } elif parser.fn_is_inline(nd) {
                     is_inline = true
                 }
+            }
+            if is_extern && cc_symbol_from_c_header(mangled) {
+                fi++
+                continue
             }
             if is_extern {
                 ret_unboxed_fwd = false

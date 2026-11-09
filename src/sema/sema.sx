@@ -412,12 +412,12 @@ fn resolve_embed_builtin(
             add_error(ctx, ebuf)
             return
         }
-        val base_dir: ref u8 = path.dir(filename)
-        val joined: ref u8 = path.join(base_dir, rel)
+        val base_dir: ref u8 = path.dir_raw(filename)
+        val joined: ref u8 = path.join_raw(base_dir, rel)
         val canonical: ref u8 = canonicalize_path(ctx, joined)
         @free(base_dir)
         @free(joined)
-        val size_opt = fs.file_size(canonical)
+        val size_opt = fs.file_size_raw(canonical)
         match size_opt {
             some size => {
                 parser.node_store_string_slot(@addr(expr.d2), canonical)

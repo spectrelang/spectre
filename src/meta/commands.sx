@@ -448,7 +448,7 @@ fn validate_spectre_version(m: ref SxMod) bool = trust {
 }
 
 pub fn load_sxmod() option[ref SxMod] = {
-    val size_opt = trust fs.file_size(c"sx.mod")
+    val size_opt = trust fs.file_size_raw(c"sx.mod")
     val arena_cap: mut i64 = 4096
     if size_opt is some sz {
         if ((sz as i64) > arena_cap) {
@@ -458,7 +458,7 @@ pub fn load_sxmod() option[ref SxMod] = {
         return none
     }
     val arena: allocators.Arena = trust allocators.Arena.new((arena_cap + 8) as usize)?
-    val content_opt = trust fs.read_all[allocators.Arena](arena, c"sx.mod")
+    val content_opt = trust fs.read_all_raw[allocators.Arena](arena, c"sx.mod")
     match content_opt {
         none => {
             trust allocators.Arena.free(arena)
@@ -506,7 +506,7 @@ fn parse_sxlock(content: ref u8) list[ref SxLockDep] = trust {
 }
 
 fn load_sxlock() option[list[ref SxLockDep]] = {
-    val size_opt = trust fs.file_size(c"sx.lock")
+    val size_opt = trust fs.file_size_raw(c"sx.lock")
     val arena_cap: mut i64 = 4096
     if size_opt is some sz {
         if ((sz as i64) > arena_cap) {
@@ -516,7 +516,7 @@ fn load_sxlock() option[list[ref SxLockDep]] = {
         return none
     }
     val arena: allocators.Arena = trust allocators.Arena.new((arena_cap + 8) as usize)?
-    val content_opt = trust fs.read_all[allocators.Arena](arena, c"sx.lock")
+    val content_opt = trust fs.read_all_raw[allocators.Arena](arena, c"sx.lock")
     match content_opt {
         none => {
             trust allocators.Arena.free(arena)
@@ -531,8 +531,8 @@ fn load_sxlock() option[list[ref SxLockDep]] = {
 }
 
 pub fn load_sxmod_at(dir: ref u8) option[ref SxMod] = trust {
-    val mod_path: ref u8 = path.join(dir, c"sx.mod")
-    val size_opt = fs.file_size(mod_path)
+    val mod_path: ref u8 = path.join_raw(dir, c"sx.mod")
+    val size_opt = fs.file_size_raw(mod_path)
     val arena_cap: mut i64 = 4096
     if size_opt is some sz {
         if ((sz as i64) > arena_cap) {
@@ -542,7 +542,7 @@ pub fn load_sxmod_at(dir: ref u8) option[ref SxMod] = trust {
         return none
     }
     val arena: allocators.Arena = allocators.Arena.new((arena_cap + 8) as usize)?
-    val content_opt = fs.read_all[allocators.Arena](arena, mod_path)
+    val content_opt = fs.read_all_raw[allocators.Arena](arena, mod_path)
     match content_opt {
         none => {
             allocators.Arena.free(arena)
@@ -610,7 +610,7 @@ fn parent_dir(dir: ref u8) ref u8 = trust {
 /// Read the application version from the nearest sx.mod for a source file.
 /// The same-directory manifest is checked first, then parent directories.
 pub fn load_version_for(input: ref u8) ref u8 = trust {
-    val raw_dir: ref u8 = path.dir(input)
+    val raw_dir: ref u8 = path.dir_raw(input)
     val start_dir: mut ref u8 = raw_dir
     if str.raw_cmp(raw_dir, c".") == 0 {
         val cwd_opt = fs.cwd_raw()
@@ -650,7 +650,7 @@ pub fn load_version_for(input: ref u8) ref u8 = trust {
 /// Read single_flags from an sx.mod next to the given source file.
 /// Parent directories are deliberately not searched.
 pub fn load_single_flags_for(input: ref u8) result[ref u8, ref u8] = trust {
-    val dir: ref u8 = path.dir(input)
+    val dir: ref u8 = path.dir_raw(input)
     val mod_opt = load_sxmod_at(dir)
     match mod_opt {
         none => {
@@ -699,7 +699,7 @@ pub fn split_single_flags(s: ref u8) list[ref u8] = trust {
 
 fn load_sxlock_at(dir: ref u8) option[list[ref SxLockDep]] = trust {
     val lock_path: ref u8 = @fmtalloc("{s}/sx.lock", {dir})
-    val size_opt = fs.file_size(lock_path)
+    val size_opt = fs.file_size_raw(lock_path)
     val arena_cap: mut i64 = 4096
     if size_opt is some sz {
         if ((sz as i64) > arena_cap) {
@@ -710,7 +710,7 @@ fn load_sxlock_at(dir: ref u8) option[list[ref SxLockDep]] = trust {
         return none
     }
     val arena: allocators.Arena = allocators.Arena.new((arena_cap + 8) as usize)?
-    val content_opt = fs.read_all[allocators.Arena](arena, lock_path)
+    val content_opt = fs.read_all_raw[allocators.Arena](arena, lock_path)
     @free(lock_path)
     match content_opt {
         none => {
@@ -860,7 +860,7 @@ pub fn repo_name_from_url(url: ref u8) ref u8 = trust {
 
 /// Rewrite filepath, dropping lines that start with dep_prefix AND contain needle.
 fn drop_dep_lines(filepath: ref u8, needle: ref u8) void = trust {
-    val size_opt = fs.file_size(filepath)
+    val size_opt = fs.file_size_raw(filepath)
     val arena_cap: mut i64 = 4096
     if size_opt is some sz {
         if ((sz as i64) > arena_cap) {
@@ -870,7 +870,7 @@ fn drop_dep_lines(filepath: ref u8, needle: ref u8) void = trust {
         return
     }
     val arena: allocators.Arena = allocators.Arena.new((arena_cap + 8) as usize)?
-    val content_opt = fs.read_all[allocators.Arena](arena, filepath)
+    val content_opt = fs.read_all_raw[allocators.Arena](arena, filepath)
     match content_opt {
         none => {
             allocators.Arena.free(arena)
@@ -911,7 +911,7 @@ fn drop_dep_lines(filepath: ref u8, needle: ref u8) void = trust {
             }
             val result: ref void = str.StringBuilder.build(sb)
             allocators.Arena.free(arena)
-            fs.write_all(filepath, str.cstr(result))
+            fs.write_all_raw(filepath, str.cstr(result))
             str.StringBuilder.free(sb)
         }
     }
@@ -959,7 +959,7 @@ fn dep_name_matches(dep_url: ref u8, dep_name: ref u8) bool = trust {
 
 fn set_lock_hash(filepath: ref u8, url: ref u8, hash: ref u8) void = trust {
     drop_dep_lines(filepath, url)
-    fs.append_all(filepath, @fmtalloc("dep \"{s}\" \"{s}\"\n", {url, hash}))
+    fs.append_all_raw(filepath, @fmtalloc("dep \"{s}\" \"{s}\"\n", {url, hash}))
 }
 
 fn upgrade_dir(
@@ -1006,7 +1006,7 @@ fn upgrade_dir(
         val lib_path: ref u8 = @fmtalloc("{s}/{s}", {lib_dir, name})
 
         if dep_name_matches(dep_url, dep_name) {
-            if !fs.is_directory(lib_path) {
+            if !fs.is_directory_raw(lib_path) {
                 stdio.print("error: dependency '{s}' is not present at {s}\n", {dep_url, lib_path})
                 stdio.puts("run 'spectre restore' first")
                 return 1
@@ -1094,30 +1094,30 @@ fn add_stdlib_candidate(candidates: mut list[ref u8], dir: ref u8) void = trust 
 fn copy_current_stdlib(snapshot_dir: ref u8) bool = trust {
     val arena: allocators.Arena = allocators.Arena.new(4096 as usize)?
     val exe_path = reflection.get_exe_path[allocators.Arena](arena)
-    val exe_dir = path.dir(exe_path)
+    val exe_dir = path.dir_raw(exe_path)
     val candidates: mut list[ref u8] = mem.new[ref u8]()
     val stdlib_env = os.env(c"SPECTRE_STDLIB")
 
     if stdlib_env is some v {
         val dir: ref u8 = v as ref u8
         add_stdlib_candidate(candidates, dir)
-        add_stdlib_candidate(candidates, path.join(dir, c"spectrelib"))
+        add_stdlib_candidate(candidates, path.join_raw(dir, c"spectrelib"))
     }
 
     val root_env = os.env(c"SPECTRE_ROOT")
     if root_env is some v {
-        add_stdlib_candidate(candidates, path.join(v as ref u8, c"spectrelib"))
+        add_stdlib_candidate(candidates, path.join_raw(v as ref u8, c"spectrelib"))
     }
 
-    add_stdlib_candidate(candidates, path.join(exe_dir, c"spectrelib"))
-    add_stdlib_candidate(candidates, path.join(exe_dir, c"../share/spectre/spectrelib"))
-    add_stdlib_candidate(candidates, path.join(exe_dir, c"../lib/spectre/spectrelib"))
-    add_stdlib_candidate(candidates, path.join(exe_dir, c"../lib/spectrelib"))
+    add_stdlib_candidate(candidates, path.join_raw(exe_dir, c"spectrelib"))
+    add_stdlib_candidate(candidates, path.join_raw(exe_dir, c"../share/spectre/spectrelib"))
+    add_stdlib_candidate(candidates, path.join_raw(exe_dir, c"../lib/spectre/spectrelib"))
+    add_stdlib_candidate(candidates, path.join_raw(exe_dir, c"../lib/spectrelib"))
     add_stdlib_candidate(candidates, c"spectrelib")
 
     val std_dir: mut ref u8 = c""
     for candidate in candidates {
-        if fs.is_directory(candidate) {
+        if fs.is_directory_raw(candidate) {
             std_dir = candidate
             break
         }
@@ -1143,7 +1143,7 @@ fn copy_current_stdlib(snapshot_dir: ref u8) bool = trust {
         stdio.print("  to:   {s}\n", {snapshot_dir})
         stdio.puts("  check that both directories are readable and writable")
     } else {
-        val marker = path.join(snapshot_dir, c"stdio/core.sx")
+        val marker = path.join_raw(snapshot_dir, c"stdio/core.sx")
         if !os.exists(marker) {
             stdio.print(
                 "error: standard library copy at {s} looks incomplete (missing {s})\n",
@@ -1161,7 +1161,7 @@ pub fn cmd_ref() i32 = trust {
     val path: ref u8 = c"SPECTRE_LANGUAGE_REFERENCE.md"
     val content: ref void = @embed("../../docs/SPECTRE_REFERENCE.md") as ref void
     val content_len: i64 = @embedlen("../../docs/SPECTRE_REFERENCE.md") as i64
-    if !fs.write_all_bytes(path, content, content_len) {
+    if !fs.write_all_bytes_raw(path, content, content_len) {
         stdio.print("error: could not write {s}\n", {path})
         return 1
     }
@@ -1206,15 +1206,15 @@ pub fn cmd_init(name_arg: ref u8) i32 = {
     trust str.StringBuilder.append_cstr(sb, proj_name)
     trust str.StringBuilder.append_cstr(sb, c"-dev\"\n}\n")
     val sxmod_built: ref void = trust str.StringBuilder.build(sb)
-    trust fs.write_all(c"sx.mod", str.cstr(sxmod_built))
+    trust fs.write_all_raw(c"sx.mod", str.cstr(sxmod_built))
     trust str.StringBuilder.free(sb)
-    trust fs.write_all(c"sx.lock", c"version \"1\"\n")
-    trust fs.write_all(
+    trust fs.write_all_raw(c"sx.lock", c"version \"1\"\n")
+    trust fs.write_all_raw(
         c".gitignore",
         c"SPECTRE_LANGUAGE_REFERENCE.md\nlib/\nstd__*\ns-out/\ndocs-out*/\n"
     )
 
-    trust fs.mkdir_path(c"src")
+    trust fs.mkdir_path_raw(c"src")
 
     val main_template: str.StringView = \\val stdio = use("std/stdio")
     \\
@@ -1222,7 +1222,7 @@ pub fn cmd_init(name_arg: ref u8) i32 = {
     \\    stdio.puts("Hello, world.")
     \\}
     \\
-    trust fs.write_all_view("src/main.sx", main_template)
+    trust fs.write_all("src/main.sx", main_template)
     trust stdio.print("Initialized project '{s}'\n", {proj_name})
     return 0
 }
@@ -1282,7 +1282,7 @@ pub fn cmd_add(url: ref u8) i32 = trust {
         return 1
     }
 
-    fs.mkdir_path(c"lib")
+    fs.mkdir_path_raw(c"lib")
 
     val clone_cmd: ref u8 = @fmtalloc("git clone {s} {s}", {url, lib_path})
     stdio.print("Cloning {s}...\n", {url})
@@ -1293,7 +1293,7 @@ pub fn cmd_add(url: ref u8) i32 = trust {
     }
 
     val dep_line: ref u8 = @fmtalloc("dep \"{s}\"\n", {url})
-    fs.append_all(c"sx.mod", dep_line)
+    fs.append_all_raw(c"sx.mod", dep_line)
 
     val hash_cmd: ref u8 = @fmtalloc("git -C {s} rev-parse HEAD", {lib_path})
     val hash_res = os.exec(hash_cmd)
@@ -1323,7 +1323,7 @@ pub fn cmd_add(url: ref u8) i32 = trust {
     }
 
     val lock_line: ref u8 = @fmtalloc("dep \"{s}\" \"{s}\"\n", {url, hash})
-    fs.append_all(c"sx.lock", lock_line)
+    fs.append_all_raw(c"sx.lock", lock_line)
 
     stdio.print("Added dependency '{s}' ({s})\n", {name, hash})
     return 0
@@ -1394,7 +1394,7 @@ fn restore_in_dir(base_dir: ref u8, visited: mut list[ref u8]) i32 = trust {
             os.run(@fmtalloc("rm -rf {s}", {lib_dir}))
         }
     }
-    fs.mkdir_path(lib_dir)
+    fs.mkdir_path_raw(lib_dir)
 
     for dep_url in sxmod.deps {
         val hash: ref u8 = lock_hash_for_url(lock_deps, dep_url)
@@ -1460,7 +1460,7 @@ pub fn cmd_restore() i32 = trust {
             os.run(c"rm -rf lib")
         }
     }
-    fs.mkdir_path(c"lib")
+    fs.mkdir_path_raw(c"lib")
 
     val visited: mut list[ref u8] = mem.new[ref u8]()
     @append(visited, c".")
@@ -1636,7 +1636,7 @@ fn collect_test_files(
     max_depth: i64,
     out: mut list[ref u8]
 ) void = trust {
-    if !fs.is_directory(target) {
+    if !fs.is_directory_raw(target) {
         if str.raw_ends_with(target, c".sx") {
             @append(out, target)
         }
@@ -1649,8 +1649,8 @@ fn collect_test_files(
     val entries_opt = fs.walk_dir[allocators.ListArena](walk_list_arena, target)
     if entries_opt is some entries {
         for entry in entries {
-            val child: ref u8 = path.join(target, entry)
-            if fs.is_directory(child) {
+            val child: ref u8 = path.join_raw(target, entry)
+            if fs.is_directory_raw(child) {
                 if depth < max_depth {
                     collect_test_files(child, depth + 1, max_depth, out)
                 }

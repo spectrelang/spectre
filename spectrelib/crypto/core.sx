@@ -1064,7 +1064,7 @@ test "hash, hmac and encoding primitives roundtrip" {
     assert string.len_raw(nonce1) == 48
     assert string.len_raw(nonce2) == 48
 
-    assert trust fs.write_all(c"crypto_hash_file_sha256_test.txt", c"abc")
+    assert trust fs.write_all_raw(c"crypto_hash_file_sha256_test.txt", c"abc")
     val file_hash_res = trust hash_file_sha256[allocators.Arena](
         arena,
         c"crypto_hash_file_sha256_test.txt"
@@ -1081,7 +1081,7 @@ test "hash, hmac and encoding primitives roundtrip" {
             assert false
         }
     }
-    assert trust fs.delete(c"crypto_hash_file_sha256_test.txt")
+    assert trust fs.delete_raw(c"crypto_hash_file_sha256_test.txt")
 
     val missing_file_hash_res = trust hash_file_sha256[allocators.Arena](
         arena,

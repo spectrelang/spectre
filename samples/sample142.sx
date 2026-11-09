@@ -44,7 +44,7 @@ fn generic_raw_with_alloc[A: allocators.GeneralAllocator](ac: A, path: ref u8) i
 }
 
 fn generic_fs_like[A: allocators.GeneralAllocator](ac: A, path: ref u8) i32 = trust {
-    val handle = fs.open(path, c"rb")
+    val handle = fs.open_raw(path, c"rb")
     match handle {
         none => {
             return -1

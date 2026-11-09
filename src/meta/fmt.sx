@@ -4489,7 +4489,7 @@ fn has_sx_suffix(file: ref u8) bool = {
 }
 
 fn format_file(file: ref u8, to_stdout: bool) i32 = trust {
-    val size_opt = fs.file_size(file)
+    val size_opt = fs.file_size_raw(file)
     val size: mut i64 = 0
     if size_opt is some s {
         size = s as i64
@@ -4498,7 +4498,7 @@ fn format_file(file: ref u8, to_stdout: bool) i32 = trust {
         return 1
     }
 
-    val content_opt = fs.read_all_raw(file)
+    val content_opt = fs.read_all_heap_raw(file)
     val content: mut ref u8 = none
     if content_opt is some c {
         content = c
@@ -4524,7 +4524,7 @@ fn format_file(file: ref u8, to_stdout: bool) i32 = trust {
     if to_stdout {
         stdio.print("{s}", {formatted})
     } elif str.raw_cmp(formatted, content) != 0 {
-        if !fs.write_all(file, formatted) {
+        if !fs.write_all_raw(file, formatted) {
             stdio.print("error: could not write '{s}'\n", {file})
             if formatted != content {
                 @free(formatted)
@@ -4542,7 +4542,7 @@ fn format_file(file: ref u8, to_stdout: bool) i32 = trust {
 }
 
 fn collect_files(target: ref u8, out: mut list[ref u8], explicit: bool) i32 = trust {
-    if fs.is_directory(target) {
+    if fs.is_directory_raw(target) {
         val heap: allocators.HeapAllocator = @zeroed
         val entries_opt = fs.walk_dir_raw[_](heap, target)
         match entries_opt {
@@ -4552,7 +4552,7 @@ fn collect_files(target: ref u8, out: mut list[ref u8], explicit: bool) i32 = tr
             }
             some entries => {
                 for entry in entries {
-                    val child: ref u8 = path.join(target, entry)
+                    val child: ref u8 = path.join_raw(target, entry)
                     val code: i32 = collect_files(child, out, false)
                     if code != 0 {
                         @listfree(entries)

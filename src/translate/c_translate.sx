@@ -54,7 +54,7 @@ fn arena_copy_cstr(src: ref u8) ref u8 = trust {
 }
 
 fn tdir(p: ref u8) ref u8 = trust {
-    val dir: mut ref u8 = path.dir(p)
+    val dir: mut ref u8 = path.dir_raw(p)
     val out = arena_copy_cstr(dir)
     if string.raw_cmp(dir, c".") != 0 {
         @free(dir)
@@ -63,7 +63,7 @@ fn tdir(p: ref u8) ref u8 = trust {
 }
 
 fn tjoin(a: ref u8, b: ref u8) ref u8 = trust {
-    val joined: mut ref u8 = path.join(a, b)
+    val joined: mut ref u8 = path.join_raw(a, b)
     val out = arena_copy_cstr(joined)
     @free(joined)
     return out
@@ -2168,7 +2168,7 @@ fn strip_system_includes(text: ref u8) ref u8 = {
 }
 
 fn preprocess_source(path: ref u8) option[ref u8] = trust {
-    val size_opt = fs.file_size(path)
+    val size_opt = fs.file_size_raw(path)
     val arena_cap: mut i64 = 4096
     if size_opt is some sz {
         if ((sz as i64) > arena_cap) {
@@ -2178,7 +2178,7 @@ fn preprocess_source(path: ref u8) option[ref u8] = trust {
         return none
     }
     val arena: allocators.Arena = allocators.Arena.new((arena_cap + 8) as usize)?
-    val content_opt = fs.read_all[allocators.Arena](arena, path)
+    val content_opt = fs.read_all_raw[allocators.Arena](arena, path)
     match content_opt {
         none => {
             allocators.Arena.free(arena)
@@ -2190,7 +2190,7 @@ fn preprocess_source(path: ref u8) option[ref u8] = trust {
             val current_dir: ref u8 = tdir(path)
             val temp_path: ref u8 = tjoin(current_dir, c"__spectre_translate_tmp__.c")
             val pp_path: ref u8 = tjoin(current_dir, c"__spectre_translate_tmp__.pp")
-            val wrote: bool = fs.write_all(temp_path, filtered)
+            val wrote: bool = fs.write_all_raw(temp_path, filtered)
             if !wrote {
                 allocators.Arena.free(arena)
                 return some filtered
@@ -2200,8 +2200,8 @@ fn preprocess_source(path: ref u8) option[ref u8] = trust {
                 {temp_path, pp_path, pp_path, temp_path}
             )
             val result = os.exec(cmd)
-            fs.delete(temp_path)
-            fs.delete(pp_path)
+            fs.delete_raw(temp_path)
+            fs.delete_raw(pp_path)
             match result {
                 ok out => {
                     val text: ref u8 = take_cstr(out)
@@ -5619,7 +5619,7 @@ fn append_synthesized_externs(ctx: mut ref TranslationCtx, out: ref void) void =
 }
 
 fn file_exists(path: ref u8) bool = {
-    val file_opt = trust fs.open(path, c"r")
+    val file_opt = trust fs.open_raw(path, c"r")
     if file_opt is some f {
         trust fs.close(f)
         return true
@@ -7823,7 +7823,7 @@ pub fn translate_c(input_path: ref u8, output_path: ref u8) i32 = {
             err _ => {}
         }
     }
-    val written: bool = trust fs.write_all(output_path, take_cstr(built))
+    val written: bool = trust fs.write_all_raw(output_path, take_cstr(built))
     if !written {
         trust stdio.print("error: could not write '{s}'\n", {output_path})
         return 1

@@ -3,7 +3,7 @@ val fs         = use("std/fs")
 val string     = use("std/string")
 
 pub fn read_len[A: allocators.Allocator](ac: A, path: ref u8) i64 = trust {
-    if fs.read_all[A](ac, path) is some text {
+    if fs.read_all_raw[A](ac, path) is some text {
         return string.len_raw(text as ref u8)
     } else {
         return -1
@@ -31,7 +31,7 @@ pub fn walk_count[A: allocators.GeneralAllocator](ac: A, path: ref u8) i64 = tru
 }
 
 pub fn passthrough_read[A: allocators.Allocator](ac: A, path: ref u8) option[ref u8] = trust {
-    return fs.read_all[A](ac, path)
+    return fs.read_all_raw[A](ac, path)
 }
 
 pub fn main() void = {}

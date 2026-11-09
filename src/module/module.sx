@@ -65,7 +65,7 @@ fn arena_string(arena: allocators.ScopedArenaAllocator, src: ref u8) String = tr
 
 /// Check if a file exists by trying to open it.
 fn file_exists(path: ref u8) bool = trust {
-    val f = fs.open(path, c"r")
+    val f = fs.open_raw(path, c"r")
     if f is some h {
         fs.close(h)
         return true
@@ -84,14 +84,14 @@ fn find_workspace_root(start_dir: ref u8) ref u8 = trust {
             break
         }
         limit--
-        val spectre_mod: mut ref u8 = path.join(cur, c"sx.mod")
+        val spectre_mod: mut ref u8 = path.join_raw(cur, c"sx.mod")
         val found_here: bool = file_exists(spectre_mod) &&
         commands.is_project_sxmod_at(cur)
         @free(spectre_mod)
         if found_here {
             return cur
         }
-        val parent: mut ref u8 = path.dir(cur)
+        val parent: mut ref u8 = path.dir_raw(cur)
         if str.raw_cmp(parent, cur) == 0 {
             if str.raw_cmp(parent, c".") != 0 {
                 @free(parent)
@@ -111,7 +111,7 @@ fn find_workspace_root(start_dir: ref u8) ref u8 = trust {
 
 /// Join a candidate suffix onto `base`, taking ownership of `suffix`.
 fn join_owned_suffix(base: ref u8, suffix: ref u8) ref u8 = trust {
-    val joined = path.join(base, suffix)
+    val joined = path.join_raw(base, suffix)
     @free(suffix)
     return joined
 }
@@ -123,7 +123,7 @@ fn resolve_existing_candidate(base: ref u8, suffix: ref u8) ref u8 = trust {
         @free(joined)
         return none
     }
-    val resolved = path.canonicalize_path(joined)
+    val resolved = path.canonicalize_path_raw(joined)
     @free(joined)
     return resolved
 }
@@ -131,7 +131,7 @@ fn resolve_existing_candidate(base: ref u8, suffix: ref u8) ref u8 = trust {
 /// Return the canonical form of a candidate even if it does not exist.
 fn canonical_candidate(base: ref u8, suffix: ref u8) ref u8 = trust {
     val joined: mut ref u8 = join_owned_suffix(base, suffix)
-    val resolved = path.canonicalize_path(joined)
+    val resolved = path.canonicalize_path_raw(joined)
     @free(joined)
     return resolved
 }
@@ -161,8 +161,8 @@ pub fn resolve_use_path(
         val c1: u8 = @load8(@ptradd(use_path, plen - 2))
         val c2: u8 = @load8(@ptradd(use_path, plen - 1))
         if c0 == 46 && c1 == 115 && c2 == 120 {
-            val joined: mut ref u8 = path.join(file_dir, use_path)
-            val resolved = path.canonicalize_path(joined)
+            val joined: mut ref u8 = path.join_raw(file_dir, use_path)
+            val resolved = path.canonicalize_path_raw(joined)
             @free(joined)
             return resolved
         }
@@ -1175,7 +1175,7 @@ fn resolve_module_impl(
     cache_keys: mut list[ref u8],
     cache_vals: mut list[ref void]
 ) result[ref ResolvedModule, ref u8] = trust {
-    val canonical_path: ref u8 = path.canonicalize_path(path)
+    val canonical_path: ref u8 = path.canonicalize_path_raw(path)
     if in_progress_contains(in_progress, canonical_path) {
         return err @fmtalloc("cyclic import: {s}", {canonical_path})
     }
@@ -1198,7 +1198,7 @@ fn resolve_module_impl(
         ci++
     }
 
-    val src_size_opt = fs.file_size(canonical_path)
+    val src_size_opt = fs.file_size_raw(canonical_path)
     val src_arena_cap: mut i64 = 4096
     if src_size_opt is some sz {
         if ((sz as i64) > src_arena_cap) {
@@ -1208,7 +1208,7 @@ fn resolve_module_impl(
         return err @fmtalloc("cannot read module: {s}", {canonical_path})
     }
     val src_arena: allocators.Arena = allocators.Arena.new((src_arena_cap + 8) as usize)?
-    val src_opt = fs.read_all[allocators.Arena](src_arena, canonical_path)
+    val src_opt = fs.read_all_raw[allocators.Arena](src_arena, canonical_path)
     val src: mut ref u8 = c""
     if src_opt is some s {
         src = s as ref u8
@@ -1241,7 +1241,7 @@ fn resolve_module_impl(
         }
     }
 
-    val dir_part: mut ref u8 = path.dir(canonical_path)
+    val dir_part: mut ref u8 = path.dir_raw(canonical_path)
     val file_dir = arena_string(arena, dir_part)
     if str.raw_cmp(dir_part, c".") != 0 {
         @free(dir_part)
@@ -1677,23 +1677,23 @@ fn link_workspace_root() ref u8 = trust {
 /// dependency whose manifest lives in lib/<name>/ while still finding C sources
 /// that belong to that dependency.
 ///
-/// `path.dir()` preserves a trailing separator, so normalize before walking
+/// `path.dir_raw()` preserves a trailing separator, so normalize before walking
 /// upward; otherwise the first parent lookup compares equal to the current
 /// directory and the walk stops immediately.
 fn module_link_root(m: ref ResolvedModule) ref u8 = trust {
     val start_dir: ref u8 = str.cstr(m.dir)
-    val cur: mut ref u8 = path.canonicalize_path(start_dir)
+    val cur: mut ref u8 = path.canonicalize_path_raw(start_dir)
     val limit: mut i64 = 32
     for {
         if limit <= 0 {
             break
         }
         limit--
-        val spectre_mod: ref u8 = path.join(cur, c"sx.mod")
+        val spectre_mod: ref u8 = path.join_raw(cur, c"sx.mod")
         if file_exists(spectre_mod) && commands.is_project_sxmod_at(cur) {
             return cur
         }
-        val parent: ref u8 = path.canonicalize_path(path.dir(cur))
+        val parent: ref u8 = path.canonicalize_path_raw(path.dir_raw(cur))
         if str.raw_cmp(parent, cur) == 0 {
             break
         }
@@ -1745,7 +1745,7 @@ fn resolve_link_path(flag: ref u8, workspace: ref u8) ref u8 = trust {
     if n >= 2 && @load8(flag) == 46 && @load8(@ptradd(flag, 1)) == 47 {
         name = @ptradd(flag, 2) as ref u8
     }
-    val candidate: ref u8 = path.join(workspace, name)
+    val candidate: ref u8 = path.join_raw(workspace, name)
     if file_exists(candidate) {
         return candidate
     }
@@ -1860,8 +1860,8 @@ fn collect_links_with_root(
     val workspace: ref u8 = link_root
     for the_link in links {
         if str.raw_cmp(the_link, c"__sx__internal__json__") == 0 {
-            val shim_c: ref u8 = path.join(exe_dir, c"spectrelib/csources/yyjson_shim.c")
-            val shim_o: ref u8 = path.join(exe_dir, c"spectrelib/csources/yyjson_shim.o")
+            val shim_c: ref u8 = path.join_raw(exe_dir, c"spectrelib/csources/yyjson_shim.c")
+            val shim_o: ref u8 = path.join_raw(exe_dir, c"spectrelib/csources/yyjson_shim.o")
 
             if file_exists(shim_c) {
                 @append(result, shim_c)

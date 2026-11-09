@@ -12,12 +12,12 @@ test "critic does not leak" {
     trust {
         mem.init()
         val path = "./s-out/checkmem-critic.sx"
-        fs.write_all_view(path, "pub fn main() void = {\n    val x: i64 = 1\n}\n")
+        fs.write_all(path, "pub fn main() void = {\n    val x: i64 = 1\n}\n")
         val targets: mut list[ref u8] = mem.new[ref u8]()
         @append(targets, check.cptr(path))
         val before = check.baseline()
         val code: i32 = critic.cmd_critic(targets, false)
-        fs.delete_view(path)
+        fs.delete(path)
         mem.close()
         check.expect_clean_since("critic", before)
         assert code >= 0

@@ -2279,10 +2279,10 @@ fn cg_build_c_shim(ctx: ref CgCtx) ref u8 = trust {
 
     val sb: ref void = str.StringBuilder.new()
     if ctx.leak_check {
-        str.StringBuilder.append_view(sb, leak_runtime_c_source())
+        str.StringBuilder.append(sb, leak_runtime_c_source())
     }
     if ctx.alloc_runtime {
-        str.StringBuilder.append_view(sb, cg_alloc_runtime_c_source())
+        str.StringBuilder.append(sb, cg_alloc_runtime_c_source())
     }
     val ai: mut i64 = 0
     for {
@@ -4446,11 +4446,11 @@ fn emitln(ctx: mut ref CgCtx, s: ref u8) void = trust {
 }
 
 fn emit_view(ctx: mut ref CgCtx, s: str.StringView) void = trust {
-    str.StringBuilder.append_view(cg_sb(ctx), s)
+    str.StringBuilder.append(cg_sb(ctx), s)
 }
 
 fn emitln_view(ctx: mut ref CgCtx, s: str.StringView) void = trust {
-    str.StringBuilder.append_view(cg_sb(ctx), s)
+    str.StringBuilder.append(cg_sb(ctx), s)
     str.StringBuilder.append_char(cg_sb(ctx), 10 as u8)
 }
 
@@ -11691,7 +11691,7 @@ fn cg_emit_embed_data(ctx: ref CgCtx, path: ref u8, label: ref u8, size: i64) vo
     str.StringBuilder.append_cstr(sb, label)
     str.StringBuilder.append_cstr(sb, c" = { ")
 
-    val data_opt = fs.read_all_raw(path)
+    val data_opt = fs.read_all_heap_raw(path)
     val nbuf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 32 as usize) as ref u8
     val first: mut bool = true
     if data_opt is some data {

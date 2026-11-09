@@ -21,23 +21,11 @@ pub fn eprintv(data: str.StringView) void = trust {
     }
 }
 
-/// Print a string view followed by a newline to stdout.
-pub fn puts_view(data: str.StringView) void = trust {
-    printv(data)
-    val nl: mut u8 = 10
-    fwrite(@addr(nl) as ref void, 1 as usize, 1 as usize, @stdout())
-}
-
-/// Print a string view followed by a newline to stderr.
-pub fn eputs_view(data: str.StringView) void = trust {
-    eprintv(data)
-    val nl: mut u8 = 10
-    fwrite(@addr(nl) as ref void, 1 as usize, 1 as usize, @stderr())
-}
-
 /// Print a string followed by a newline to stdout.
-pub fn puts(arg: str.StringView) void = {
-    trust puts_view(arg)
+pub fn puts(data: str.StringView) void = {
+    trust printv(data)
+    val nl: mut u8 = 10
+    trust fwrite(@addr(nl) as ref void, 1 as usize, 1 as usize, @stdout())
 }
 
 /// Print a formatted string to stdout.
@@ -60,7 +48,9 @@ when windows {
 
 /// Print a string to stderr followed by a newline (fd 2).
 pub fn eputs(msg: str.StringView) void = {
-    trust eputs_view(msg)
+    trust eprintv(msg)
+    val nl: mut u8 = 10
+    trust fwrite(@addr(nl) as ref void, 1 as usize, 1 as usize, @stderr())
 }
 
 /// Print a string to stderr followed by a newline (fd 2).

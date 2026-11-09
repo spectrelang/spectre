@@ -71,7 +71,7 @@ fn split_flags(s: string.StringView) list[ref u8] = trust {
         }
         @append(
             out,
-            string.cstring_ptr(string.cstring_from_view[allocators.HeapAllocator](
+            string.cstring_ptr(string.cstring_from[allocators.HeapAllocator](
                     cstr_heap(),
                     string.view_slice(s, start, i)
                 ))
@@ -93,7 +93,7 @@ fn split_path_list(raw: string.StringView, out: mut list[ref u8]) void = trust {
             if i > start {
                 @append(
                     out,
-                    string.cstring_ptr(string.cstring_from_view[allocators.HeapAllocator](
+                    string.cstring_ptr(string.cstring_from[allocators.HeapAllocator](
                             cstr_heap(),
                             string.view_slice(raw, start, i)
                         ))
@@ -194,7 +194,7 @@ fn compiler_library_path(base: string.StringView, suffix: string.StringView) ref
                 ok out => {
                     val found: string.StringView = trim_raw(string.view(out.ptr, string.len(out)))
                     if found.len > 0 && !string.view_eql_cstr(found, missing) {
-                        val copied: ref u8 = string.cstring_ptr(string.cstring_from_view[allocators.HeapAllocator](
+                        val copied: ref u8 = string.cstring_ptr(string.cstring_from[allocators.HeapAllocator](
                                 cstr_heap(),
                                 found
                             ))
@@ -261,7 +261,7 @@ fn find_native(base: string.StringView, platform: string.StringView) ref u8 = tr
     for suffix in suffixes {
         val compiler_path: ref u8 = compiler_library_path(base, string.view_cstr(suffix))
         if string.len_raw(compiler_path) > 0 {
-            return path.dir(compiler_path)
+            return path.dir_raw(compiler_path)
         }
     }
 

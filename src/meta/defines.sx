@@ -43,13 +43,13 @@ pub fn register_env_alias(name: str.StringView) void = trust {
         if cur == none {
             break
         }
-        if str.view_eql(str.cstring_view(cur.name), name) {
+        if str.view_eql(str.cstring(cur.name), name) {
             return
         }
         cur = cur.next
     }
     val alias: mut ref EnvAlias = @alloc(@sizeof(EnvAlias)) as ref EnvAlias
-    alias.name = str.cstring_from_view[allocators.HeapAllocator](cstr_heap(), name)
+    alias.name = str.cstring_from[allocators.HeapAllocator](cstr_heap(), name)
     alias.next = env_aliases
     env_aliases = alias
 }
@@ -61,7 +61,7 @@ pub fn is_env_alias(name: str.StringView) bool = {
         if cur == none {
             break
         }
-        if trust str.view_eql(str.cstring_view(cur.name), name) {
+        if trust str.view_eql(str.cstring(cur.name), name) {
             return true
         }
         cur = cur.next
@@ -75,16 +75,16 @@ pub fn set(name: str.StringView, value: str.StringView) void = trust {
         if cur == none {
             break
         }
-        if str.view_eql(str.cstring_view(cur.name), name) {
+        if str.view_eql(str.cstring(cur.name), name) {
             str.cstring_free[allocators.HeapAllocator](cstr_heap(), cur.value)
-            cur.value = str.cstring_from_view[allocators.HeapAllocator](cstr_heap(), value)
+            cur.value = str.cstring_from[allocators.HeapAllocator](cstr_heap(), value)
             return
         }
         cur = cur.next
     }
     val d: mut ref Define = @alloc(@sizeof(Define)) as ref Define
-    d.name = str.cstring_from_view[allocators.HeapAllocator](cstr_heap(), name)
-    d.value = str.cstring_from_view[allocators.HeapAllocator](cstr_heap(), value)
+    d.name = str.cstring_from[allocators.HeapAllocator](cstr_heap(), name)
+    d.value = str.cstring_from[allocators.HeapAllocator](cstr_heap(), value)
     d.next = defs
     defs = d
 }
@@ -96,8 +96,8 @@ pub fn get(name: str.StringView) str.StringView = {
         if cur == none {
             break
         }
-        if trust str.view_eql(str.cstring_view(cur.name), name) {
-            return str.cstring_view(cur.value)
+        if trust str.view_eql(str.cstring(cur.name), name) {
+            return str.cstring(cur.value)
         }
         cur = cur.next
     }

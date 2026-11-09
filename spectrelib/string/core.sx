@@ -363,7 +363,7 @@ pub type CStr = {
 
 /// An owned, NUL-terminated C string.
 ///
-/// Construct with `cstring_from_view`; release with `cstring_free` using the
+/// Construct with `cstring_from`; release with `cstring_free` using the
 /// same allocator.
 pub type CString = {
     ptr: ref u8
@@ -382,7 +382,7 @@ pub fn cstr_view(s: CStr) StringView = {
 }
 
 /// Allocate a NUL-terminated copy of a view with an explicit allocator.
-pub fn cstring_from_view[T: allocators.GeneralAllocator](
+pub fn cstring_from[T: allocators.GeneralAllocator](
     ac: T,
     v: StringView
 ) CString = trust {
@@ -406,14 +406,14 @@ pub fn cstring_from_cstr[T: allocators.GeneralAllocator](
     ac: T,
     s: ref u8
 ) CString = trust {
-    return cstring_from_view[T](ac, view_cstr(s))
+    return cstring_from[T](ac, view_cstr(s))
 }
 
 pub fn cstring_ptr(s: CString) ref u8 = {
     return s.ptr
 }
 
-pub fn cstring_view(s: CString) StringView = {
+pub fn cstring(s: CString) StringView = {
     return view_cstr(s.ptr)
 }
 
@@ -1416,8 +1416,24 @@ pub fn (StringBuilder) new() StringBuilder = {
     return s as StringBuilder
 }
 
-/// Append a String to the builder
-pub fn (StringBuilder) append(sb: self, s: String) void = trust {
+/// Append a borrowed string view to the builder.
+pub fn (StringBuilder) append(sb: self, v: StringView) void = trust {
+    val l: i64 = @load(@ptradd(sb as ref void, 8)) as i64
+    val new_len: i64 = l + v.len
+
+    ensure_cap(sb as ref void, new_len + 1)
+
+    val ptr: ref void = @load(sb as ref void)
+
+    if v.len > 0 {
+        @memcpy(@ptradd(ptr, l), v.ptr as ref void, v.len as usize)
+    }
+    @store8(@ptradd(ptr, new_len), 0)
+    @store(@ptradd(sb as ref void, 8), new_len)
+}
+
+/// Append an owned String to the builder.
+pub fn (StringBuilder) append_string(sb: self, s: String) void = trust {
     val other_ptr: ref void = @load(s as ref void)
     val other_len: i64 = @load(@ptradd(s as ref void, 8)) as i64
     val l: i64 = @load(@ptradd(sb as ref void, 8)) as i64
@@ -1471,22 +1487,6 @@ pub fn (StringBuilder) free(sb: self) void = trust {
     @free(ptr)
     val hdr: mut ref void = sb as ref void
     @free(hdr)
-}
-
-/// Append a borrowed string view to the builder.
-pub fn (StringBuilder) append_view(sb: self, v: StringView) void = trust {
-    val l: i64 = @load(@ptradd(sb as ref void, 8)) as i64
-    val new_len: i64 = l + v.len
-
-    ensure_cap(sb as ref void, new_len + 1)
-
-    val ptr: ref void = @load(sb as ref void)
-
-    if v.len > 0 {
-        @memcpy(@ptradd(ptr, l), v.ptr as ref void, v.len as usize)
-    }
-    @store8(@ptradd(ptr, new_len), 0)
-    @store(@ptradd(sb as ref void, 8), new_len)
 }
 
 /// Append a single byte character
@@ -1569,7 +1569,7 @@ test "string views borrow without owning" {
     val owned: String = trust view_to_string[allocators.Arena](arena, view_slice(base, 0, 5))
     assert equals(owned, trust from[allocators.Arena](arena, c"hello"))
     val heap: allocators.HeapAllocator = @zeroed
-    val cstr_copy: CString = trust cstring_from_view[allocators.HeapAllocator](
+    val cstr_copy: CString = trust cstring_from[allocators.HeapAllocator](
         heap,
         view_slice(base, 6, 11)
     )
@@ -1795,7 +1795,7 @@ test "string operations build, search and transform" {
 
     val sb = StringBuilder.new()
     trust StringBuilder.append_cstr(sb, c"hello")
-    trust StringBuilder.append(sb, from[allocators.Arena](arena, c" "))
+    trust StringBuilder.append_string(sb, from[allocators.Arena](arena, c" "))
     trust StringBuilder.append_cstr(sb, c"world")
     trust StringBuilder.append_char(sb, 33 as u8) // '!'
 

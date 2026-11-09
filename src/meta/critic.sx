@@ -2914,7 +2914,7 @@ fn collect_files(
     out: mut list[ref u8],
     explicit: bool
 ) i32 = trust {
-    if fs.is_directory(target) {
+    if fs.is_directory_raw(target) {
         val walk_arena: allocators.ScopedArenaAllocator = allocators.ScopedArena.new(
             65536 as usize
         )?
@@ -2961,7 +2961,7 @@ fn collect_files(
 }
 
 fn format_file(file: ref u8, fix_mode: bool) i32 = trust {
-    val size_opt = fs.file_size(file)
+    val size_opt = fs.file_size_raw(file)
     val size: mut i64 = 0
     if size_opt is some s {
         size = s as i64
@@ -2978,7 +2978,7 @@ fn format_file(file: ref u8, fix_mode: bool) i32 = trust {
         allocators.Arena.free(arena)
     }
 
-    val content_opt = fs.read_all[allocators.Arena](arena, file)
+    val content_opt = fs.read_all_raw[allocators.Arena](arena, file)
     val content: mut ref u8 = none
     if content_opt is some c {
         content = c
@@ -3007,7 +3007,7 @@ fn format_file(file: ref u8, fix_mode: bool) i32 = trust {
     if fix_mode && @len(ctx.fixes) > 0 {
         val fixed: ref u8 = apply_edits(ctx.arena, content, ctx.fixes)
         if str.raw_cmp(fixed, content) != 0 {
-            if !fs.write_all(file, fixed) {
+            if !fs.write_all_raw(file, fixed) {
                 stdio.print("error: could not write '{s}'\n", {file})
                 ctx_free(ctx)
                 return -1

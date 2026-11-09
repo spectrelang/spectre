@@ -548,7 +548,7 @@ pub fn main() i32 = trust {
         }
     }
 
-    if fs.is_directory(input) {
+    if fs.is_directory_raw(input) {
         stdio.print("error: '{s}' is a directory, not a source file\n", {input})
         stdio.puts(
             "-> run 'spectre build <config>' in a project with sx.mod, or compile a file with 'spectre <file.sx> -o <output>'"
@@ -557,7 +557,7 @@ pub fn main() i32 = trust {
         return 1
     }
 
-    val src_size_opt = fs.file_size(input)
+    val src_size_opt = fs.file_size_raw(input)
     if src_size_opt is some _ {
     } else {
         stdio.print("error: could not read '{s}'\n", {input})
@@ -847,7 +847,7 @@ pub fn main() i32 = trust {
 
     if translate_c_flag {
         if string.raw_cmp(output_name, c"") == 0 {
-            output_name = @fmtalloc("./src-out/{s}.sx", {path.get_name_without_ext(arena, input)})
+            output_name = @fmtalloc("./src-out/{s}.sx", {path.get_name_without_ext_raw(arena, input)})
         }
         val code: i32 = c_translate.translate_c(input, output_name)
         allocators.Arena.free(arena)
@@ -857,7 +857,7 @@ pub fn main() i32 = trust {
     val exe_path2: ref u8 = reflection.get_exe_path[allocators.Arena](arena)
     val exe_dir: mut ref u8 = c"."
     if string.raw_cmp(exe_path2, c".") != 0 {
-        exe_dir = path.dir(exe_path2)
+        exe_dir = path.dir_raw(exe_path2)
     }
 
     if !use_alt && !emit_alt && !emit_qbe && !emit_ll && !emit_asm &&
@@ -1033,7 +1033,7 @@ pub fn main() i32 = trust {
 
         val binary_name_alt: mut ref u8 = c""
         if string.raw_cmp(output_name, c"") == 0 {
-            binary_name_alt = path.get_name_without_ext(arena, input)
+            binary_name_alt = path.get_name_without_ext_raw(arena, input)
         } else {
             binary_name_alt = output_name
         }
@@ -1055,7 +1055,7 @@ pub fn main() i32 = trust {
         if output_specified_alt != 0 {
             final_output_alt = binary_name_alt
         } else {
-            fs.mkdir_path(c"./s-out")
+            fs.mkdir_path_raw(c"./s-out")
             final_output_alt = @fmtalloc("./s-out/{s}", {binary_name_alt})
         }
 
@@ -1342,7 +1342,7 @@ pub fn main() i32 = trust {
     val binary_name: mut ref u8 = c""
 
     if string.raw_cmp(output_name, c"") == 0 {
-        binary_name = path.get_name_without_ext(arena, input)
+        binary_name = path.get_name_without_ext_raw(arena, input)
     } else {
         binary_name = output_name
     }
@@ -1388,7 +1388,7 @@ pub fn main() i32 = trust {
     }
 
     if emit_asm != 0 {
-        val asm_size_opt = fs.file_size(asm_file)
+        val asm_size_opt = fs.file_size_raw(asm_file)
         val asm_arena_cap: mut i64 = 4096
         if asm_size_opt is some sz {
             if ((sz as i64) > asm_arena_cap) {
@@ -1402,7 +1402,7 @@ pub fn main() i32 = trust {
             return 1
         }
         val asm_arena: allocators.Arena = allocators.Arena.new((asm_arena_cap + 8) as usize)?
-        val asm_opt = fs.read_all[allocators.Arena](asm_arena, asm_file)
+        val asm_opt = fs.read_all_raw[allocators.Arena](asm_arena, asm_file)
         if asm_opt is some asm_content {
             stdio.puts(string.view_cstr(asm_content as ref u8))
         } else {
@@ -1602,7 +1602,7 @@ pub fn main() i32 = trust {
         }
         success_msg = @fmtalloc("Compiled: {s}\n", {final_output})
     } else {
-        fs.mkdir_path(c"./s-out")
+        fs.mkdir_path_raw(c"./s-out")
         val final_output: mut ref u8 = @fmtalloc("./s-out/{s}", {binary_name})
         if string.raw_cmp(output_ext, c"") != 0 {
             final_output = @fmtalloc("./s-out/{s}{s}", {binary_name, output_ext})

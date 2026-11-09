@@ -257,7 +257,7 @@ fn ensure_dir(path: ref u8) bool = trust {
         if c == 47 {
             val part = substr(clean, 0, i)
             if !str.str_eql(part, c"") && !str.str_eql(part, c".") && !os.exists(part) {
-                if !fs.mkdir_path(part) {
+                if !fs.mkdir_path_raw(part) {
                     return false
                 }
             }
@@ -265,7 +265,7 @@ fn ensure_dir(path: ref u8) bool = trust {
         i++
     }
     if !os.exists(clean) {
-        return fs.mkdir_path(clean)
+        return fs.mkdir_path_raw(clean)
     }
     return true
 }
@@ -299,11 +299,11 @@ fn collect_sx_files(dir: ref u8, rel_dir: ref u8, out: mut list[ref u8]) void = 
             if str.raw_starts_with(entry, c"docs-out") {
                 continue
             }
-            val child_path: mut ref u8 = path.join(dir, entry)
+            val child_path: mut ref u8 = path.join_raw(dir, entry)
             val child_rel: mut ref u8 = entry
             val child_rel_owned: mut bool = false
             if !str.str_eql(rel_dir, c"") {
-                child_rel = path.join(rel_dir, entry)
+                child_rel = path.join_raw(rel_dir, entry)
                 child_rel_owned = true
             }
             if dir_exists(child_path) {
@@ -1121,7 +1121,7 @@ fn load_module(
     source_path: ref u8,
     rel_path: ref u8
 ) ref DocModule = trust {
-    val src_size_opt = fs.file_size(source_path)
+    val src_size_opt = fs.file_size_raw(source_path)
     val src_arena_cap: mut i64 = 4096
     if src_size_opt is some sz {
         if ((sz as i64) > src_arena_cap) {
@@ -1132,7 +1132,7 @@ fn load_module(
         os.exit(1)
     }
     val src_arena: allocators.Arena = allocators.Arena.new((src_arena_cap + 8) as usize)?
-    val src_opt = fs.read_all[allocators.Arena](src_arena, source_path)
+    val src_opt = fs.read_all_raw[allocators.Arena](src_arena, source_path)
     val src: mut ref u8 = c""
     if src_opt is some text {
         src = text as ref u8
@@ -1552,7 +1552,7 @@ fn append_nav_html(
 }
 
 fn read_text_file_or_empty(file_path: ref u8) ref u8 = trust {
-    val size_opt = fs.file_size(file_path)
+    val size_opt = fs.file_size_raw(file_path)
     val arena_cap: mut i64 = 4096
     if size_opt is some sz {
         if ((sz as i64) > arena_cap) {
@@ -1562,7 +1562,7 @@ fn read_text_file_or_empty(file_path: ref u8) ref u8 = trust {
         return c""
     }
     val arena: allocators.Arena = allocators.Arena.new((arena_cap + 8) as usize)?
-    val content_opt = fs.read_all[allocators.Arena](arena, file_path)
+    val content_opt = fs.read_all_raw[allocators.Arena](arena, file_path)
     val content: mut ref u8 = c""
     if content_opt is some text {
         content = copy_cstr(text as ref u8)
@@ -1579,14 +1579,14 @@ fn load_directory_readme(dir_path: ref u8) ref u8 = trust {
     if str.str_eql(base_dir, c"") {
         base_dir = c"."
     }
-    val readme_md: mut ref u8 = path.join(base_dir, c"README.md")
+    val readme_md: mut ref u8 = path.join_raw(base_dir, c"README.md")
     if os.exists(readme_md) {
         val text = read_text_file_or_empty(readme_md)
         @free(readme_md)
         return text
     }
     @free(readme_md)
-    val readme_plain: mut ref u8 = path.join(base_dir, c"README")
+    val readme_plain: mut ref u8 = path.join_raw(base_dir, c"README")
     if os.exists(readme_plain) {
         val text = read_text_file_or_empty(readme_plain)
         @free(readme_plain)
@@ -1900,7 +1900,7 @@ fn append_page_head_html(sb: ref void, title: ref u8) void = trust {
         c"<link href=\"https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap\" rel=\"stylesheet\">"
     )
     string.StringBuilder.append_cstr(sb, c"<style>")
-    string.StringBuilder.append_view(sb,
+    string.StringBuilder.append(sb,
         \\:root{
         \\  --bg:#f0f4fa;--bg2:#e4ecf7;--surface:#ffffff;--surface2:#f7f9fd;
         \\  --border:#c8d8ee;--border2:#dde8f5;
@@ -2198,7 +2198,7 @@ fn append_page_shell_start_html(
 fn append_page_shell_end_html(sb: ref void) void = trust {
     string.StringBuilder.append_cstr(sb, c"</main></div>")
     string.StringBuilder.append_cstr(sb, c"<script>")
-    string.StringBuilder.append_view(sb,
+    string.StringBuilder.append(sb,
         \\(function(){
         \\'use strict';
         \\
@@ -2647,7 +2647,7 @@ fn write_page(path: ref u8, content: ref u8) bool = trust {
     if !ensure_parent_dir(path) {
         return false
     }
-    return fs.write_all(path, content)
+    return fs.write_all_raw(path, content)
 }
 
 fn maybe_root_rel_for_dir() ref u8 = trust {
@@ -2725,7 +2725,7 @@ pub fn cmd_doc(
             val source_path: mut ref u8 = rel
             val source_owned: mut bool = false
             if !str.str_eql(clean_target, c".") && !str.str_eql(clean_target, c"") {
-                source_path = path.join(clean_target, rel)
+                source_path = path.join_raw(clean_target, rel)
                 source_owned = true
             } else {
                 source_path = dfmt("./{s}", {rel})
@@ -2743,7 +2743,7 @@ pub fn cmd_doc(
         if markdown {
             index_rel = c"index.md"
         }
-        val index_path: mut ref u8 = path.join(out_dir, index_rel)
+        val index_path: mut ref u8 = path.join_raw(out_dir, index_rel)
         val readme: mut ref u8 = load_directory_readme(clean_target)
         if !str.str_eql(readme_override, c"") {
             readme = readme_override
@@ -2757,7 +2757,7 @@ pub fn cmd_doc(
         @free(index_path)
 
         for mod in modules {
-            val full_path: mut ref u8 = path.join(out_dir, mod.output_path)
+            val full_path: mut ref u8 = path.join_raw(out_dir, mod.output_path)
             val content: mut ref u8 = c""
             if markdown {
                 content = render_module_page_md(mod, modules)
@@ -2803,7 +2803,7 @@ pub fn cmd_doc(
     } else {
         content = render_module_page_html(module, modules)
     }
-    val out_path: mut ref u8 = path.join(out_dir, module.output_path)
+    val out_path: mut ref u8 = path.join_raw(out_dir, module.output_path)
     if !write_page(out_path, content) {
         stdio.print("error: could not write '{s}'\n", {out_path})
         @free(out_path)
@@ -2913,7 +2913,7 @@ test "docs extracts comments, signatures and slugs" {
     assert str.str_eql(trust lookup_doc(spec_src, 2), c"allocator interface")
 
     val docs_src_arena: allocators.Arena = trust allocators.Arena.new(131072 as usize)?
-    val docs_src_opt = trust fs.read_all[allocators.Arena](docs_src_arena, c"./src/meta/docs.sx")
+    val docs_src_opt = trust fs.read_all_raw[allocators.Arena](docs_src_arena, c"./src/meta/docs.sx")
     if docs_src_opt is some docs_src {
         val ml_toggle: mut i64 = 0
         match regex.re_match(c"id=\\\\\"private-toggle\\\\\"", docs_src, @addr(ml_toggle)) {

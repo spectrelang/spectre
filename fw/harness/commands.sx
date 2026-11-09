@@ -58,8 +58,8 @@ test "commands build does not leak" {
     trust {
         mem.init()
         val dir = "./s-out/checkmem-commands"
-        fs.remove_dir_all_view(dir)
-        assert fs.mkdir_path_view(dir)
+        fs.remove_dir_all(dir)
+        assert fs.mkdir_path(dir)
 
         val version: str.StringView = "checkmem"
         when posix {
@@ -70,9 +70,9 @@ test "commands build does not leak" {
         }
         val prefix: str.StringView = "entry \"./main.sx\"\nversion \"1.2.3\"\nspectre_version \""
         val suffix: str.StringView = "\"\nbuild checkmem { action \"true\" }\n"
-        assert fs.write_all_view("./s-out/checkmem-commands/sx.mod", prefix)
-        assert fs.append_all_view("./s-out/checkmem-commands/sx.mod", version)
-        assert fs.append_all_view("./s-out/checkmem-commands/sx.mod", suffix)
+        assert fs.write_all("./s-out/checkmem-commands/sx.mod", prefix)
+        assert fs.append_all("./s-out/checkmem-commands/sx.mod", version)
+        assert fs.append_all("./s-out/checkmem-commands/sx.mod", suffix)
 
         when posix {
             assert chdir(check.cptr(dir)) == 0

@@ -500,14 +500,14 @@ pub fn append_debug_runtime_links(
     if release_mode {
         return
     }
-    val panic_c: ref u8 = path.join(exe_dir, c"spectrelib/csources/panic_handler.c")
-    val panic_o: ref u8 = path.join(exe_dir, c"spectrelib/csources/panic_handler.o")
-    val panic_cf = fs.open(panic_c, c"r")
+    val panic_c: ref u8 = path.join_raw(exe_dir, c"spectrelib/csources/panic_handler.c")
+    val panic_o: ref u8 = path.join_raw(exe_dir, c"spectrelib/csources/panic_handler.o")
+    val panic_cf = fs.open_raw(panic_c, c"r")
     if panic_cf is some hc {
         fs.close(hc)
         @append(links, panic_c)
     } else {
-        val panic_of = fs.open(panic_o, c"r")
+        val panic_of = fs.open_raw(panic_o, c"r")
         if panic_of is some ho {
             fs.close(ho)
             @append(links, panic_o)
