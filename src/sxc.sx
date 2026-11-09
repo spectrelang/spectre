@@ -1623,7 +1623,7 @@ pub fn main() i32 = trust {
         stdio.print("{s}\n", {cc_cmd})
     }
 
-    val cc_res = os.exec(@fmtalloc("{s} {s}", {cc_cmd, " 2>&1"}))
+    val cc_res = os.exec(@fmtalloc("{s} {s}", {cc_cmd, c" 2>&1"}))
     match cc_res {
         ok v => {
             val error_text = string.from[allocators.Arena](arena, c"error")
