@@ -31,7 +31,7 @@ jobs:
             libunistring-dev libp11-kit-dev
 
       - name: Install Spectre toolchain
-        run: curl -fsSL https://spectrelang.org/get.sh | sh
+        run: ./fw/install.sh -f
 
       - name: Add Spectre to PATH
         run: echo "${HOME}/.local/bin" >> "$GITHUB_PATH"

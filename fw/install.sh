@@ -13,6 +13,144 @@ QBE_REPO="https://c9x.me/git/qbe.git"
 SPECTRE_REPO="https://github.com/spectrelang/spectre.git"
 SPECTRE_LS_REPO="https://github.com/spectrelang/spectre-ls.git"
 YYJSON_REPO="https://github.com/ibireme/yyjson.git"
+TUI_STTY=""
+
+tui_cleanup() {
+	if [ -n "$TUI_STTY" ]; then
+		stty "$TUI_STTY" </dev/tty 2>/dev/null || true
+		TUI_STTY=""
+	fi
+	printf '\033[?25h' >/dev/tty 2>/dev/null || true
+}
+
+tui_readbyte() {
+	dd bs=1 count=1 2>/dev/null </dev/tty | od -An -tx1 | tr -d ' \n'
+}
+
+tui_draw() {
+	_sel="$1"
+	_top="$2"
+	_vis="$3"
+	_total="$4"
+	_i="$_top"
+	_end=$((_top + _vis - 1))
+	{
+		while [ "$_i" -le "$_end" ]; do
+			_label="$(printf '%s\n' "$TUI_ITEMS" | sed -n "${_i}p")"
+			if [ "$_i" -eq "$_sel" ]; then
+				printf '\r\033[2K  \033[1;36m> %s\033[0m\n' "$_label"
+			else
+				printf '\r\033[2K    %s\n' "$_label"
+			fi
+			_i=$((_i + 1))
+		done
+		printf '\r\033[2K  \033[2mUp/Down or j/k: move   Enter: select   q: quit   (%s/%s)\033[0m\n' \
+			"$_sel" "$_total"
+	} >/dev/tty
+}
+
+select_version_tui() {
+	[ -z "$SPECTRE_VERSION" ] || return 0
+	[ "$FORCE_LATEST" -eq 0 ] || return 0
+
+	command -v git >/dev/null 2>&1 || return 0
+	command -v stty >/dev/null 2>&1 || return 0
+	(: </dev/tty >/dev/tty) 2>/dev/null || {
+		log "No interactive terminal, installing latest Spectre."
+		return 0
+	}
+
+	log "Fetching available Spectre versions..."
+	_tags="$(git ls-remote --tags --refs "$SPECTRE_REPO" 'v*' 2>/dev/null |
+		sed 's|.*refs/tags/||' |
+		grep -E '^v[0-9]+(\.[0-9]+)*$' |
+		sort -t. -k1.2,1nr -k2,2nr -k3,3nr -k4,4nr)" || _tags=""
+
+	if [ -z "$_tags" ]; then
+		log "Could not fetch version list, installing latest Spectre."
+		return 0
+	fi
+
+	TUI_ITEMS="$(printf 'latest (default branch)\n%s' "$_tags")"
+	_total="$(printf '%s\n' "$TUI_ITEMS" | wc -l | tr -d ' ')"
+	_vis=10
+	[ "$_total" -ge "$_vis" ] || _vis="$_total"
+
+	TUI_STTY="$(stty -g </dev/tty)"
+	trap 'tui_cleanup; exit 130' INT TERM
+	trap tui_cleanup EXIT
+	stty -icanon -echo min 1 time 0 </dev/tty
+	printf '\033[?25l' >/dev/tty
+
+	printf '\n  \033[1mSelect a Spectre version to install\033[0m\n\n' >/dev/tty
+
+	_sel=1
+	_top=1
+	_first=1
+	_cancel=0
+	while :; do
+		if [ "$_first" -eq 0 ]; then
+			printf '\033[%dA' $((_vis + 1)) >/dev/tty
+		fi
+		_first=0
+		tui_draw "$_sel" "$_top" "$_vis" "$_total"
+
+		_key="$(tui_readbyte)"
+		case "$_key" in
+		1b)
+			stty min 0 time 1 </dev/tty
+			_b1="$(tui_readbyte)"
+			_b2="$(tui_readbyte)"
+			stty min 1 time 0 </dev/tty
+			case "${_b1}${_b2}" in
+			5b41 | 4f41) _key="up" ;;
+			5b42 | 4f42) _key="down" ;;
+			*) _key="" ;;
+			esac
+			;;
+		6b | 77) _key="up" ;;
+		6a | 73) _key="down" ;;
+		0a | 0d) break ;;
+		71 | 51)
+			_cancel=1
+			break
+			;;
+		03 | 04)
+			_cancel=1
+			break
+			;;
+		*) _key="" ;;
+		esac
+
+		case "$_key" in
+		up) [ "$_sel" -le 1 ] || _sel=$((_sel - 1)) ;;
+		down) [ "$_sel" -ge "$_total" ] || _sel=$((_sel + 1)) ;;
+		esac
+
+		if [ "$_sel" -lt "$_top" ]; then
+			_top="$_sel"
+		elif [ "$_sel" -gt $((_top + _vis - 1)) ]; then
+			_top=$((_sel - _vis + 1))
+		fi
+	done
+
+	tui_cleanup
+	trap - EXIT INT TERM
+	printf '\n' >/dev/tty
+
+	if [ "$_cancel" -eq 1 ]; then
+		log "Installation cancelled."
+		exit 0
+	fi
+
+	if [ "$_sel" -eq 1 ]; then
+		SPECTRE_VERSION=""
+		log "Selected: latest (default branch)"
+	else
+		SPECTRE_VERSION="$(printf '%s\n' "$TUI_ITEMS" | sed -n "${_sel}p")"
+		log "Selected: ${SPECTRE_VERSION}"
+	fi
+}
 
 log() {
 	printf "\033[1;34m[INFO]\033[0m %s\n" "$1"
@@ -111,9 +249,16 @@ install_network_deps() {
 
 SPECTRE_VERSION=""
 MINIMAL=0
+FORCE_LATEST=0
 
 while [ "$#" -gt 0 ]; do
 	case "$1" in
+	-f)
+		FORCE_LATEST=1
+		SPECTRE_VERSION=""
+		log "Flag: -f set — installing latest Spectre without version selection."
+		shift
+		;;
 	-fallback)
 		FORCE_FALLBACK=1
 		log "Flag: -fallback set — skipping QBE, building from C source."
@@ -135,6 +280,8 @@ while [ "$#" -gt 0 ]; do
 		;;
 	esac
 done
+
+select_version_tui
 
 log "Detecting package manager..."
 PKG_MGR="$(detect_pkg_manager)"
@@ -399,63 +546,63 @@ fi
 if [ "$MINIMAL" -eq 1 ]; then
 	log "Skipping spectre-ls (-minimal)."
 else
-log "Installing spectre-ls (language server)..."
+	log "Installing spectre-ls (language server)..."
 
-SPECTRE_LS_DIR="${SRC_DIR}/spectre-ls"
+	SPECTRE_LS_DIR="${SRC_DIR}/spectre-ls"
 
-if [ -d "$SPECTRE_LS_DIR" ]; then
-	if [ -f "${SPECTRE_LS_DIR}/sx.mod.install.bak" ]; then
-		mv "${SPECTRE_LS_DIR}/sx.mod.install.bak" "${SPECTRE_LS_DIR}/sx.mod"
+	if [ -d "$SPECTRE_LS_DIR" ]; then
+		if [ -f "${SPECTRE_LS_DIR}/sx.mod.install.bak" ]; then
+			mv "${SPECTRE_LS_DIR}/sx.mod.install.bak" "${SPECTRE_LS_DIR}/sx.mod"
+		fi
+		log "spectre-ls source already exists, updating..."
+		git -C "$SPECTRE_LS_DIR" pull --ff-only
+	else
+		git clone "$SPECTRE_LS_REPO" "$SPECTRE_LS_DIR"
 	fi
-	log "spectre-ls source already exists, updating..."
-	git -C "$SPECTRE_LS_DIR" pull --ff-only
-else
-	git clone "$SPECTRE_LS_REPO" "$SPECTRE_LS_DIR"
-fi
 
-SPECTRE_LS_SXMOD="${SPECTRE_LS_DIR}/sx.mod"
-[ -f "$SPECTRE_LS_SXMOD" ] || err "spectre-ls sx.mod not found at ${SPECTRE_LS_SXMOD}"
+	SPECTRE_LS_SXMOD="${SPECTRE_LS_DIR}/sx.mod"
+	[ -f "$SPECTRE_LS_SXMOD" ] || err "spectre-ls sx.mod not found at ${SPECTRE_LS_SXMOD}"
 
-SPECTRE_LS_REQUIRED="$(
-	sed -n 's/^[[:space:]]*spectre_version[[:space:]]*"\([^"]*\)".*/\1/p' "$SPECTRE_LS_SXMOD" | head -n 1
-)"
-INSTALLED_SPECTRE="$("${BIN_DIR}/spectre" -v | sed -n '1s/^Spectre[[:space:]]\{1,\}\([^[:space:]]*\).*/\1/p')"
+	SPECTRE_LS_REQUIRED="$(
+		sed -n 's/^[[:space:]]*spectre_version[[:space:]]*"\([^"]*\)".*/\1/p' "$SPECTRE_LS_SXMOD" | head -n 1
+	)"
+	INSTALLED_SPECTRE="$("${BIN_DIR}/spectre" -v | sed -n '1s/^Spectre[[:space:]]\{1,\}\([^[:space:]]*\).*/\1/p')"
 
-SPECTRE_LS_SXMOD_PATCHED=0
-if [ -n "$INSTALLED_SPECTRE" ] && [ -n "$SPECTRE_LS_REQUIRED" ] &&
-	[ "$SPECTRE_LS_REQUIRED" != "$INSTALLED_SPECTRE" ]; then
-	log "spectre-ls expects Spectre ${SPECTRE_LS_REQUIRED}, installed is ${INSTALLED_SPECTRE} — building against installed version."
-	cp "$SPECTRE_LS_SXMOD" "${SPECTRE_LS_SXMOD}.install.bak"
-	sed "s|^\([[:space:]]*spectre_version[[:space:]]*\)\"[^\"]*\"|\1\"${INSTALLED_SPECTRE}\"|" \
-		"$SPECTRE_LS_SXMOD" >"${SPECTRE_LS_SXMOD}.install.tmp"
-	mv "${SPECTRE_LS_SXMOD}.install.tmp" "$SPECTRE_LS_SXMOD"
-	SPECTRE_LS_SXMOD_PATCHED=1
-fi
-
-if [ "$QBE_OK" -eq 0 ]; then
-	log "QBE unavailable — building spectre-ls with the fallback backend."
-	if [ "$SPECTRE_LS_SXMOD_PATCHED" -eq 0 ]; then
+	SPECTRE_LS_SXMOD_PATCHED=0
+	if [ -n "$INSTALLED_SPECTRE" ] && [ -n "$SPECTRE_LS_REQUIRED" ] &&
+		[ "$SPECTRE_LS_REQUIRED" != "$INSTALLED_SPECTRE" ]; then
+		log "spectre-ls expects Spectre ${SPECTRE_LS_REQUIRED}, installed is ${INSTALLED_SPECTRE} — building against installed version."
 		cp "$SPECTRE_LS_SXMOD" "${SPECTRE_LS_SXMOD}.install.bak"
+		sed "s|^\([[:space:]]*spectre_version[[:space:]]*\)\"[^\"]*\"|\1\"${INSTALLED_SPECTRE}\"|" \
+			"$SPECTRE_LS_SXMOD" >"${SPECTRE_LS_SXMOD}.install.tmp"
+		mv "${SPECTRE_LS_SXMOD}.install.tmp" "$SPECTRE_LS_SXMOD"
 		SPECTRE_LS_SXMOD_PATCHED=1
 	fi
-	sed 's|^\([[:space:]]*flags[[:space:]]*\)"\(.*\)"|\1"\2 -alt"|' \
-		"$SPECTRE_LS_SXMOD" >"${SPECTRE_LS_SXMOD}.install.tmp"
-	mv "${SPECTRE_LS_SXMOD}.install.tmp" "$SPECTRE_LS_SXMOD"
-fi
 
-log "Building spectre-ls..."
-SPECTRE_LS_BUILD_OK=1
-(cd "$SPECTRE_LS_DIR" && "${BIN_DIR}/spectre" build release) || SPECTRE_LS_BUILD_OK=0
+	if [ "$QBE_OK" -eq 0 ]; then
+		log "QBE unavailable — building spectre-ls with the fallback backend."
+		if [ "$SPECTRE_LS_SXMOD_PATCHED" -eq 0 ]; then
+			cp "$SPECTRE_LS_SXMOD" "${SPECTRE_LS_SXMOD}.install.bak"
+			SPECTRE_LS_SXMOD_PATCHED=1
+		fi
+		sed 's|^\([[:space:]]*flags[[:space:]]*\)"\(.*\)"|\1"\2 -alt"|' \
+			"$SPECTRE_LS_SXMOD" >"${SPECTRE_LS_SXMOD}.install.tmp"
+		mv "${SPECTRE_LS_SXMOD}.install.tmp" "$SPECTRE_LS_SXMOD"
+	fi
 
-if [ "$SPECTRE_LS_SXMOD_PATCHED" -eq 1 ]; then
-	mv "${SPECTRE_LS_SXMOD}.install.bak" "$SPECTRE_LS_SXMOD"
-fi
+	log "Building spectre-ls..."
+	SPECTRE_LS_BUILD_OK=1
+	(cd "$SPECTRE_LS_DIR" && "${BIN_DIR}/spectre" build release) || SPECTRE_LS_BUILD_OK=0
 
-[ "$SPECTRE_LS_BUILD_OK" -eq 1 ] || err "Failed to build spectre-ls."
-[ -x "${SPECTRE_LS_DIR}/spectre-ls" ] || err "spectre-ls binary not found after build."
+	if [ "$SPECTRE_LS_SXMOD_PATCHED" -eq 1 ]; then
+		mv "${SPECTRE_LS_SXMOD}.install.bak" "$SPECTRE_LS_SXMOD"
+	fi
 
-log "Installing spectre-ls to ${BIN_DIR}..."
-/usr/bin/install -m 0755 "${SPECTRE_LS_DIR}/spectre-ls" "${BIN_DIR}/spectre-ls"
+	[ "$SPECTRE_LS_BUILD_OK" -eq 1 ] || err "Failed to build spectre-ls."
+	[ -x "${SPECTRE_LS_DIR}/spectre-ls" ] || err "spectre-ls binary not found after build."
+
+	log "Installing spectre-ls to ${BIN_DIR}..."
+	/usr/bin/install -m 0755 "${SPECTRE_LS_DIR}/spectre-ls" "${BIN_DIR}/spectre-ls"
 fi
 
 case ":$PATH:" in
