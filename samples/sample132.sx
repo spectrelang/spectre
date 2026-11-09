@@ -1,4 +1,4 @@
-val str        = use("std/string")
+val cstr = use("std/string/cstr")
 val allocators = use("std/allocators")
 
 type Vec2 = {
@@ -40,7 +40,7 @@ pub fn half_f64(x: f64) f64 = {
 }
 
 pub fn excite_str(x: ref u8) ref u8 = {
-    return trust str.concat_raw(x, c"!")
+    return trust cstr.concat(x, c"!")
 }
 
 pub fn shift_vec2(v: Vec2) Vec2 = {
@@ -56,7 +56,7 @@ pub fn add_f64(acc: f64, x: f64) f64 = {
 }
 
 pub fn concat_str(acc: ref u8, x: ref u8) ref u8 = {
-    return trust str.concat_raw(acc, x)
+    return trust cstr.concat(acc, x)
 }
 
 pub fn add_vec2(acc: Vec2, x: Vec2) Vec2 = {

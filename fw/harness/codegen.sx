@@ -4,7 +4,7 @@
 /// (C) Navid Momtahen - 2026
 
 val stdio      = use("std/stdio")
-val str     = use("std/string")
+val cstr = use("std/string/cstr")
 val allocators = use("std/allocators")
 val mem        = use("../../src/meta/mem.sx")
 val sema       = use("../../src/sema/sema.sx")
@@ -35,10 +35,10 @@ test "codegen does not leak" {
             check.cptr(src_target),
             false
         )
-        if output.qbe != none && str.len_raw(output.qbe) > 0 {
+        if output.qbe != none && cstr.len(output.qbe) > 0 {
             @free(output.qbe as ref void)
         }
-        if output.shim != none && str.len_raw(output.shim) > 0 {
+        if output.shim != none && cstr.len(output.shim) > 0 {
             @free(output.shim as ref void)
         }
         @free(output as ref void)

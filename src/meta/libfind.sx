@@ -4,6 +4,7 @@
 /// (C) Navid Momtahen - 2026
 
 val str     = use("std/string")
+val cstr = use("std/string/cstr")
 val ostr = use("std/string/owned")
 val mem        = use("mem.sx")
 val os         = use("std/os")
@@ -11,7 +12,7 @@ val path       = use("std/path")
 val allocators = use("std/allocators")
 
 /// Link flags and discovered paths are retained for the compiler process
-/// lifetime, so their owning CString allocations are intentionally not freed
+/// lifetime, so their owning ZString allocations are intentionally not freed
 /// per call.
 fn cstr_heap() allocators.HeapAllocator = {
     return @zeroed
@@ -72,7 +73,7 @@ fn split_flags(s: str.StringView) list[ref u8] = trust {
         }
         @append(
             out,
-            str.cstring_ptr(str.cstring_from[allocators.HeapAllocator](
+            str.zstr_ptr(str.zstr_from[allocators.HeapAllocator](
                     cstr_heap(),
                     str.slice(s, start, i)
                 ))
@@ -94,7 +95,7 @@ fn split_path_list(raw: str.StringView, out: mut list[ref u8]) void = trust {
             if i > start {
                 @append(
                     out,
-                    str.cstring_ptr(str.cstring_from[allocators.HeapAllocator](
+                    str.zstr_ptr(str.zstr_from[allocators.HeapAllocator](
                             cstr_heap(),
                             str.slice(raw, start, i)
                         ))
@@ -173,7 +174,7 @@ fn try_pkg_config(name: str.StringView, static_link: bool) option[list[ref u8]] 
         }
     } else {
         val prefixed: ref u8 = @fmtalloc("lib{s}", {name})
-        val prefixed_flags = pkg_config_libs(str.cstr_raw(prefixed), static_link)
+        val prefixed_flags = pkg_config_libs(str.from_cstr(prefixed), static_link)
         if prefixed_flags is some pf {
             return some pf
         }
@@ -195,7 +196,7 @@ fn compiler_library_path(base: str.StringView, suffix: str.StringView) ref u8 = 
                 ok out => {
                     val found: str.StringView = trim_raw(str.view(out.ptr, ostr.len(out)))
                     if found.len > 0 && !str.eql_cstr(found, missing) {
-                        val copied: ref u8 = str.cstring_ptr(str.cstring_from[allocators.HeapAllocator](
+                        val copied: ref u8 = str.zstr_ptr(str.zstr_from[allocators.HeapAllocator](
                                 cstr_heap(),
                                 found
                             ))
@@ -229,7 +230,7 @@ fn native_search_dirs(platform: str.StringView) list[ref u8] = trust {
 
     val library_path = os.getenv(c"LIBRARY_PATH")
     if library_path is some lib_path {
-        split_path_list(str.cstr_raw(lib_path as ref u8), dirs)
+        split_path_list(str.from_cstr(lib_path as ref u8), dirs)
     }
 
     @append(dirs, c"/usr/local/lib")
@@ -260,9 +261,9 @@ fn native_search_dirs(platform: str.StringView) list[ref u8] = trust {
 fn find_native(base: str.StringView, platform: str.StringView) ref u8 = trust {
     val suffixes: list[ref u8] = library_suffixes(platform)
     for suffix in suffixes {
-        val compiler_path: ref u8 = compiler_library_path(base, str.cstr_raw(suffix))
-        if str.len_raw(compiler_path) > 0 {
-            return path.dir_raw(compiler_path)
+        val compiler_path: ref u8 = compiler_library_path(base, str.from_cstr(suffix))
+        if cstr.len(compiler_path) > 0 {
+            return path.dir_cstr(compiler_path)
         }
     }
 
@@ -318,7 +319,7 @@ pub fn resolve(
 
     val base: str.StringView = library_basename(trimmed)
     val dir: ref u8 = find_native(base, platform)
-    if str.len_raw(dir) > 0 {
+    if cstr.len(dir) > 0 {
         val flags: mut list[ref u8] = mem.new[ref u8]()
         @append(flags, @fmtalloc("-L{s}", {dir}))
         @append(flags, @fmtalloc("-l{s}", {base}))

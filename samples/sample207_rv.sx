@@ -4,12 +4,12 @@ val alloc = use("std/allocators")
 val stdio = use("std/stdio")
 
 fn normalize_path[A: alloc.Allocator](ac: A, raw: ref u8) str.String = {
-    val path: str.String = trust ostr.from_raw[A](ac, raw)
+    val path: str.String = trust ostr.from_cstr[A](ac, raw)
     trust {
         ostr.trim(path)
         ostr.to_lower(path)
     }
-    val result = trust ostr.trim_prefix(path, ostr.from_raw[A](ac, c"/api/"))
+    val result = trust ostr.trim_prefix(path, ostr.from_cstr[A](ac, c"/api/"))
     post {
         result.len > 0
     }
@@ -19,5 +19,5 @@ fn normalize_path[A: alloc.Allocator](ac: A, raw: ref u8) str.String = {
 pub fn main() void = trust {
     val arena: alloc.Arena = alloc.Arena.new(1024 as usize)?
     val route = normalize_path[alloc.Arena](arena, c"  /API/Users/42  ")
-    stdio.print("route: {s}\n", {ostr.cstr(route)})
+    stdio.print("route: {s}\n", {ostr.as_cstr(route)})
 }

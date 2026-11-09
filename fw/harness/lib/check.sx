@@ -5,6 +5,7 @@
 
 val stdio      = use("std/stdio")
 val str     = use("std/string")
+val cstr = use("std/string/cstr")
 val testing    = use("std/testing")
 val allocators = use("std/allocators")
 val mem        = use("../../../src/meta/mem.sx")
@@ -29,7 +30,7 @@ fn same_record(a: ref testing.LeakRecord, b: ref testing.LeakRecord) bool = {
     if a.size != b.size || a.line != b.line {
         return false
     }
-    return str.cmp_raw(a.file, b.file) == 0
+    return cstr.cmp(a.file, b.file) == 0
 }
 
 /// Snapshot the current live-allocation set.
@@ -143,7 +144,7 @@ pub fn expect_clean_since(name: str.StringView, before: Baseline) void = trust {
 }
 
 /// Borrow a raw C-string pointer from a view. The view must be NUL-terminated.
-/// String literals and `cstr_raw` views satisfy this.
+/// String literals and `cstr` views satisfy this.
 pub fn cptr(v: str.StringView) ref u8 = {
     return v.ptr
 }

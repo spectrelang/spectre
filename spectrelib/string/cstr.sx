@@ -1,0 +1,301 @@
+/// Pointer-only operations on zero-terminated C strings.
+
+val allocators = use("../allocators")
+
+extern (C, header) fn strlen(s: ref u8) i64 = "strlen"
+extern (C, header) fn strcmp(a: ref u8, b: ref u8) i64 = "strcmp"
+
+fn alloc_in[T: allocators.Allocator](ac: T, size: i64) ref void = {
+    pre {
+        size_positive: size > 0
+    }
+    val out_opt = T.alloc(ac, size as usize)
+    match out_opt {
+        some out => {
+            return out as ref void
+        }
+        none => {
+            return none
+        }
+    }
+}
+
+fn alloc_substr_in[T: allocators.Allocator](
+    ac: T,
+    src: ref u8,
+    start: i64,
+    len: i64
+) ref u8 = trust {
+    val buf: ref void = alloc_in[T](ac, len + 1)
+    if buf == none {
+        return none
+    }
+    @memset(buf, 0, len + 1)
+    if len > 0 {
+        @memcpy(buf, @ptradd(src, start), len)
+    }
+    return buf as ref u8
+}
+
+/// Compare two raw strings.
+pub fn cmp(a: ref u8, b: ref u8) i64 = {
+    if a == none && b == none {
+        return 0
+    } elif a == none || b == none {
+        return -1
+    }
+    return trust strcmp(a, b)
+}
+
+/// Compare two null-terminated C strings for equality.
+///
+/// Null is tolerated: two null pointers compare equal, while a null pointer
+/// never equals a non-null str.
+pub fn eql(a: ref u8, b: ref u8) bool = {
+    guard (a != none && b != none) else {
+        return a == b
+    }
+    if a == b {
+        return true
+    }
+    return trust strcmp(a, b) == 0
+}
+
+/// Length of a raw u8 pointer
+pub fn len(s: ref u8) i64 = {
+    pre {
+        s != none
+    }
+    return trust strlen(s)
+}
+
+/// Returns true if s starts with prefix
+pub fn starts_with(s: ref u8, prefix: ref u8) bool = {
+    if (prefix == none) {
+        return true
+    }
+    if (s == none) {
+        return false
+    }
+
+    val ps: ref u8 = prefix
+    val ss: ref u8 = s
+    val i: mut i64 = 0
+
+    for {
+        val pc: u8 = trust @load8(@ptradd(ps, i)) as u8
+        if (pc == 0) {
+            break
+        }
+        val sc: u8 = trust @load8(@ptradd(ss, i)) as u8
+
+        if (sc == 0) {
+            return false
+        }
+
+        if (pc != sc) {
+            return false
+        }
+
+        i++
+    }
+
+    return true
+}
+
+pub fn ends_with(s: ref u8, suffix: ref u8) bool = {
+    if (suffix == none) {
+        return true
+    }
+    if (s == none) {
+        return false
+    }
+
+    val suffix_len: mut i64 = 0
+    val s_len: mut i64 = 0
+    val ps: ref u8 = suffix
+    val ss: ref u8 = s
+
+    for {
+        val c: u8 = trust @load8(@ptradd(ps, suffix_len)) as u8
+        if (c == 0) {
+            break
+        }
+        suffix_len++
+    }
+
+    for {
+        val c: u8 = trust @load8(@ptradd(ss, s_len)) as u8
+        if (c == 0) {
+            break
+        }
+        s_len++
+    }
+
+    if (suffix_len > s_len) {
+        return false
+    }
+
+    val offset: i64 = s_len - suffix_len
+    val i: mut i64 = 0
+
+    for {
+        if (i >= suffix_len) {
+            break
+        }
+        val a: u8 = trust @load8(@ptradd(ss, offset + i)) as u8
+        val b: u8 = trust @load8(@ptradd(ps, i)) as u8
+        if (a != b) {
+            return false
+        }
+        i++
+    }
+
+    return true
+}
+
+/// Returns true when `needle` occurs anywhere in `haystack`.
+pub fn contains(haystack: ref u8, needle: ref u8) bool = trust {
+    val hlen: i64 = len(haystack)
+    val nlen: i64 = len(needle)
+    if nlen == 0 {
+        return true
+    }
+    if nlen > hlen {
+        return false
+    }
+
+    val limit: i64 = hlen - nlen
+    val i: mut i64 = 0
+    for {
+        if i > limit {
+            break
+        }
+        val j: mut i64 = 0
+        val matched: mut bool = true
+        for {
+            if j >= nlen {
+                break
+            }
+            val a: u8 = @load8(@ptradd(haystack, i + j)) as u8
+            val b: u8 = @load8(@ptradd(needle, j)) as u8
+            if a != b {
+                matched = false
+                break
+            }
+            j++
+        }
+        if matched {
+            return true
+        }
+        i++
+    }
+    return false
+}
+
+/// Concat raw u8 pointers — returns a new heap-allocated ref u8
+pub fn concat(a: ref u8, b: ref u8) ref u8 = trust {
+    val len_a: mut i64 = 0
+    if a != none {
+        len_a = strlen(a)
+    }
+    val len_b: mut i64 = 0
+    if b != none {
+        len_b = strlen(b)
+    }
+    val new_len: i64 = len_a + len_b
+    val buf: mut ref void = @alloc(new_len + 1)
+
+    if len_a > 0 {
+        @memcpy(buf, a, len_a)
+    }
+    if len_b > 0 {
+        @memcpy(@ptradd(buf, len_a), b, len_b)
+    }
+    @store8(@ptradd(buf, new_len), 0)
+
+    return buf as ref u8
+}
+
+/// Get byte at index i from raw u8 pointer, returns none if out of bounds
+pub fn byte_at(s: ref u8, i: i64) option[u8] = {
+    guarded pre {
+        i_nonneg: i >= 0
+    }
+    if (s == none) {
+        return none
+    }
+    val l: i64 = trust strlen(s)
+    if (i >= l) {
+        return none
+    }
+    return some (trust @load8(@ptradd(s, i)) as u8)
+}
+
+/// If s starts with prefix, return a new ref u8 without it, otherwise clone.
+pub fn trim_prefix[T: allocators.Allocator](ac: T, s: ref u8, prefix: ref u8) ref u8 = trust {
+    if (prefix == none) {
+        return alloc_substr_in[T](ac, s, 0, strlen(s))
+    }
+    if (s == none) {
+        return none
+    }
+
+    if (!starts_with(s, prefix)) {
+        return alloc_substr_in[T](ac, s, 0, strlen(s))
+    }
+
+    val pl: i64 = strlen(prefix)
+    val sl: i64 = strlen(s)
+
+    return alloc_substr_in[T](ac, s, pl, sl - pl)
+}
+
+/// If s ends with suffix, return a new ref u8 without it, otherwise clone.
+pub fn trim_suffix[T: allocators.Allocator](ac: T, s: ref u8, suffix: ref u8) ref u8 = trust {
+    if (suffix == none) {
+        return alloc_substr_in[T](ac, s, 0, strlen(s))
+    }
+    if (s == none) {
+        return none
+    }
+
+    val sl: i64 = strlen(s)
+    val sul: i64 = strlen(suffix)
+
+    if (sul > sl) {
+        return alloc_substr_in[T](ac, s, 0, sl)
+    }
+
+    val offset: i64 = sl - sul
+    val i: mut i64 = 0
+
+    for {
+        if (i >= sul) {
+            break
+        }
+        val a: u8 = @load8(@ptradd(s, offset + i)) as u8
+        val b: u8 = @load8(@ptradd(suffix, i)) as u8
+        if (a != b) {
+            return alloc_substr_in[T](ac, s, 0, sl)
+        }
+        i++
+    }
+
+    return alloc_substr_in[T](ac, s, 0, sl - sul)
+}
+
+/// Return a new ref u8 containing the substring of `src` starting at `start` with length `len`.
+pub fn substr(src: ref u8, start: i64, len: i64) ref u8 = trust {
+    val buf: ref void = @alloc(len + 1)
+    @memcpy(buf, @ptradd(src, start), len)
+    @store8(@ptradd(buf, len), 0)
+    return buf as ref u8
+}
+
+/// Copy `len` bytes from `src` to `dst`, starting at offset `dst_off` in dst.
+/// The result is NOT null-terminated beyond what was already there.
+pub fn copy(dst: ref u8, dst_off: i64, src: ref u8) void = trust {
+    val slen: i64 = strlen(src)
+    @memcpy(@ptradd(dst, dst_off), src, slen)
+}

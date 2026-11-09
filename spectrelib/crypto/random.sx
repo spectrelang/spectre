@@ -133,8 +133,8 @@ test "random values and uuids are generated" {
     assert uuid1 != none
     assert uuid2 != none
 
-    stdio.puts(str.cstr_raw(uuid1))
-    stdio.puts(str.cstr_raw(uuid2))
+    stdio.puts(str.from_cstr(uuid1))
+    stdio.puts(str.from_cstr(uuid2))
 
     trust @free(uuid1)
     trust @free(uuid2)

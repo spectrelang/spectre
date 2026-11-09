@@ -4,7 +4,7 @@
 /// (C) Navid Momtahen - 2026
 
 val stdio      = use("../stdio")
-val str        = use("std/string")
+val cstr = use("std/string/cstr")
 val fmt        = use("../fmt")
 val allocators = use("../allocators")
 
@@ -524,16 +524,16 @@ fn value_of(
 }
 
 fn parse_bool(value: ref u8) option[bool] = {
-    if str.cmp_raw(value, c"true") == 0 || str.cmp_raw(value, c"1") == 0 {
+    if cstr.cmp(value, c"true") == 0 || cstr.cmp(value, c"1") == 0 {
         return some true
     }
-    if str.cmp_raw(value, c"yes") == 0 || str.cmp_raw(value, c"on") == 0 {
+    if cstr.cmp(value, c"yes") == 0 || cstr.cmp(value, c"on") == 0 {
         return some true
     }
-    if str.cmp_raw(value, c"false") == 0 || str.cmp_raw(value, c"0") == 0 {
+    if cstr.cmp(value, c"false") == 0 || cstr.cmp(value, c"0") == 0 {
         return some false
     }
-    if str.cmp_raw(value, c"no") == 0 || str.cmp_raw(value, c"off") == 0 {
+    if cstr.cmp(value, c"no") == 0 || cstr.cmp(value, c"off") == 0 {
         return some false
     }
     return none
@@ -626,9 +626,9 @@ test "flags parse colon, equals and separate values with aliases" {
     assert_ok(trust parse(fs, argv))
 
     assert verbose
-    assert str.cmp_raw(name, c"Ada") == 0
+    assert cstr.cmp(name, c"Ada") == 0
     assert count == 7
-    assert str.cmp_raw(kv, c"key=value") == 0
+    assert cstr.cmp(kv, c"key=value") == 0
     assert @len(trust args(fs)) == 0
 
     trust destroy(fs)
@@ -664,20 +664,20 @@ test "flags accept separate values, explicit bools and positionals" {
     assert_ok(trust parse(fs, argv))
 
     assert !verbose
-    assert str.cmp_raw(name, c"Grace") == 0
+    assert cstr.cmp(name, c"Grace") == 0
     assert count == -3
 
     val rest = trust args(fs)
     assert @len(rest) == 2
     val first = @get(rest, 0 as usize)
     if first is some value {
-        assert str.cmp_raw(value as ref u8, c"first") == 0
+        assert cstr.cmp(value as ref u8, c"first") == 0
     } else {
         assert false
     }
     val second = @get(rest, 1 as usize)
     if second is some value {
-        assert str.cmp_raw(value as ref u8, c"second") == 0
+        assert cstr.cmp(value as ref u8, c"second") == 0
     } else {
         assert false
     }
@@ -709,7 +709,7 @@ test "flags report unknown, missing and invalid values" {
         err e => {
             match e {
                 UnknownFlag flag => {
-                    assert str.cmp_raw(flag, c"-bogus") == 0
+                    assert cstr.cmp(flag, c"-bogus") == 0
                 }
                 _ => {
                     assert false
@@ -726,7 +726,7 @@ test "flags report unknown, missing and invalid values" {
         err e => {
             match e {
                 MissingValue flag => {
-                    assert str.cmp_raw(flag, c"name") == 0
+                    assert cstr.cmp(flag, c"name") == 0
                 }
                 _ => {
                     assert false
@@ -743,8 +743,8 @@ test "flags report unknown, missing and invalid values" {
         err e => {
             match e {
                 InvalidValue flag, value => {
-                    assert str.cmp_raw(flag, c"count") == 0
-                    assert str.cmp_raw(value, c"twelve") == 0
+                    assert cstr.cmp(flag, c"count") == 0
+                    assert cstr.cmp(value, c"twelve") == 0
                 }
                 _ => {
                     assert false
@@ -761,7 +761,7 @@ test "flags report unknown, missing and invalid values" {
         err e => {
             match e {
                 InvalidValue flag, _ => {
-                    assert str.cmp_raw(flag, c"verbose") == 0
+                    assert cstr.cmp(flag, c"verbose") == 0
                 }
                 _ => {
                     assert false
@@ -815,19 +815,19 @@ test "flags enable double dash and the bare -- terminator" {
     assert_ok(trust parse(fs, argv))
 
     assert verbose
-    assert str.cmp_raw(name, c"Grace") == 0
+    assert cstr.cmp(name, c"Grace") == 0
 
     val rest = trust args(fs)
     assert @len(rest) == 2
     val first = @get(rest, 0 as usize)
     if first is some value {
-        assert str.cmp_raw(value as ref u8, c"--name:ignored") == 0
+        assert cstr.cmp(value as ref u8, c"--name:ignored") == 0
     } else {
         assert false
     }
     val second = @get(rest, 1 as usize)
     if second is some value {
-        assert str.cmp_raw(value as ref u8, c"-v") == 0
+        assert cstr.cmp(value as ref u8, c"-v") == 0
     } else {
         assert false
     }

@@ -26,8 +26,8 @@ val env_aliases: mut ref EnvAlias = none
 
 /// Duplicate a view into an owned NUL-terminated C str.
 fn dup_cstr(value: str.StringView) ref u8 = trust {
-    val cs: str.CString = str.cstring_from[allocators.HeapAllocator](cstr_heap(), value)
-    return str.cstring_ptr(cs)
+    val cs: str.ZString = str.zstr_from[allocators.HeapAllocator](cstr_heap(), value)
+    return str.zstr_ptr(cs)
 }
 
 fn free_cstr(value: ref u8) void = trust {
@@ -55,7 +55,7 @@ pub fn register_env_alias(name: str.StringView) void = trust {
         if cur == none {
             break
         }
-        if str.eql(str.cstr_raw(cur.name), name) {
+        if str.eql(str.from_cstr(cur.name), name) {
             return
         }
         cur = cur.next
@@ -73,7 +73,7 @@ pub fn is_env_alias(name: str.StringView) bool = {
         if cur == none {
             break
         }
-        if trust str.eql(str.cstr_raw(cur.name), name) {
+        if trust str.eql(str.from_cstr(cur.name), name) {
             return true
         }
         cur = cur.next
@@ -87,7 +87,7 @@ pub fn set(name: str.StringView, value: str.StringView) void = trust {
         if cur == none {
             break
         }
-        if str.eql(str.cstr_raw(cur.name), name) {
+        if str.eql(str.from_cstr(cur.name), name) {
             free_cstr(cur.value)
             cur.value = dup_cstr(value)
             return
@@ -108,8 +108,8 @@ pub fn get(name: str.StringView) str.StringView = {
         if cur == none {
             break
         }
-        if trust str.eql(str.cstr_raw(cur.name), name) {
-            return str.cstr_raw(cur.value)
+        if trust str.eql(str.from_cstr(cur.name), name) {
+            return str.from_cstr(cur.value)
         }
         cur = cur.next
     }

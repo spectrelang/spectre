@@ -1,5 +1,5 @@
 extern "ctype.h"
-val str     = use("std/string")
+val cstr = use("std/string/cstr")
 val allocators = use("../allocators")
 
 extern (C, header) fn isdigit(c: i32) i32 = "isdigit"
@@ -296,7 +296,7 @@ pub fn sort_radix_u64[A: allocators.GeneralAllocator](
 }
 
 fn parse_leading_num(name: ref u8) i64 = {
-    val len: i64 = str.len_raw(name)
+    val len: i64 = cstr.len(name)
     if len == 0 {
         return -1
     }
@@ -307,7 +307,7 @@ fn parse_leading_num(name: ref u8) i64 = {
         if i >= len {
             break
         }
-        val cb = str.byte_at_raw(name, i)
+        val cb = cstr.byte_at(name, i)
         val c: mut u8 = 0
         match cb {
             none => {
@@ -462,8 +462,8 @@ fn intern_strcmp(a: ref u8, b: ref u8) i32 = {
     val i: mut i64 = 0
 
     for {
-        val ca_o = str.byte_at_raw(a, i)
-        val cb_o = str.byte_at_raw(b, i)
+        val ca_o = cstr.byte_at(a, i)
+        val cb_o = cstr.byte_at(b, i)
 
         val ca: mut u8 = 0
         val cb: mut u8 = 0

@@ -6,6 +6,7 @@
 val fs          = use("std/fs")
 val mem         = use("meta/mem.sx")
 val str      = use("std/string")
+val cstr = use("std/string/cstr")
 val ostr = use("std/string/owned")
 val stdio       = use("std/stdio")
 val os          = use("std/os")
@@ -76,12 +77,12 @@ pub fn main() i32 = trust {
         val pre_opt = @get(args, input_arg_i)
         if pre_opt is some pre_val {
             val pre_arg: ref u8 = pre_val as ref u8
-            if str.cmp_raw(pre_arg, c"-d") == 0 {
+            if cstr.cmp(pre_arg, c"-d") == 0 {
                 val spec_i: i64 = input_arg_i + 1
                 val spec_opt = @get(args, spec_i)
                 if spec_opt is some spec_val {
                     val def_spec: ref u8 = spec_val as ref u8
-                    if !defines.add_spec(str.cstr_raw(def_spec)) {
+                    if !defines.add_spec(str.from_cstr(def_spec)) {
                         stdio.print(
                             "error: invalid define '{s}', expected NAME=VALUE\n",
                             {def_spec}
@@ -95,9 +96,9 @@ pub fn main() i32 = trust {
                     allocators.Arena.free(arena)
                     return 1
                 }
-            } elif str.starts_with_raw(pre_arg, c"-d:") {
-                val def_spec: ref u8 = str.substr_raw(pre_arg, 3, str.len_raw(pre_arg) - 3)
-                if !defines.add_spec(str.cstr_raw(def_spec)) {
+            } elif cstr.starts_with(pre_arg, c"-d:") {
+                val def_spec: ref u8 = cstr.substr(pre_arg, 3, cstr.len(pre_arg) - 3)
+                if !defines.add_spec(str.from_cstr(def_spec)) {
                     stdio.print("error: invalid define '{s}', expected -d:NAME=VALUE\n", {pre_arg})
                     allocators.Arena.free(arena)
                     return 1
@@ -120,7 +121,7 @@ pub fn main() i32 = trust {
         return 1
     }
 
-    if str.cmp_raw(input, c"run") == 0 {
+    if cstr.cmp(input, c"run") == 0 {
         run_mode = true
         input_arg_i++
         val run_input_opt = @get(args, input_arg_i)
@@ -134,7 +135,7 @@ pub fn main() i32 = trust {
         }
     }
 
-    if str.cmp_raw(input, c"-test-all") == 0 {
+    if cstr.cmp(input, c"-test-all") == 0 {
         val root: mut ref u8 = c"."
         val max_depth: mut i64 = 25
         val extra_flags: mut list[ref u8] = mem.new[ref u8]()
@@ -143,7 +144,7 @@ pub fn main() i32 = trust {
             val opt = @get(args, ti)
             if opt is some av {
                 val a: ref u8 = av as ref u8
-                if str.cmp_raw(a, c"-test-depth") == 0 {
+                if cstr.cmp(a, c"-test-depth") == 0 {
                     ti++
                     val next_opt = @get(args, ti)
                     if next_opt is some nv {
@@ -166,11 +167,11 @@ pub fn main() i32 = trust {
                         allocators.Arena.free(arena)
                         return 1
                     }
-                } elif str.starts_with_raw(a, c"-test-depth:") {
-                    val text: ref u8 = str.substr_raw(
+                } elif cstr.starts_with(a, c"-test-depth:") {
+                    val text: ref u8 = cstr.substr(
                         a,
                         12,
-                        str.len_raw(a) - 12
+                        cstr.len(a) - 12
                     )
                     val parsed = fmt.string_to_i64(text)
                     match parsed {
@@ -183,7 +184,7 @@ pub fn main() i32 = trust {
                             return 1
                         }
                     }
-                } elif str.starts_with_raw(a, c"-") {
+                } elif cstr.starts_with(a, c"-") {
                     @append(extra_flags, a)
                 } else {
                     root = a
@@ -208,44 +209,44 @@ pub fn main() i32 = trust {
         return code
     }
 
-    val flag_first_translate_c: bool = str.cmp_raw(input, c"-translate-c") == 0
+    val flag_first_translate_c: bool = cstr.cmp(input, c"-translate-c") == 0
 
-    if str.cmp_raw(input, c"-h") == 0 || str.cmp_raw(input, c"-help") == 0 {
+    if cstr.cmp(input, c"-h") == 0 || cstr.cmp(input, c"-help") == 0 {
         meta.print_usage()
         allocators.Arena.free(arena)
         return 0
     }
 
-    if str.cmp_raw(input, c"-v") == 0 || str.cmp_raw(input, c"-version") == 0 {
+    if cstr.cmp(input, c"-v") == 0 || cstr.cmp(input, c"-version") == 0 {
         meta.print_version()
         allocators.Arena.free(arena)
         return 0
     }
 
-    if str.cmp_raw(input, c"help") == 0 {
+    if cstr.cmp(input, c"help") == 0 {
         val topic: mut ref u8 = c""
         val topic_opt = @get(args, 2)
         if topic_opt is some t {
             topic = t as ref u8
         }
-        val code: i32 = meta.print_help(str.cstr_raw(topic))
+        val code: i32 = meta.print_help(str.from_cstr(topic))
         allocators.Arena.free(arena)
         return code
     }
 
-    if str.cmp_raw(input, c"doctor") == 0 {
+    if cstr.cmp(input, c"doctor") == 0 {
         val code: i32 = commands.cmd_doctor()
         allocators.Arena.free(arena)
         return code
     }
 
-    if str.cmp_raw(input, c"ref") == 0 {
+    if cstr.cmp(input, c"ref") == 0 {
         val code: i32 = commands.cmd_ref()
         allocators.Arena.free(arena)
         return code
     }
 
-    if str.cmp_raw(input, c"init") == 0 {
+    if cstr.cmp(input, c"init") == 0 {
         val name_arg: mut ref u8 = c""
         val name_opt = @get(args, 2)
         if name_opt is some v {
@@ -256,7 +257,7 @@ pub fn main() i32 = trust {
         return code
     }
 
-    if str.cmp_raw(input, c"fmt") == 0 {
+    if cstr.cmp(input, c"fmt") == 0 {
         val fmt_paths: mut list[ref u8] = mem.new[ref u8]()
         val fmt_stdout: mut bool = false
         val fmt_arg_i: mut i64 = 2
@@ -264,11 +265,11 @@ pub fn main() i32 = trust {
             val fmt_arg_opt = @get(args, fmt_arg_i)
             if fmt_arg_opt is some fv {
                 val arg: ref u8 = fv as ref u8
-                if str.cmp_raw(arg, c"-h") == 0 || str.cmp_raw(arg, c"-help") == 0 {
+                if cstr.cmp(arg, c"-h") == 0 || cstr.cmp(arg, c"-help") == 0 {
                     val code: i32 = meta.print_help("fmt")
                     allocators.Arena.free(arena)
                     return code
-                } elif str.cmp_raw(arg, c"-stdio") == 0 {
+                } elif cstr.cmp(arg, c"-stdio") == 0 {
                     fmt_stdout = true
                 } else {
                     @append(fmt_paths, arg)
@@ -283,7 +284,7 @@ pub fn main() i32 = trust {
         return code
     }
 
-    if str.cmp_raw(input, c"critic") == 0 {
+    if cstr.cmp(input, c"critic") == 0 {
         val critic_paths: mut list[ref u8] = mem.new[ref u8]()
         val critic_fix: mut bool = false
         val critic_arg_i: mut i64 = 2
@@ -291,11 +292,11 @@ pub fn main() i32 = trust {
             val critic_arg_opt = @get(args, critic_arg_i)
             if critic_arg_opt is some cv {
                 val arg: ref u8 = cv as ref u8
-                if str.cmp_raw(arg, c"-h") == 0 || str.cmp_raw(arg, c"-help") == 0 {
+                if cstr.cmp(arg, c"-h") == 0 || cstr.cmp(arg, c"-help") == 0 {
                     val code: i32 = meta.print_help("critic")
                     allocators.Arena.free(arena)
                     return code
-                } elif str.cmp_raw(arg, c"-fix") == 0 {
+                } elif cstr.cmp(arg, c"-fix") == 0 {
                     critic_fix = true
                 } else {
                     @append(critic_paths, arg)
@@ -310,7 +311,7 @@ pub fn main() i32 = trust {
         return code
     }
 
-    if str.cmp_raw(input, c"build") == 0 {
+    if cstr.cmp(input, c"build") == 0 {
         val config_name: mut ref u8 = c"dev"
         val cfg_opt = @get(args, 2)
         if cfg_opt is some v {
@@ -321,7 +322,7 @@ pub fn main() i32 = trust {
         return code
     }
 
-    if str.cmp_raw(input, c"install") == 0 {
+    if cstr.cmp(input, c"install") == 0 {
         val install_url: mut ref u8 = c""
         val install_config: mut ref u8 = c""
         val install_shell: mut ref u8 = c""
@@ -331,13 +332,13 @@ pub fn main() i32 = trust {
             val install_arg_opt = @get(args, install_arg_i)
             if install_arg_opt is some iv {
                 val arg: ref u8 = iv as ref u8
-                if str.cmp_raw(arg, c"-h") == 0 || str.cmp_raw(arg, c"-help") == 0 {
+                if cstr.cmp(arg, c"-h") == 0 || cstr.cmp(arg, c"-help") == 0 {
                     val code: i32 = meta.print_help("install")
                     allocators.Arena.free(arena)
                     return code
-                } elif str.cmp_raw(arg, c"-config") == 0
-                || str.cmp_raw(arg, c"--config") == 0
-                || str.cmp_raw(arg, c"-build") == 0 {
+                } elif cstr.cmp(arg, c"-config") == 0
+                || cstr.cmp(arg, c"--config") == 0
+                || cstr.cmp(arg, c"-build") == 0 {
                     val next_i: i64 = install_arg_i + 1
                     val next_opt = @get(args, next_i)
                     if next_opt is some nv {
@@ -348,10 +349,10 @@ pub fn main() i32 = trust {
                         allocators.Arena.free(arena)
                         return 1
                     }
-                } elif str.starts_with_raw(arg, c"-config:") {
-                    install_config = str.substr_raw(arg, 8, str.len_raw(arg) - 8)
-                } elif str.cmp_raw(arg, c"-shell") == 0
-                || str.cmp_raw(arg, c"--shell") == 0 {
+                } elif cstr.starts_with(arg, c"-config:") {
+                    install_config = cstr.substr(arg, 8, cstr.len(arg) - 8)
+                } elif cstr.cmp(arg, c"-shell") == 0
+                || cstr.cmp(arg, c"--shell") == 0 {
                     val next_i: i64 = install_arg_i + 1
                     val next_opt = @get(args, next_i)
                     if next_opt is some nv {
@@ -362,10 +363,10 @@ pub fn main() i32 = trust {
                         allocators.Arena.free(arena)
                         return 1
                     }
-                } elif str.starts_with_raw(arg, c"-shell:") {
-                    install_shell = str.substr_raw(arg, 7, str.len_raw(arg) - 7)
-                } elif str.cmp_raw(arg, c"-bin-dir") == 0
-                || str.cmp_raw(arg, c"--bin-dir") == 0 {
+                } elif cstr.starts_with(arg, c"-shell:") {
+                    install_shell = cstr.substr(arg, 7, cstr.len(arg) - 7)
+                } elif cstr.cmp(arg, c"-bin-dir") == 0
+                || cstr.cmp(arg, c"--bin-dir") == 0 {
                     val next_i: i64 = install_arg_i + 1
                     val next_opt = @get(args, next_i)
                     if next_opt is some nv {
@@ -376,14 +377,14 @@ pub fn main() i32 = trust {
                         allocators.Arena.free(arena)
                         return 1
                     }
-                } elif str.starts_with_raw(arg, c"-bin-dir:") {
-                    install_bin_dir = str.substr_raw(arg, 9, str.len_raw(arg) - 9)
-                } elif str.starts_with_raw(arg, c"-") {
+                } elif cstr.starts_with(arg, c"-bin-dir:") {
+                    install_bin_dir = cstr.substr(arg, 9, cstr.len(arg) - 9)
+                } elif cstr.starts_with(arg, c"-") {
                     stdio.print("error: unknown install option '{s}'\n", {arg})
                     allocators.Arena.free(arena)
                     return 1
                 } else {
-                    if str.len_raw(install_url) == 0 {
+                    if cstr.len(install_url) == 0 {
                         install_url = arg
                     } else {
                         stdio.puts("error: install accepts a single repository URL")
@@ -396,7 +397,7 @@ pub fn main() i32 = trust {
             }
             install_arg_i++
         }
-        if str.len_raw(install_url) == 0 {
+        if cstr.len(install_url) == 0 {
             stdio.puts("error: install requires a git repository URL")
             stdio.puts("usage: spectre install <git-url> [-config <name>] [-shell <shell>]")
             allocators.Arena.free(arena)
@@ -412,7 +413,7 @@ pub fn main() i32 = trust {
         return code
     }
 
-    if str.cmp_raw(input, c"doc") == 0 {
+    if cstr.cmp(input, c"doc") == 0 {
         val target_arg: mut ref u8 = c"."
         val md_mode: mut bool = false
         val output_arg: mut ref u8 = c""
@@ -422,13 +423,13 @@ pub fn main() i32 = trust {
             val arg_opt = @get(args, doc_arg_i)
             if arg_opt is some dv {
                 val arg: ref u8 = dv as ref u8
-                if str.cmp_raw(arg, c"-md") == 0 {
+                if cstr.cmp(arg, c"-md") == 0 {
                     md_mode = true
-                } elif str.cmp_raw(arg, c"-h") == 0 || str.cmp_raw(arg, c"-help") == 0 {
+                } elif cstr.cmp(arg, c"-h") == 0 || cstr.cmp(arg, c"-help") == 0 {
                     val code: i32 = meta.print_help("doc")
                     allocators.Arena.free(arena)
                     return code
-                } elif str.cmp_raw(arg, c"-o") == 0 || str.cmp_raw(arg, c"-output") == 0 {
+                } elif cstr.cmp(arg, c"-o") == 0 || cstr.cmp(arg, c"-output") == 0 {
                     val next_i: i64 = doc_arg_i + 1
                     val next_opt = @get(args, next_i)
                     if next_opt is some ov {
@@ -439,15 +440,15 @@ pub fn main() i32 = trust {
                         allocators.Arena.free(arena)
                         return 1
                     }
-                } elif str.starts_with_raw(arg, c"-o:") {
-                    val out_len: i64 = str.len_raw(arg) as i64 - 3
+                } elif cstr.starts_with(arg, c"-o:") {
+                    val out_len: i64 = cstr.len(arg) as i64 - 3
                     if out_len <= 0 {
                         stdio.puts("error: -o requires a directory")
                         allocators.Arena.free(arena)
                         return 1
                     }
-                    output_arg = str.substr_raw(arg, 3, out_len)
-                } elif str.cmp_raw(arg, c"-read") == 0 {
+                    output_arg = cstr.substr(arg, 3, out_len)
+                } elif cstr.cmp(arg, c"-read") == 0 {
                     val next_i: i64 = doc_arg_i + 1
                     val next_opt = @get(args, next_i)
                     if next_opt is some rv {
@@ -458,15 +459,15 @@ pub fn main() i32 = trust {
                         allocators.Arena.free(arena)
                         return 1
                     }
-                } elif str.starts_with_raw(arg, c"-read:") {
-                    val read_len: i64 = str.len_raw(arg) as i64 - 6
+                } elif cstr.starts_with(arg, c"-read:") {
+                    val read_len: i64 = cstr.len(arg) as i64 - 6
                     if read_len <= 0 {
                         stdio.puts("error: -read requires a markdown file")
                         allocators.Arena.free(arena)
                         return 1
                     }
-                    read_arg = str.substr_raw(arg, 6, read_len)
-                } elif str.starts_with_raw(arg, c"-") {
+                    read_arg = cstr.substr(arg, 6, read_len)
+                } elif cstr.starts_with(arg, c"-") {
                     stdio.print("error: unknown doc option '{s}'\n", {arg})
                     allocators.Arena.free(arena)
                     return 1
@@ -483,7 +484,7 @@ pub fn main() i32 = trust {
         return code
     }
 
-    if str.cmp_raw(input, c"add") == 0 {
+    if cstr.cmp(input, c"add") == 0 {
         val url_opt = @get(args, 2)
         if url_opt is some v {
             val code: i32 = commands.cmd_add(v as ref u8)
@@ -496,7 +497,7 @@ pub fn main() i32 = trust {
         }
     }
 
-    if str.cmp_raw(input, c"remove") == 0 {
+    if cstr.cmp(input, c"remove") == 0 {
         val dep_opt = @get(args, 2)
         if dep_opt is some v {
             val code: i32 = commands.cmd_remove(v as ref u8)
@@ -509,7 +510,7 @@ pub fn main() i32 = trust {
         }
     }
 
-    if str.cmp_raw(input, c"upgrade") == 0 {
+    if cstr.cmp(input, c"upgrade") == 0 {
         val dep_name: mut ref u8 = c""
         val upgrade_opt = @get(args, 2)
         if upgrade_opt is some v {
@@ -520,19 +521,19 @@ pub fn main() i32 = trust {
         return code
     }
 
-    if str.cmp_raw(input, c"restore") == 0 {
+    if cstr.cmp(input, c"restore") == 0 {
         val code: i32 = commands.cmd_restore()
         allocators.Arena.free(arena)
         return code
     }
 
-    if str.cmp_raw(input, c"graph") == 0 {
+    if cstr.cmp(input, c"graph") == 0 {
         val code: i32 = commands.cmd_graph()
         allocators.Arena.free(arena)
         return code
     }
 
-    if str.cmp_raw(input, c"clean") == 0 {
+    if cstr.cmp(input, c"clean") == 0 {
         val code: i32 = commands.cmd_clean()
         allocators.Arena.free(arena)
         return code
@@ -549,7 +550,7 @@ pub fn main() i32 = trust {
         }
     }
 
-    if fs.is_directory_raw(input) {
+    if fs.is_directory_cstr(input) {
         stdio.print("error: '{s}' is a directory, not a source file\n", {input})
         stdio.puts(
             "-> run 'spectre build <config>' in a project with sx.mod, or compile a file with 'spectre <file.sx> -o <output>'"
@@ -558,7 +559,7 @@ pub fn main() i32 = trust {
         return 1
     }
 
-    val src_size_opt = fs.file_size_raw(input)
+    val src_size_opt = fs.file_size_cstr(input)
     if src_size_opt is some _ {
     } else {
         stdio.print("error: could not read '{s}'\n", {input})
@@ -609,7 +610,7 @@ pub fn main() i32 = trust {
         }
         val scan_opt = @get(args, scan_i)
         if scan_opt is some scan_arg {
-            if str.cmp_raw(scan_arg as ref u8, c"-no-single-flags") == 0 {
+            if cstr.cmp(scan_arg as ref u8, c"-no-single-flags") == 0 {
                 no_single_flags = true
                 break
             }
@@ -619,8 +620,8 @@ pub fn main() i32 = trust {
 
     if !flag_first_translate_c {
         val mod_version: ref u8 = commands.load_version_for(input)
-        if str.len_raw(mod_version) > 0 {
-            defines.set("SPECTRE_MOD_VERSION", str.cstr_raw(mod_version))
+        if cstr.len(mod_version) > 0 {
+            defines.set("SPECTRE_MOD_VERSION", str.from_cstr(mod_version))
         }
     }
 
@@ -630,7 +631,7 @@ pub fn main() i32 = trust {
         val single_flags_result = commands.load_single_flags_for(input)
         match single_flags_result {
             ok single_flags => {
-                if str.len_raw(single_flags) > 0 {
+                if cstr.len(single_flags) > 0 {
                     val extra_flags: list[ref u8] = commands.split_single_flags(single_flags)
                     val merged: mut list[ref u8] = mem.new[ref u8]()
                     val mi: mut i64 = 0
@@ -663,7 +664,7 @@ pub fn main() i32 = trust {
                 }
             }
             err e => {
-                if str.len_raw(e) > 0 {
+                if cstr.len(e) > 0 {
                     stdio.print("error: {s}\n", {e})
                 }
                 allocators.Arena.free(arena)
@@ -684,7 +685,7 @@ pub fn main() i32 = trust {
         if arg_opt is some arg_val {
             val arg: ref u8 = arg_val as ref u8
 
-            if str.cmp_raw(arg, c"-o") == 0 || str.cmp_raw(arg, c"-output") == 0 {
+            if cstr.cmp(arg, c"-o") == 0 || cstr.cmp(arg, c"-output") == 0 {
                 val next_i: i64 = arg_i + 1
                 if (next_i < parse_argc) {
                     val next_opt = @get(parse_args, next_i)
@@ -701,13 +702,13 @@ pub fn main() i32 = trust {
                     allocators.Arena.free(arena)
                     return 1
                 }
-            } elif str.cmp_raw(arg, c"-d") == 0 {
+            } elif cstr.cmp(arg, c"-d") == 0 {
                 val next_i: i64 = arg_i + 1
                 if next_i < parse_argc {
                     val next_opt = @get(parse_args, next_i)
                     if next_opt is some dv {
                         val def_spec: ref u8 = dv as ref u8
-                        if !defines.add_spec(str.cstr_raw(def_spec)) {
+                        if !defines.add_spec(str.from_cstr(def_spec)) {
                             stdio.print(
                                 "error: invalid define '{s}', expected NAME=VALUE\n",
                                 {def_spec}
@@ -726,98 +727,98 @@ pub fn main() i32 = trust {
                     allocators.Arena.free(arena)
                     return 1
                 }
-            } elif str.starts_with_raw(arg, c"-d:") {
-                val def_spec: ref u8 = str.substr_raw(arg, 3, str.len_raw(arg) - 3)
-                if !defines.add_spec(str.cstr_raw(def_spec)) {
+            } elif cstr.starts_with(arg, c"-d:") {
+                val def_spec: ref u8 = cstr.substr(arg, 3, cstr.len(arg) - 3)
+                if !defines.add_spec(str.from_cstr(def_spec)) {
                     stdio.print("error: invalid define '{s}', expected -d:NAME=VALUE\n", {arg})
                     allocators.Arena.free(arena)
                     return 1
                 }
                 arg_i++
-            } elif str.cmp_raw(arg, c"-translate-c") == 0 {
+            } elif cstr.cmp(arg, c"-translate-c") == 0 {
                 translate_c_flag = true
                 arg_i++
-            } elif str.cmp_raw(arg, c"-emit-ssa") == 0 {
+            } elif cstr.cmp(arg, c"-emit-ssa") == 0 {
                 emit_qbe = true
                 arg_i++
-            } elif str.cmp_raw(arg, c"-emit-ll") == 0 {
+            } elif cstr.cmp(arg, c"-emit-ll") == 0 {
                 emit_ll = true
                 arg_i++
-            } elif str.cmp_raw(arg, c"-emit-asm") == 0 {
+            } elif cstr.cmp(arg, c"-emit-asm") == 0 {
                 emit_asm = true
                 arg_i++
-            } elif str.cmp_raw(arg, c"-emit-alt") == 0 {
+            } elif cstr.cmp(arg, c"-emit-alt") == 0 {
                 emit_alt = true
                 arg_i++
-            } elif str.cmp_raw(arg, c"-show-cmd") == 0 {
+            } elif cstr.cmp(arg, c"-show-cmd") == 0 {
                 show_cmd = true
                 arg_i++
-            } elif str.cmp_raw(arg, c"-test") == 0 {
+            } elif cstr.cmp(arg, c"-test") == 0 {
                 test_mode = true
                 arg_i++
-            } elif str.cmp_raw(arg, c"-leak-check") == 0 {
+            } elif cstr.cmp(arg, c"-leak-check") == 0 {
                 leak_check = true
                 arg_i++
-            } elif str.cmp_raw(arg, c"-loud") == 0 || str.cmp_raw(arg, c"-l") == 0 {
+            } elif cstr.cmp(arg, c"-loud") == 0 || cstr.cmp(arg, c"-l") == 0 {
                 quiet = false
                 arg_i++
-            } elif str.cmp_raw(arg, c"-release") == 0 {
+            } elif cstr.cmp(arg, c"-release") == 0 {
                 release_mode = true
                 arg_i++
-            } elif str.cmp_raw(arg, c"-native") == 0 {
+            } elif cstr.cmp(arg, c"-native") == 0 {
                 native_mode = true
                 arg_i++
-            } elif str.cmp_raw(arg, c"-unroll") == 0 {
+            } elif cstr.cmp(arg, c"-unroll") == 0 {
                 unroll_mode = true
                 arg_i++
-            } elif str.cmp_raw(arg, c"-no-simd") == 0 {
+            } elif cstr.cmp(arg, c"-no-simd") == 0 {
                 simd_disabled = true
                 arg_i++
-            } elif str.cmp_raw(arg, c"-dynamic") == 0 {
+            } elif cstr.cmp(arg, c"-dynamic") == 0 {
                 dynamic_linking = true
                 arg_i++
-            } elif str.cmp_raw(arg, c"-no-single-flags") == 0 {
+            } elif cstr.cmp(arg, c"-no-single-flags") == 0 {
                 arg_i++
-            } elif str.cmp_raw(arg, c"-dll") == 0 {
+            } elif cstr.cmp(arg, c"-dll") == 0 {
                 build_dll = true
                 arg_i++
-            } elif str.cmp_raw(arg, c"-c") == 0 || str.cmp_raw(arg, c"-compile") == 0 {
+            } elif cstr.cmp(arg, c"-c") == 0 || cstr.cmp(arg, c"-compile") == 0 {
                 compile_obj = true
                 arg_i++
-            } elif str.cmp_raw(arg, c"-syntax-check") == 0 {
+            } elif cstr.cmp(arg, c"-syntax-check") == 0 {
                 syntax_check = true
                 arg_i++
-            } elif str.cmp_raw(arg, c"-ast") == 0 {
+            } elif cstr.cmp(arg, c"-ast") == 0 {
                 print_ast = true
                 arg_i++
-            } elif str.cmp_raw(arg, c"-b") == 0 || str.cmp_raw(arg, c"-bootstrap") == 0 {
+            } elif cstr.cmp(arg, c"-b") == 0 || cstr.cmp(arg, c"-bootstrap") == 0 {
                 bootstrap_mode = true
                 arg_i++
-            } elif str.cmp_raw(arg, c"-alt") == 0 || str.cmp_raw(arg, c"-a") == 0 {
+            } elif cstr.cmp(arg, c"-alt") == 0 || cstr.cmp(arg, c"-a") == 0 {
                 use_alt = true
                 arg_i++
-            } elif str.starts_with_raw(arg, c"-alt:") {
+            } elif cstr.starts_with(arg, c"-alt:") {
                 use_alt = true
                 val compiler_str = builds.parse_alt_compiler_arg(arg)
-                if str.cmp_raw(compiler_str, c"") != 0 {
+                if cstr.cmp(compiler_str, c"") != 0 {
                     alt_compiler = compiler_str
                 }
                 arg_i++
-            } elif str.starts_with_raw(arg, c"-src-target:") {
-                val tgt_len: i64 = str.len_raw(arg) as i64 - 12
+            } elif cstr.starts_with(arg, c"-src-target:") {
+                val tgt_len: i64 = cstr.len(arg) as i64 - 12
                 if tgt_len > 0 {
-                    src_target = str.substr_raw(arg, 12, tgt_len)
+                    src_target = cstr.substr(arg, 12, tgt_len)
                 }
                 arg_i++
-            } elif str.starts_with_raw(arg, c"-emit-shim:") {
-                val shim_len: i64 = str.len_raw(arg) as i64 - 11
+            } elif cstr.starts_with(arg, c"-emit-shim:") {
+                val shim_len: i64 = cstr.len(arg) as i64 - 11
                 if shim_len > 0 {
-                    shim_output = str.substr_raw(arg, 11, shim_len)
+                    shim_output = cstr.substr(arg, 11, shim_len)
                 }
                 arg_i++
-            } elif str.starts_with_raw(arg, c"-inc-path:") {
-                val path_str: ref u8 = str.substr_raw(arg, 10, str.len_raw(arg) - 10)
-                if str.cmp_raw(path_str, c"") == 0 {
+            } elif cstr.starts_with(arg, c"-inc-path:") {
+                val path_str: ref u8 = cstr.substr(arg, 10, cstr.len(arg) - 10)
+                if cstr.cmp(path_str, c"") == 0 {
                     stdio.puts("error: -inc-path requires a value")
                     allocators.Arena.free(arena)
                     return 1
@@ -834,7 +835,7 @@ pub fn main() i32 = trust {
         }
     }
 
-    if str.cmp_raw(src_target, c"") != 0 && !emit_alt && !emit_qbe {
+    if cstr.cmp(src_target, c"") != 0 && !emit_alt && !emit_qbe {
         stdio.puts("error: -src-target requires -emit-alt or -emit-ssa")
         allocators.Arena.free(arena)
         return 1
@@ -847,8 +848,8 @@ pub fn main() i32 = trust {
     }
 
     if translate_c_flag {
-        if str.cmp_raw(output_name, c"") == 0 {
-            output_name = @fmtalloc("./src-out/{s}.sx", {path.get_name_without_ext_raw(arena, input)})
+        if cstr.cmp(output_name, c"") == 0 {
+            output_name = @fmtalloc("./src-out/{s}.sx", {path.get_name_without_ext_cstr(arena, input)})
         }
         val code: i32 = c_translate.translate_c(input, output_name)
         allocators.Arena.free(arena)
@@ -857,8 +858,8 @@ pub fn main() i32 = trust {
 
     val exe_path2: ref u8 = reflection.get_exe_path[allocators.Arena](arena)
     val exe_dir: mut ref u8 = c"."
-    if str.cmp_raw(exe_path2, c".") != 0 {
-        exe_dir = path.dir_raw(exe_path2)
+    if cstr.cmp(exe_path2, c".") != 0 {
+        exe_dir = path.dir_cstr(exe_path2)
     }
 
     if !use_alt && !emit_alt && !emit_qbe && !emit_ll && !emit_asm &&
@@ -945,7 +946,7 @@ pub fn main() i32 = trust {
         val platform_alt: ref u8 = reflection.current_platform_name[allocators.Arena](arena)
         val arch_alt: ref u8 = reflection.current_arch_name[allocators.Arena](arena)
         val target_platform: mut ref u8 = platform_alt
-        if str.cmp_raw(src_target, c"") != 0 {
+        if cstr.cmp(src_target, c"") != 0 {
             target_platform = src_target
         }
 
@@ -962,11 +963,11 @@ pub fn main() i32 = trust {
             root_mod.items,
             arena
         )
-        if str.cmp_raw(
+        if cstr.cmp(
             static_flag_alt,
             c""
         ) != 0 && !builds.compiler_supports_static_linking(selected_compiler) {
-            if str.cmp_raw(alt_compiler, c"") == 0 {
+            if cstr.cmp(alt_compiler, c"") == 0 {
                 if builds.is_compiler_available(c"clang") {
                     selected_compiler = c"clang"
                 } elif builds.is_compiler_available(c"cc") {
@@ -988,7 +989,7 @@ pub fn main() i32 = trust {
         }
         if !compile_obj && !build_dll {
             strip_flag_alt = builds.compiler_strip_flag(compiler_kind, release_mode)
-            if str.cmp_raw(platform_alt, c"windows") == 0 {
+            if cstr.cmp(platform_alt, c"windows") == 0 {
                 strip_flag_alt = c""
             }
         }
@@ -1026,15 +1027,15 @@ pub fn main() i32 = trust {
         }
 
         if emit_alt != false {
-            stdio.puts(str.cstr_raw(c_ir))
+            stdio.puts(str.from_cstr(c_ir))
             @free(c_ir)
             allocators.Arena.free(arena)
             return 0
         }
 
         val binary_name_alt: mut ref u8 = c""
-        if str.cmp_raw(output_name, c"") == 0 {
-            binary_name_alt = path.get_name_without_ext_raw(arena, input)
+        if cstr.cmp(output_name, c"") == 0 {
+            binary_name_alt = path.get_name_without_ext_cstr(arena, input)
         } else {
             binary_name_alt = output_name
         }
@@ -1042,7 +1043,7 @@ pub fn main() i32 = trust {
         val c_file = builds.get_unique_tmp_path(c"spectre_output.c")
         val c_f = os.open(c_file, c"w")
         if c_f is some f {
-            os.write(f, c_ir, str.len_raw(c_ir) as i64)
+            os.write(f, c_ir, cstr.len(c_ir) as i64)
             os.close(f)
             @free(c_ir)
         } else {
@@ -1051,19 +1052,19 @@ pub fn main() i32 = trust {
             return 1
         }
 
-        val output_specified_alt: bool = str.cmp_raw(output_name, c"") != 0
+        val output_specified_alt: bool = cstr.cmp(output_name, c"") != 0
         val final_output_alt: mut ref u8 = c""
         if output_specified_alt != 0 {
             final_output_alt = binary_name_alt
         } else {
-            fs.mkdir_path_raw(c"./s-out")
+            fs.mkdir_path_cstr(c"./s-out")
             final_output_alt = @fmtalloc("./s-out/{s}", {binary_name_alt})
         }
 
         val links_alt_result = module.collect_used_links(
             root_mod,
             exe_dir,
-            str.cmp_raw(static_flag_alt, c"") != 0
+            cstr.cmp(static_flag_alt, c"") != 0
         )
         val links_alt: mut list[ref u8] = mem.new[ref u8]()
         match links_alt_result {
@@ -1088,10 +1089,10 @@ pub fn main() i32 = trust {
             )
         }
         val link_flags_alt: mut ref u8 = c""
-        if str.cmp_raw(static_flag_alt, c"") != 0 {
+        if cstr.cmp(static_flag_alt, c"") != 0 {
             link_flags_alt = @fmtalloc(" {s}", {static_flag_alt})
         }
-        if str.cmp_raw(strip_flag_alt, c"") != 0 {
+        if cstr.cmp(strip_flag_alt, c"") != 0 {
             link_flags_alt = @fmtalloc("{s} {s}", {link_flags_alt, strip_flag_alt})
         }
         for link_flag in links_alt {
@@ -1099,7 +1100,7 @@ pub fn main() i32 = trust {
                 compiler_kind,
                 link_flag
             )
-            if str.len_raw(translated_link) > 0 {
+            if cstr.len(translated_link) > 0 {
                 link_flags_alt = @fmtalloc("{s} {s}", {link_flags_alt, translated_link})
             }
         }
@@ -1116,21 +1117,21 @@ pub fn main() i32 = trust {
 
         val warn_flag: ref u8 = builds.compiler_warn_flag(selected_compiler)
         val perf_flags: mut ref u8 = c""
-        if str.cmp_raw(selected_compiler, c"tcc") != 0 {
+        if cstr.cmp(selected_compiler, c"tcc") != 0 {
             val native_flags: ref u8 = builds.compiler_native_flags(
                 compiler_kind,
                 platform_alt,
                 arch_alt,
                 native_mode
             )
-            if str.len_raw(native_flags) > 0 {
+            if cstr.len(native_flags) > 0 {
                 perf_flags = @fmtalloc("{s} {s}", {perf_flags, native_flags})
             }
             val unroll_flags: ref u8 = builds.compiler_unroll_flag(
                 compiler_kind,
                 unroll_mode
             )
-            if str.len_raw(unroll_flags) > 0 {
+            if cstr.len(unroll_flags) > 0 {
                 perf_flags = @fmtalloc("{s} {s}", {perf_flags, unroll_flags})
             }
         }
@@ -1145,7 +1146,7 @@ pub fn main() i32 = trust {
                     perf_flags
                 }
             )
-            if str.cmp_raw(compiler_kind, c"clang-cl") == 0 {
+            if cstr.cmp(compiler_kind, c"clang-cl") == 0 {
                 cc_flags_alt = @fmtalloc(
                     "{s} -Wno-error=int-conversion",
                     {cc_flags_alt}
@@ -1169,7 +1170,7 @@ pub fn main() i32 = trust {
         }
 
         val alt_cmd: mut ref u8 = c""
-        if str.cmp_raw(selected_compiler, c"tcc") == 0 {
+        if cstr.cmp(selected_compiler, c"tcc") == 0 {
             if test_mode {
                 alt_cmd = @fmtalloc(
                     "tcc {s} -o {s} -w -std=c99{s} {s} 2>&1",
@@ -1207,7 +1208,7 @@ pub fn main() i32 = trust {
                 )
             }
         } else {
-            if str.cmp_raw(cc_flags_alt, c"") == 0 {
+            if cstr.cmp(cc_flags_alt, c"") == 0 {
                 alt_cmd = @fmtalloc(
                     "{s}{s} -o {s} {s}{s} 2>&1",
                     {selected_compiler, include_flags_alt, compile_output, c_file, link_flags_alt}
@@ -1237,9 +1238,9 @@ pub fn main() i32 = trust {
         val alt_res = os.exec(alt_cmd)
         match alt_res {
             ok v => {
-                val vstr: ref u8 = ostr.cstr(v)
-                val error_prefix = ostr.from_raw[allocators.Arena](arena, c"error:")
-                val msvc_error = ostr.from_raw[allocators.Arena](arena, c"error")
+                val vstr: ref u8 = ostr.as_cstr(v)
+                val error_prefix = ostr.from_cstr[allocators.Arena](arena, c"error:")
+                val msvc_error = ostr.from_cstr[allocators.Arena](arena, c"error")
                 val has_error: bool = ostr.contains(v, error_prefix)
                 || (builds.compiler_uses_msvc_flags(compiler_kind)
                     && ostr.contains(v, msvc_error))
@@ -1253,7 +1254,7 @@ pub fn main() i32 = trust {
                     allocators.Arena.free(arena)
                     return 1
                 } else {
-                    if str.len_raw(vstr) > 0 {
+                    if cstr.len(vstr) > 0 {
                         val display: mut ref u8 = vstr
                         if !bootstrap_mode {
                             display = builds.filter_c_diagnostics(vstr)
@@ -1322,10 +1323,10 @@ pub fn main() i32 = trust {
     }
 
     if emit_qbe != 0 {
-        if str.len_raw(shim_output) > 0 && str.len_raw(c_shim_source) > 0 {
+        if cstr.len(shim_output) > 0 && cstr.len(c_shim_source) > 0 {
             val shim_f = os.open(shim_output, c"w")
             if shim_f is some f {
-                os.write(f, c_shim_source, str.len_raw(c_shim_source) as i64)
+                os.write(f, c_shim_source, cstr.len(c_shim_source) as i64)
                 os.close(f)
             } else {
                 stdio.print("error: could not write C shim to '{s}'\n", {shim_output})
@@ -1334,7 +1335,7 @@ pub fn main() i32 = trust {
                 return 1
             }
         }
-        stdio.puts(str.cstr_raw(qbe_ir))
+        stdio.puts(str.from_cstr(qbe_ir))
         @free(qbe_ir)
         allocators.Arena.free(arena)
         return 0
@@ -1342,8 +1343,8 @@ pub fn main() i32 = trust {
 
     val binary_name: mut ref u8 = c""
 
-    if str.cmp_raw(output_name, c"") == 0 {
-        binary_name = path.get_name_without_ext_raw(arena, input)
+    if cstr.cmp(output_name, c"") == 0 {
+        binary_name = path.get_name_without_ext_cstr(arena, input)
     } else {
         binary_name = output_name
     }
@@ -1353,7 +1354,7 @@ pub fn main() i32 = trust {
     val qbe_f = os.open(qbe_file, c"w")
 
     if qbe_f is some f {
-        os.write(f, qbe_ir, str.len_raw(qbe_ir) as i64)
+        os.write(f, qbe_ir, cstr.len(qbe_ir) as i64)
         os.close(f)
         @free(qbe_ir)
     } else {
@@ -1369,11 +1370,11 @@ pub fn main() i32 = trust {
     }
     match qbe_res {
         ok v => {
-            val vstr: ref u8 = ostr.cstr(v)
-            if str.len_raw(vstr) > 0 {
+            val vstr: ref u8 = ostr.as_cstr(v)
+            if cstr.len(vstr) > 0 {
                 stdio.print("{s}", {vstr})
             }
-            if str.starts_with_raw(vstr, c"qbe:") {
+            if cstr.starts_with(vstr, c"qbe:") {
                 stdio.puts("error: qbe stage failed")
                 os.delete(qbe_file)
                 allocators.Arena.free(arena)
@@ -1389,7 +1390,7 @@ pub fn main() i32 = trust {
     }
 
     if emit_asm != 0 {
-        val asm_size_opt = fs.file_size_raw(asm_file)
+        val asm_size_opt = fs.file_size_cstr(asm_file)
         val asm_arena_cap: mut i64 = 4096
         if asm_size_opt is some sz {
             if ((sz as i64) > asm_arena_cap) {
@@ -1403,9 +1404,9 @@ pub fn main() i32 = trust {
             return 1
         }
         val asm_arena: allocators.Arena = allocators.Arena.new((asm_arena_cap + 8) as usize)?
-        val asm_opt = fs.read_all_raw[allocators.Arena](asm_arena, asm_file)
+        val asm_opt = fs.read_all_cstr[allocators.Arena](asm_arena, asm_file)
         if asm_opt is some asm_content {
-            stdio.puts(str.cstr_raw(asm_content as ref u8))
+            stdio.puts(str.from_cstr(asm_content as ref u8))
         } else {
             stdio.puts("error: could not read assembly output")
         }
@@ -1427,7 +1428,7 @@ pub fn main() i32 = trust {
     val links_result = module.collect_used_links(
         root_mod,
         exe_dir,
-        str.cmp_raw(static_link, c"") != 0
+        cstr.cmp(static_link, c"") != 0
     )
     val links: mut list[ref u8] = mem.new[ref u8]()
     match links_result {
@@ -1446,7 +1447,7 @@ pub fn main() i32 = trust {
         builds.append_debug_runtime_links(links, exe_dir, quiet, release_mode, c"cc", arena)
     }
 
-    val output_specified: bool = str.cmp_raw(output_name, c"") != 0
+    val output_specified: bool = cstr.cmp(output_name, c"") != 0
     val cc_cmd: mut ref u8 = c""
     val success_msg: mut ref u8 = c""
     val exit_code: mut i32 = 0
@@ -1456,11 +1457,11 @@ pub fn main() i32 = trust {
     val shim_c_file: mut ref u8 = c""
     val shim_obj: mut ref u8 = c""
 
-    if str.len_raw(c_shim_source) > 0 {
+    if cstr.len(c_shim_source) > 0 {
         shim_c_file = builds.get_unique_tmp_path(c"spectre_c_shim.c")
         val shim_f = os.open(shim_c_file, c"w")
         if shim_f is some f {
-            os.write(f, c_shim_source, str.len_raw(c_shim_source) as i64)
+            os.write(f, c_shim_source, cstr.len(c_shim_source) as i64)
             os.close(f)
         } else {
             stdio.puts("error: could not write C shim")
@@ -1486,11 +1487,11 @@ pub fn main() i32 = trust {
         val shim_res = os.exec(shim_cmd)
         match shim_res {
             ok v => {
-                val vstr: ref u8 = ostr.cstr(v)
-                if str.len_raw(vstr) > 0 {
+                val vstr: ref u8 = ostr.as_cstr(v)
+                if cstr.len(vstr) > 0 {
                     stdio.print("{s}", {vstr})
                 }
-                val shim_error_text = ostr.from_raw[allocators.Arena](arena, c"error:")
+                val shim_error_text = ostr.from_cstr[allocators.Arena](arena, c"error:")
                 if ostr.contains(v, shim_error_text) {
                     stdio.puts("error: C shim compilation failed")
                     os.delete(qbe_file)
@@ -1511,10 +1512,10 @@ pub fn main() i32 = trust {
         }
     }
 
-    if str.cmp_raw(static_link, c"") != 0 {
+    if cstr.cmp(static_link, c"") != 0 {
         link_flags = @fmtalloc(" {s}", {static_link})
     }
-    if str.cmp_raw(strip_link, c"") != 0 {
+    if cstr.cmp(strip_link, c"") != 0 {
         link_flags = @fmtalloc("{s} {s}", {link_flags, strip_link})
     }
     for link_flag in links {
@@ -1524,7 +1525,7 @@ pub fn main() i32 = trust {
         link_flags = c""
     }
 
-    if str.len_raw(shim_obj) > 0 && !compile_obj {
+    if cstr.len(shim_obj) > 0 && !compile_obj {
         link_flags = @fmtalloc("{s} {s}", {link_flags, shim_obj})
     }
 
@@ -1536,16 +1537,16 @@ pub fn main() i32 = trust {
 
     if compile_obj {
         cc_flags = @fmtalloc("{s} -c", {cc_flags})
-        if str.cmp_raw(platform, c"windows") == 0 {
+        if cstr.cmp(platform, c"windows") == 0 {
             output_ext = c".obj"
         } else {
             output_ext = c".o"
         }
     } elif build_dll {
-        if str.cmp_raw(platform, c"macos") == 0 {
+        if cstr.cmp(platform, c"macos") == 0 {
             cc_flags = @fmtalloc("{s} -dynamiclib", {cc_flags})
             output_ext = c".dylib"
-        } elif str.cmp_raw(platform, c"windows") == 0 {
+        } elif cstr.cmp(platform, c"windows") == 0 {
             cc_flags = @fmtalloc("{s} -shared", {cc_flags})
             output_ext = c".dll"
         } else {
@@ -1577,10 +1578,10 @@ pub fn main() i32 = trust {
         }
         os.delete(qbe_file)
         os.delete(asm_file)
-        if str.len_raw(shim_c_file) > 0 {
+        if cstr.len(shim_c_file) > 0 {
             os.delete(shim_c_file)
         }
-        if str.len_raw(shim_obj) > 0 {
+        if cstr.len(shim_obj) > 0 {
             os.delete(shim_obj)
         }
         allocators.Arena.free(arena)
@@ -1589,11 +1590,11 @@ pub fn main() i32 = trust {
 
     if output_specified != 0 {
         val final_output: mut ref u8 = binary_name
-        if str.cmp_raw(output_ext, c"") != 0 {
+        if cstr.cmp(output_ext, c"") != 0 {
             final_output = @fmtalloc("{s}{s}", {binary_name, output_ext})
         }
         run_output = final_output
-        if str.cmp_raw(cc_flags, c"") == 0 {
+        if cstr.cmp(cc_flags, c"") == 0 {
             cc_cmd = @fmtalloc("cc -o {s} {s}{s}", {final_output, asm_file, link_flags})
         } else {
             cc_cmd = @fmtalloc(
@@ -1603,13 +1604,13 @@ pub fn main() i32 = trust {
         }
         success_msg = @fmtalloc("Compiled: {s}\n", {final_output})
     } else {
-        fs.mkdir_path_raw(c"./s-out")
+        fs.mkdir_path_cstr(c"./s-out")
         val final_output: mut ref u8 = @fmtalloc("./s-out/{s}", {binary_name})
-        if str.cmp_raw(output_ext, c"") != 0 {
+        if cstr.cmp(output_ext, c"") != 0 {
             final_output = @fmtalloc("./s-out/{s}{s}", {binary_name, output_ext})
         }
         run_output = final_output
-        if str.cmp_raw(cc_flags, c"") == 0 {
+        if cstr.cmp(cc_flags, c"") == 0 {
             cc_cmd = @fmtalloc("cc -o {s} {s}{s}", {final_output, asm_file, link_flags})
         } else {
             cc_cmd = @fmtalloc(
@@ -1627,10 +1628,10 @@ pub fn main() i32 = trust {
     val cc_res = os.exec(@fmtalloc("{s} {s}", {cc_cmd, c" 2>&1"}))
     match cc_res {
         ok v => {
-            val error_text = ostr.from_raw[allocators.Arena](arena, c"error")
+            val error_text = ostr.from_cstr[allocators.Arena](arena, c"error")
             val has_error: bool = ostr.contains(v, error_text)
             if has_error {
-                stdio.print("{s}\n", {ostr.cstr(v)})
+                stdio.print("{s}\n", {ostr.as_cstr(v)})
                 stdio.puts("linking failed.")
                 exit_code = 1
             } else {
@@ -1649,10 +1650,10 @@ pub fn main() i32 = trust {
 
     os.delete(qbe_file)
     os.delete(asm_file)
-    if str.len_raw(shim_c_file) > 0 {
+    if cstr.len(shim_c_file) > 0 {
         os.delete(shim_c_file)
     }
-    if str.len_raw(shim_obj) > 0 {
+    if cstr.len(shim_obj) > 0 {
         os.delete(shim_obj)
     }
     allocators.Arena.free(arena)

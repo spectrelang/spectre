@@ -1,5 +1,5 @@
 val stdio      = use("std/stdio")
-val str     = use("std/string")
+val cstr = use("std/string/cstr")
 val ostr = use("std/string/owned")
 val fmt        = use("std/fmt")
 val allocators = use("std/allocators")
@@ -12,7 +12,7 @@ pub fn main() void = trust {
         c"{s} {d} {d} {d}",
         {c"many", 11, 22, 33}
     )
-    assert str.cmp_raw(ostr.cstr(formatted), c"many 11 22 33") == 0
+    assert cstr.cmp(ostr.as_cstr(formatted), c"many 11 22 33") == 0
 
     allocators.Arena.free(arena)
     stdio.puts("generic argspack pack values ok")

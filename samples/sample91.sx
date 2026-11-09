@@ -1,4 +1,4 @@
-val str        = use("std/string")
+val cstr = use("std/string/cstr")
 val allocators = use("std/allocators")
 
 type Vec2 = {
@@ -15,7 +15,7 @@ pub fn sum[T](items: list[T]) T = {
             acc = acc + x
         }
         when T is ref u8 {
-            acc = trust str.concat_raw(acc, x)
+            acc = trust cstr.concat(acc, x)
         }
         when T is Vec2 {
             acc.x = acc.x + x.x

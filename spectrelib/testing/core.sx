@@ -95,11 +95,11 @@ pub fn (LeakDiagnostics) pprint_str(ld: self) str.String = {
             ld.peak_live_bytes,
             ld.invalid_frees
         })
-    trust builder.StringBuilder.append_raw(sb, summary)
+    trust builder.StringBuilder.append_cstr(sb, summary)
     trust @free(summary as ref void)
 
     if ld.record_count > (0 as i64) && ld.records != none {
-        trust builder.StringBuilder.append_raw(sb, c"\nleaked allocations\n        size  location\n")
+        trust builder.StringBuilder.append_cstr(sb, c"\nleaked allocations\n        size  location\n")
         val index: mut i64 = 0 as i64
         for index < ld.record_count {
             val record = leak_record_at(ld.records, index)
@@ -109,7 +109,7 @@ pub fn (LeakDiagnostics) pprint_str(ld: self) str.String = {
                     record.file,
                     record.line
                 })
-            trust builder.StringBuilder.append_raw(sb, row)
+            trust builder.StringBuilder.append_cstr(sb, row)
             trust @free(row as ref void)
             index += 1
         }

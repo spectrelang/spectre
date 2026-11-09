@@ -2,6 +2,7 @@
 /// (C) Navid Momtahen - 2026
 
 val str        = use("std/string")
+val cstr = use("std/string/cstr")
 val ostr = use("std/string/owned")
 val fs         = use("std/fs")
 val os         = use("std/os")
@@ -22,13 +23,13 @@ fn marker_end() ref u8 = {
 }
 
 fn detect_shell(explicit: ref u8) ref u8 = trust {
-    if str.len_raw(explicit) > 0 {
-        return path.normalize_shell_raw(explicit)
+    if cstr.len(explicit) > 0 {
+        return path.normalize_shell_cstr(explicit)
     }
 
     val override = os.env(c"SPECTRE_SHELL")
     if override is some v {
-        return path.normalize_shell_raw(v as ref u8)
+        return path.normalize_shell_cstr(v as ref u8)
     }
 
     when windows {
@@ -37,7 +38,7 @@ fn detect_shell(explicit: ref u8) ref u8 = trust {
 
     val login_shell = os.env(c"SHELL")
     if login_shell is some v {
-        return path.normalize_shell_raw(v as ref u8)
+        return path.normalize_shell_cstr(v as ref u8)
     }
     return c"sh"
 }
@@ -47,7 +48,7 @@ fn tool_available(name: ref u8) bool = trust {
         return true
     }
     when windows {
-        if !str.ends_with_raw(name, c".exe") {
+        if !cstr.ends_with(name, c".exe") {
             return os.in_path(@fmtalloc("{s}.exe", {name}))
         }
     }
@@ -55,7 +56,7 @@ fn tool_available(name: ref u8) bool = trust {
 }
 
 fn home_dir() ref u8 = trust {
-    val h = fs.home_dir_raw()
+    val h = fs.home_dir_cstr()
     match h {
         none => {
             return c""
@@ -72,10 +73,10 @@ fn config_home() ref u8 = trust {
         return v as ref u8
     }
     val home: ref u8 = home_dir()
-    if str.len_raw(home) == 0 {
+    if cstr.len(home) == 0 {
         return c".config"
     }
-    return path.join_raw(home, c".config")
+    return path.join_cstr(home, c".config")
 }
 
 /// The directory where installed Spectre programs live.
@@ -88,29 +89,29 @@ pub fn default_bin_dir() ref u8 = trust {
     when windows {
         val local = os.env(c"LOCALAPPDATA")
         if local is some v {
-            return path.join_raw(v as ref u8, c"Spectre/bin")
+            return path.join_cstr(v as ref u8, c"Spectre/bin")
         }
         val home: ref u8 = home_dir()
-        if str.len_raw(home) == 0 {
+        if cstr.len(home) == 0 {
             return c"Spectre/bin"
         }
-        return path.join_raw(home, c"AppData/Local/Spectre/bin")
+        return path.join_cstr(home, c"AppData/Local/Spectre/bin")
     }
 
     val data = os.env(c"XDG_DATA_HOME")
     if data is some v {
-        return path.join_raw(v as ref u8, c"spectre/bin")
+        return path.join_cstr(v as ref u8, c"spectre/bin")
     }
     val home: ref u8 = home_dir()
-    if str.len_raw(home) == 0 {
+    if cstr.len(home) == 0 {
         return c".local/share/spectre/bin"
     }
-    return path.join_raw(home, c".local/share/spectre/bin")
+    return path.join_cstr(home, c".local/share/spectre/bin")
 }
 
 /// Check whether a path is absolute on the current platform.
 fn is_absolute(p: ref u8) bool = trust {
-    val len: i64 = str.len_raw(p)
+    val len: i64 = cstr.len(p)
     if len == 0 {
         return false
     }
@@ -136,11 +137,11 @@ fn join_project(root: ref u8, value: ref u8) ref u8 = trust {
     if is_absolute(value) {
         return value
     }
-    return path.join_raw(root, value)
+    return path.join_cstr(root, value)
 }
 
 fn strip_extension(name: ref u8) ref u8 = trust {
-    val len: i64 = str.len_raw(name)
+    val len: i64 = cstr.len(name)
     val dot: mut i64 = -1
     val i: mut i64 = 0
     for {
@@ -154,14 +155,14 @@ fn strip_extension(name: ref u8) ref u8 = trust {
         i++
     }
     if dot > 0 {
-        return str.substr_raw(name, 0, dot)
+        return cstr.substr(name, 0, dot)
     }
     return name
 }
 
 fn installed_name(repo: ref u8) ref u8 = trust {
     when windows {
-        if str.ends_with_raw(repo, c".exe") {
+        if cstr.ends_with(repo, c".exe") {
             return repo
         }
         return @fmtalloc("{s}.exe", {repo})
@@ -184,7 +185,7 @@ fn find_artifact(candidate: ref u8) ref u8 = trust {
 
 fn find_build_config(m: ref commands.SxMod, name: ref u8) ref commands.SxBuildConfig = trust {
     for cfg in m.builds {
-        if str.cmp_raw(cfg.name, name) == 0 {
+        if cstr.cmp(cfg.name, name) == 0 {
             return cfg
         }
     }
@@ -202,7 +203,7 @@ fn choose_build_config(
     m: ref commands.SxMod,
     requested: ref u8
 ) ref commands.SxBuildConfig = trust {
-    if str.len_raw(requested) > 0 {
+    if cstr.len(requested) > 0 {
         val found: ref commands.SxBuildConfig = find_build_config(m, requested)
         if found == none {
             stdio.print("error: build config '{s}' not found in sx.mod\n", {requested})
@@ -260,15 +261,15 @@ fn build_in_dir(
 }
 
 fn quote_for_shell(shell: ref u8, value: ref u8) ref u8 = trust {
-    if str.cmp_raw(shell, c"fish") == 0
-    || str.cmp_raw(shell, c"nushell") == 0
-    || str.cmp_raw(shell, c"nu") == 0
-    || str.cmp_raw(shell, c"elvish") == 0
-    || str.cmp_raw(shell, c"powershell") == 0
-    || str.cmp_raw(shell, c"pwsh") == 0
-    || str.cmp_raw(shell, c"xonsh") == 0
-    || str.cmp_raw(shell, c"tcsh") == 0
-    || str.cmp_raw(shell, c"csh") == 0 {
+    if cstr.cmp(shell, c"fish") == 0
+    || cstr.cmp(shell, c"nushell") == 0
+    || cstr.cmp(shell, c"nu") == 0
+    || cstr.cmp(shell, c"elvish") == 0
+    || cstr.cmp(shell, c"powershell") == 0
+    || cstr.cmp(shell, c"pwsh") == 0
+    || cstr.cmp(shell, c"xonsh") == 0
+    || cstr.cmp(shell, c"tcsh") == 0
+    || cstr.cmp(shell, c"csh") == 0 {
         return @fmtalloc("\"{s}\"", {value})
     }
     return commands.shell_quote(value)
@@ -277,28 +278,28 @@ fn quote_for_shell(shell: ref u8, value: ref u8) ref u8 = trust {
 fn snippet_for(shell: ref u8, bin_dir: ref u8) ref u8 = trust {
     val q: ref u8 = quote_for_shell(shell, bin_dir)
 
-    if str.cmp_raw(shell, c"fish") == 0 {
+    if cstr.cmp(shell, c"fish") == 0 {
         return @fmtalloc(
             "if not contains {s} $PATH\n    set -gx PATH {s} $PATH\nend",
             {q, q}
         )
     }
-    if str.cmp_raw(shell, c"nushell") == 0 || str.cmp_raw(shell, c"nu") == 0 {
+    if cstr.cmp(shell, c"nushell") == 0 || cstr.cmp(shell, c"nu") == 0 {
         return @fmtalloc("$env.PATH = ($env.PATH | prepend {s})", {q})
     }
-    if str.cmp_raw(shell, c"elvish") == 0 {
+    if cstr.cmp(shell, c"elvish") == 0 {
         return @fmtalloc("set paths = [{s} $@paths]", {q})
     }
-    if str.cmp_raw(shell, c"powershell") == 0 || str.cmp_raw(shell, c"pwsh") == 0 {
+    if cstr.cmp(shell, c"powershell") == 0 || cstr.cmp(shell, c"pwsh") == 0 {
         return @fmtalloc(
             "$env:Path = {s} + [IO.Path]::PathSeparator + $env:Path",
             {q}
         )
     }
-    if str.cmp_raw(shell, c"xonsh") == 0 {
+    if cstr.cmp(shell, c"xonsh") == 0 {
         return @fmtalloc("$PATH.insert(0, {s})", {q})
     }
-    if str.cmp_raw(shell, c"tcsh") == 0 || str.cmp_raw(shell, c"csh") == 0 {
+    if cstr.cmp(shell, c"tcsh") == 0 || cstr.cmp(shell, c"csh") == 0 {
         return @fmtalloc("set path = ( {s} $path )", {q})
     }
 
@@ -316,37 +317,37 @@ fn rc_files_for(shell: ref u8) list[ref u8] = trust {
     val home: ref u8 = home_dir()
     val cfg: ref u8 = config_home()
 
-    if str.cmp_raw(shell, c"bash") == 0 {
-        @append(out, path.join_raw(home, c".bashrc"))
-        add_if_exists(out, path.join_raw(home, c".bash_profile"))
-        add_if_exists(out, path.join_raw(home, c".bash_login"))
-        @append(out, path.join_raw(home, c".profile"))
-    } elif str.cmp_raw(shell, c"zsh") == 0 {
-        @append(out, path.join_raw(home, c".zshrc"))
-        add_if_exists(out, path.join_raw(home, c".zprofile"))
-    } elif str.cmp_raw(shell, c"fish") == 0 {
-        @append(out, path.join_raw(cfg, c"fish/config.fish"))
-    } elif str.cmp_raw(shell, c"nushell") == 0 || str.cmp_raw(shell, c"nu") == 0 {
-        @append(out, path.join_raw(cfg, c"nushell/config.nu"))
-    } elif str.cmp_raw(shell, c"elvish") == 0 {
-        @append(out, path.join_raw(cfg, c"elvish/rc.elv"))
-    } elif str.cmp_raw(shell, c"powershell") == 0 || str.cmp_raw(shell, c"pwsh") == 0 {
-        @append(out, path.join_raw(cfg, c"powershell/profile.ps1"))
-    } elif str.cmp_raw(shell, c"xonsh") == 0 {
-        @append(out, path.join_raw(cfg, c"xonsh/rc.xsh"))
-    } elif str.cmp_raw(shell, c"tcsh") == 0 || str.cmp_raw(shell, c"csh") == 0 {
-        add_if_exists(out, path.join_raw(home, c".tcshrc"))
-        add_if_exists(out, path.join_raw(home, c".cshrc"))
+    if cstr.cmp(shell, c"bash") == 0 {
+        @append(out, path.join_cstr(home, c".bashrc"))
+        add_if_exists(out, path.join_cstr(home, c".bash_profile"))
+        add_if_exists(out, path.join_cstr(home, c".bash_login"))
+        @append(out, path.join_cstr(home, c".profile"))
+    } elif cstr.cmp(shell, c"zsh") == 0 {
+        @append(out, path.join_cstr(home, c".zshrc"))
+        add_if_exists(out, path.join_cstr(home, c".zprofile"))
+    } elif cstr.cmp(shell, c"fish") == 0 {
+        @append(out, path.join_cstr(cfg, c"fish/config.fish"))
+    } elif cstr.cmp(shell, c"nushell") == 0 || cstr.cmp(shell, c"nu") == 0 {
+        @append(out, path.join_cstr(cfg, c"nushell/config.nu"))
+    } elif cstr.cmp(shell, c"elvish") == 0 {
+        @append(out, path.join_cstr(cfg, c"elvish/rc.elv"))
+    } elif cstr.cmp(shell, c"powershell") == 0 || cstr.cmp(shell, c"pwsh") == 0 {
+        @append(out, path.join_cstr(cfg, c"powershell/profile.ps1"))
+    } elif cstr.cmp(shell, c"xonsh") == 0 {
+        @append(out, path.join_cstr(cfg, c"xonsh/rc.xsh"))
+    } elif cstr.cmp(shell, c"tcsh") == 0 || cstr.cmp(shell, c"csh") == 0 {
+        add_if_exists(out, path.join_cstr(home, c".tcshrc"))
+        add_if_exists(out, path.join_cstr(home, c".cshrc"))
         if (@len(out) as i64) == 0 {
-            @append(out, path.join_raw(home, c".tcshrc"))
+            @append(out, path.join_cstr(home, c".tcshrc"))
         }
-    } elif str.cmp_raw(shell, c"ksh") == 0 {
-        @append(out, path.join_raw(home, c".profile"))
-        add_if_exists(out, path.join_raw(home, c".kshrc"))
-    } elif str.cmp_raw(shell, c"cmd") == 0 {
+    } elif cstr.cmp(shell, c"ksh") == 0 {
+        @append(out, path.join_cstr(home, c".profile"))
+        add_if_exists(out, path.join_cstr(home, c".kshrc"))
+    } elif cstr.cmp(shell, c"cmd") == 0 {
         return out
     } else {
-        @append(out, path.join_raw(home, c".profile"))
+        @append(out, path.join_cstr(home, c".profile"))
     }
 
     return out
@@ -357,7 +358,7 @@ fn rc_files_for(shell: ref u8) list[ref u8] = trust {
 /// -1 when the file could not be updated.
 fn append_managed_block(file: ref u8, shell: ref u8, bin_dir: ref u8) i32 = trust {
     if os.exists(file) {
-        val content_opt = fs.read_all_heap_raw(file)
+        val content_opt = fs.read_all_heap_cstr(file)
         val already: mut bool = false
         match content_opt {
             none => {
@@ -365,7 +366,7 @@ fn append_managed_block(file: ref u8, shell: ref u8, bin_dir: ref u8) i32 = trus
             }
             some content => {
                 val text: ref u8 = content as ref u8
-                already = str.contains_raw(text, marker_start())
+                already = cstr.contains(text, marker_start())
                 @free(content)
             }
         }
@@ -374,8 +375,8 @@ fn append_managed_block(file: ref u8, shell: ref u8, bin_dir: ref u8) i32 = trus
         }
     }
 
-    val parent: ref u8 = path.dir_raw(file)
-    if !path.ensure_dir_raw(parent) {
+    val parent: ref u8 = path.dir_cstr(file)
+    if !path.ensure_dir_cstr(parent) {
         return -1
     }
 
@@ -383,14 +384,14 @@ fn append_managed_block(file: ref u8, shell: ref u8, bin_dir: ref u8) i32 = trus
         "\n{s}\n{s}\n{s}\n",
         {marker_start(), snippet_for(shell, bin_dir), marker_end()}
     )
-    if !fs.append_all_raw(file, block) {
+    if !fs.append_all_cstr(file, block) {
         return -1
     }
     return 1
 }
 
 pub fn ps_escape(value: ref u8) ref u8 = trust {
-    val len: i64 = str.len_raw(value)
+    val len: i64 = cstr.len(value)
     val buf: ref u8 = @alloc(len * 2 + 1) as ref u8
     val j: mut i64 = 0
     val i: mut i64 = 0
@@ -413,7 +414,7 @@ pub fn ps_escape(value: ref u8) ref u8 = trust {
 
 //!suppress "unused-function"
 fn windows_add_user_path(_bin_dir: ref u8) bool = trust {
-    if str.len_raw(_bin_dir) == 0 {
+    if cstr.len(_bin_dir) == 0 {
         return false
     }
     when windows {
@@ -423,7 +424,7 @@ fn windows_add_user_path(_bin_dir: ref u8) bool = trust {
         val check_res = os.exec(check_cmd)
         match check_res {
             ok value => {
-                if str.contains_raw(ostr.cstr(value), bin_dir) {
+                if cstr.contains(ostr.as_cstr(value), bin_dir) {
                     return true
                 }
             }
@@ -515,11 +516,11 @@ fn integrate_path(bin_dir: ref u8, shell: ref u8) bool = trust {
         return windows_add_user_path(bin_dir)
     }
 
-    if path.path_contains_dir_raw(bin_dir) {
+    if path.path_contains_dir_cstr(bin_dir) {
         return true
     }
 
-    if str.cmp_raw(shell, c"all") == 0 {
+    if cstr.cmp(shell, c"all") == 0 {
         val shells: list[ref u8] = all_shells()
         val all_ok: mut bool = true
         for item in shells {
@@ -537,8 +538,8 @@ fn install_artifact(artifact: ref u8, destination: ref u8) bool = trust {
     if !os.exists(artifact) {
         return false
     }
-    if str.cmp_raw(artifact, destination) != 0 {
-        if !path.ensure_dir_raw(path.dir_raw(destination)) {
+    if cstr.cmp(artifact, destination) != 0 {
+        if !path.ensure_dir_cstr(path.dir_cstr(destination)) {
             return false
         }
         if !os.copy_file(artifact, destination) {
@@ -559,8 +560,8 @@ fn install_artifact(artifact: ref u8, destination: ref u8) bool = trust {
 }
 
 fn cleanup(dir: ref u8) void = trust {
-    if str.len_raw(dir) > 0 && os.exists(dir) {
-        fs.remove_dir_all_raw(dir)
+    if cstr.len(dir) > 0 && os.exists(dir) {
+        fs.remove_dir_all_cstr(dir)
     }
 }
 
@@ -570,7 +571,7 @@ pub fn cmd_install(
     shell_arg: ref u8,
     bin_dir_arg: ref u8
 ) i32 = trust {
-    if str.len_raw(url) == 0 {
+    if cstr.len(url) == 0 {
         stdio.puts("error: install requires a git repository URL")
         stdio.puts("usage: spectre install <git-url> [-config <name>] [-shell <shell>]")
         return 1
@@ -582,19 +583,19 @@ pub fn cmd_install(
     }
 
     val repo: ref u8 = commands.repo_name_from_url(url)
-    if str.len_raw(repo) == 0
-    || str.cmp_raw(repo, c".") == 0
-    || str.cmp_raw(repo, c"..") == 0 {
+    if cstr.len(repo) == 0
+    || cstr.cmp(repo, c".") == 0
+    || cstr.cmp(repo, c"..") == 0 {
         stdio.print("error: could not determine a command name from '{s}'\n", {url})
         return 1
     }
 
-    val clone_dir: ref u8 = path.join_raw(
-        fs.temp_dir_raw(),
+    val clone_dir: ref u8 = path.join_cstr(
+        fs.temp_dir_cstr(),
         @fmtalloc("spectre-install-{s}", {random.random_uuid()})
     )
 
-    if !path.ensure_dir_raw(clone_dir) {
+    if !path.ensure_dir_cstr(clone_dir) {
         stdio.print("error: could not create temporary directory {s}\n", {clone_dir})
         return 1
     }
@@ -645,17 +646,17 @@ pub fn cmd_install(
     commands.resolve_build_rule(cfg, rule)
 
     val entry: mut ref u8 = rule.entry
-    if str.len_raw(entry) == 0 {
+    if cstr.len(entry) == 0 {
         entry = m.entry
     }
 
-    if str.len_raw(rule.action) == 0 && str.len_raw(entry) == 0 {
+    if cstr.len(rule.action) == 0 && cstr.len(entry) == 0 {
         stdio.print("error: build config '{s}' does not define an entry file\n", {cfg.name})
         cleanup(clone_dir)
         return 1
     }
 
-    if str.len_raw(rule.action) > 0 && str.len_raw(rule.output) == 0 {
+    if cstr.len(rule.action) > 0 && cstr.len(rule.output) == 0 {
         stdio.print(
             "error: build config '{s}' uses an action but does not declare an output\n",
             {cfg.name}
@@ -668,7 +669,7 @@ pub fn cmd_install(
     val arena: allocators.Arena = allocators.Arena.new(4096 as usize)?
     val exe_path_raw: ref u8 = reflection.get_exe_path[allocators.Arena](arena)
     val exe_path: mut ref u8 = exe_path_raw
-    if str.len_raw(exe_path) == 0 || str.cmp_raw(exe_path, c".") == 0 {
+    if cstr.len(exe_path) == 0 || cstr.cmp(exe_path, c".") == 0 {
         exe_path = c"spectre"
     }
 
@@ -682,11 +683,11 @@ pub fn cmd_install(
     }
 
     val artifact: mut ref u8 = c""
-    if str.len_raw(rule.output) > 0 {
+    if cstr.len(rule.output) > 0 {
         artifact = find_artifact(join_project(clone_dir, rule.output))
     } else {
-        val entry_name: ref u8 = strip_extension(path.base_name_raw(entry))
-        artifact = find_artifact(path.join_raw(clone_dir, @fmtalloc("s-out/{s}", {entry_name})))
+        val entry_name: ref u8 = strip_extension(path.base_name_cstr(entry))
+        artifact = find_artifact(path.join_cstr(clone_dir, @fmtalloc("s-out/{s}", {entry_name})))
     }
 
     if !os.exists(artifact) {
@@ -696,11 +697,11 @@ pub fn cmd_install(
     }
 
     val bin_dir: mut ref u8 = bin_dir_arg
-    if str.len_raw(bin_dir) == 0 {
+    if cstr.len(bin_dir) == 0 {
         bin_dir = default_bin_dir()
     }
 
-    val destination: ref u8 = path.join_raw(bin_dir, installed_name(repo))
+    val destination: ref u8 = path.join_cstr(bin_dir, installed_name(repo))
     if !install_artifact(artifact, destination) {
         stdio.print("error: could not install {s} to {s}\n", {artifact, destination})
         cleanup(clone_dir)

@@ -344,7 +344,7 @@ fn code_length_order(index: i64) i64 = {
     return 0
 }
 
-fn byte_at_raw(data: ref u8, len: i64, index: i64) i64 = trust {
+fn byte_at_cstr(data: ref u8, len: i64, index: i64) i64 = trust {
     if index < 0 || index >= len {
         return -1
     }
@@ -726,8 +726,8 @@ pub fn inflate_zlib[A: allocators.GeneralAllocator](
     if input_len < 6 || expected_size < 0 {
         return err DeflateError.InvalidHeader
     }
-    val cmf: i64 = byte_at_raw(input, input_len, 0)
-    val flg: i64 = byte_at_raw(input, input_len, 1)
+    val cmf: i64 = byte_at_cstr(input, input_len, 0)
+    val flg: i64 = byte_at_cstr(input, input_len, 1)
     if (cmf & 15) != 8 {
         return err DeflateError.InvalidHeader
     }

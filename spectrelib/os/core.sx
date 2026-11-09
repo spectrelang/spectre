@@ -55,7 +55,7 @@ when windows {
     extern (C, header) fn GetFileAttributesA(path: ref u8) u32 = "GetFileAttributesA"
 }
 
-val str = use("std/string")
+val cstr = use("std/string/cstr")
 val ostr = use("std/string/owned")
 val builder = use("std/string/builder")
 
@@ -269,7 +269,7 @@ pub fn copy_dir_recursive(src_dir: ref u8, dst_dir: ref u8) bool = trust {
         val its_ok: mut bool = true
         for {
             val name: ref u8 = @addr(data.cFileName) as ref u8
-            if !(str.cmp_raw(name, c".") == 0 || str.cmp_raw(name, c"..") == 0) {
+            if !(cstr.cmp(name, c".") == 0 || cstr.cmp(name, c"..") == 0) {
                 val src_child: ref u8 = @fmtalloc("{s}{s}{s}", {src_dir, sep, name})
                 val dst_child: ref u8 = @fmtalloc("{s}{s}{s}", {dst_dir, sep, name})
                 val attrs: u32 = GetFileAttributesA(src_child)
@@ -317,15 +317,15 @@ pub fn copy_dir_recursive(src_dir: ref u8, dst_dir: ref u8) bool = trust {
                 continue
             }
 
-            if str.cmp_raw(src_dir, c"") == 0 {
+            if cstr.cmp(src_dir, c"") == 0 {
                 break
             }
 
-            if str.cmp_raw(dst_dir, c"") == 0 {
+            if cstr.cmp(dst_dir, c"") == 0 {
                 break
             }
 
-            if str.cmp_raw(name, c"") == 0 {
+            if cstr.cmp(name, c"") == 0 {
                 break
             }
 
@@ -505,7 +505,7 @@ test "file, exec and recursive copy operations" {
     val res = trust exec(c"echo hello")
     match res {
         ok s => {
-            trust stdio.print("{s}", {ostr.cstr(s)})
+            trust stdio.print("{s}", {ostr.as_cstr(s)})
         }
         err _ => {
             assert false

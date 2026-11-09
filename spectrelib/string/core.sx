@@ -1,9 +1,10 @@
-/// StringView and raw C-string operations.
+/// StringView and zero-terminated string helpers.
 ///
-/// Owned String operations live in `std/string/owned`; the StringBuilder
-/// lives in `std/string/builder`.
+/// Owned String operations live in `std/string/owned`, the StringBuilder
+/// in `std/string/builder`, and pointer-only operations in `std/string/cstr`.
 
 val allocators = use("../allocators")
+val cstr       = use("std/string/cstr")
 
 extern (C, header) fn strlen(s: ref u8) i64 = "strlen"
 
@@ -60,25 +61,8 @@ fn alloc_string_in[T: allocators.Allocator](ac: T, len: i64) String = trust {
     return s as String
 }
 
-fn alloc_substr_in[T: allocators.Allocator](
-    ac: T,
-    src: ref u8,
-    start: i64,
-    len: i64
-) ref u8 = trust {
-    val buf: ref void = alloc_in[T](ac, len + 1)
-    if buf == none {
-        return none
-    }
-    @memset(buf, 0, len + 1)
-    if len > 0 {
-        @memcpy(buf, @ptradd(src, start), len)
-    }
-    return buf as ref u8
-}
-
 /// Extract `ref u8` from supported types.
-pub fn as_raw[T](x: T) ref u8 = trust {
+pub fn as_cstr[T](x: T) ref u8 = trust {
     when T is ref u8 {
         return x
     }
@@ -106,7 +90,7 @@ pub fn view(ptr: ref u8, len: i64) StringView = {
 }
 
 /// Build a view over an existing null-terminated C str.
-fn cstr_raw_impl(s: ref u8) StringView = trust {
+fn from_cstr_impl(s: ref u8) StringView = trust {
     if s == none {
         return view(none, 0)
     }
@@ -114,8 +98,8 @@ fn cstr_raw_impl(s: ref u8) StringView = trust {
 }
 
 /// Build a view over an existing null-terminated C str.
-pub fn cstr_raw(s: ref u8) StringView = {
-    return trust cstr_raw_impl(s)
+pub fn from_cstr(s: ref u8) StringView = {
+    return trust from_cstr_impl(s)
 }
 
 /// Extract a borrowed view from a String, StringView, or raw C str.
@@ -129,7 +113,7 @@ pub fn as_view[T](x: T) StringView = trust {
         return view(p, l)
     }
     when T is ref u8 {
-        return cstr_raw_impl(x)
+        return from_cstr_impl(x)
     }
     when T !in (StringView, String, ref u8) {
         @staticerror("unsupported type for string view")
@@ -181,7 +165,7 @@ pub fn eql(a: StringView, b: StringView) bool = trust {
 
 /// Compare a view with a null-terminated string literal.
 pub fn eql_cstr(v: StringView, s: ref u8) bool = trust {
-    return eql(v, cstr_raw(s))
+    return eql(v, from_cstr(s))
 }
 
 /// Return a sub-view clamped to the bounds of `v`.
@@ -313,39 +297,19 @@ pub fn trim(v: StringView) StringView = trust {
     return trim_left(trim_right(v))
 }
 
-/// A borrowed, NUL-terminated C str.
-///
-/// The pointer must refer to valid NUL-terminated storage that outlives the
-/// `CStr`. This type is intended for C/FFI call sites only.
-pub type CStr = {
-    ptr: ref u8
-}
-
 /// An owned, NUL-terminated C str.
 ///
-/// Construct with `cstring_from`; release with `cstring_free` using the
+/// Construct with `zstr_from`; release with `zstr_free` using the
 /// same allocator.
-pub type CString = {
+pub type ZString = {
     ptr: ref u8
 }
 
-pub fn cstr_from_raw(ptr: ref u8) CStr = {
-    return CStr{ptr: ptr}
-}
-
-pub fn cstr_ptr(s: CStr) ref u8 = {
-    return s.ptr
-}
-
-pub fn cstr_view(s: CStr) StringView = {
-    return cstr_raw(s.ptr)
-}
-
-/// Allocate a NUL-terminated copy_raw of a view with an explicit allocator.
-pub fn cstring_from[T: allocators.GeneralAllocator](
+/// Allocate a NUL-terminated copy of a view with an explicit allocator.
+pub fn zstr_from[T: allocators.GeneralAllocator](
     ac: T,
     v: StringView
-) CString = trust {
+) ZString = trust {
     val out_opt = T.alloc(ac, (v.len + 1) as usize)
     match out_opt {
         some out => {
@@ -354,30 +318,30 @@ pub fn cstring_from[T: allocators.GeneralAllocator](
                 @memcpy(buf as ref void, v.ptr as ref void, v.len as usize)
             }
             @store8(@ptradd(buf, v.len), 0)
-            return CString{ptr: buf}
+            return ZString{ptr: buf}
         }
         none => {
-            return CString{ptr: none}
+            return ZString{ptr: none}
         }
     }
 }
 
-pub fn cstring_from_raw[T: allocators.GeneralAllocator](
+pub fn zstr_from_cstr[T: allocators.GeneralAllocator](
     ac: T,
     s: ref u8
-) CString = trust {
-    return cstring_from[T](ac, cstr_raw(s))
+) ZString = trust {
+    return zstr_from[T](ac, from_cstr(s))
 }
 
-pub fn cstring_ptr(s: CString) ref u8 = {
+pub fn zstr_ptr(s: ZString) ref u8 = {
     return s.ptr
 }
 
-pub fn cstring(s: CString) StringView = {
-    return cstr_raw(s.ptr)
+pub fn zstr(s: ZString) StringView = {
+    return from_cstr(s.ptr)
 }
 
-pub fn cstring_free[T: allocators.GeneralAllocator](ac: T, s: CString) void = trust {
+pub fn zstr_free[T: allocators.GeneralAllocator](ac: T, s: ZString) void = trust {
     if s.ptr != none {
         T.free(ac, s.ptr as ref void)
     }
@@ -396,277 +360,14 @@ pub fn to_string[T: allocators.Allocator](ac: T, v: StringView) String = trust {
     return out
 }
 
-/// Compare two raw strings.
-pub fn cmp_raw(a: ref u8, b: ref u8) i64 = {
-    if a == none && b == none {
-        return 0
-    } elif a == none || b == none {
-        return -1
-    }
-    return trust strcmp(a, b)
-}
-
-/// Compare two null-terminated C strings for equality.
-///
-/// Null is tolerated: two null pointers compare equal, while a null pointer
-/// never equals a non-null str.
-pub fn eql_raw(a: ref u8, b: ref u8) bool = {
-    guard (a != none && b != none) else {
-        return a == b
-    }
-    if a == b {
-        return true
-    }
-    return trust strcmp(a, b) == 0
-}
-
 /// Compare supported string-like values using their lengths.
 pub fn compare[A, B](a: A, b: B) i64 = trust {
     return cmp(as_view[A](a), as_view[B](b))
 }
 
-/// Length of a raw u8 pointer
-pub fn len_raw(s: ref u8) i64 = {
-    pre {
-        s != none
-    }
-    return trust strlen(s)
-}
-
-/// Returns true if s starts with prefix
-pub fn starts_with_raw(s: ref u8, prefix: ref u8) bool = {
-    if (prefix == none) {
-        return true
-    }
-    if (s == none) {
-        return false
-    }
-
-    val ps: ref u8 = prefix
-    val ss: ref u8 = s
-    val i: mut i64 = 0
-
-    for {
-        val pc: u8 = trust @load8(@ptradd(ps, i)) as u8
-        if (pc == 0) {
-            break
-        }
-        val sc: u8 = trust @load8(@ptradd(ss, i)) as u8
-
-        if (sc == 0) {
-            return false
-        }
-
-        if (pc != sc) {
-            return false
-        }
-
-        i++
-    }
-
-    return true
-}
-
-pub fn ends_with_raw(s: ref u8, suffix: ref u8) bool = {
-    if (suffix == none) {
-        return true
-    }
-    if (s == none) {
-        return false
-    }
-
-    val suffix_len: mut i64 = 0
-    val s_len: mut i64 = 0
-    val ps: ref u8 = suffix
-    val ss: ref u8 = s
-
-    for {
-        val c: u8 = trust @load8(@ptradd(ps, suffix_len)) as u8
-        if (c == 0) {
-            break
-        }
-        suffix_len++
-    }
-
-    for {
-        val c: u8 = trust @load8(@ptradd(ss, s_len)) as u8
-        if (c == 0) {
-            break
-        }
-        s_len++
-    }
-
-    if (suffix_len > s_len) {
-        return false
-    }
-
-    val offset: i64 = s_len - suffix_len
-    val i: mut i64 = 0
-
-    for {
-        if (i >= suffix_len) {
-            break
-        }
-        val a: u8 = trust @load8(@ptradd(ss, offset + i)) as u8
-        val b: u8 = trust @load8(@ptradd(ps, i)) as u8
-        if (a != b) {
-            return false
-        }
-        i++
-    }
-
-    return true
-}
-
-/// Returns true when `needle` occurs anywhere in `haystack`.
-pub fn contains_raw(haystack: ref u8, needle: ref u8) bool = trust {
-    val hlen: i64 = len_raw(haystack)
-    val nlen: i64 = len_raw(needle)
-    if nlen == 0 {
-        return true
-    }
-    if nlen > hlen {
-        return false
-    }
-
-    val limit: i64 = hlen - nlen
-    val i: mut i64 = 0
-    for {
-        if i > limit {
-            break
-        }
-        val j: mut i64 = 0
-        val matched: mut bool = true
-        for {
-            if j >= nlen {
-                break
-            }
-            val a: u8 = @load8(@ptradd(haystack, i + j)) as u8
-            val b: u8 = @load8(@ptradd(needle, j)) as u8
-            if a != b {
-                matched = false
-                break
-            }
-            j++
-        }
-        if matched {
-            return true
-        }
-        i++
-    }
-    return false
-}
-
 /// Returns true when `c` is an ASCII letter (A-Z or a-z).
 pub fn is_alpha(c: u8) bool = {
     return (c >= 65 && c <= 90) || (c >= 97 && c <= 122)
-}
-
-/// Concat raw u8 pointers — returns a new heap-allocated ref u8
-pub fn concat_raw(a: ref u8, b: ref u8) ref u8 = trust {
-    val len_a: mut i64 = 0
-    if a != none {
-        len_a = strlen(a)
-    }
-    val len_b: mut i64 = 0
-    if b != none {
-        len_b = strlen(b)
-    }
-    val new_len: i64 = len_a + len_b
-    val buf: mut ref void = @alloc(new_len + 1)
-
-    if len_a > 0 {
-        @memcpy(buf, a, len_a)
-    }
-    if len_b > 0 {
-        @memcpy(@ptradd(buf, len_a), b, len_b)
-    }
-    @store8(@ptradd(buf, new_len), 0)
-
-    return buf as ref u8
-}
-
-/// Get byte at index i from raw u8 pointer, returns none if out of bounds
-pub fn byte_at_raw(s: ref u8, i: i64) option[u8] = {
-    guarded pre {
-        i_nonneg: i >= 0
-    }
-    if (s == none) {
-        return none
-    }
-    val l: i64 = trust strlen(s)
-    if (i >= l) {
-        return none
-    }
-    return some (trust @load8(@ptradd(s, i)) as u8)
-}
-
-/// If s starts with prefix, return a new ref u8 without it, otherwise clone.
-pub fn trim_prefix_raw[T: allocators.Allocator](ac: T, s: ref u8, prefix: ref u8) ref u8 = trust {
-    if (prefix == none) {
-        return alloc_substr_in[T](ac, s, 0, strlen(s))
-    }
-    if (s == none) {
-        return none
-    }
-
-    if (!starts_with_raw(s, prefix)) {
-        return alloc_substr_in[T](ac, s, 0, strlen(s))
-    }
-
-    val pl: i64 = strlen(prefix)
-    val sl: i64 = strlen(s)
-
-    return alloc_substr_in[T](ac, s, pl, sl - pl)
-}
-
-/// If s ends with suffix, return a new ref u8 without it, otherwise clone.
-pub fn trim_suffix_raw[T: allocators.Allocator](ac: T, s: ref u8, suffix: ref u8) ref u8 = trust {
-    if (suffix == none) {
-        return alloc_substr_in[T](ac, s, 0, strlen(s))
-    }
-    if (s == none) {
-        return none
-    }
-
-    val sl: i64 = strlen(s)
-    val sul: i64 = strlen(suffix)
-
-    if (sul > sl) {
-        return alloc_substr_in[T](ac, s, 0, sl)
-    }
-
-    val offset: i64 = sl - sul
-    val i: mut i64 = 0
-
-    for {
-        if (i >= sul) {
-            break
-        }
-        val a: u8 = @load8(@ptradd(s, offset + i)) as u8
-        val b: u8 = @load8(@ptradd(suffix, i)) as u8
-        if (a != b) {
-            return alloc_substr_in[T](ac, s, 0, sl)
-        }
-        i++
-    }
-
-    return alloc_substr_in[T](ac, s, 0, sl - sul)
-}
-
-/// Return a new ref u8 containing the substring of `src` starting at `start` with length `len`.
-pub fn substr_raw(src: ref u8, start: i64, len: i64) ref u8 = trust {
-    val buf: ref void = @alloc(len + 1)
-    @memcpy(buf, @ptradd(src, start), len)
-    @store8(@ptradd(buf, len), 0)
-    return buf as ref u8
-}
-
-/// Copy `len` bytes from `src` to `dst`, starting at offset `dst_off` in dst.
-/// The result is NOT null-terminated beyond what was already there.
-pub fn copy_raw(dst: ref u8, dst_off: i64, src: ref u8) void = trust {
-    val slen: i64 = strlen(src)
-    @memcpy(@ptradd(dst, dst_off), src, slen)
 }
 
 test "string views borrow without owning" {
@@ -711,10 +412,10 @@ test "string views borrow without owning" {
     assert trust eql(as_view[ref u8](c"literal"), "literal")
 
     val heap: allocators.HeapAllocator = @zeroed
-    val cstr_copy: CString = trust cstring_from[allocators.HeapAllocator](
+    val cstr_copy: ZString = trust zstr_from[allocators.HeapAllocator](
         heap,
         slice(base, 6, 11)
     )
-    assert eql_raw(cstring_ptr(cstr_copy), c"world")
-    trust cstring_free[allocators.HeapAllocator](heap, cstr_copy)
+    assert cstr.eql(zstr_ptr(cstr_copy), c"world")
+    trust zstr_free[allocators.HeapAllocator](heap, cstr_copy)
 }

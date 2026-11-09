@@ -1,6 +1,7 @@
 val allocators = use("std/allocators")
 val mem        = use("../meta/mem.sx")
 val str     = use("std/string")
+val cstr = use("std/string/cstr")
 
 val SUPPRESS_UNUSED: i64 = 1
 
@@ -476,7 +477,7 @@ fn skip_whitespace(l: mut ref Lexer) void = trust {
 }
 
 fn lx_match_text(l: ref Lexer, start: i64, end: i64, text: ref u8) bool = trust {
-    val n: i64 = str.len_raw(text)
+    val n: i64 = cstr.len(text)
     if start < 0 || start + n > end {
         return false
     }
@@ -502,7 +503,7 @@ fn comment_suppresses_unused(l: ref Lexer, start: i64, end: i64) bool = trust {
     if !lx_match_text(l, start, end, prefix) {
         return false
     }
-    val p: mut i64 = start + str.len_raw(prefix)
+    val p: mut i64 = start + cstr.len(prefix)
     if p >= end {
         return false
     }
@@ -532,7 +533,7 @@ fn comment_suppresses_unused(l: ref Lexer, start: i64, end: i64) bool = trust {
     if !lx_match_text(l, p, end, feature) {
         return false
     }
-    p = p + str.len_raw(feature)
+    p = p + cstr.len(feature)
     if p >= end {
         return false
     }
@@ -952,7 +953,7 @@ pub fn tokenize_view(src: str.StringView) result[list[ref Token], ref u8] = trus
 
 /// Convenience form that owns a private arena for the returned token list.
 pub fn tokenize(src: ref u8) result[list[ref Token], ref u8] = trust {
-    return tokenize_view(str.cstr_raw(src))
+    return tokenize_view(str.from_cstr(src))
 }
 
 /// Tokenize using a caller-owned arena. The arena must outlive the tokens.
@@ -968,7 +969,7 @@ pub fn tokenize_with(
     arena: allocators.ScopedArenaAllocator,
     src: ref u8
 ) result[list[ref Token], ref u8] = trust {
-    return tokenize_with_view(arena, str.cstr_raw(src))
+    return tokenize_with_view(arena, str.from_cstr(src))
 }
 
 pub fn tok_kind(tokens: list[ref Token], i: i64) TokenKind = {
@@ -1455,8 +1456,8 @@ test "lexer tokenizes keywords, literals, operators and comments" {
             assert kind_is_ident(tok_kind(toks, 0))
             assert kind_is_ident(tok_kind(toks, 1))
             assert kind_is_ident(tok_kind(toks, 2))
-            assert str.cmp_raw(tok_text_raw(toks, 0), c"foobar") == 0
-            assert str.cmp_raw(tok_text_raw(toks, 1), c"hello_world") == 0
+            assert cstr.cmp(tok_text_raw(toks, 0), c"foobar") == 0
+            assert cstr.cmp(tok_text_raw(toks, 1), c"hello_world") == 0
         }
     }
 
@@ -1470,8 +1471,8 @@ test "lexer tokenizes keywords, literals, operators and comments" {
             assert kind_is_int(tok_kind(toks, 0))
             assert kind_is_float(tok_kind(toks, 1))
             assert kind_is_int(tok_kind(toks, 2))
-            assert str.cmp_raw(tok_text_raw(toks, 0), c"42") == 0
-            assert str.cmp_raw(tok_text_raw(toks, 2), c"0xff") == 0
+            assert cstr.cmp(tok_text_raw(toks, 0), c"42") == 0
+            assert cstr.cmp(tok_text_raw(toks, 2), c"0xff") == 0
         }
     }
 
@@ -1483,7 +1484,7 @@ test "lexer tokenizes keywords, literals, operators and comments" {
         }
         ok toks => {
             assert kind_is_str(tok_kind(toks, 0))
-            assert str.cmp_raw(tok_text_raw(toks, 0), c"hello") == 0
+            assert cstr.cmp(tok_text_raw(toks, 0), c"hello") == 0
         }
     }
 
@@ -1510,7 +1511,7 @@ test "lexer tokenizes keywords, literals, operators and comments" {
         ok toks => {
             assert kind_is_str(tok_kind(toks, 0))
             val text: ref u8 = tok_text_raw(toks, 0)
-            assert str.len_raw(text) == 3
+            assert cstr.len(text) == 3
             assert trust @load8(@ptradd(text, 1)) as i64 == 13
         }
     }

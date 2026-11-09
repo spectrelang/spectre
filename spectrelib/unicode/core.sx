@@ -20,6 +20,7 @@
 /// helpers when a dynamic list is more convenient than iterating manually.
 
 val str     = use("std/string")
+val cstr = use("std/string/cstr")
 val ostr = use("std/string/owned")
 val allocators = use("../allocators")
 val tables     = use("tables.sx")
@@ -881,7 +882,7 @@ pub fn utf8_from_codepoints[A: allocators.Allocator](
         }
     }
 
-    val out: str.String = ostr.from_raw[A](ac, raw as ref u8)
+    val out: str.String = ostr.from_cstr[A](ac, raw as ref u8)
     @free(raw)
     if out == none {
         return err UnicodeError.OutOfMemory
@@ -1064,14 +1065,14 @@ pub fn utf16_to_codepoints[A: allocators.GeneralAllocator](
 
 /// Validate a `String` as UTF-8.
 pub fn utf8_validate_string(text: str.String) bool = {
-    return utf8_validate(trust ostr.cstr(text), ostr.len(text))
+    return utf8_validate(trust ostr.as_cstr(text), ostr.len(text))
 }
 
 /// Count code points in a `String`.
 ///
 /// Returns -1 when the string is not valid UTF-8.
 pub fn utf8_count_string(text: str.String) i64 = {
-    return utf8_count(trust ostr.cstr(text), ostr.len(text))
+    return utf8_count(trust ostr.as_cstr(text), ostr.len(text))
 }
 
 /// Decode a `String` into an allocator-owned list of code points.
@@ -1079,12 +1080,12 @@ pub fn utf8_to_codepoints_string[A: allocators.GeneralAllocator](
     ac: A,
     text: str.String
 ) result[list[u64], UnicodeError] = {
-    return utf8_to_codepoints[A](ac, trust ostr.cstr(text), ostr.len(text))
+    return utf8_to_codepoints[A](ac, trust ostr.as_cstr(text), ostr.len(text))
 }
 
 test "unicode utf8 decodes encodes and classifies" {
     val text: ref u8 = c"héllo 🌍"
-    val len: i64 = str.len_raw(text)
+    val len: i64 = cstr.len(text)
 
     assert utf8_validate(text, len)
     assert utf8_count(text, len) == 7
@@ -1220,7 +1221,7 @@ test "unicode builds strings from code points" {
 test "unicode converts code point lists and byte indexes" {
     val heap: allocators.HeapAllocator = @zeroed
     val text: ref u8 = c"aé🌍"
-    val len: i64 = str.len_raw(text)
+    val len: i64 = cstr.len(text)
 
     val index = utf8_byte_index(text, len, 2)
     match index {

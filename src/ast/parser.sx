@@ -2,6 +2,7 @@ val allocators = use("std/allocators")
 val mem        = use("../meta/mem.sx")
 val arenafmt   = use("../meta/arenafmt.sx")
 val str     = use("std/string")
+val cstr = use("std/string/cstr")
 val ostr = use("std/string/owned")
 val builder = use("std/string/builder")
 val fmt        = use("std/fmt")
@@ -171,7 +172,7 @@ pub fn node_store_string_slot(slot: ref i64, text: ref u8) void = trust {
     if node_string_arena == none {
         return
     }
-    val v: str.StringView = str.cstr_raw(text)
+    val v: str.StringView = str.from_cstr(text)
     val sv: mut ref str.StringView = allocators.ScopedArena.alloc_or_none(
         node_string_arena,
         @sizeof(str.StringView) as usize
@@ -1535,7 +1536,7 @@ fn kind_is_dotdotdot(k: lexer.TokenKind) bool = trust {
 /// Copy a heap string into the parser arena so AST-owned names live exactly
 /// as long as the AST. The temporary builder result can then be released.
 fn p_arena_str(p: ref Parser, s: ref u8) ref u8 = trust {
-    val n: i64 = str.len_raw(s)
+    val n: i64 = cstr.len(s)
     val out: ref u8 = allocators.ScopedArena.alloc_or_none(
         p.arena,
         (n + 1) as usize
@@ -1572,7 +1573,7 @@ pub fn parse_type(p: mut ref Parser) result[ref Node, ref u8] = trust {
             }
         } elif kind_is_ident(p_peek_kind(p)) {
             val sb: ref void = builder.StringBuilder.new()
-            builder.StringBuilder.append_raw(sb, p_advance_text(p))
+            builder.StringBuilder.append_cstr(sb, p_advance_text(p))
             for {
                 if !lexer.kind_is_dot(p_peek_kind(p)) {
                     break
@@ -1580,10 +1581,10 @@ pub fn parse_type(p: mut ref Parser) result[ref Node, ref u8] = trust {
                 p_advance(p)
                 val seg = p_expect_ident(p)?
                 builder.StringBuilder.append_char(sb, 46 as u8)
-                builder.StringBuilder.append_raw(sb, seg)
+                builder.StringBuilder.append_cstr(sb, seg)
             }
             val built: ref void = builder.StringBuilder.build(sb)
-            sz_name = p_arena_str(p, ostr.cstr(built))
+            sz_name = p_arena_str(p, ostr.as_cstr(built))
             builder.StringBuilder.free(sb)
             @free(@load(built))
             @free(built)
@@ -1640,13 +1641,13 @@ pub fn parse_type(p: mut ref Parser) result[ref Node, ref u8] = trust {
 
     if kind_is_ident(p_peek_kind(p)) {
         val name: ref u8 = p_advance_text(p)
-        if str.eql_raw(name, c"void") {
+        if cstr.eql(name, c"void") {
             return ok make_node(p.arena, TY_VOID, line)
         }
-        if str.eql_raw(name, c"argspack") {
+        if cstr.eql(name, c"argspack") {
             return ok make_node(p.arena, TY_ARGSPACK, line)
         }
-        if str.eql_raw(name, c"option") {
+        if cstr.eql(name, c"option") {
             p_expect_lbracket(p)?
             val inner5 = parse_type(p)?
             p_expect_rbracket(p)?
@@ -1654,7 +1655,7 @@ pub fn parse_type(p: mut ref Parser) result[ref Node, ref u8] = trust {
             node_store_slot[ref Node](@addr(no.d0), inner5)
             return ok no
         }
-        if str.eql_raw(name, c"result") {
+        if cstr.eql(name, c"result") {
             p_expect_lbracket(p)?
             val ok_ty = parse_type(p)?
             p_expect_comma(p)?
@@ -1665,7 +1666,7 @@ pub fn parse_type(p: mut ref Parser) result[ref Node, ref u8] = trust {
             node_store_slot[ref Node](@addr(nr.d1), err_ty)
             return ok nr
         }
-        if str.eql_raw(name, c"list") {
+        if cstr.eql(name, c"list") {
             p_expect_lbracket(p)?
             val inner6 = parse_type(p)?
             p_expect_rbracket(p)?
@@ -1674,7 +1675,7 @@ pub fn parse_type(p: mut ref Parser) result[ref Node, ref u8] = trust {
             return ok nl
         }
         val sb: ref void = builder.StringBuilder.new()
-        builder.StringBuilder.append_raw(sb, name)
+        builder.StringBuilder.append_cstr(sb, name)
         for {
             if !lexer.kind_is_dot(p_peek_kind(p)) {
                 break
@@ -1682,10 +1683,10 @@ pub fn parse_type(p: mut ref Parser) result[ref Node, ref u8] = trust {
             p_advance(p)
             val seg = p_expect_ident(p)?
             builder.StringBuilder.append_char(sb, 46 as u8)
-            builder.StringBuilder.append_raw(sb, seg)
+            builder.StringBuilder.append_cstr(sb, seg)
         }
         val full_str: ref void = builder.StringBuilder.build(sb)
-        val full: ref u8 = p_arena_str(p, ostr.cstr(full_str))
+        val full: ref u8 = p_arena_str(p, ostr.as_cstr(full_str))
         builder.StringBuilder.free(sb)
         @free(@load(full_str))
         @free(full_str)
@@ -1706,7 +1707,7 @@ fn substitute_self_type(ty: ref Node, self_name: ref u8) ref Node = trust {
         return ty
     }
     if ty.kind == TY_NAMED {
-        if str.eql_raw(node_str_raw(ty.d0), c"self") {
+        if cstr.eql(node_str_raw(ty.d0), c"self") {
             node_store_string_slot(@addr(ty.d0), self_name)
         }
         return ty
@@ -2066,7 +2067,7 @@ fn parse_postfix(p: mut ref Parser) result[ref Node, ref u8] = trust {
                     break
                 }
                 val ta: mut ref Node = none
-                if kind_is_ident(p_peek_kind(p)) && str.eql_raw(
+                if kind_is_ident(p_peek_kind(p)) && cstr.eql(
                     lexer.tok_text_raw(p.tokens, p.pos),
                     c"_"
                 ) {
@@ -2108,11 +2109,11 @@ fn expr_to_type_name(p: ref Parser, expr: ref Node) ref u8 = trust {
             return none
         }
         val sb: ref void = builder.StringBuilder.new()
-        builder.StringBuilder.append_raw(sb, base_name)
+        builder.StringBuilder.append_cstr(sb, base_name)
         builder.StringBuilder.append_char(sb, 46 as u8)
-        builder.StringBuilder.append_raw(sb, field)
+        builder.StringBuilder.append_cstr(sb, field)
         val built: ref void = builder.StringBuilder.build(sb)
-        val out: ref u8 = p_arena_str(p, ostr.cstr(built))
+        val out: ref u8 = p_arena_str(p, ostr.as_cstr(built))
         builder.StringBuilder.free(sb)
         @free(@load(built))
         @free(built)
@@ -2251,7 +2252,7 @@ fn parse_primary(p: mut ref Parser) result[ref Node, ref u8] = trust {
                     break
                 }
                 val bta: mut ref Node = none
-                if kind_is_ident(p_peek_kind(p)) && str.eql_raw(
+                if kind_is_ident(p_peek_kind(p)) && cstr.eql(
                     lexer.tok_text_raw(p.tokens, p.pos),
                     c"_"
                 ) {
@@ -2267,7 +2268,7 @@ fn parse_primary(p: mut ref Parser) result[ref Node, ref u8] = trust {
             }
             p_expect_rbracket(p)?
         }
-        if str.eql_raw(bname, c"zeroed") {
+        if cstr.eql(bname, c"zeroed") {
             if !lexer.kind_is_lparen(p_peek_kind(p)) {
                 val nz0: mut ref Node = make_node(p.arena, NK_ZERO_INIT, line)
                 node_store_string_slot(@addr(nz0.d0), bname)
@@ -2275,27 +2276,27 @@ fn parse_primary(p: mut ref Parser) result[ref Node, ref u8] = trust {
             }
         }
         p_expect_lparen(p)?
-        if str.eql_raw(bname, c"zeroed") {
+        if cstr.eql(bname, c"zeroed") {
             p_expect_rparen(p)?
             val nz1: mut ref Node = make_node(p.arena, NK_ZERO_INIT, line)
             node_store_string_slot(@addr(nz1.d0), bname)
             return ok nz1
         }
-        if str.eql_raw(bname, c"addr") {
+        if cstr.eql(bname, c"addr") {
             val inner2 = parse_expr(p)?
             p_expect_rparen(p)?
             val na2: mut ref Node = make_node(p.arena, NK_ADDR, line)
             node_store_slot[ref Node](@addr(na2.d0), inner2)
             return ok na2
         }
-        if str.eql_raw(bname, c"deref") {
+        if cstr.eql(bname, c"deref") {
             val inner3 = parse_expr(p)?
             p_expect_rparen(p)?
             val nd: mut ref Node = make_node(p.arena, NK_DEREF, line)
             node_store_slot[ref Node](@addr(nd.d0), inner3)
             return ok nd
         }
-        if str.eql_raw(bname, c"sizeof") {
+        if cstr.eql(bname, c"sizeof") {
             val ty = parse_type(p)?
             p_expect_rparen(p)?
             val nb: mut ref Node = make_node(p.arena, NK_BUILTIN, line)
@@ -2306,7 +2307,7 @@ fn parse_primary(p: mut ref Parser) result[ref Node, ref u8] = trust {
             node_store_slot[list[ref Node]](@addr(nb.d4), btype_args)
             return ok nb
         }
-        if str.eql_raw(bname, c"bitcast") {
+        if cstr.eql(bname, c"bitcast") {
             val source_expr = parse_expr(p)?
             p_expect_comma(p)?
             val target_ty = parse_type(p)?
@@ -2365,7 +2366,7 @@ fn parse_when_selector(p: mut ref Parser) result[ref u8, ref u8] = trust {
         return ok first
     }
     val sb: ref void = builder.StringBuilder.new()
-    builder.StringBuilder.append_raw(sb, first)
+    builder.StringBuilder.append_cstr(sb, first)
     for {
         if !lexer.kind_is_dot(p_peek_kind(p)) {
             break
@@ -2373,10 +2374,10 @@ fn parse_when_selector(p: mut ref Parser) result[ref u8, ref u8] = trust {
         p_advance(p)
         val seg = p_expect_ident(p)?
         builder.StringBuilder.append_char(sb, 46 as u8)
-        builder.StringBuilder.append_raw(sb, seg)
+        builder.StringBuilder.append_cstr(sb, seg)
     }
     val built: ref void = builder.StringBuilder.build(sb)
-    val out: ref u8 = p_arena_str(p, ostr.cstr(built))
+    val out: ref u8 = p_arena_str(p, ostr.as_cstr(built))
     builder.StringBuilder.free(sb)
     @free(@load(built))
     @free(built)
@@ -2516,7 +2517,7 @@ pub fn parse_stmt(p: mut ref Parser) result[ref Node, ref u8] = trust {
         if lexer.kind_is_ident(p_peek_kind(p)) {
             val ptxt: ref u8 = lexer.tok_text_raw(p.tokens, p.pos)
             if ptxt != none {
-                if str.eql_raw(ptxt, c"is") {
+                if cstr.eql(ptxt, c"is") {
                     if kind_is_some(p_peek2_kind(p)) {
                         peek_next_some = true
                     } elif kind_is_none(p_peek2_kind(p)) {
@@ -3108,7 +3109,7 @@ pub fn parse_stmt(p: mut ref Parser) result[ref Node, ref u8] = trust {
 
         if kind_is_ident(next_k) {
             val next_txt: ref u8 = lexer.tok_text_raw(p.tokens, p.pos)
-            if str.eql_raw(next_txt, c"is") {
+            if cstr.eql(next_txt, c"is") {
                 val gconds2: mut list[ref Node] = mem.new[ref Node]()
                 val cur_tparam: mut ref u8 = ident_text
                 for {
@@ -3134,7 +3135,7 @@ pub fn parse_stmt(p: mut ref Parser) result[ref Node, ref u8] = trust {
                         break
                     }
                     val nis_txt: ref u8 = lexer.tok_text_raw(p.tokens, p.pos)
-                    if !str.eql_raw(nis_txt, c"is") {
+                    if !cstr.eql(nis_txt, c"is") {
                         break
                     }
                 }
@@ -3150,7 +3151,7 @@ pub fn parse_stmt(p: mut ref Parser) result[ref Node, ref u8] = trust {
             }
         }
 
-        if str.eql_raw(ident_text, c"_") {
+        if cstr.eql(ident_text, c"_") {
             p_expect_lbrace(p)?
             val gwb3 = parse_stmts(p)?
             p_expect_rbrace(p)?
@@ -3179,7 +3180,7 @@ pub fn parse_stmt(p: mut ref Parser) result[ref Node, ref u8] = trust {
                 break
             }
             val txt: ref u8 = lexer.tok_text_raw(p.tokens, p.pos)
-            if !str.eql_raw(txt, c"or") {
+            if !cstr.eql(txt, c"or") {
                 break
             }
             val k3: lexer.TokenKind = p_peek2_kind(p)
@@ -3202,7 +3203,7 @@ pub fn parse_stmt(p: mut ref Parser) result[ref Node, ref u8] = trust {
         val k4: lexer.TokenKind = p_peek_kind(p)
         if kind_is_ident(k4) {
             val txt2: ref u8 = lexer.tok_text_raw(p.tokens, p.pos)
-            if str.eql_raw(txt2, c"otherwise") {
+            if cstr.eql(txt2, c"otherwise") {
                 p_advance(p)
                 p_expect_lbrace(p)?
                 val ow2 = parse_stmts(p)?
@@ -3721,7 +3722,7 @@ fn parse_type_def_item(
         p_advance(p)
         val spec_first = p_expect_ident(p)?
         val sb: ref void = builder.StringBuilder.new()
-        builder.StringBuilder.append_raw(sb, spec_first)
+        builder.StringBuilder.append_cstr(sb, spec_first)
         for {
             if !lexer.kind_is_dot(p_peek_kind(p)) {
                 break
@@ -3729,10 +3730,10 @@ fn parse_type_def_item(
             p_advance(p)
             val seg = p_expect_ident(p)?
             builder.StringBuilder.append_char(sb, 46 as u8)
-            builder.StringBuilder.append_raw(sb, seg)
+            builder.StringBuilder.append_cstr(sb, seg)
         }
         val full_spec: ref void = builder.StringBuilder.build(sb)
-        spec_name = p_arena_str(p, ostr.cstr(full_spec))
+        spec_name = p_arena_str(p, ostr.as_cstr(full_spec))
         builder.StringBuilder.free(sb)
         @free(@load(full_spec))
         @free(full_spec)
@@ -3933,7 +3934,7 @@ fn parse_extern_fn_item(p: mut ref Parser, public: i64) result[ref Node, ref u8]
         }
         p_expect_comma(p)?
         val modifier = p_expect_ident(p)?
-        if str.eql_raw(modifier, c"header") {
+        if cstr.eql(modifier, c"header") {
             use_header_decl = 1
         } else {
             return err arenafmt.format(p.arena,
@@ -4112,7 +4113,7 @@ pub fn parse_item(p: mut ref Parser) result[ref Node, ref u8] = trust {
                 break
             }
             val txt: ref u8 = lexer.tok_text_raw(p.tokens, p.pos)
-            if !str.eql_raw(txt, c"or") {
+            if !cstr.eql(txt, c"or") {
                 break
             }
             val k3: lexer.TokenKind = p_peek2_kind(p)
@@ -4142,7 +4143,7 @@ pub fn parse_item(p: mut ref Parser) result[ref Node, ref u8] = trust {
         val k4: lexer.TokenKind = p_peek_kind(p)
         if kind_is_ident(k4) {
             val txt2: ref u8 = lexer.tok_text_raw(p.tokens, p.pos)
-            if str.eql_raw(txt2, c"otherwise") {
+            if cstr.eql(txt2, c"otherwise") {
                 p_advance(p)
                 p_expect_lbrace(p)?
                 for {
@@ -4307,7 +4308,7 @@ test "parser parses expressions, statements and top-level items" {
         }
         ok n => {
             assert n.kind == NK_INT_LIT
-            assert str.cmp_raw(int_lit_text_raw(n), c"42") == 0
+            assert cstr.cmp(int_lit_text_raw(n), c"42") == 0
         }
     }
 
@@ -4328,7 +4329,7 @@ test "parser parses expressions, statements and top-level items" {
         }
         ok n => {
             assert n.kind == NK_STR_LIT
-            assert str.cmp_raw(str_lit_text_raw(n), c"hello") == 0
+            assert cstr.cmp(str_lit_text_raw(n), c"hello") == 0
         }
     }
 
@@ -4360,7 +4361,7 @@ test "parser parses expressions, statements and top-level items" {
         }
         ok n => {
             assert n.kind == NK_IDENT
-            assert str.cmp_raw(node_str_raw(n.d0), c"foo") == 0
+            assert cstr.cmp(node_str_raw(n.d0), c"foo") == 0
         }
     }
 
@@ -4421,7 +4422,7 @@ test "parser parses expressions, statements and top-level items" {
             assert n.kind == NK_FIELD
             val base: ref Node = field_base(n)
             assert base.kind == NK_IDENT
-            assert str.cmp_raw(field_name_raw(n), c"field") == 0
+            assert cstr.cmp(field_name_raw(n), c"field") == 0
             val fname_view: str.StringView = field_name(n)
             assert fname_view.len == 5
             assert trust str.eql_cstr(fname_view, c"field")
@@ -4677,7 +4678,7 @@ test "parser parses expressions, statements and top-level items" {
                     assert lit.kind == NK_STRUCT_LIT
                     val lit_name: ref u8 = struct_lit_type_name_raw(lit)
                     assert lit_name != none
-                    assert str.cmp_raw(lit_name, c"Point") == 0
+                    assert cstr.cmp(lit_name, c"Point") == 0
                     assert @len(lit.d0 as list[ref Node]) as i64 == 2
                 }
             }
@@ -4702,7 +4703,7 @@ test "parser parses expressions, statements and top-level items" {
                     assert item.kind == NK_TEST
                     val name: ref u8 = test_name_raw(item)
                     assert name != none
-                    assert str.cmp_raw(name, c"addition works") == 0
+                    assert cstr.cmp(name, c"addition works") == 0
                 }
             }
         }
@@ -4721,14 +4722,14 @@ test "parser parses expressions, statements and top-level items" {
             if a_opt is some a_val {
                 val a: ref Node = a_val as ref Node
                 assert a.kind == NK_CONST
-                assert str.cmp_raw(node_str_raw(a.d1), c"a") == 0
+                assert cstr.cmp(node_str_raw(a.d1), c"a") == 0
             } else {
                 assert false
             }
             if b_opt is some b_val {
                 val b: ref Node = b_val as ref Node
                 assert b.kind == NK_CONST
-                assert str.cmp_raw(node_str_raw(b.d1), c"b") == 0
+                assert cstr.cmp(node_str_raw(b.d1), c"b") == 0
             } else {
                 assert false
             }

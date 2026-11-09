@@ -2,6 +2,7 @@ val net        = use("std/net")
 val allocators = use("std/allocators")
 val stdio      = use("std/stdio")
 val str     = use("std/string")
+val cstr = use("std/string/cstr")
 val ostr = use("std/string/owned")
 val builder = use("std/string/builder")
 
@@ -106,33 +107,33 @@ fn send_all(client: i64, data: ref u8, length: i64) void = trust {
 
 fn respond(client: i64, status: ref u8, content_type: ref u8, body: ref u8) void = trust {
     val sb = builder.StringBuilder.new()
-    builder.StringBuilder.append_raw(sb, c"HTTP/1.1 ")
-    builder.StringBuilder.append_raw(sb, status)
-    builder.StringBuilder.append_raw(sb, c"\r\nContent-Type: ")
-    builder.StringBuilder.append_raw(sb, content_type)
-    builder.StringBuilder.append_raw(sb, c"\r\nContent-Length: ")
-    builder.StringBuilder.append_raw(sb, @fmtalloc("{d}", {str.len_raw(body)}))
-    builder.StringBuilder.append_raw(sb, c"\r\nConnection: close\r\n\r\n")
-    builder.StringBuilder.append_raw(sb, body)
+    builder.StringBuilder.append_cstr(sb, c"HTTP/1.1 ")
+    builder.StringBuilder.append_cstr(sb, status)
+    builder.StringBuilder.append_cstr(sb, c"\r\nContent-Type: ")
+    builder.StringBuilder.append_cstr(sb, content_type)
+    builder.StringBuilder.append_cstr(sb, c"\r\nContent-Length: ")
+    builder.StringBuilder.append_cstr(sb, @fmtalloc("{d}", {cstr.len(body)}))
+    builder.StringBuilder.append_cstr(sb, c"\r\nConnection: close\r\n\r\n")
+    builder.StringBuilder.append_cstr(sb, body)
 
     val response: str.String = builder.StringBuilder.build(sb)
-    send_all(client, ostr.cstr(response), ostr.len(response))
+    send_all(client, ostr.as_cstr(response), ostr.len(response))
 
     ostr.free(response)
     builder.StringBuilder.free(sb)
 }
 
 fn route_request(client: i64, request: ref u8) void = trust {
-    if str.starts_with_raw(request, c"GET / HTTP/1.1") {
+    if cstr.starts_with(request, c"GET / HTTP/1.1") {
         respond(
             client,
             c"200 OK",
             c"application/json",
             c"{\"name\":\"Spectre API\",\"version\":\"0.1.0\",\"endpoints\":[\"/health\",\"/hello\"]}"
         )
-    } elif str.starts_with_raw(request, c"GET /health HTTP/1.1") {
+    } elif cstr.starts_with(request, c"GET /health HTTP/1.1") {
         respond(client, c"200 OK", c"application/json", c"{\"status\":\"ok\"}")
-    } elif str.starts_with_raw(request, c"GET /hello HTTP/1.1") {
+    } elif cstr.starts_with(request, c"GET /hello HTTP/1.1") {
         respond(client, c"200 OK", c"application/json", c"{\"message\":\"Hello, world!\"}")
     } else {
         respond(client, c"404 Not Found", c"application/json", c"{\"error\":\"Not found\"}")

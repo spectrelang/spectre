@@ -1,6 +1,5 @@
-val str = use("std/string")
-val str = use("std/string")
+val cstr = use("std/string/cstr")
 
 pub fn main() void = trust {
-    @print("{d}\n", {str.len_raw("hello")})
+    @print("{d}\n", {cstr.len("hello")})
 }

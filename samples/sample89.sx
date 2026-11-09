@@ -1,7 +1,7 @@
-val str   = use("std/string")
+val cstr = use("std/string/cstr")
 val stdio = use("std/stdio")
 
 pub fn main() void = {
-    val hw = trust str.concat_raw(c"hello", c" world")
+    val hw = trust cstr.concat(c"hello", c" world")
     trust stdio.print("{s}\n", {hw})
 }

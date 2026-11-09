@@ -9,23 +9,23 @@ val builds = use("../../src/meta/builds.sx")
 val check  = use("lib/check.sx")
 
 fn compiler_kind(compiler: str.StringView) str.StringView = {
-    return str.cstr_raw(builds.alt_compiler_kind(check.cptr(compiler)))
+    return str.from_cstr(builds.alt_compiler_kind(check.cptr(compiler)))
 }
 
 fn std_flag(kind: str.StringView) str.StringView = {
-    return str.cstr_raw(builds.compiler_std_flag(check.cptr(kind)))
+    return str.from_cstr(builds.compiler_std_flag(check.cptr(kind)))
 }
 
 fn opt_flag(kind: str.StringView, release: bool) str.StringView = {
-    return str.cstr_raw(builds.compiler_opt_flag(check.cptr(kind), release))
+    return str.from_cstr(builds.compiler_opt_flag(check.cptr(kind), release))
 }
 
 fn warn_flag(compiler: str.StringView) str.StringView = {
-    return str.cstr_raw(builds.compiler_warn_flag(check.cptr(compiler)))
+    return str.from_cstr(builds.compiler_warn_flag(check.cptr(compiler)))
 }
 
 fn parsed_alt_arg(arg: str.StringView) str.StringView = {
-    return str.cstr_raw(builds.parse_alt_compiler_arg(check.cptr(arg)))
+    return str.from_cstr(builds.parse_alt_compiler_arg(check.cptr(arg)))
 }
 
 test "build helpers do not leak" {
@@ -42,12 +42,12 @@ test "build helpers do not leak" {
         assert str.eql(parsed_alt_arg("-alt:clang"), "clang")
 
         val plain: ref u8 = builds.get_tmp_path(check.cptr("spectre-checkmem.txt"))
-        assert str.len(str.cstr_raw(plain)) > 0
+        assert str.len(str.from_cstr(plain)) > 0
         @free(plain)
 
         val first: ref u8 = builds.get_unique_tmp_path(check.cptr("spectre-checkmem.txt"))
         val second: ref u8 = builds.get_unique_tmp_path(check.cptr("spectre-checkmem.txt"))
-        assert !str.eql(str.cstr_raw(first), str.cstr_raw(second))
+        assert !str.eql(str.from_cstr(first), str.from_cstr(second))
         @free(first)
         @free(second)
 

@@ -1,8 +1,8 @@
-val str = use("std/string")
+val cstr = use("std/string/cstr")
 
 pub fn combine[T, U](left: T, right: U) T = {
     when T is ref u8 && U is ref u8 {
-        return trust str.concat_raw(left, right)
+        return trust cstr.concat(left, right)
     }
     when T in (i32, i64) {
         when U in (i32, i64) {

@@ -1,8 +1,8 @@
-val str = use("std/string")
+val cstr = use("std/string/cstr")
 
 pub fn some_function() void = {
     val x: ref u8 = c"hello, this is a string"
-    if str.byte_at_raw(x, 1) is some v {
+    if cstr.byte_at(x, 1) is some v {
         trust @print("{c}", {v})
         trust @print("{c}", {'a'})
     } else {

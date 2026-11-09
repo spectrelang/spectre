@@ -1,4 +1,5 @@
 val str     = use("std/string")
+val cstr = use("std/string/cstr")
 val ostr = use("std/string/owned")
 val random     = use("../crypto/random")
 val allocators = use("../allocators")
@@ -63,7 +64,7 @@ fn bytes_len[T](data: T) i64 = trust {
         return ostr.len(data)
     }
     when T is ref u8 {
-        return str.len_raw(data)
+        return cstr.len(data)
     }
     when T !in (str.String, ref u8) {
         @staticerror("invalid type for bytes_len")
@@ -524,7 +525,7 @@ pub fn sha1_len[A: allocators.Allocator](
 ///
 /// The returned buffer is allocated with the provided allocator and is not
 /// NUL-terminated.
-pub fn sha1_raw[A: allocators.GeneralAllocator](
+pub fn sha1_cstr[A: allocators.GeneralAllocator](
     ac: A,
     src_ptr: ref u8,
     src_len: i64
@@ -604,7 +605,7 @@ pub fn hex_decode[A: allocators.Allocator](
     ac: A,
     text: ref u8
 ) result[str.String, CryptoError] = trust {
-    val text_len: i64 = str.len_raw(text)
+    val text_len: i64 = cstr.len(text)
     if ((text_len % 2) != 0) {
         return err CryptoError.InvalidHexLength
     }
@@ -726,7 +727,7 @@ pub fn base64_decode[A: allocators.Allocator](
     ac: A,
     text: ref u8
 ) result[str.String, CryptoError] = trust {
-    val text_len: i64 = str.len_raw(text)
+    val text_len: i64 = cstr.len(text)
     if ((text_len % 4) != 0) {
         return err CryptoError.InvalidBase64Length
     }
@@ -985,11 +986,11 @@ test "hash, hmac and encoding primitives roundtrip" {
     val sha: str.String = trust sha256[allocators.Arena, ref u8](arena, c"abc")
     val sha_hex: ref u8 = trust hex_encode[allocators.Arena, str.String](arena, sha)
 
-    assert str.cmp_raw(sha_hex, sha_hex_expected) == 0
+    assert cstr.cmp(sha_hex, sha_hex_expected) == 0
 
     val sha1_digest: str.String = trust sha1[allocators.Arena, ref u8](arena, c"abc")
     val sha1_hex: ref u8 = trust hex_encode[allocators.Arena, str.String](arena, sha1_digest)
-    assert str.cmp_raw(sha1_hex, c"a9993e364706816aba3e25717850c26c9cd0d89d") == 0
+    assert cstr.cmp(sha1_hex, c"a9993e364706816aba3e25717850c26c9cd0d89d") == 0
 
     val hmac_out: str.String = trust hmac_sha256[allocators.Arena, ref u8](
         arena,
@@ -997,13 +998,13 @@ test "hash, hmac and encoding primitives roundtrip" {
         c"The quick brown fox jumps over the lazy dog"
     )
     val hmac_hex: ref u8 = trust hex_encode[allocators.Arena, str.String](arena, hmac_out)
-    assert str.cmp_raw(
+    assert cstr.cmp(
         hmac_hex,
         c"f7bc83f430538424b13298e6aa6fb143ef4d59a14946175997479dbc2d1a3cd8"
     ) == 0
 
     val encoded_hex: ref u8 = trust hex_encode[allocators.Arena, ref u8](arena, c"hi")
-    assert str.cmp_raw(encoded_hex, c"6869") == 0
+    assert cstr.cmp(encoded_hex, c"6869") == 0
 
     val decoded_hex_res = trust hex_decode[allocators.Arena](arena, c"6869")
     match decoded_hex_res {
@@ -1012,7 +1013,7 @@ test "hash, hmac and encoding primitives roundtrip" {
                 arena,
                 decoded_hex
             )
-            assert str.cmp_raw(decoded_hex_roundtrip, c"6869") == 0
+            assert cstr.cmp(decoded_hex_roundtrip, c"6869") == 0
         }
         err _ => {
             assert false
@@ -1030,7 +1031,7 @@ test "hash, hmac and encoding primitives roundtrip" {
     }
 
     val encoded_b64: ref u8 = trust base64_encode[allocators.Arena, ref u8](arena, c"hello")
-    assert str.cmp_raw(encoded_b64, c"aGVsbG8=") == 0
+    assert cstr.cmp(encoded_b64, c"aGVsbG8=") == 0
 
     val decoded_b64_res = trust base64_decode[allocators.Arena](arena, c"aGVsbG8=")
     match decoded_b64_res {
@@ -1039,7 +1040,7 @@ test "hash, hmac and encoding primitives roundtrip" {
                 arena,
                 decoded_b64
             )
-            assert str.cmp_raw(decoded_b64_roundtrip, c"68656c6c6f") == 0
+            assert cstr.cmp(decoded_b64_roundtrip, c"68656c6c6f") == 0
         }
         err _ => {
             assert false
@@ -1062,10 +1063,10 @@ test "hash, hmac and encoding primitives roundtrip" {
 
     val nonce1: ref u8 = trust unique_nonce[allocators.Arena](arena)
     val nonce2: ref u8 = trust unique_nonce[allocators.Arena](arena)
-    assert str.len_raw(nonce1) == 48
-    assert str.len_raw(nonce2) == 48
+    assert cstr.len(nonce1) == 48
+    assert cstr.len(nonce2) == 48
 
-    assert trust fs.write_all_raw(c"crypto_hash_file_sha256_test.txt", c"abc")
+    assert trust fs.write_all_cstr(c"crypto_hash_file_sha256_test.txt", c"abc")
     val file_hash_res = trust hash_file_sha256[allocators.Arena](
         arena,
         c"crypto_hash_file_sha256_test.txt"
@@ -1076,13 +1077,13 @@ test "hash, hmac and encoding primitives roundtrip" {
                 arena,
                 file_hash
             )
-            assert str.cmp_raw(file_hash_hex, sha_hex_expected) == 0
+            assert cstr.cmp(file_hash_hex, sha_hex_expected) == 0
         }
         err _ => {
             assert false
         }
     }
-    assert trust fs.delete_raw(c"crypto_hash_file_sha256_test.txt")
+    assert trust fs.delete_cstr(c"crypto_hash_file_sha256_test.txt")
 
     val missing_file_hash_res = trust hash_file_sha256[allocators.Arena](
         arena,

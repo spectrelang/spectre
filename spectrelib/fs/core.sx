@@ -219,7 +219,7 @@ fn raw_copy_dirent_name(entry: ref Dirent) ref u8 = trust {
 
 /// Open a file. Here, mode is a C fopen mode string: "r", "w", "a", "rb", etc.
 /// Returns none if the file could not be opened.
-pub fn open_raw(path: ref u8, mode: ref u8) option[ref void] = trust {
+pub fn open_cstr(path: ref u8, mode: ref u8) option[ref void] = trust {
     val ptr: ref void = fopen(path, mode)
     if (ptr == none) {
         return none
@@ -229,57 +229,57 @@ pub fn open_raw(path: ref u8, mode: ref u8) option[ref void] = trust {
     return some f
 }
 
-/// View-taking variant of `open_raw`.
+/// View-taking variant of `open_cstr`.
 pub fn open(path: str.StringView, mode: str.StringView) option[ref void] = trust {
-    val p: str.CString = str.cstring_from[allocators.HeapAllocator](cstr_heap(), path)
-    val m: str.CString = str.cstring_from[allocators.HeapAllocator](cstr_heap(), mode)
+    val p: str.ZString = str.zstr_from[allocators.HeapAllocator](cstr_heap(), path)
+    val m: str.ZString = str.zstr_from[allocators.HeapAllocator](cstr_heap(), mode)
     defer {
-        str.cstring_free[allocators.HeapAllocator](cstr_heap(), p)
-        str.cstring_free[allocators.HeapAllocator](cstr_heap(), m)
+        str.zstr_free[allocators.HeapAllocator](cstr_heap(), p)
+        str.zstr_free[allocators.HeapAllocator](cstr_heap(), m)
     }
     if p.ptr == none || m.ptr == none {
         return none
     }
-    return open_raw(p.ptr, m.ptr)
+    return open_cstr(p.ptr, m.ptr)
 }
 
-/// View-taking variant of `file_size_raw`.
+/// View-taking variant of `file_size_cstr`.
 pub fn file_size(path: str.StringView) option[i64] = trust {
-    val p: str.CString = str.cstring_from[allocators.HeapAllocator](cstr_heap(), path)
+    val p: str.ZString = str.zstr_from[allocators.HeapAllocator](cstr_heap(), path)
     defer {
-        str.cstring_free[allocators.HeapAllocator](cstr_heap(), p)
+        str.zstr_free[allocators.HeapAllocator](cstr_heap(), p)
     }
     if p.ptr == none {
         return none
     }
-    return file_size_raw(p.ptr)
+    return file_size_cstr(p.ptr)
 }
 
-/// View-taking variant of `read_all_raw`.
+/// View-taking variant of `read_all_cstr`.
 pub fn read_all[A: allocators.Allocator](
     ac: A,
     path: str.StringView
 ) option[ref u8] = trust {
-    val p: str.CString = str.cstring_from[allocators.HeapAllocator](cstr_heap(), path)
+    val p: str.ZString = str.zstr_from[allocators.HeapAllocator](cstr_heap(), path)
     defer {
-        str.cstring_free[allocators.HeapAllocator](cstr_heap(), p)
+        str.zstr_free[allocators.HeapAllocator](cstr_heap(), p)
     }
     if p.ptr == none {
         return none
     }
-    return read_all_raw[A](ac, p.ptr)
+    return read_all_cstr[A](ac, p.ptr)
 }
 
-/// View-taking variant of `read_all_heap_raw`.
+/// View-taking variant of `read_all_heap_cstr`.
 pub fn read_all_heap(path: str.StringView) option[ref u8] = trust {
-    val p: str.CString = str.cstring_from[allocators.HeapAllocator](cstr_heap(), path)
+    val p: str.ZString = str.zstr_from[allocators.HeapAllocator](cstr_heap(), path)
     defer {
-        str.cstring_free[allocators.HeapAllocator](cstr_heap(), p)
+        str.zstr_free[allocators.HeapAllocator](cstr_heap(), p)
     }
     if p.ptr == none {
         return none
     }
-    return read_all_heap_raw(p.ptr)
+    return read_all_heap_cstr(p.ptr)
 }
 
 /// Write a view to an open file handle.
@@ -299,16 +299,16 @@ pub fn write_line(f: ref void, data: str.StringView) void = trust {
     fwrite(@addr(nl) as ref void, 1 as usize, 1 as usize, ptr)
 }
 
-/// View-taking variant of `write_all_raw`.
+/// View-taking variant of `write_all_cstr`.
 pub fn write_all(path: str.StringView, data: str.StringView) bool = trust {
-    val p: str.CString = str.cstring_from[allocators.HeapAllocator](cstr_heap(), path)
+    val p: str.ZString = str.zstr_from[allocators.HeapAllocator](cstr_heap(), path)
     defer {
-        str.cstring_free[allocators.HeapAllocator](cstr_heap(), p)
+        str.zstr_free[allocators.HeapAllocator](cstr_heap(), p)
     }
     if p.ptr == none {
         return false
     }
-    val handle = open_raw(p.ptr, c"w")
+    val handle = open_cstr(p.ptr, c"w")
     match handle {
         none => {
             return false
@@ -321,32 +321,32 @@ pub fn write_all(path: str.StringView, data: str.StringView) bool = trust {
     return true
 }
 
-/// View-taking variant of `write_all_bytes_raw`.
+/// View-taking variant of `write_all_bytes_cstr`.
 pub fn write_all_bytes(
     path: str.StringView,
     data: ref void,
     len: i64
 ) bool = trust {
-    val p: str.CString = str.cstring_from[allocators.HeapAllocator](cstr_heap(), path)
+    val p: str.ZString = str.zstr_from[allocators.HeapAllocator](cstr_heap(), path)
     defer {
-        str.cstring_free[allocators.HeapAllocator](cstr_heap(), p)
+        str.zstr_free[allocators.HeapAllocator](cstr_heap(), p)
     }
     if p.ptr == none {
         return false
     }
-    return write_all_bytes_raw(p.ptr, data, len)
+    return write_all_bytes_cstr(p.ptr, data, len)
 }
 
-/// View-taking variant of `append_all_raw`.
+/// View-taking variant of `append_all_cstr`.
 pub fn append_all(path: str.StringView, data: str.StringView) bool = trust {
-    val p: str.CString = str.cstring_from[allocators.HeapAllocator](cstr_heap(), path)
+    val p: str.ZString = str.zstr_from[allocators.HeapAllocator](cstr_heap(), path)
     defer {
-        str.cstring_free[allocators.HeapAllocator](cstr_heap(), p)
+        str.zstr_free[allocators.HeapAllocator](cstr_heap(), p)
     }
     if p.ptr == none {
         return false
     }
-    val handle = open_raw(p.ptr, c"a")
+    val handle = open_cstr(p.ptr, c"a")
     match handle {
         none => {
             return false
@@ -359,97 +359,97 @@ pub fn append_all(path: str.StringView, data: str.StringView) bool = trust {
     return true
 }
 
-/// View-taking variant of `append_all_bytes_raw`.
+/// View-taking variant of `append_all_bytes_cstr`.
 pub fn append_all_bytes(
     path: str.StringView,
     data: ref void,
     len: i64
 ) bool = trust {
-    val p: str.CString = str.cstring_from[allocators.HeapAllocator](cstr_heap(), path)
+    val p: str.ZString = str.zstr_from[allocators.HeapAllocator](cstr_heap(), path)
     defer {
-        str.cstring_free[allocators.HeapAllocator](cstr_heap(), p)
+        str.zstr_free[allocators.HeapAllocator](cstr_heap(), p)
     }
     if p.ptr == none {
         return false
     }
-    return append_all_bytes_raw(p.ptr, data, len)
+    return append_all_bytes_cstr(p.ptr, data, len)
 }
 
-/// View-taking variant of `delete_raw`.
+/// View-taking variant of `delete_cstr`.
 pub fn delete(path: str.StringView) bool = trust {
-    val p: str.CString = str.cstring_from[allocators.HeapAllocator](cstr_heap(), path)
+    val p: str.ZString = str.zstr_from[allocators.HeapAllocator](cstr_heap(), path)
     defer {
-        str.cstring_free[allocators.HeapAllocator](cstr_heap(), p)
+        str.zstr_free[allocators.HeapAllocator](cstr_heap(), p)
     }
     if p.ptr == none {
         return false
     }
-    return delete_raw(p.ptr)
+    return delete_cstr(p.ptr)
 }
 
-/// View-taking variant of `rename_path_raw`.
+/// View-taking variant of `rename_path_cstr`.
 pub fn rename_path(old: str.StringView, new: str.StringView) bool = trust {
-    val o: str.CString = str.cstring_from[allocators.HeapAllocator](cstr_heap(), old)
-    val n: str.CString = str.cstring_from[allocators.HeapAllocator](cstr_heap(), new)
+    val o: str.ZString = str.zstr_from[allocators.HeapAllocator](cstr_heap(), old)
+    val n: str.ZString = str.zstr_from[allocators.HeapAllocator](cstr_heap(), new)
     defer {
-        str.cstring_free[allocators.HeapAllocator](cstr_heap(), o)
-        str.cstring_free[allocators.HeapAllocator](cstr_heap(), n)
+        str.zstr_free[allocators.HeapAllocator](cstr_heap(), o)
+        str.zstr_free[allocators.HeapAllocator](cstr_heap(), n)
     }
     if o.ptr == none || n.ptr == none {
         return false
     }
-    return rename_path_raw(o.ptr, n.ptr)
+    return rename_path_cstr(o.ptr, n.ptr)
 }
 
-/// View-taking variant of `mkdir_path_raw`.
+/// View-taking variant of `mkdir_path_cstr`.
 pub fn mkdir_path(path: str.StringView) bool = trust {
-    val p: str.CString = str.cstring_from[allocators.HeapAllocator](cstr_heap(), path)
+    val p: str.ZString = str.zstr_from[allocators.HeapAllocator](cstr_heap(), path)
     defer {
-        str.cstring_free[allocators.HeapAllocator](cstr_heap(), p)
+        str.zstr_free[allocators.HeapAllocator](cstr_heap(), p)
     }
     if p.ptr == none {
         return false
     }
-    return mkdir_path_raw(p.ptr)
+    return mkdir_path_cstr(p.ptr)
 }
 
-/// View-taking variant of `rmdir_path_raw`.
+/// View-taking variant of `rmdir_path_cstr`.
 pub fn rmdir_path(path: str.StringView) bool = trust {
-    val p: str.CString = str.cstring_from[allocators.HeapAllocator](cstr_heap(), path)
+    val p: str.ZString = str.zstr_from[allocators.HeapAllocator](cstr_heap(), path)
     defer {
-        str.cstring_free[allocators.HeapAllocator](cstr_heap(), p)
+        str.zstr_free[allocators.HeapAllocator](cstr_heap(), p)
     }
     if p.ptr == none {
         return false
     }
-    return rmdir_path_raw(p.ptr)
+    return rmdir_path_cstr(p.ptr)
 }
 
-/// View-taking variant of `remove_dir_all_raw`.
+/// View-taking variant of `remove_dir_all_cstr`.
 pub fn remove_dir_all(path: str.StringView) bool = trust {
-    val p: str.CString = str.cstring_from[allocators.HeapAllocator](cstr_heap(), path)
+    val p: str.ZString = str.zstr_from[allocators.HeapAllocator](cstr_heap(), path)
     defer {
-        str.cstring_free[allocators.HeapAllocator](cstr_heap(), p)
+        str.zstr_free[allocators.HeapAllocator](cstr_heap(), p)
     }
     if p.ptr == none {
         return false
     }
-    return remove_dir_all_raw(p.ptr)
+    return remove_dir_all_cstr(p.ptr)
 }
 
-/// View-taking variant of `is_directory_raw`.
+/// View-taking variant of `is_directory_cstr`.
 pub fn is_directory(path: str.StringView) bool = trust {
-    val p: str.CString = str.cstring_from[allocators.HeapAllocator](cstr_heap(), path)
+    val p: str.ZString = str.zstr_from[allocators.HeapAllocator](cstr_heap(), path)
     defer {
-        str.cstring_free[allocators.HeapAllocator](cstr_heap(), p)
+        str.zstr_free[allocators.HeapAllocator](cstr_heap(), p)
     }
     if p.ptr == none {
         return false
     }
-    return is_directory_raw(p.ptr)
+    return is_directory_cstr(p.ptr)
 }
 
-/// Close a file handle previously returned by open_raw().
+/// Close a file handle previously returned by open_cstr().
 pub fn close(f: ref void) void = trust {
     val ptr: ref void = @load(f)
     fclose(ptr)
@@ -458,8 +458,8 @@ pub fn close(f: ref void) void = trust {
 
 /// Return the size of a file in bytes.
 /// Returns none if the file could not be opened.
-pub fn file_size_raw(path: ref u8) option[i64] = trust {
-    val handle = open_raw(path, c"rb")
+pub fn file_size_cstr(path: ref u8) option[i64] = trust {
+    val handle = open_cstr(path, c"rb")
     match handle {
         none => {
             return none
@@ -477,8 +477,8 @@ pub fn file_size_raw(path: ref u8) option[i64] = trust {
 
 /// Read the entire contents of a file into an allocator-backed buffer.
 /// Returns a null-terminated ref u8, or none on error.
-pub fn read_all_raw[A: allocators.Allocator](ac: A, path: ref u8) option[ref u8] = trust {
-    val handle = open_raw(path, c"rb")
+pub fn read_all_cstr[A: allocators.Allocator](ac: A, path: ref u8) option[ref u8] = trust {
+    val handle = open_cstr(path, c"rb")
     match handle {
         none => {
             return none
@@ -501,8 +501,8 @@ pub fn read_all_raw[A: allocators.Allocator](ac: A, path: ref u8) option[ref u8]
     }
 }
 
-pub fn read_all_heap_raw(path: ref u8) option[ref u8] = trust {
-    val handle = open_raw(path, c"rb")
+pub fn read_all_heap_cstr(path: ref u8) option[ref u8] = trust {
+    val handle = open_cstr(path, c"rb")
     match handle {
         none => {
             return none
@@ -552,13 +552,13 @@ pub fn read_line(f: ref void, buf: ref u8, max_len: i64) bool = trust {
 }
 
 /// Write a string to a file opened in write mode.
-pub fn write_raw(f: ref void, data: ref u8) void = trust {
+pub fn write_cstr(f: ref void, data: ref u8) void = trust {
     val ptr: ref void = @load(f)
     val l: i64 = strlen(data)
     fwrite(data, 1 as usize, l as usize, ptr)
 }
 
-/// Write exactly `len` bytes to an open file.  Unlike `write_raw`, this does not
+/// Write exactly `len` bytes to an open file.  Unlike `write_cstr`, this does not
 /// stop at a NUL byte, so it can be used for binary data.
 pub fn write_bytes(f: ref void, data: ref void, len: i64) void = trust {
     if len <= 0 {
@@ -569,22 +569,22 @@ pub fn write_bytes(f: ref void, data: ref void, len: i64) void = trust {
 }
 
 /// Write a string followed by a newline.
-pub fn write_line_raw(f: ref void, data: ref u8) void = trust {
-    write_raw(f, data)
+pub fn write_line_cstr(f: ref void, data: ref u8) void = trust {
+    write_cstr(f, data)
     val nl: ref u8 = c"\n"
     val ptr: ref void = @load(f)
     fwrite(nl, 1 as usize, 1 as usize, ptr)
 }
 
 /// Write the entire contents of data to path, overwriting any existing file.
-pub fn write_all_raw(path: ref u8, data: ref u8) bool = trust {
-    val handle = open_raw(path, c"w")
+pub fn write_all_cstr(path: ref u8, data: ref u8) bool = trust {
+    val handle = open_cstr(path, c"w")
     match handle {
         none => {
             return false
         }
         some f => {
-            write_raw(f, data)
+            write_cstr(f, data)
             close(f)
             return true
         }
@@ -593,8 +593,8 @@ pub fn write_all_raw(path: ref u8, data: ref u8) bool = trust {
 
 /// Write exactly `len` bytes to path, overwriting any existing file.
 /// The data may contain NUL bytes.
-pub fn write_all_bytes_raw(path: ref u8, data: ref void, len: i64) bool = trust {
-    val handle = open_raw(path, c"wb")
+pub fn write_all_bytes_cstr(path: ref u8, data: ref void, len: i64) bool = trust {
+    val handle = open_cstr(path, c"wb")
     match handle {
         none => {
             return false
@@ -608,8 +608,8 @@ pub fn write_all_bytes_raw(path: ref u8, data: ref void, len: i64) bool = trust 
 }
 
 /// Append exactly `len` bytes to path, creating it if it does not exist.
-pub fn append_all_bytes_raw(path: ref u8, data: ref void, len: i64) bool = trust {
-    val handle = open_raw(path, c"ab")
+pub fn append_all_bytes_cstr(path: ref u8, data: ref void, len: i64) bool = trust {
+    val handle = open_cstr(path, c"ab")
     match handle {
         none => {
             return false
@@ -623,14 +623,14 @@ pub fn append_all_bytes_raw(path: ref u8, data: ref void, len: i64) bool = trust
 }
 
 /// Append data to a file, creating it if it does not exist.
-pub fn append_all_raw(path: ref u8, data: ref u8) bool = trust {
-    val handle = open_raw(path, c"a")
+pub fn append_all_cstr(path: ref u8, data: ref u8) bool = trust {
+    val handle = open_cstr(path, c"a")
     match handle {
         none => {
             return false
         }
         some f => {
-            write_raw(f, data)
+            write_cstr(f, data)
             close(f)
             return true
         }
@@ -639,21 +639,21 @@ pub fn append_all_raw(path: ref u8, data: ref u8) bool = trust {
 
 /// Delete a file.
 /// Returns true on success.
-pub fn delete_raw(path: ref u8) bool = trust {
+pub fn delete_cstr(path: ref u8) bool = trust {
     val r: i32 = remove(path)
     return r == 0
 }
 
 /// Rename (or move) a file or directory.
 /// Returns true on success.
-pub fn rename_path_raw(old: ref u8, new: ref u8) bool = trust {
+pub fn rename_path_cstr(old: ref u8, new: ref u8) bool = trust {
     val r: i32 = rename(old, new)
     return r == 0
 }
 
 /// Create a directory. Mode is ignored on Windows; use 0755 on POSIX.
 /// Returns true on success.
-pub fn mkdir_path_raw(path: ref u8) bool = trust {
+pub fn mkdir_path_cstr(path: ref u8) bool = trust {
     when windows {
         return _mkdir(path) == 0
     }
@@ -666,33 +666,33 @@ pub fn mkdir_path_raw(path: ref u8) bool = trust {
 
 /// Remove an empty directory.
 /// Returns true on success.
-pub fn rmdir_path_raw(path: ref u8) bool = trust {
+pub fn rmdir_path_cstr(path: ref u8) bool = trust {
     val r: i32 = rmdir(path)
     return r == 0
 }
 
 /// Remove a file or directory tree recursively.
 /// Returns true when the path no longer exists.
-pub fn remove_dir_all_raw(path: ref u8) bool = trust {
-    val entries_opt = walk_dir_raw[allocators.HeapAllocator](cstr_heap(), path)
+pub fn remove_dir_all_cstr(path: ref u8) bool = trust {
+    val entries_opt = walk_dir_cstr[allocators.HeapAllocator](cstr_heap(), path)
     match entries_opt {
         none => {
             // Not a directory: fall back to unlinking it as a file.
-            return delete_raw(path)
+            return delete_cstr(path)
         }
         some entries => {
             for entry in entries {
-                val child: ref u8 = pathutil.join_raw(path, entry)
+                val child: ref u8 = pathutil.join_cstr(path, entry)
                 val dir: ref void = opendir(child)
                 if dir != none {
                     closedir(dir)
-                    remove_dir_all_raw(child)
+                    remove_dir_all_cstr(child)
                 } else {
-                    delete_raw(child)
+                    delete_cstr(child)
                 }
             }
             @listfree(entries)
-            return rmdir_path_raw(path)
+            return rmdir_path_cstr(path)
         }
     }
 }
@@ -711,7 +711,7 @@ pub fn cwd[A: allocators.Allocator](ac: A) option[ref u8] = trust {
     return some buf
 }
 
-pub fn cwd_raw() option[ref u8] = trust {
+pub fn cwd_cstr() option[ref u8] = trust {
     val buf: ref u8 = raw_alloc_cstr(4095)
     if buf == none {
         return none
@@ -748,7 +748,7 @@ pub fn temp_dir[A: allocators.Allocator](ac: A) ref u8 = trust {
     return copy_cstr[A](ac, c"/tmp")
 }
 
-pub fn temp_dir_raw() ref u8 = trust {
+pub fn temp_dir_cstr() ref u8 = trust {
     when posix {
         val t: ref u8 = getenv(c"TMPDIR")
         if t != none {
@@ -794,7 +794,7 @@ pub fn home_dir[A: allocators.Allocator](ac: A) option[ref u8] = trust {
     return none
 }
 
-pub fn home_dir_raw() option[ref u8] = trust {
+pub fn home_dir_cstr() option[ref u8] = trust {
     when posix {
         val h: ref u8 = getenv(c"HOME")
         if h != none {
@@ -851,7 +851,7 @@ pub fn config_dir[A: allocators.Allocator](ac: A) option[ref u8] = trust {
     return none
 }
 
-pub fn config_dir_raw() option[ref u8] = trust {
+pub fn config_dir_cstr() option[ref u8] = trust {
     when posix {
         val xdg: ref u8 = getenv(c"XDG_CONFIG_HOME")
         if xdg != none {
@@ -886,10 +886,10 @@ test "file and directory operations roundtrip" {
     val arena: allocators.Arena = trust allocators.Arena.new(8192 as usize)?
     val path: ref u8 = c"test_file.txt"
     @puts("1")
-    val success = trust write_all_raw(path, c"Hello, Spectre!")
+    val success = trust write_all_cstr(path, c"Hello, Spectre!")
     assert success
     @puts("2")
-    val content_opt: option[ref u8] = trust read_all_raw[allocators.Arena](arena, path)
+    val content_opt: option[ref u8] = trust read_all_cstr[allocators.Arena](arena, path)
     match content_opt {
         none => {
             assert false
@@ -907,11 +907,11 @@ test "file and directory operations roundtrip" {
         }
     }
     @puts("3")
-    val append_ok = trust append_all_raw(path, c" More text.")
+    val append_ok = trust append_all_cstr(path, c" More text.")
     assert append_ok
     @puts("4")
 
-    val content2_opt = trust read_all_raw[allocators.Arena](arena, path)
+    val content2_opt = trust read_all_cstr[allocators.Arena](arena, path)
     match content2_opt {
         none => {
             assert false
@@ -922,11 +922,11 @@ test "file and directory operations roundtrip" {
     }
     @puts("5")
 
-    val overwrite_ok = trust write_all_raw(path, c"Overwritten.")
+    val overwrite_ok = trust write_all_cstr(path, c"Overwritten.")
     assert overwrite_ok
     @puts("6")
 
-    val content3_opt = trust read_all_raw[allocators.Arena](arena, path)
+    val content3_opt = trust read_all_cstr[allocators.Arena](arena, path)
     match content3_opt {
         none => {
             assert false
@@ -937,10 +937,10 @@ test "file and directory operations roundtrip" {
     }
     @puts("7")
 
-    val rename_ok = trust rename_path_raw(path, c"test_file2.txt")
+    val rename_ok = trust rename_path_cstr(path, c"test_file2.txt")
     assert rename_ok
 
-    val gone_opt = trust read_all_raw[allocators.Arena](arena, path)
+    val gone_opt = trust read_all_cstr[allocators.Arena](arena, path)
     match gone_opt {
         none => {}
         some _ => {
@@ -948,26 +948,26 @@ test "file and directory operations roundtrip" {
         }
     }
 
-    val delete_ok = trust delete_raw(c"test_file2.txt")
+    val delete_ok = trust delete_cstr(c"test_file2.txt")
     assert delete_ok
 
-    val delete_missing = trust delete_raw(c"test_file2.txt")
+    val delete_missing = trust delete_cstr(c"test_file2.txt")
     assert !delete_missing
 
     val lpath: ref u8 = c"test_lines.txt"
-    val wh_opt = trust open_raw(lpath, c"w")
+    val wh_opt = trust open_cstr(lpath, c"w")
     match wh_opt {
         none => {
             assert false
         }
         some wh => {
-            trust write_line_raw(wh, c"line one")
-            trust write_line_raw(wh, c"line two")
+            trust write_line_cstr(wh, c"line one")
+            trust write_line_cstr(wh, c"line two")
             trust close(wh)
         }
     }
 
-    val rh_opt = trust open_raw(lpath, c"r")
+    val rh_opt = trust open_cstr(lpath, c"r")
     match rh_opt {
         none => {
             assert false
@@ -989,14 +989,14 @@ test "file and directory operations roundtrip" {
             trust close(rh)
         }
     }
-    trust delete_raw(lpath)
+    trust delete_cstr(lpath)
 
     val dpath: ref u8 = c"test_walk_dir"
-    val mkdir_ok = trust mkdir_path_raw(dpath)
+    val mkdir_ok = trust mkdir_path_cstr(dpath)
     assert mkdir_ok
 
-    trust write_all_raw(c"test_walk_dir/a.txt", c"a")
-    trust write_all_raw(c"test_walk_dir/b.txt", c"b")
+    trust write_all_cstr(c"test_walk_dir/a.txt", c"a")
+    trust write_all_cstr(c"test_walk_dir/b.txt", c"b")
 
     val walk_heap: allocators.HeapAllocator = @zeroed
     val entries_opt = trust walk_dir[_](walk_heap, dpath)
@@ -1044,9 +1044,9 @@ test "file and directory operations roundtrip" {
         }
     }
 
-    trust delete_raw(c"test_walk_dir/a.txt")
-    trust delete_raw(c"test_walk_dir/b.txt")
-    val rmdir_ok = trust rmdir_path_raw(dpath)
+    trust delete_cstr(c"test_walk_dir/a.txt")
+    trust delete_cstr(c"test_walk_dir/b.txt")
+    val rmdir_ok = trust rmdir_path_cstr(dpath)
     assert rmdir_ok
 
     val cwd_opt = trust cwd[allocators.Arena](arena)
@@ -1148,7 +1148,7 @@ pub fn walk_dir[A: allocators.GeneralAllocator](
     return some result
 }
 
-pub fn walk_dir_raw[A: allocators.GeneralAllocator](
+pub fn walk_dir_cstr[A: allocators.GeneralAllocator](
     ac: A,
     path: ref u8
 ) option[list[ref u8]] = trust {
@@ -1208,7 +1208,7 @@ pub fn walk_dir_raw[A: allocators.GeneralAllocator](
     return some result
 }
 
-pub fn is_directory_raw(path: ref u8) bool = trust {
+pub fn is_directory_cstr(path: ref u8) bool = trust {
     pre {
         path != none
     }

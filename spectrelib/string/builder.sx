@@ -72,7 +72,7 @@ pub fn (StringBuilder) append_string(sb: self, s: str.String) void = trust {
 }
 
 /// Append a C string to the builder
-pub fn (StringBuilder) append_raw(sb: self, cstr: ref u8) void = trust {
+pub fn (StringBuilder) append_cstr(sb: self, cstr: ref u8) void = trust {
     val l: i64 = @load(@ptradd(sb as ref void, 8)) as i64
     val add_len: i64 = strlen(cstr)
     val new_len: i64 = l + add_len
@@ -135,20 +135,20 @@ pub fn (StringBuilder) clear(sb: self) void = trust {
 test "string builder builds and clears" {
     val arena: allocators.Arena = trust allocators.Arena.new(32768 as usize)?
     val sb = StringBuilder.new()
-    trust StringBuilder.append_raw(sb, c"hello")
-    trust StringBuilder.append_string(sb, ostr.from_raw[allocators.Arena](arena, c" "))
-    trust StringBuilder.append_raw(sb, c"world")
+    trust StringBuilder.append_cstr(sb, c"hello")
+    trust StringBuilder.append_string(sb, ostr.from_cstr[allocators.Arena](arena, c" "))
+    trust StringBuilder.append_cstr(sb, c"world")
     trust StringBuilder.append_char(sb, 33 as u8) // '!'
 
     val built = trust StringBuilder.build(sb)
-    assert ostr.equals(built, trust ostr.from_raw[allocators.Arena](arena, c"hello world!"))
+    assert ostr.equals(built, trust ostr.from_cstr[allocators.Arena](arena, c"hello world!"))
     trust @free(@load(built))
     val built_hdr: mut ref void = built as ref void
     trust @free(built_hdr)
 
     trust StringBuilder.clear(sb)
     val built2 = trust StringBuilder.build(sb)
-    assert ostr.equals(built2, trust ostr.from_raw[allocators.Arena](arena, c""))
+    assert ostr.equals(built2, trust ostr.from_cstr[allocators.Arena](arena, c""))
     trust @free(@load(built2))
     val built2_hdr: mut ref void = built2 as ref void
     trust @free(built2_hdr)

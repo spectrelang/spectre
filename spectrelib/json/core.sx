@@ -6,6 +6,7 @@ when posix {
 }
 
 val str        = use("std/string")
+val cstr = use("std/string/cstr")
 val builder = use("std/string/builder")
 val stdio      = use("../stdio")
 val allocators = use("../allocators")
@@ -465,7 +466,7 @@ test "json parses and builds objects and arrays" {
 
             match trust obj_get_str(root, c"name") {
                 some s => {
-                    assert str.cmp_raw(s, c"Alice") == 0
+                    assert cstr.cmp(s, c"Alice") == 0
                 }
                 none => {
                     assert false

@@ -1,11 +1,11 @@
 // Repro attempt: trust function that allocates a struct, assigns all fields
 // including one added after initial definition, then reads them back via
-// cmp_raw — testing whether struct layout / sizeof is correct inside a
+// cstr.cmp — testing whether struct layout / sizeof is correct inside a
 // trust block after a field is appended to the type.
 //
 // Expected: prints "ok" and returns 0.
 
-val str = use("std/string")
+val cstr = use("std/string/cstr")
 
 type Config = {
     name: mut ref u8
@@ -27,19 +27,19 @@ fn make_config() ref Config = trust {
 }
 
 fn check_config(cfg: ref Config) bool = trust {
-    if str.cmp_raw(cfg.name, c"release") != 0 {
+    if cstr.cmp(cfg.name, c"release") != 0 {
         return false
     }
-    if str.cmp_raw(cfg.action, c"") != 0 {
+    if cstr.cmp(cfg.action, c"") != 0 {
         return false
     }
-    if str.cmp_raw(cfg.flags, c"-release") != 0 {
+    if cstr.cmp(cfg.flags, c"-release") != 0 {
         return false
     }
-    if str.cmp_raw(cfg.output, c"./myapp") != 0 {
+    if cstr.cmp(cfg.output, c"./myapp") != 0 {
         return false
     }
-    if str.cmp_raw(cfg.entry, c"./src/main.sx") != 0 {
+    if cstr.cmp(cfg.entry, c"./src/main.sx") != 0 {
         return false
     }
     return true
