@@ -1052,7 +1052,7 @@ fn cg_emit_bind_typed(
         val dst: i64 = fresh_tmp(ctx)
         val off_tmp: i64 = fresh_tmp(ctx)
         val buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 512 as usize) as ref u8
-        @snprintf(buf, 512, "    %%t{lld} =l alloc8 {lld}\n    %%t{lld} =l add {s}, {lld}\n    call $memcpy(l %%t{lld}, l %%t{lld}, l {lld})\n",
+        @snprintf(buf, 512, "    %%t{lld} =l call $malloc(l {lld})\n    %%t{lld} =l add {s}, {lld}\n    call $memcpy(l %%t{lld}, l %%t{lld}, l {lld})\n",
             {dst, sz, off_tmp, base, offset, dst, off_tmp, sz})
         emit(ctx, buf)
         val tmp_str: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 32 as usize) as ref u8
