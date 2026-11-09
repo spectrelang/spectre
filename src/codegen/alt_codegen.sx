@@ -3899,8 +3899,8 @@ fn cc_emit_wrap_local(
         @snprintf(
             buf,
             1024,
-            "int64_t sx__w{lld}[3];sx__w{lld}[0]={lld};{s} sx__sv{lld}=({s})({s});memcpy(&sx__w{lld}[1],&sx__sv{lld},sizeof(sx__sv{lld}));sx__w{lld}[2]=0;\n",
-            {t, t, tag, ct, t, ct, inner_expr, t, t, t, t}
+            "int64_t sx__w{lld}[3]=\{0,0,0\};sx__w{lld}[0]={lld};{s} sx__sv{lld}=({s})({s});memcpy(&sx__w{lld}[1],&sx__sv{lld},sizeof(sx__sv{lld}));\n",
+            {t, t, tag, ct, t, ct, inner_expr, t, t, t}
         )
     }
     emit(ctx, buf)
@@ -3941,8 +3941,8 @@ fn cc_emit_wrap_alloc_local(
         @snprintf(
             b,
             1024,
-            "int64_t* sx__wp{lld}=sx__wrap_alloc({s},(int64_t)({s}),24);{s} sx__sv{lld}=({s})({s});sx__wp{lld}[0]={lld};memcpy(&sx__wp{lld}[1],&sx__sv{lld},sizeof(sx__sv{lld}));sx__wp{lld}[2]=0;\n",
-            {t, af, ac, ct, t, ct, inner_expr, t, tag, t, t, t, t}
+            "int64_t* sx__wp{lld}=sx__wrap_alloc({s},(int64_t)({s}),24);sx__wp{lld}[1]=0;sx__wp{lld}[2]=0;{s} sx__sv{lld}=({s})({s});sx__wp{lld}[0]={lld};memcpy(&sx__wp{lld}[1],&sx__sv{lld},sizeof(sx__sv{lld}));\n",
+            {t, af, ac, t, t, ct, t, ct, inner_expr, t, tag, t, t, t}
         )
     }
     emit(ctx, b)

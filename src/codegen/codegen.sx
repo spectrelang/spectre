@@ -7313,6 +7313,17 @@ fn gen_expr(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
                 @snprintf(abuf2, 128, "    %%t{lld} =l alloc8 {lld}\n", {some_ptr, sz})
                 emit(ctx, abuf2)
             }
+            val zbuf: ref u8 = allocators.ScopedArena.alloc_or_none(
+                ctx.arena,
+                128 as usize
+            ) as ref u8
+            @snprintf(
+                zbuf,
+                128,
+                "    call $memset(l %%t{lld}, w 0, l {lld})\n",
+                {some_ptr, sz}
+            )
+            emit(ctx, zbuf)
             val tbuf: ref u8 = allocators.ScopedArena.alloc_or_none(
                 ctx.arena,
                 64 as usize
@@ -7432,6 +7443,17 @@ fn gen_expr(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
                 @snprintf(abuf2, 128, "    %%t{lld} =l alloc8 {lld}\n", {ok_ptr, sz})
                 emit(ctx, abuf2)
             }
+            val zbuf: ref u8 = allocators.ScopedArena.alloc_or_none(
+                ctx.arena,
+                128 as usize
+            ) as ref u8
+            @snprintf(
+                zbuf,
+                128,
+                "    call $memset(l %%t{lld}, w 0, l {lld})\n",
+                {ok_ptr, sz}
+            )
+            emit(ctx, zbuf)
             val tbuf: ref u8 = allocators.ScopedArena.alloc_or_none(
                 ctx.arena,
                 64 as usize
@@ -7587,6 +7609,17 @@ fn gen_expr(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
                 @snprintf(abuf2, 128, "    %%t{lld} =l alloc8 {lld}\n", {err_ptr, sz})
                 emit(ctx, abuf2)
             }
+            val zbuf: ref u8 = allocators.ScopedArena.alloc_or_none(
+                ctx.arena,
+                128 as usize
+            ) as ref u8
+            @snprintf(
+                zbuf,
+                128,
+                "    call $memset(l %%t{lld}, w 0, l {lld})\n",
+                {err_ptr, sz}
+            )
+            emit(ctx, zbuf)
             val tbuf: ref u8 = allocators.ScopedArena.alloc_or_none(
                 ctx.arena,
                 64 as usize
