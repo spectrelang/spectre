@@ -8,14 +8,14 @@ extern (C, header) fn fwrite(
 ) usize = "fwrite"
 
 /// Write a borrowed string view to stdout without requiring null termination.
-pub fn write_view(data: str.StringView) void = trust {
+pub fn printv(data: str.StringView) void = trust {
     if data.len > 0 {
         fwrite(data.ptr as ref void, 1 as usize, data.len as usize, @stdout())
     }
 }
 
 /// Write a borrowed string view to stderr without requiring null termination.
-pub fn ewrite_view(data: str.StringView) void = trust {
+pub fn eprintv(data: str.StringView) void = trust {
     if data.len > 0 {
         fwrite(data.ptr as ref void, 1 as usize, data.len as usize, @stderr())
     }
@@ -23,14 +23,14 @@ pub fn ewrite_view(data: str.StringView) void = trust {
 
 /// Print a string view followed by a newline to stdout.
 pub fn puts_view(data: str.StringView) void = trust {
-    write_view(data)
+    printv(data)
     val nl: mut u8 = 10
     fwrite(@addr(nl) as ref void, 1 as usize, 1 as usize, @stdout())
 }
 
 /// Print a string view followed by a newline to stderr.
 pub fn eputs_view(data: str.StringView) void = trust {
-    ewrite_view(data)
+    eprintv(data)
     val nl: mut u8 = 10
     fwrite(@addr(nl) as ref void, 1 as usize, 1 as usize, @stderr())
 }
