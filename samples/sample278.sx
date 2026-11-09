@@ -9,9 +9,10 @@ type Node = {
 pub fn push_front[A: allocators.Allocator](ac: A, head: ref Node, value: u32) ref Node = {
     val new_node = A.alloc(ac, @sizeof(Node))
     if new_node is some nn {
-        nn.value = value
-        nn.next = head
-        return nn
+        val nn_as_ref_node: mut ref Node = nn as ref Node
+        nn_as_ref_node.value = value
+        nn_as_ref_node.next = head
+        return nn_as_ref_node
     }
     val nn_zero: ref Node = @zeroed
     return nn_zero
@@ -19,7 +20,7 @@ pub fn push_front[A: allocators.Allocator](ac: A, head: ref Node, value: u32) re
 
 pub fn print_list(head: ref Node) void = {
     val current: mut ref Node = head
-    for current != none {
+    for current.next != none {
         trust stdio.print("Node value: {d}\n", {current.value})
         current = current.next
     }

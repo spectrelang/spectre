@@ -16,6 +16,7 @@ type ScopeEntry = {
     name: mut ref u8
     mutable: mut i64
     type_name: mut ref u8
+    type_node: mut ref parser.Node
     is_ref: mut i64
     line: mut i64
     used: mut i64
@@ -618,6 +619,7 @@ fn scope_define(
         entry.name = name
         entry.mutable = mutable
         entry.type_name = type_name
+        entry.type_node = none
         entry.is_ref = is_ref
         entry.line = decl_line
         entry.used = 0
@@ -1078,6 +1080,72 @@ fn scope_set_wrap_kind(ctx: ref SemaCtx, name: ref u8, kind: i64) void = trust {
                 if entry.name != none {
                     if cstr.cmp(entry.name, name) == 0 {
                         entry.wrap_kind = kind
+                        return
+                    }
+                }
+            }
+            j++
+        }
+    }
+}
+
+/// Returns the declared/inferred type node for a variable, or null if unknown.
+fn scope_lookup_type_node(ctx: ref SemaCtx, name: ref u8) ref parser.Node = trust {
+    if ctx == none || name == none {
+        return none
+    }
+    val len: i64 = @len(ctx.scopes) as i64
+    val i: mut i64 = len - 1
+    for {
+        if i < 0 {
+            break
+        }
+        val frame_opt = @get(ctx.scopes, i as usize)
+        if frame_opt is some frame {
+            val flen: i64 = @len(frame) as i64
+            val j: mut i64 = flen - 1
+            for {
+                if j < 0 {
+                    break
+                }
+                val e_opt = @get(frame, j as usize)
+                if e_opt is some e {
+                    val entry: ref ScopeEntry = e as ref ScopeEntry
+                    if cstr.cmp(entry.name, name) == 0 {
+                        return entry.type_node
+                    }
+                }
+                j--
+            }
+        }
+        i--
+    }
+    return none
+}
+
+/// Set the declared/inferred type node for a variable in the current scope.
+fn scope_set_type_node(ctx: ref SemaCtx, name: ref u8, ty: ref parser.Node) void = trust {
+    if ctx == none || name == none || ty == none {
+        return
+    }
+    val len: usize = @len(ctx.scopes)
+    if len == 0 {
+        return
+    }
+    val frame_opt = @get(ctx.scopes, len - 1)
+    if frame_opt is some frame {
+        val flen: i64 = @len(frame) as i64
+        val j: mut i64 = 0
+        for {
+            if j >= flen {
+                break
+            }
+            val e_opt = @get(frame, j as usize)
+            if e_opt is some e {
+                val entry: mut ref ScopeEntry = e as ref ScopeEntry
+                if entry.name != none {
+                    if cstr.cmp(entry.name, name) == 0 {
+                        entry.type_node = ty
                         return
                     }
                 }
@@ -2182,6 +2250,64 @@ fn type_param_method_node(ctx: ref SemaCtx, callee: ref parser.Node) ref parser.
         return none
     }
     return find_spec_method(ctx, constraint, parser.field_name_raw(base))
+}
+
+/// Return the declared/inferred type node of an expression when it can be
+/// determined without full type inference. Used for scope bindings and match
+/// payloads; returns 0 when the type is unknown.
+fn expr_type_node(ctx: ref SemaCtx, expr: ref parser.Node) ref parser.Node = trust {
+    if expr == none {
+        return none
+    }
+    val k: i64 = expr.kind
+    if k == parser.NK_TRUST || k == parser.NK_TRY {
+        return expr_type_node(ctx, expr.d0 as ref parser.Node)
+    }
+    if k == parser.NK_CAST {
+        return expr.d1 as ref parser.Node
+    }
+    if k == parser.NK_IDENT {
+        return scope_lookup_type_node(ctx, parser.node_str_raw(expr.d0))
+    }
+    if k == parser.NK_CALL {
+        val callee: ref parser.Node = parser.call_callee(expr)
+        val fn_node: ref parser.Node = resolve_called_fn(ctx, callee)
+        if fn_node != none {
+            if fn_node.kind == parser.NK_EXTERN_FN {
+                return fn_node.d5 as ref parser.Node
+            }
+            if fn_node.kind == parser.NK_FN || fn_node.kind == parser.NK_GENERIC_FN {
+                return fn_node.d4 as ref parser.Node
+            }
+        }
+        val spec_method: ref parser.Node = type_param_method_node(ctx, callee)
+        if spec_method != none {
+            return spec_method.d4 as ref parser.Node
+        }
+    }
+    return none
+}
+
+/// Returns the payload type node of an option/result type. `which` is 1 for
+/// the success/ok payload and 2 for the error payload of a result.
+fn wrap_payload_type_node(ty: ref parser.Node, which: i64) ref parser.Node = trust {
+    if ty == none {
+        return none
+    }
+    val cur: ref parser.Node = unwrap_mut_type(ty)
+    if cur == none {
+        return none
+    }
+    if cur.kind == parser.TY_OPTION {
+        return cur.d0 as ref parser.Node
+    }
+    if cur.kind == parser.TY_RESULT {
+        if which == 2 {
+            return cur.d1 as ref parser.Node
+        }
+        return cur.d0 as ref parser.Node
+    }
+    return none
 }
 
 /// Returns the wrap kind (0=none, 1=result, 2=option) of an expression's value.
@@ -5622,6 +5748,25 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
         sema_is_type_name(ctx, parser.node_str_raw(fbase.d0)) {
             return
         }
+        if fbase != none && fbase.kind == parser.NK_IDENT {
+            val base_name: ref u8 = parser.node_str_raw(fbase.d0)
+            val base_ty: ref u8 = scope_lookup_type(ctx, base_name)
+            if base_ty == none && scope_lookup(ctx, base_name) != -1 &&
+            scope_lookup_is_ref(ctx, base_name) == 1 {
+                val field_name: ref u8 = parser.field_name_raw(expr)
+                val ebuf: ref u8 = allocators.ScopedArena.alloc_or_none(
+                    ctx.arena,
+                    (512) as usize
+                ) as ref u8
+                @snprintf(
+                    ebuf,
+                    512,
+                    "{s}:{lld}: cannot access field '{s}' on 'ref void'; cast the value to a concrete reference type first",
+                    {filename, line, field_name}
+                )
+                add_error(ctx, ebuf)
+            }
+        }
         check_expr(ctx, fbase, filename)
         return
     }
@@ -8779,6 +8924,14 @@ fn check_stmt(ctx: mut ref SemaCtx, stmt: ref parser.Node, filename: ref u8) voi
                 add_error(ctx, svbuf)
             }
             scope_define(ctx, name, mutable, tname, is_ref_flag, line)
+            if ty_node != none {
+                scope_set_type_node(ctx, name, ty_node)
+            } elif init_expr != none {
+                val inferred_ty: ref parser.Node = expr_type_node(ctx, init_expr)
+                if inferred_ty != none {
+                    scope_set_type_node(ctx, name, inferred_ty)
+                }
+            }
             if tname == none && init_expr != none {
                 val origin_ns: ref u8 = extract_constructor_namespace(ctx, init_expr)
                 if origin_ns != none {
@@ -9081,6 +9234,19 @@ fn check_stmt(ctx: mut ref SemaCtx, stmt: ref parser.Node, filename: ref u8) voi
                                 add_error(ctx, svbuf2)
                             }
                         }
+                    } elif var_type == none && field_name != none &&
+                    scope_lookup_is_ref(ctx, tname) == 1 {
+                        val ebuf: ref u8 = allocators.ScopedArena.alloc_or_none(
+                            ctx.arena,
+                            (512) as usize
+                        ) as ref u8
+                        @snprintf(
+                            ebuf,
+                            512,
+                            "{s}:{lld}: cannot assign to field '{s}' on 'ref void'; cast the value to a concrete reference type first",
+                            {filename, line, field_name}
+                        )
+                        add_error(ctx, ebuf)
                     }
                 }
             } else {
@@ -9328,9 +9494,19 @@ fn check_stmt(ctx: mut ref SemaCtx, stmt: ref parser.Node, filename: ref u8) voi
         val some_bind: ref u8 = parser.node_str_raw(stmt.d1)
         val some_body_node: ref parser.Node = stmt.d2 as ref parser.Node
         val none_body_node: ref parser.Node = stmt.d3 as ref parser.Node
+        val match_ty: ref parser.Node = expr_type_node(ctx, match_expr)
+        val payload_ty: ref parser.Node = wrap_payload_type_node(match_ty, 1)
+        val payload_is_ref: i64 = sema_ty_is_ref(payload_ty)
+        val payload_name: mut ref u8 = none
+        if payload_is_ref == 1 {
+            payload_name = extract_type_name(payload_ty)
+        }
         push_scope(ctx)
         if some_bind != none {
-            scope_define(ctx, some_bind, 1, none, 0, line)
+            scope_define(ctx, some_bind, 1, payload_name, payload_is_ref, line)
+            if payload_is_ref == 1 {
+                scope_set_type_node(ctx, some_bind, payload_ty)
+            }
             scope_set_implicit_mut(ctx, some_bind)
         }
         if some_body_node != none {
@@ -9379,9 +9555,19 @@ fn check_stmt(ctx: mut ref SemaCtx, stmt: ref parser.Node, filename: ref u8) voi
         }
         val ok_bind: ref u8 = parser.node_str_raw(stmt.d1)
         val ok_body_node: ref parser.Node = stmt.d2 as ref parser.Node
+        val match_ty: ref parser.Node = expr_type_node(ctx, match_expr)
+        val ok_payload_ty: ref parser.Node = wrap_payload_type_node(match_ty, 1)
+        val ok_payload_is_ref: i64 = sema_ty_is_ref(ok_payload_ty)
+        val ok_payload_name: mut ref u8 = none
+        if ok_payload_is_ref == 1 {
+            ok_payload_name = extract_type_name(ok_payload_ty)
+        }
         push_scope(ctx)
         if ok_bind != none {
-            scope_define(ctx, ok_bind, 1, none, 0, line)
+            scope_define(ctx, ok_bind, 1, ok_payload_name, ok_payload_is_ref, line)
+            if ok_payload_is_ref == 1 {
+                scope_set_type_node(ctx, ok_bind, ok_payload_ty)
+            }
             scope_set_implicit_mut(ctx, ok_bind)
         }
         if ok_body_node != none {
@@ -9390,9 +9576,18 @@ fn check_stmt(ctx: mut ref SemaCtx, stmt: ref parser.Node, filename: ref u8) voi
         pop_scope(ctx, filename, line)
         val err_bind: ref u8 = parser.node_str_raw(stmt.d3)
         val err_body_node: ref parser.Node = stmt.d4 as ref parser.Node
+        val err_payload_ty: ref parser.Node = wrap_payload_type_node(match_ty, 2)
+        val err_payload_is_ref: i64 = sema_ty_is_ref(err_payload_ty)
+        val err_payload_name: mut ref u8 = none
+        if err_payload_is_ref == 1 {
+            err_payload_name = extract_type_name(err_payload_ty)
+        }
         push_scope(ctx)
         if err_bind != none {
-            scope_define(ctx, err_bind, 1, none, 0, line)
+            scope_define(ctx, err_bind, 1, err_payload_name, err_payload_is_ref, line)
+            if err_payload_is_ref == 1 {
+                scope_set_type_node(ctx, err_bind, err_payload_ty)
+            }
             scope_set_implicit_mut(ctx, err_bind)
         }
         if err_body_node != none {
