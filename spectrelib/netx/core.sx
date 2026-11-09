@@ -4,10 +4,12 @@ val str        = use("std/string")
 val ostr       = use("std/string/owned")
 val builder    = use("std/string/builder")
 
-pub val DEFAULT_MAX_ROUTES: i64 = 32
-pub val DEFAULT_MAX_CLIENTS: i64 = 64
-pub val DEFAULT_REQUEST_SIZE: i64 = 8192
-pub val DEFAULT_RESPONSE_SIZE: i64 = 16384
+pub val (
+    DEFAULT_MAX_ROUTES: i64    = 32
+    DEFAULT_MAX_CLIENTS: i64   = 64
+    DEFAULT_REQUEST_SIZE: i64  = 8192
+    DEFAULT_RESPONSE_SIZE: i64 = 16384
+)
 
 /// A parsed HTTP request. All string fields point into the connection's
 /// request buffer and remain valid for the duration of the handler call.
