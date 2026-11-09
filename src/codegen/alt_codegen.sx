@@ -3961,7 +3961,9 @@ fn cc_emit_wrap_local(
 ) ref u8 = trust {
     val t: i64 = fresh_tmp(ctx)
     val buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 1024 as usize) as ref u8
-    if cstr.cmp(inner_expr, c"") == 0 {
+    val resolved_inner_ty: ref parser.Node = cc_concrete_ty(ctx, inner_ty)
+    val inner_is_void: bool = resolved_inner_ty != none && resolved_inner_ty.kind == parser.TY_VOID
+    if cstr.cmp(inner_expr, c"") == 0 || inner_is_void {
         @snprintf(
             buf,
             1024,
@@ -4003,7 +4005,9 @@ fn cc_emit_wrap_alloc_local(
 ) ref u8 = trust {
     val t: i64 = fresh_tmp(ctx)
     val b: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 1024 as usize) as ref u8
-    if cstr.cmp(inner_expr, c"") == 0 {
+    val resolved_inner_ty: ref parser.Node = cc_concrete_ty(ctx, inner_ty)
+    val inner_is_void: bool = resolved_inner_ty != none && resolved_inner_ty.kind == parser.TY_VOID
+    if cstr.cmp(inner_expr, c"") == 0 || inner_is_void {
         @snprintf(
             b,
             1024,

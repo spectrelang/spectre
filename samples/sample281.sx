@@ -1,0 +1,96 @@
+val stdio = use("std/stdio")
+val allocators = use("std/allocators")
+
+type Node = {
+    value: mut i32,
+    left: mut ref Node,
+    right: mut ref Node,
+}
+
+type BinarySearchTree = {
+    root: mut ref Node,
+}
+
+enum BSTError = {
+    AllocationFailed,
+}
+
+pub fn create_node[A: allocators.Allocator](
+    ac: A,
+    value: i32
+) result[ref Node, BSTError] = {
+    val mem_res = A.alloc(ac, @sizeof(Node))
+
+    if mem_res is some mem_ptr {
+        val node: mut ref Node = mem_ptr as ref Node
+
+        node.value = value
+        node.left = @zeroed
+        node.right = @zeroed
+
+        return ok(node)
+    }
+
+    return err(BSTError.AllocationFailed)
+}
+
+pub fn insert_node[A: allocators.Allocator](
+    ac: A,
+    root: mut ref Node,
+    value: i32
+) result[void, BSTError] = {
+    if value < root.value {
+        if root.left == none {
+            root.left = create_node[A](ac, value)?
+        } else {
+            insert_node[A](ac, root.left, value)?
+        }
+    } elif value > root.value {
+        if root.right == none {
+            root.right = create_node[A](ac, value)?
+        } else {
+            insert_node[A](ac, root.right, value)?
+        }
+    }
+
+    return ok({})
+}
+
+pub fn insert[A: allocators.Allocator](
+    ac: A,
+    tree: mut ref BinarySearchTree,
+    value: i32
+) result[void, BSTError] = {
+    if tree.root == none {
+        tree.root = create_node[A](ac, value)?
+    } else {
+        insert_node[A](ac, tree.root, value)?
+    }
+
+    return ok({})
+}
+
+pub fn in_order_traverse(root: ref Node) void = {
+    if root != none {
+        in_order_traverse(root.left)
+        trust stdio.print("{d}\n", {root.value})
+        in_order_traverse(root.right)
+    }
+}
+
+pub fn main() void = trust {
+    val ac = allocators.Arena.new(4096)?
+
+    val tree: mut BinarySearchTree = @zeroed
+
+    val values: [6]i32 = [50, 30, 70, 20, 40, 60]
+
+    for i = 0, i < 6, i += 1 {
+        if @get(values, i) is some v {
+            insert[_](ac, @addr(tree), v)?
+        }
+    }
+
+    stdio.print("BST In-Order Traversal:\n", {})
+    in_order_traverse(tree.root)
+}

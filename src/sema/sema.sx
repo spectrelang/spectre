@@ -4421,6 +4421,8 @@ fn check_return_value(
         return
     }
 
+    sema_reject_brace_arr_init(ctx, ret_ty, expr, filename, line)
+
     val ret_wrap: i64 = ty_wrap_kind(ret_ty)
     val expr_wrap: i64 = comparison_wrap_kind(ctx, expr)
     if (ret_wrap == 0 && sema_is_wrap_kind(expr_wrap)) ||
@@ -5931,6 +5933,7 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
                         if param_opt is some param_raw {
                             val param_node: ref parser.Node = param_raw as ref parser.Node
                             val pty: ref parser.Node = param_node.d1 as ref parser.Node
+                            sema_reject_brace_arr_init(ctx, pty, arg_node, filename, line)
                             val param_is_ref: mut bool = false
                             if pty.kind == parser.TY_REF {
                                 param_is_ref = true
@@ -8829,6 +8832,38 @@ fn sema_infer_fixed_arr_sizes(ty: ref parser.Node, init: ref parser.Node) bool =
     return true
 }
 
+/// Reject the curly-brace form (`{...}`) for array initializers.
+/// Array literals must use square brackets (`[...]`).
+fn sema_reject_brace_arr_init(
+    ctx: ref SemaCtx,
+    ty_node: ref parser.Node,
+    init_expr: ref parser.Node,
+    filename: ref u8,
+    line: i64
+) void = trust {
+    if init_expr == none || init_expr.kind != parser.NK_ARGS_PACK {
+        return
+    }
+    val resolved: ref parser.Node = unwrap_mut_type(ty_node)
+    if resolved == none {
+        return
+    }
+    if resolved.kind != parser.TY_FIXED_ARR && resolved.kind != parser.TY_SLICE {
+        return
+    }
+    val buf: ref u8 = allocators.ScopedArena.alloc_or_none(
+        ctx.arena,
+        (512) as usize
+    ) as ref u8
+    @snprintf(
+        buf,
+        512,
+        "{s}:{lld}: array initializer must use square brackets, e.g. '[...]'; curly brace syntax is not allowed",
+        {filename, line}
+    )
+    add_error(ctx, buf)
+}
+
 fn check_stmt(ctx: mut ref SemaCtx, stmt: ref parser.Node, filename: ref u8) void = trust {
     guarded pre {
         ctx_not_null: ctx != none
@@ -8856,6 +8891,13 @@ fn check_stmt(ctx: mut ref SemaCtx, stmt: ref parser.Node, filename: ref u8) voi
                 {filename, line})
             add_error(ctx, ibuf)
         }
+        sema_reject_brace_arr_init(
+            ctx,
+            stmt.d2 as ref parser.Node,
+            stmt.d3 as ref parser.Node,
+            filename,
+            line
+        )
         check_expr(ctx, stmt.d3 as ref parser.Node, filename)
         sema_check_int_literal_range(
             ctx,
@@ -9071,6 +9113,13 @@ fn check_stmt(ctx: mut ref SemaCtx, stmt: ref parser.Node, filename: ref u8) voi
             } else {
                 val target_is_ref: i64 = scope_lookup_is_ref(ctx, tname)
                 val target_type_name: ref u8 = scope_lookup_type(ctx, tname)
+                sema_reject_brace_arr_init(
+                    ctx,
+                    scope_lookup_type_node(ctx, tname),
+                    rhs,
+                    filename,
+                    line
+                )
                 sema_check_int_literal_range(ctx, target_type_name, rhs, filename, line)
                 val target_wrap: i64 = scope_lookup_wrap_kind(ctx, tname)
                 val rhs_wrap: i64 = comparison_wrap_kind(ctx, rhs)
@@ -9171,6 +9220,13 @@ fn check_stmt(ctx: mut ref SemaCtx, stmt: ref parser.Node, filename: ref u8) voi
                                 field_name
                             )
                             if fty != none {
+                                sema_reject_brace_arr_init(
+                                    ctx,
+                                    fty,
+                                    rhs,
+                                    filename,
+                                    line
+                                )
                                 sema_check_int_literal_range(
                                     ctx,
                                     extract_type_name(fty),
@@ -10205,6 +10261,13 @@ fn check_top_item(ctx: mut ref SemaCtx, item: ref parser.Node, filename: ref u8)
     }
     if k == parser.NK_VAL {
         val init_node: ref parser.Node = item.d3 as ref parser.Node
+        sema_reject_brace_arr_init(
+            ctx,
+            item.d2 as ref parser.Node,
+            init_node,
+            filename,
+            item.line
+        )
         if init_node != none {
             check_expr(ctx, init_node, filename)
         }
@@ -10232,6 +10295,13 @@ fn check_top_item(ctx: mut ref SemaCtx, item: ref parser.Node, filename: ref u8)
                 {filename, item.line})
             add_error(ctx, ibuf)
         }
+        sema_reject_brace_arr_init(
+            ctx,
+            item.d3 as ref parser.Node,
+            init_node,
+            filename,
+            item.line
+        )
         if init_node != none {
             check_expr(ctx, init_node, filename)
         }
