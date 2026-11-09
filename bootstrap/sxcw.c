@@ -4939,7 +4939,6 @@ static int64_t codegen__cg_param_qbe_name(int64_t,int64_t,int64_t);
 static int64_t codegen__fresh_lbl(int64_t);
 static int32_t codegen__emit(int64_t,int64_t);
 static int32_t codegen__emitln(int64_t,int64_t);
-static int32_t codegen__emit_view(int64_t,int64_t);
 static int32_t codegen__emitln_view(int64_t,int64_t);
 static int32_t codegen__is_word_type_name(int64_t);
 static int32_t codegen__is_float_type_name(int64_t);
@@ -5149,7 +5148,6 @@ static int32_t alt_codegen__cc_expr_drain(int64_t);
 static int64_t alt_codegen__fresh_tmp(int64_t);
 static int32_t alt_codegen__emit(int64_t,int64_t);
 static int32_t alt_codegen__emitln(int64_t,int64_t);
-static int32_t alt_codegen__emitln_view(int64_t,int64_t);
 static int32_t alt_codegen__emit_line_directive(int64_t,int64_t);
 static int64_t alt_codegen__rewrite_fmt(int64_t,int64_t);
 static int64_t alt_codegen__intern_string(int64_t,int64_t);
@@ -48092,11 +48090,6 @@ static int32_t codegen__emitln(int64_t t_ctx,int64_t t_s){
 return 0;
 }
 
-static int32_t codegen__emit_view(int64_t t_ctx,int64_t t_s){
-(void)(std__str__StringBuilder__append(codegen__cg_sb(t_ctx),t_s));
-return 0;
-}
-
 static int32_t codegen__emitln_view(int64_t t_ctx,int64_t t_s){
 (void)(std__str__StringBuilder__append(codegen__cg_sb(t_ctx),t_s));
 (void)(std__str__StringBuilder__append_char(codegen__cg_sb(t_ctx),(uint8_t)(INT64_C(10))));
@@ -64268,12 +64261,6 @@ return 0;
 
 static int32_t alt_codegen__emitln(int64_t t_ctx,int64_t t_s){
 (void)(std__str__StringBuilder__append_cstr((*(int64_t*)((char*)(intptr_t)(t_ctx)+0)),t_s));
-(void)(std__str__StringBuilder__append_char((*(int64_t*)((char*)(intptr_t)(t_ctx)+0)),(uint8_t)(INT64_C(10))));
-return 0;
-}
-
-static int32_t alt_codegen__emitln_view(int64_t t_ctx,int64_t t_s){
-(void)(std__str__StringBuilder__append((*(int64_t*)((char*)(intptr_t)(t_ctx)+0)),t_s));
 (void)(std__str__StringBuilder__append_char((*(int64_t*)((char*)(intptr_t)(t_ctx)+0)),(uint8_t)(INT64_C(10))));
 return 0;
 }

@@ -134026,16 +134026,6 @@ function w $codegen__emitln(l %ctx, l %s) {
     ret 0
 }
 
-function w $codegen__emit_view(l %ctx, l %s) {
-@start
-    %t0 =l alloc8 8
-    storel %ctx, %t0
-    %t1 =l loadl %t0
-    %t2 =l call $codegen__cg_sb(l %t1)
-    %t3 =w call $std__str__StringBuilder__append(l %t2, l %s)
-    ret 0
-}
-
 function w $codegen__emitln_view(l %ctx, l %s) {
 @start
     %t0 =l alloc8 8
@@ -195570,16 +195560,6 @@ function w $alt_codegen__emitln(l %ctx, l %s) {
 @start
     %t0 =l loadl %ctx
     %t1 =w call $std__str__StringBuilder__append_cstr(l %t0, l %s)
-    %t2 =l loadl %ctx
-    %t3 =l copy 10
-    %t4 =w call $std__str__StringBuilder__append_char(l %t2, w %t3)
-    ret 0
-}
-
-function w $alt_codegen__emitln_view(l %ctx, l %s) {
-@start
-    %t0 =l loadl %ctx
-    %t1 =w call $std__str__StringBuilder__append(l %t0, l %s)
     %t2 =l loadl %ctx
     %t3 =l copy 10
     %t4 =w call $std__str__StringBuilder__append_char(l %t2, w %t3)
