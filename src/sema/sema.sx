@@ -66,6 +66,7 @@ type SemaCtx = {
     in_trust: mut i64
     trust_used: mut i64
     type_params: mut list[ref u8]
+    type_param_constraints: mut list[ref u8]
     argspack_params: mut list[ref u8]
     var_origin_names: mut list[ref u8]
     var_origin_types: mut list[ref u8]
@@ -1374,7 +1375,14 @@ fn find_fn_in_module_with_ns(
                 continue
             }
             if ns == none {
-                return item
+                // A module-qualified name without an explicit type namespace
+                // (e.g. `module.fn`) only refers to true top-level functions.
+                // Namespaced methods such as `(Arena) alloc` must be called as
+                // `module.Type.method` and must not be found by bare name.
+                if item_ns == none {
+                    return item
+                }
+                continue
             }
             if item_ns != none && cstr.eql(item_ns, ns) {
                 return item
@@ -1484,6 +1492,61 @@ fn resolve_called_fn(ctx: ref SemaCtx, callee: ref parser.Node) ref parser.Node 
         }
     }
     return none
+}
+
+/// Returns the imported module alias at the root of a call expression's
+/// callee chain, or 0 when the callee is not module-qualified.
+fn callee_module_alias(ctx: ref SemaCtx, callee: ref parser.Node) ref u8 = trust {
+    val base: ref parser.Node = unwrap_generic_callee(callee)
+    if base == none || base.kind != parser.NK_FIELD {
+        return none
+    }
+    val fbase: ref parser.Node = parser.field_base(base)
+    if fbase == none {
+        return none
+    }
+    if fbase.kind == parser.NK_IDENT {
+        val nm: ref u8 = parser.node_str_raw(fbase.d0)
+        if find_imported_mod(ctx, nm) != none {
+            return nm
+        }
+        return none
+    }
+    if fbase.kind == parser.NK_FIELD {
+        val inner: ref parser.Node = parser.field_base(fbase)
+        if inner != none && inner.kind == parser.NK_IDENT {
+            val nm2: ref u8 = parser.node_str_raw(inner.d0)
+            if find_imported_mod(ctx, nm2) != none {
+                return nm2
+            }
+        }
+    }
+    return none
+}
+
+/// Returns true when `name` denotes a declared type or specification rather
+/// than a value.
+fn sema_is_type_name(ctx: ref SemaCtx, name: ref u8) bool = trust {
+    if name == none {
+        return false
+    }
+    for ty_name in ctx.type_names {
+        if cstr.eql(ty_name, name) {
+            return true
+        }
+    }
+    return false
+}
+
+fn sema_is_wrap_kind(kind: i64) bool = trust {
+    return kind == 1 || kind == 2
+}
+
+fn sema_wrap_kind_word(kind: i64) ref u8 = trust {
+    if kind == 1 {
+        return c"result"
+    }
+    return c"option"
 }
 
 /// Returns 0/1/2 for the wrap kind (none/result/option) of a function's return type.
@@ -2047,6 +2110,80 @@ fn find_spec_anywhere(ctx: ref SemaCtx, spec_name: ref u8) ref parser.Node = tru
     return find_spec_in_items(ctx, modinfo.module_items(ctx.root_mod), spec_name)
 }
 
+/// Return the specification constraint declared for a generic type parameter,
+/// or 0 when the parameter has no constraint.
+fn type_param_constraint(ctx: ref SemaCtx, name: ref u8) ref u8 = trust {
+    if name == none {
+        return none
+    }
+    val n: i64 = @len(ctx.type_params) as i64
+    val i: mut i64 = 0
+    for {
+        if i >= n {
+            break
+        }
+        val tp_opt = @get(ctx.type_params, i as usize)
+        if tp_opt is some tp_raw {
+            if cstr.eql(tp_raw as ref u8, name) {
+                val c_opt = @get(ctx.type_param_constraints, i as usize)
+                if c_opt is some c {
+                    return c as ref u8
+                }
+                return none
+            }
+        }
+        i++
+    }
+    return none
+}
+
+/// Find a method declaration by name in a specification.
+fn find_spec_method(
+    ctx: ref SemaCtx,
+    spec_name: ref u8,
+    method_name: ref u8
+) ref parser.Node = trust {
+    if spec_name == none || method_name == none {
+        return none
+    }
+    val spec_node: ref parser.Node = find_spec_anywhere(ctx, spec_name)
+    if spec_node == none {
+        return none
+    }
+    val methods: ref void = spec_node.d2 as ref void
+    if methods == none {
+        return none
+    }
+    for m in methods as list[ref parser.Node] {
+        if m == none || m.kind != parser.NK_FN {
+            continue
+        }
+        if cstr.eql(parser.node_str_raw(m.d2), method_name) {
+            return m
+        }
+    }
+    return none
+}
+
+/// Resolve `T.method` where `T` is a generic type parameter constrained by a
+/// specification. Returns the specification method declaration, or 0.
+fn type_param_method_node(ctx: ref SemaCtx, callee: ref parser.Node) ref parser.Node = trust {
+    val base: ref parser.Node = unwrap_generic_callee(callee)
+    if base == none || base.kind != parser.NK_FIELD {
+        return none
+    }
+    val fbase: ref parser.Node = parser.field_base(base)
+    if fbase == none || fbase.kind != parser.NK_IDENT {
+        return none
+    }
+    val receiver: ref u8 = parser.node_str_raw(fbase.d0)
+    val constraint: ref u8 = type_param_constraint(ctx, receiver)
+    if constraint == none {
+        return none
+    }
+    return find_spec_method(ctx, constraint, parser.field_name_raw(base))
+}
+
 /// Returns the wrap kind (0=none, 1=result, 2=option) of an expression's value.
 /// Note: if you have just 'none'/'some'/'ok'/'err' literals, they return 0 here because in spectre
 /// 'none' is also used as a null-pointer sentinel and can be passed to ref-typed
@@ -2095,7 +2232,10 @@ fn expr_wrap_kind(ctx: ref SemaCtx, expr: ref parser.Node) i64 = trust {
     if k == parser.NK_CALL {
         val callee: ref parser.Node = parser.call_callee(expr)
         val fn_node: ref parser.Node = resolve_called_fn(ctx, callee)
-        return fn_return_wrap_kind(fn_node)
+        if fn_node != none {
+            return fn_return_wrap_kind(fn_node)
+        }
+        return fn_return_wrap_kind(type_param_method_node(ctx, callee))
     }
     if k == parser.NK_IDENT {
         return scope_lookup_wrap_kind(ctx, parser.node_str_raw(expr.d0))
@@ -4155,6 +4295,29 @@ fn check_return_value(
         return
     }
 
+    val ret_wrap: i64 = ty_wrap_kind(ret_ty)
+    val expr_wrap: i64 = comparison_wrap_kind(ctx, expr)
+    if (ret_wrap == 0 && sema_is_wrap_kind(expr_wrap)) ||
+    (sema_is_wrap_kind(ret_wrap) && sema_is_wrap_kind(expr_wrap) && ret_wrap != expr_wrap) {
+        val ret_ty_str: ref u8 = format_type_for_error(
+            ctx,
+            extract_type_name(ret_ty),
+            ctx.current_ret_is_ref
+        )
+        val wrap_word: ref u8 = sema_wrap_kind_word(expr_wrap)
+        val wbuf: ref u8 = allocators.ScopedArena.alloc_or_none(
+            ctx.arena,
+            (512) as usize
+        ) as ref u8
+        @snprintf(
+            wbuf,
+            512,
+            "{s}:{lld}: cannot return a {s} value from a function returning '{s}'; unwrap it first",
+            {filename, line, wrap_word, ret_ty_str}
+        )
+        add_error(ctx, wbuf)
+    }
+
     if ctx.current_ret_is_ref == 1 {
         if expr.kind == parser.NK_NONE {
             return
@@ -5263,39 +5426,42 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
         if !has_dot {
             val lkup = scope_lookup(ctx, name)
             if lkup == -1 {
-                val is_known: mut bool = false
+                val is_fn: mut bool = false
+                val is_type: mut bool = false
+                val is_tparam: mut bool = false
+                val is_global: mut bool = false
                 for fn_name in ctx.fn_names {
                     if cstr.eql(fn_name, name) {
-                        is_known = true
+                        is_fn = true
                         @append(ctx.used_fns, name)
                         break
                     }
                 }
-                if !is_known {
+                if !is_fn {
                     for ty_name in ctx.type_names {
                         if cstr.eql(ty_name, name) {
-                            is_known = true
+                            is_type = true
                             break
                         }
                     }
                 }
-                if !is_known {
+                if !is_fn && !is_type {
                     for tp_name in ctx.type_params {
                         if cstr.eql(tp_name, name) {
-                            is_known = true
+                            is_tparam = true
                             break
                         }
                     }
                 }
-                if !is_known {
+                if !is_fn && !is_type && !is_tparam {
                     for gname in ctx.global_names {
                         if cstr.eql(gname, name) {
-                            is_known = true
+                            is_global = true
                             break
                         }
                     }
                 }
-                if !is_known {
+                if !is_fn && !is_type && !is_tparam && !is_global {
                     val buf: ref u8 = allocators.ScopedArena.alloc_or_none(
                         ctx.arena,
                         (256) as usize
@@ -5307,6 +5473,18 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
                         {filename, line, name}
                     )
                     add_error(ctx, buf)
+                } elif is_type && !is_fn && !is_tparam && !is_global {
+                    val tbuf: ref u8 = allocators.ScopedArena.alloc_or_none(
+                        ctx.arena,
+                        (256) as usize
+                    ) as ref u8
+                    @snprintf(
+                        tbuf,
+                        256,
+                        "{s}:{lld}: type '{s}' cannot be used as a value",
+                        {filename, line, name}
+                    )
+                    add_error(ctx, tbuf)
                 }
             } else {
                 mark_name_used(ctx, name)
@@ -5436,7 +5614,15 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
             return
         }
         check_no_module_to_module_field(ctx, expr, line, filename)
-        check_expr(ctx, parser.field_base(expr), filename)
+        val fbase: ref parser.Node = parser.field_base(expr)
+        // A type name used as the base of a field access is a namespace
+        // selector (e.g. `AllocError.OutOfMemory` or `Arena.new`), not a
+        // value expression.
+        if fbase != none && fbase.kind == parser.NK_IDENT &&
+        sema_is_type_name(ctx, parser.node_str_raw(fbase.d0)) {
+            return
+        }
+        check_expr(ctx, fbase, filename)
         return
     }
     if k == parser.NK_CALL {
@@ -5452,6 +5638,35 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
         }
         val resolved_fn: ref parser.Node = resolve_called_fn(ctx, callee)
         parser.call_set_resolved_fn(expr, resolved_fn)
+        if resolved_fn == none {
+            val mod_alias: ref u8 = callee_module_alias(ctx, callee)
+            if mod_alias != none {
+                val member: mut ref u8 = none
+                if base_callee != none && base_callee.kind == parser.NK_FIELD {
+                    member = parser.field_name_raw(base_callee)
+                }
+                val ebuf: ref u8 = allocators.ScopedArena.alloc_or_none(
+                    ctx.arena,
+                    (512) as usize
+                ) as ref u8
+                if member != none {
+                    @snprintf(
+                        ebuf,
+                        512,
+                        "{s}:{lld}: module '{s}' has no function '{s}'",
+                        {filename, line, mod_alias, member}
+                    )
+                } else {
+                    @snprintf(
+                        ebuf,
+                        512,
+                        "{s}:{lld}: module '{s}' does not define a callable item",
+                        {filename, line, mod_alias}
+                    )
+                }
+                add_error(ctx, ebuf)
+            }
+        }
         if base_callee != none {
             if base_callee.kind == parser.NK_IDENT {
                 val fname2: ref u8 = parser.node_str_raw(base_callee.d0)
@@ -8571,8 +8786,28 @@ fn check_stmt(ctx: mut ref SemaCtx, stmt: ref parser.Node, filename: ref u8) voi
                 }
             }
             val explicit_wrap: i64 = ty_wrap_kind(ty_node)
+            val init_wrap: i64 = comparison_wrap_kind(ctx, init_expr)
+            if ty_node != none && explicit_wrap == 0 && sema_is_wrap_kind(init_wrap) {
+                val target_ty_str: ref u8 = format_type_for_error(ctx, tname, is_ref_flag)
+                val wrap_word: ref u8 = sema_wrap_kind_word(init_wrap)
+                val wbuf: ref u8 = allocators.ScopedArena.alloc_or_none(
+                    ctx.arena,
+                    (512) as usize
+                ) as ref u8
+                @snprintf(
+                    wbuf,
+                    512,
+                    "{s}:{lld}: cannot initialize '{s}' with a {s} value; unwrap it first",
+                    {filename, line, target_ty_str, wrap_word}
+                )
+                add_error(ctx, wbuf)
+            }
             val final_wrap: mut i64 = explicit_wrap
-            if final_wrap == 0 && init_expr != none {
+            // Only infer an implicit wrapped type when the declaration has no
+            // explicit type. A typed declaration uses exactly its declared
+            // wrap kind; an option/result initializer for a non-wrapped type
+            // was diagnosed above and must not poison later checks.
+            if ty_node == none && final_wrap == 0 && init_expr != none {
                 final_wrap = expr_wrap_kind(ctx, init_expr)
             }
             if final_wrap != 0 {
@@ -8684,6 +8919,29 @@ fn check_stmt(ctx: mut ref SemaCtx, stmt: ref parser.Node, filename: ref u8) voi
                 val target_is_ref: i64 = scope_lookup_is_ref(ctx, tname)
                 val target_type_name: ref u8 = scope_lookup_type(ctx, tname)
                 sema_check_int_literal_range(ctx, target_type_name, rhs, filename, line)
+                val target_wrap: i64 = scope_lookup_wrap_kind(ctx, tname)
+                val rhs_wrap: i64 = comparison_wrap_kind(ctx, rhs)
+                if (target_wrap == 0 && sema_is_wrap_kind(rhs_wrap)) ||
+                (sema_is_wrap_kind(target_wrap) && sema_is_wrap_kind(rhs_wrap) &&
+                target_wrap != rhs_wrap) {
+                    val target_ty_str: ref u8 = format_type_for_error(
+                        ctx,
+                        target_type_name,
+                        target_is_ref
+                    )
+                    val wrap_word: ref u8 = sema_wrap_kind_word(rhs_wrap)
+                    val wbuf: ref u8 = allocators.ScopedArena.alloc_or_none(
+                        ctx.arena,
+                        (512) as usize
+                    ) as ref u8
+                    @snprintf(
+                        wbuf,
+                        512,
+                        "{s}:{lld}: cannot assign a {s} value to '{s}'; unwrap it first",
+                        {filename, line, wrap_word, target_ty_str}
+                    )
+                    add_error(ctx, wbuf)
+                }
                 if target_is_ref == 1 && target_type_name != none {
                     if !ref_assignment_rhs_ok(ctx, target_type_name, target_is_ref, rhs) {
                         val target_ty: ref u8 = format_type_for_error(ctx,
@@ -8767,6 +9025,29 @@ fn check_stmt(ctx: mut ref SemaCtx, stmt: ref parser.Node, filename: ref u8) voi
                                     filename,
                                     line
                                 )
+                                val field_wrap: i64 = ty_wrap_kind(fty)
+                                val rhs_wrap: i64 = comparison_wrap_kind(ctx, rhs)
+                                if (field_wrap == 0 && sema_is_wrap_kind(rhs_wrap)) ||
+                                (sema_is_wrap_kind(field_wrap) && sema_is_wrap_kind(rhs_wrap) &&
+                                field_wrap != rhs_wrap) {
+                                    val field_ty_str: ref u8 = format_type_for_error(
+                                        ctx,
+                                        extract_type_name(fty),
+                                        sema_ty_is_ref(fty)
+                                    )
+                                    val wrap_word: ref u8 = sema_wrap_kind_word(rhs_wrap)
+                                    val wbuf: ref u8 = allocators.ScopedArena.alloc_or_none(
+                                        ctx.arena,
+                                        (512) as usize
+                                    ) as ref u8
+                                    @snprintf(
+                                        wbuf,
+                                        512,
+                                        "{s}:{lld}: cannot assign a {s} value to '{s}'; unwrap it first",
+                                        {filename, line, wrap_word, field_ty_str}
+                                    )
+                                    add_error(ctx, wbuf)
+                                }
                             }
                             if fty != none && sema_ty_is_ref(fty) == 1 {
                                 val fty_name: ref u8 = extract_type_name(fty)
@@ -9616,9 +9897,14 @@ fn check_generic_fn(ctx: mut ref SemaCtx, fn_node: ref parser.Node, filename: re
 
     val type_params: ref void = fn_node.d6 as ref void
     val prev_type_params: list[ref u8] = ctx.type_params
+    val prev_type_param_constraints: list[ref u8] = ctx.type_param_constraints
     if type_params != none {
         for tparam in type_params as list[ref parser.Node] {
             @append(ctx.type_params, parser.tparam_name_raw(tparam as ref parser.Node))
+            @append(
+                ctx.type_param_constraints,
+                extract_type_name(parser.tparam_constraint(tparam as ref parser.Node))
+            )
         }
     }
 
@@ -9673,6 +9959,7 @@ fn check_generic_fn(ctx: mut ref SemaCtx, fn_node: ref parser.Node, filename: re
     pop_scope(ctx, filename, 0)
 
     ctx.type_params = prev_type_params
+    ctx.type_param_constraints = prev_type_param_constraints
     ctx.in_unsafe_fn = prev_unsafe
 }
 
