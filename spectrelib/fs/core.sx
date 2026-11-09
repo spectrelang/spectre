@@ -3,7 +3,9 @@ val str        = use("../string")
 val pathutil   = use("../path")
 val allocators = use("../allocators")
 
-val heap: allocators.HeapAllocator = @zeroed
+fn cstr_heap() allocators.HeapAllocator = {
+    return @zeroed
+}
 
 extern (C, header) fn fopen(path: ref u8, mode: ref u8) ref void = "fopen"
 extern (C, header) fn fclose(stream: ref void) i32 = "fclose"
@@ -229,11 +231,11 @@ pub fn open(path: ref u8, mode: ref u8) option[ref void] = trust {
 
 /// View-taking variant of `open`.
 pub fn open_view(path: str.StringView, mode: str.StringView) option[ref void] = trust {
-    val p: str.CString = str.cstring_from_view[allocators.HeapAllocator](heap, path)
-    val m: str.CString = str.cstring_from_view[allocators.HeapAllocator](heap, mode)
+    val p: str.CString = str.cstring_from_view[allocators.HeapAllocator](cstr_heap(), path)
+    val m: str.CString = str.cstring_from_view[allocators.HeapAllocator](cstr_heap(), mode)
     defer {
-        str.cstring_free[allocators.HeapAllocator](heap, p)
-        str.cstring_free[allocators.HeapAllocator](heap, m)
+        str.cstring_free[allocators.HeapAllocator](cstr_heap(), p)
+        str.cstring_free[allocators.HeapAllocator](cstr_heap(), m)
     }
     if p.ptr == none || m.ptr == none {
         return none
@@ -243,9 +245,9 @@ pub fn open_view(path: str.StringView, mode: str.StringView) option[ref void] = 
 
 /// View-taking variant of `file_size`.
 pub fn file_size_view(path: str.StringView) option[i64] = trust {
-    val p: str.CString = str.cstring_from_view[allocators.HeapAllocator](heap, path)
+    val p: str.CString = str.cstring_from_view[allocators.HeapAllocator](cstr_heap(), path)
     defer {
-        str.cstring_free[allocators.HeapAllocator](heap, p)
+        str.cstring_free[allocators.HeapAllocator](cstr_heap(), p)
     }
     if p.ptr == none {
         return none
@@ -258,9 +260,9 @@ pub fn read_all_view[A: allocators.Allocator](
     ac: A,
     path: str.StringView
 ) option[ref u8] = trust {
-    val p: str.CString = str.cstring_from_view[allocators.HeapAllocator](heap, path)
+    val p: str.CString = str.cstring_from_view[allocators.HeapAllocator](cstr_heap(), path)
     defer {
-        str.cstring_free[allocators.HeapAllocator](heap, p)
+        str.cstring_free[allocators.HeapAllocator](cstr_heap(), p)
     }
     if p.ptr == none {
         return none
@@ -270,9 +272,9 @@ pub fn read_all_view[A: allocators.Allocator](
 
 /// View-taking variant of `read_all_raw`.
 pub fn read_all_raw_view(path: str.StringView) option[ref u8] = trust {
-    val p: str.CString = str.cstring_from_view[allocators.HeapAllocator](heap, path)
+    val p: str.CString = str.cstring_from_view[allocators.HeapAllocator](cstr_heap(), path)
     defer {
-        str.cstring_free[allocators.HeapAllocator](heap, p)
+        str.cstring_free[allocators.HeapAllocator](cstr_heap(), p)
     }
     if p.ptr == none {
         return none
@@ -299,9 +301,9 @@ pub fn write_line_view(f: ref void, data: str.StringView) void = trust {
 
 /// View-taking variant of `write_all`.
 pub fn write_all_view(path: str.StringView, data: str.StringView) bool = trust {
-    val p: str.CString = str.cstring_from_view[allocators.HeapAllocator](heap, path)
+    val p: str.CString = str.cstring_from_view[allocators.HeapAllocator](cstr_heap(), path)
     defer {
-        str.cstring_free[allocators.HeapAllocator](heap, p)
+        str.cstring_free[allocators.HeapAllocator](cstr_heap(), p)
     }
     if p.ptr == none {
         return false
@@ -325,9 +327,9 @@ pub fn write_all_bytes_view(
     data: ref void,
     len: i64
 ) bool = trust {
-    val p: str.CString = str.cstring_from_view[allocators.HeapAllocator](heap, path)
+    val p: str.CString = str.cstring_from_view[allocators.HeapAllocator](cstr_heap(), path)
     defer {
-        str.cstring_free[allocators.HeapAllocator](heap, p)
+        str.cstring_free[allocators.HeapAllocator](cstr_heap(), p)
     }
     if p.ptr == none {
         return false
@@ -337,9 +339,9 @@ pub fn write_all_bytes_view(
 
 /// View-taking variant of `append_all`.
 pub fn append_all_view(path: str.StringView, data: str.StringView) bool = trust {
-    val p: str.CString = str.cstring_from_view[allocators.HeapAllocator](heap, path)
+    val p: str.CString = str.cstring_from_view[allocators.HeapAllocator](cstr_heap(), path)
     defer {
-        str.cstring_free[allocators.HeapAllocator](heap, p)
+        str.cstring_free[allocators.HeapAllocator](cstr_heap(), p)
     }
     if p.ptr == none {
         return false
@@ -363,9 +365,9 @@ pub fn append_all_bytes_view(
     data: ref void,
     len: i64
 ) bool = trust {
-    val p: str.CString = str.cstring_from_view[allocators.HeapAllocator](heap, path)
+    val p: str.CString = str.cstring_from_view[allocators.HeapAllocator](cstr_heap(), path)
     defer {
-        str.cstring_free[allocators.HeapAllocator](heap, p)
+        str.cstring_free[allocators.HeapAllocator](cstr_heap(), p)
     }
     if p.ptr == none {
         return false
@@ -375,9 +377,9 @@ pub fn append_all_bytes_view(
 
 /// View-taking variant of `delete`.
 pub fn delete_view(path: str.StringView) bool = trust {
-    val p: str.CString = str.cstring_from_view[allocators.HeapAllocator](heap, path)
+    val p: str.CString = str.cstring_from_view[allocators.HeapAllocator](cstr_heap(), path)
     defer {
-        str.cstring_free[allocators.HeapAllocator](heap, p)
+        str.cstring_free[allocators.HeapAllocator](cstr_heap(), p)
     }
     if p.ptr == none {
         return false
@@ -387,11 +389,11 @@ pub fn delete_view(path: str.StringView) bool = trust {
 
 /// View-taking variant of `rename_path`.
 pub fn rename_path_view(old: str.StringView, new: str.StringView) bool = trust {
-    val o: str.CString = str.cstring_from_view[allocators.HeapAllocator](heap, old)
-    val n: str.CString = str.cstring_from_view[allocators.HeapAllocator](heap, new)
+    val o: str.CString = str.cstring_from_view[allocators.HeapAllocator](cstr_heap(), old)
+    val n: str.CString = str.cstring_from_view[allocators.HeapAllocator](cstr_heap(), new)
     defer {
-        str.cstring_free[allocators.HeapAllocator](heap, o)
-        str.cstring_free[allocators.HeapAllocator](heap, n)
+        str.cstring_free[allocators.HeapAllocator](cstr_heap(), o)
+        str.cstring_free[allocators.HeapAllocator](cstr_heap(), n)
     }
     if o.ptr == none || n.ptr == none {
         return false
@@ -401,9 +403,9 @@ pub fn rename_path_view(old: str.StringView, new: str.StringView) bool = trust {
 
 /// View-taking variant of `mkdir_path`.
 pub fn mkdir_path_view(path: str.StringView) bool = trust {
-    val p: str.CString = str.cstring_from_view[allocators.HeapAllocator](heap, path)
+    val p: str.CString = str.cstring_from_view[allocators.HeapAllocator](cstr_heap(), path)
     defer {
-        str.cstring_free[allocators.HeapAllocator](heap, p)
+        str.cstring_free[allocators.HeapAllocator](cstr_heap(), p)
     }
     if p.ptr == none {
         return false
@@ -413,9 +415,9 @@ pub fn mkdir_path_view(path: str.StringView) bool = trust {
 
 /// View-taking variant of `rmdir_path`.
 pub fn rmdir_path_view(path: str.StringView) bool = trust {
-    val p: str.CString = str.cstring_from_view[allocators.HeapAllocator](heap, path)
+    val p: str.CString = str.cstring_from_view[allocators.HeapAllocator](cstr_heap(), path)
     defer {
-        str.cstring_free[allocators.HeapAllocator](heap, p)
+        str.cstring_free[allocators.HeapAllocator](cstr_heap(), p)
     }
     if p.ptr == none {
         return false
@@ -425,9 +427,9 @@ pub fn rmdir_path_view(path: str.StringView) bool = trust {
 
 /// View-taking variant of `remove_dir_all`.
 pub fn remove_dir_all_view(path: str.StringView) bool = trust {
-    val p: str.CString = str.cstring_from_view[allocators.HeapAllocator](heap, path)
+    val p: str.CString = str.cstring_from_view[allocators.HeapAllocator](cstr_heap(), path)
     defer {
-        str.cstring_free[allocators.HeapAllocator](heap, p)
+        str.cstring_free[allocators.HeapAllocator](cstr_heap(), p)
     }
     if p.ptr == none {
         return false
@@ -437,9 +439,9 @@ pub fn remove_dir_all_view(path: str.StringView) bool = trust {
 
 /// View-taking variant of `is_directory`.
 pub fn is_directory_view(path: str.StringView) bool = trust {
-    val p: str.CString = str.cstring_from_view[allocators.HeapAllocator](heap, path)
+    val p: str.CString = str.cstring_from_view[allocators.HeapAllocator](cstr_heap(), path)
     defer {
-        str.cstring_free[allocators.HeapAllocator](heap, p)
+        str.cstring_free[allocators.HeapAllocator](cstr_heap(), p)
     }
     if p.ptr == none {
         return false
@@ -672,8 +674,7 @@ pub fn rmdir_path(path: ref u8) bool = trust {
 /// Remove a file or directory tree recursively.
 /// Returns true when the path no longer exists.
 pub fn remove_dir_all(path: ref u8) bool = trust {
-    val heap: allocators.HeapAllocator = @zeroed
-    val entries_opt = walk_dir_raw[allocators.HeapAllocator](heap, path)
+    val entries_opt = walk_dir_raw[allocators.HeapAllocator](cstr_heap(), path)
     match entries_opt {
         none => {
             // Not a directory: fall back to unlinking it as a file.

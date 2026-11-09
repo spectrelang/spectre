@@ -12,7 +12,9 @@ val allocators = use("std/allocators")
 /// Link flags and discovered paths are retained for the compiler process
 /// lifetime, so their owning CString allocations are intentionally not freed
 /// per call.
-val heap: allocators.HeapAllocator = @zeroed
+fn cstr_heap() allocators.HeapAllocator = {
+    return @zeroed
+}
 
 fn is_trim_char(c: u8) bool = {
     return c == 32 || c == 9 || c == 10 || c == 13
@@ -70,7 +72,7 @@ fn split_flags(s: string.StringView) list[ref u8] = trust {
         @append(
             out,
             string.cstring_ptr(string.cstring_from_view[allocators.HeapAllocator](
-                    heap,
+                    cstr_heap(),
                     string.view_slice(s, start, i)
                 ))
         )
@@ -92,7 +94,7 @@ fn split_path_list(raw: string.StringView, out: mut list[ref u8]) void = trust {
                 @append(
                     out,
                     string.cstring_ptr(string.cstring_from_view[allocators.HeapAllocator](
-                            heap,
+                            cstr_heap(),
                             string.view_slice(raw, start, i)
                         ))
                 )
@@ -193,7 +195,7 @@ fn compiler_library_path(base: string.StringView, suffix: string.StringView) ref
                     val found: string.StringView = trim_raw(string.view(out.ptr, string.len(out)))
                     if found.len > 0 && !string.view_eql_cstr(found, missing) {
                         val copied: ref u8 = string.cstring_ptr(string.cstring_from_view[allocators.HeapAllocator](
-                                heap,
+                                cstr_heap(),
                                 found
                             ))
                         string.string_free(out)

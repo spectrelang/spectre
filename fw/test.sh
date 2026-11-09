@@ -98,7 +98,7 @@ run_samples() {
 }
 
 run_std_tests() {
-	find "$STD_DIR" -type f -name "*.sx" | sort | while IFS= read -r file; do
+	while IFS= read -r file; do
 		filename=$(basename "$file")
 		log_name="${file#./}"
 		log_name="${log_name//\//_}"
@@ -123,7 +123,7 @@ run_std_tests() {
 			fi
 			((failed++))
 		fi
-	done
+	done < <(find "$STD_DIR" -type f -name "*.sx" | sort)
 }
 
 if [ $BOOTSTRAP_ONLY -eq 0 ]; then
