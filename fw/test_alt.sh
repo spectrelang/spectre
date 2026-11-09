@@ -181,6 +181,12 @@ echo "Bootstrap test:"
 ((total++))
 ./sxc3 ./src/sxc.sx -o sxc4 -alt -l || { echo "[FAIL] stage3"; ((failed++)); exit 1; }
 
+((total++))
+./sxc2 ./src/sxc.sx -l -o sxc3_qbe || { echo "[FAIL] alt-to-qbe stage2"; ((failed++)); exit 1; }
+
+((total++))
+./sxc3_qbe ./src/sxc.sx -l -o sxc4_qbe || { echo "[FAIL] alt-to-qbe stage3"; ((failed++)); exit 1; }
+
 echo "[PASS] bootstrap"
 
 echo

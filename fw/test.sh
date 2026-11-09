@@ -158,6 +158,10 @@ echo "Bootstrap test:"
 ./sxc2 ./src/sxc.sx -l -o sxc3 || exit 1
 ./sxc3 ./src/sxc.sx -l -o sxc4 || exit 1
 
+echo "Alt-to-QBE bootstrap test:"
+"$COMPILER" ./src/sxc.sx -l -alt -o sxc2_alt || exit 1
+./sxc2_alt ./src/sxc.sx -l -o sxc3_from_alt || exit 1
+
 echo
 echo "Final Summary:"
 echo "Total tests : $total"
