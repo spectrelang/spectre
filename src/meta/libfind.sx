@@ -3,10 +3,16 @@
 /// SPDX-License-Identifier: GPL-3.0-only
 /// (C) Navid Momtahen - 2026
 
-val string = use("std/string")
-val mem    = use("mem.sx")
-val os     = use("std/os")
-val path   = use("std/path")
+val string     = use("std/string")
+val mem        = use("mem.sx")
+val os         = use("std/os")
+val path       = use("std/path")
+val allocators = use("std/allocators")
+
+/// Link flags and discovered paths are retained for the compiler process
+/// lifetime, so their owning CString allocations are intentionally not freed
+/// per call.
+val heap: allocators.HeapAllocator = @zeroed
 
 fn is_trim_char(c: u8) bool = {
     return c == 32 || c == 9 || c == 10 || c == 13
@@ -61,7 +67,13 @@ fn split_flags(s: string.StringView) list[ref u8] = trust {
             }
             i++
         }
-        @append(out, string.view_to_cstr_raw(string.view_slice(s, start, i)))
+        @append(
+            out,
+            string.cstring_ptr(string.cstring_from_view[allocators.HeapAllocator](
+                    heap,
+                    string.view_slice(s, start, i)
+                ))
+        )
     }
     return out
 }
@@ -77,7 +89,13 @@ fn split_path_list(raw: string.StringView, out: mut list[ref u8]) void = trust {
         }
         if at_end || c == 58 || c == 59 {
             if i > start {
-                @append(out, string.view_to_cstr_raw(string.view_slice(raw, start, i)))
+                @append(
+                    out,
+                    string.cstring_ptr(string.cstring_from_view[allocators.HeapAllocator](
+                            heap,
+                            string.view_slice(raw, start, i)
+                        ))
+                )
             }
             start = i + 1
         }
@@ -174,7 +192,10 @@ fn compiler_library_path(base: string.StringView, suffix: string.StringView) ref
                 ok out => {
                     val found: string.StringView = trim_raw(string.view(out.ptr, string.len(out)))
                     if found.len > 0 && !string.view_eql_cstr(found, missing) {
-                        val copied: ref u8 = string.view_to_cstr_raw(found)
+                        val copied: ref u8 = string.cstring_ptr(string.cstring_from_view[allocators.HeapAllocator](
+                                heap,
+                                found
+                            ))
                         string.string_free(out)
                         return copied
                     }

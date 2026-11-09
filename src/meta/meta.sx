@@ -78,7 +78,11 @@ pub fn print_version() void = {
     )
 }
 
-fn print_flag_help(name: str.StringView, summary: str.StringView, usage: str.StringView) void = trust {
+fn print_flag_help(
+    name: str.StringView,
+    summary: str.StringView,
+    usage: str.StringView
+) void = trust {
     stdio.print("{s}\n\n  {s}\n\nusage:\n  {s}\n", {name, summary, usage})
 }
 
@@ -343,7 +347,10 @@ pub fn print_help(topic: str.StringView) i32 = trust {
         return 0
     }
 
-    if str.view_eql_cstr(topic, "-src-target") == 0 || str.view_eql_cstr(topic, "-src-target:<os>") == 0 {
+    if str.view_eql_cstr(
+        topic,
+        "-src-target"
+    ) == 0 || str.view_eql_cstr(topic, "-src-target:<os>") == 0 {
         print_src_target_help()
         return 0
     }
@@ -357,7 +364,10 @@ pub fn print_help(topic: str.StringView) i32 = trust {
         return 0
     }
 
-    if str.view_eql_cstr(topic, "-inc-path") == 0 || str.view_eql_cstr(topic, "-inc-path:<dir>") == 0 {
+    if str.view_eql_cstr(
+        topic,
+        "-inc-path"
+    ) == 0 || str.view_eql_cstr(topic, "-inc-path:<dir>") == 0 {
         print_flag_help(
             str.view_cstr("-inc-path:<dir>"),
             str.view_cstr("Add an include search path for the alternative backend."),
@@ -448,7 +458,11 @@ pub fn print_help(topic: str.StringView) i32 = trust {
     }
 
     if str.view_eql_cstr(topic, "-dll") == 0 {
-        print_flag_help(str.view_cstr("-dll"), str.view_cstr("Build a shared library."), str.view_cstr("spectre <input.sx> -dll"))
+        print_flag_help(
+            str.view_cstr("-dll"),
+            str.view_cstr("Build a shared library."),
+            str.view_cstr("spectre <input.sx> -dll")
+        )
         return 0
     }
 
@@ -488,7 +502,13 @@ pub fn print_help(topic: str.StringView) i32 = trust {
         return 0
     }
 
-    if str.view_eql_cstr(topic, "-o") == 0 || str.view_eql_cstr(topic, "-output") == 0 || str.view_eql_cstr(topic, "-output=<file>") == 0 {
+    if str.view_eql_cstr(
+        topic,
+        "-o"
+    ) == 0 || str.view_eql_cstr(
+        topic,
+        "-output"
+    ) == 0 || str.view_eql_cstr(topic, "-output=<file>") == 0 {
         print_flag_help(
             str.view_cstr("-o, -output <file>"),
             str.view_cstr("Set the output path for a binary or build artifact."),

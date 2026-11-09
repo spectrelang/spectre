@@ -2271,7 +2271,10 @@ fn find_top_level_fn(
         }
         val k: i64 = item.kind
         if k == parser.NK_FN || k == parser.NK_GENERIC_FN {
-            if string.str_eql(parser.node_str_raw(item.d1), ns) && string.str_eql(parser.node_str_raw(item.d2), name) {
+            if string.str_eql(
+                parser.node_str_raw(item.d1),
+                ns
+            ) && string.str_eql(parser.node_str_raw(item.d2), name) {
                 return item
             }
         }
@@ -4174,7 +4177,10 @@ fn check_generic_call_constraints(ctx: ref SemaCtx, fn_found: ref parser.Node, c
                         val tdef: ref parser.Node = find_typedef_anywhere(ctx, arg_type_name)
                         val impl_spec: mut ref u8 = none
                         if tdef != none {
-                            impl_spec = canonicalize_import_alias_type_name(ctx, parser.node_str_raw(tdef.d4))
+                            impl_spec = canonicalize_import_alias_type_name(
+                                ctx,
+                                parser.node_str_raw(tdef.d4)
+                            )
                         }
                         val its_ok: mut bool = false
                         if impl_spec != none && string.str_eql(impl_spec, expected_spec) {
@@ -5244,7 +5250,10 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
                                     if param_is_ref {
                                         val root_node: ref parser.Node = unwrap_and_find_root(arg_node)
                                         if root_node != none {
-                                            mark_name_mutated(ctx, parser.node_str_raw(root_node.d0))
+                                            mark_name_mutated(
+                                                ctx,
+                                                parser.node_str_raw(root_node.d0)
+                                            )
                                         }
                                     }
                                 } else {

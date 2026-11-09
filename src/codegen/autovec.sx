@@ -346,8 +346,16 @@ fn is_select_node(
         if else_ptr_opt is some ep {
             if then_val_opt is some tv {
                 if else_val_opt is some ev {
-                    val then_base: str.StringView = base_name(tp as ref parser.Node, index, elem_size)
-                    val else_base: str.StringView = base_name(ep as ref parser.Node, index, elem_size)
+                    val then_base: str.StringView = base_name(
+                        tp as ref parser.Node,
+                        index,
+                        elem_size
+                    )
+                    val else_base: str.StringView = base_name(
+                        ep as ref parser.Node,
+                        index,
+                        elem_size
+                    )
                     if then_base == none || else_base == none {
                         return false
                     }

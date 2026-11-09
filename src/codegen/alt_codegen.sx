@@ -3183,6 +3183,37 @@ fn cc_infer_call_ret_ty(ctx: mut ref CCtx, expr: ref parser.Node) ref parser.Nod
     return none
 }
 
+fn env_key_literal_node(node: ref parser.Node) ref parser.Node = trust {
+    if node == none {
+        return none
+    }
+    if node.kind == parser.NK_STR_LIT {
+        return node
+    }
+    if node.kind != parser.NK_CALL {
+        return none
+    }
+    val callee: ref parser.Node = parser.call_callee(node)
+    if callee == none || callee.kind != parser.NK_FIELD {
+        return none
+    }
+    if str.raw_cmp(parser.field_name_raw(callee), "view_cstr") != 0 {
+        return none
+    }
+    val call_args: ref void = parser.call_args(node) as ref void
+    if call_args == none || @len(call_args as list[ref parser.Node]) == 0 {
+        return none
+    }
+    val a0_opt = @get(call_args as list[ref parser.Node], 0 as usize)
+    if a0_opt is some a0_val {
+        val a0: ref parser.Node = a0_val as ref parser.Node
+        if a0 != none && a0.kind == parser.NK_STR_LIT {
+            return a0
+        }
+    }
+    return none
+}
+
 fn get_arg(ctx: mut ref CCtx, args: ref void, idx: i64) ref u8 = trust {
     if args == none {
         return "0"
@@ -4414,7 +4445,12 @@ fn gen_field(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
                 ctx.arena,
                 512 as usize
             ) as ref u8
-            @snprintf(key, 512, "{s}__{s}__{s}", {parser.node_str_raw(mid_node.d0), mid_name, fname})
+            @snprintf(
+                key,
+                512,
+                "{s}__{s}__{s}",
+                {parser.node_str_raw(mid_node.d0), mid_name, fname}
+            )
             val cval: ref u8 = cc_const_val(ctx, key)
             if str.raw_cmp(cval, "") != 0 {
                 @snprintf(buf, 512, "({s})", {cval})
@@ -4426,7 +4462,12 @@ fn gen_field(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
                     ctx.arena,
                     512 as usize
                 ) as ref u8
-                @snprintf(qkey, 512, "{s}__{s}__{s}", {parser.node_str_raw(mid_node.d0), mid_name, fname})
+                @snprintf(
+                    qkey,
+                    512,
+                    "{s}__{s}__{s}",
+                    {parser.node_str_raw(mid_node.d0), mid_name, fname}
+                )
                 val resolved: ref u8 = cc_resolve_fn_name(ctx, qkey)
                 if resolved != none {
                     @snprintf(buf, 512, "((int64_t)(intptr_t)&{s})", {resolved})
@@ -4512,8 +4553,9 @@ fn gen_call(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
             if args != none && (@len(args as list[ref parser.Node]) as i64) > 0 {
                 val key_opt = @get(args as list[ref parser.Node], 0 as usize)
                 if key_opt is some key_val {
-                    val key_node: ref parser.Node = key_val as ref parser.Node
-                    if key_node.kind == parser.NK_STR_LIT {
+                    val key_candidate: ref parser.Node = key_val as ref parser.Node
+                    val key_node: ref parser.Node = env_key_literal_node(key_candidate)
+                    if key_node != none {
                         val key: str.StringView = parser.str_lit_text(key_node)
                         val value_opt = defines.get(key)
                         if value_opt is some value {
@@ -5001,7 +5043,11 @@ fn cc_embed_data(ctx: mut ref CCtx, path: ref u8, size: i64) ref u8 = trust {
         i = i + (1 as i64)
     }
 
-    val label: ref u8 = arenafmt.format(ctx.arena, str.view_cstr("sx__embed_{lld}"), {ctx.embed_count}).ptr
+    val label: ref u8 = arenafmt.format(
+        ctx.arena,
+        str.view_cstr("sx__embed_{lld}"),
+        {ctx.embed_count}
+    ).ptr
     ctx.embed_count = ctx.embed_count + (1 as i64)
     @append(ctx.embed_paths, path)
     @append(ctx.embed_labels, label)
@@ -6681,7 +6727,11 @@ fn gen_struct_lit(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
 
                 val fct: mut ref u8 = "int64_t"
                 if struct_fields != none {
-                    fct = cc_field_ctype_from_fields(ctx, struct_fields, parser.node_str_raw(lf_node.d0))
+                    fct = cc_field_ctype_from_fields(
+                        ctx,
+                        struct_fields,
+                        parser.node_str_raw(lf_node.d0)
+                    )
                 }
                 val old_expected = ctx.expected_ty
                 if field_ty != none {
@@ -9401,7 +9451,11 @@ fn preregister_items(
                                 os.exit(1)
                             }
                             val label: ref u8 = cc_embed_data(ctx, epath, ce.d3)
-                            cv = arenafmt.format(ctx.arena, str.view_cstr("(int64_t)(intptr_t){s}"), {label}).ptr
+                            cv = arenafmt.format(
+                                ctx.arena,
+                                str.view_cstr("(int64_t)(intptr_t){s}"),
+                                {label}
+                            ).ptr
                         } elif str.raw_cmp(bname, "embedlen") == 0 {
                             cv = arenafmt.format(ctx.arena, str.view_cstr("{lld}"), {ce.d3}).ptr
                         }

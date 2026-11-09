@@ -348,22 +348,74 @@ pub fn view_trim(v: StringView) StringView = trust {
     return view_trim_left(view_trim_right(v))
 }
 
-/// Allocate a null-terminated copy of a view with the provided allocator.
-pub fn view_to_cstr[T: allocators.Allocator](ac: T, v: StringView) ref u8 = trust {
-    return alloc_substr_in[T](ac, v.ptr, 0, v.len)
+/// A borrowed, NUL-terminated C string.
+///
+/// The pointer must refer to valid NUL-terminated storage that outlives the
+/// `CStr`. This type is intended for C/FFI call sites only.
+pub type CStr = {
+    ptr: ref u8
 }
 
-/// Allocate a null-terminated heap copy of a view.
-pub fn view_to_cstr_raw(v: StringView) ref u8 = trust {
-    val buf: mut ref u8 = @alloc(v.len + 1) as ref u8
-    if buf == none {
-        return none
+/// An owned, NUL-terminated C string.
+///
+/// Construct with `cstring_from_view`; release with `cstring_free` using the
+/// same allocator.
+pub type CString = {
+    ptr: ref u8
+}
+
+pub fn cstr_borrow(ptr: ref u8) CStr = {
+    return CStr{ptr: ptr}
+}
+
+pub fn cstr_ptr(s: CStr) ref u8 = {
+    return s.ptr
+}
+
+pub fn cstr_view(s: CStr) StringView = {
+    return view_cstr(s.ptr)
+}
+
+/// Allocate a NUL-terminated copy of a view with an explicit allocator.
+pub fn cstring_from_view[T: allocators.GeneralAllocator](
+    ac: T,
+    v: StringView
+) CString = trust {
+    val out_opt = T.alloc(ac, (v.len + 1) as usize)
+    match out_opt {
+        some out => {
+            val buf: ref u8 = out as ref u8
+            if v.len > 0 {
+                @memcpy(buf as ref void, v.ptr as ref void, v.len as usize)
+            }
+            @store8(@ptradd(buf, v.len), 0)
+            return CString{ptr: buf}
+        }
+        none => {
+            return CString{ptr: none}
+        }
     }
-    if v.len > 0 {
-        @memcpy(buf as ref void, v.ptr as ref void, v.len as usize)
+}
+
+pub fn cstring_from_cstr[T: allocators.GeneralAllocator](
+    ac: T,
+    s: ref u8
+) CString = trust {
+    return cstring_from_view[T](ac, view_cstr(s))
+}
+
+pub fn cstring_ptr(s: CString) ref u8 = {
+    return s.ptr
+}
+
+pub fn cstring_view(s: CString) StringView = {
+    return view_cstr(s.ptr)
+}
+
+pub fn cstring_free[T: allocators.GeneralAllocator](ac: T, s: CString) void = trust {
+    if s.ptr != none {
+        T.free(ac, s.ptr as ref void)
     }
-    @store8(@ptradd(buf, v.len), 0)
-    return buf
 }
 
 /// Copy a view into a newly allocated owning String.
@@ -1495,8 +1547,13 @@ test "string views borrow without owning" {
     val arena: allocators.Arena = trust allocators.Arena.new(32768 as usize)?
     val owned: String = trust view_to_string[allocators.Arena](arena, view_slice(base, 0, 5))
     assert equals(owned, trust from[allocators.Arena](arena, "hello"))
-    val cstr_copy: ref u8 = trust view_to_cstr[allocators.Arena](arena, view_slice(base, 6, 11))
-    assert str_eql(cstr_copy, "world")
+    val heap: allocators.HeapAllocator = @zeroed
+    val cstr_copy: CString = trust cstring_from_view[allocators.HeapAllocator](
+        heap,
+        view_slice(base, 6, 11)
+    )
+    assert str_eql(cstring_ptr(cstr_copy), "world")
+    trust cstring_free[allocators.HeapAllocator](heap, cstr_copy)
     trust allocators.Arena.free(arena)
 }
 

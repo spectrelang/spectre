@@ -9,6 +9,7 @@ val mem      = use("../../src/meta/mem.sx")
 val meta     = use("../../src/meta/meta.sx")
 val commands = use("../../src/meta/commands.sx")
 val check    = use("lib/check.sx")
+val str      = use("std/string")
 
 when posix {
     extern (C) fn chdir(path: ref u8) i32 = "chdir"
@@ -55,11 +56,11 @@ test "commands build does not leak" {
         val dir: ref u8 = "./s-out/checkmem-commands"
         assert fs.mkdir_path(dir)
 
-        val version: ref u8 = meta.get_spectre_version()
+        val version: str.StringView = meta.get_spectre_version()
         val prefix: ref u8 = "entry \"./main.sx\"\nversion \"1.2.3\"\nspectre_version \""
         val suffix: ref u8 = "\"\nbuild checkmem { action \"true\" }\n"
         assert fs.write_all("./s-out/checkmem-commands/sx.mod", prefix)
-        assert fs.append_all("./s-out/checkmem-commands/sx.mod", version)
+        assert fs.append_all_view(str.view_cstr("./s-out/checkmem-commands/sx.mod"), version)
         assert fs.append_all("./s-out/checkmem-commands/sx.mod", suffix)
 
         when posix {

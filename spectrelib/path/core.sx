@@ -360,14 +360,19 @@ pub fn canonicalize_path(path: ref u8) ref u8 = trust {
 
 /// Canonicalize a path held in a view, returning an owned string.
 pub fn canonicalize_path_view(path: str.StringView) ref u8 = trust {
-    val tmp: ref u8 = str.view_to_cstr_raw(path)
-    if tmp == none {
+    val heap: allocators.HeapAllocator = @zeroed
+    val tmp: str.CString = str.cstring_from_view[allocators.HeapAllocator](heap, path)
+    if tmp.ptr == none {
         return none
     }
-    val result: ref u8 = canonicalize_path(tmp)
-    if result != tmp {
-        @free(tmp as ref void)
+    val result: ref u8 = canonicalize_path(tmp.ptr)
+    if result == tmp.ptr {
+        str.cstring_free[allocators.HeapAllocator](heap, tmp)
+        val empty: ref u8 = @alloc(1) as ref u8
+        @store8(empty, 0)
+        return empty
     }
+    str.cstring_free[allocators.HeapAllocator](heap, tmp)
     return result
 }
 
@@ -587,23 +592,25 @@ pub fn ensure_dir(path: ref u8) bool = trust {
 
 /// View-taking variant of `ensure_dir`.
 pub fn ensure_dir_view(path: str.StringView) bool = trust {
-    val tmp: ref u8 = str.view_to_cstr_raw(path)
-    if tmp == none {
+    val heap: allocators.HeapAllocator = @zeroed
+    val tmp: str.CString = str.cstring_from_view[allocators.HeapAllocator](heap, path)
+    if tmp.ptr == none {
         return false
     }
-    val result: bool = ensure_dir(tmp)
-    @free(tmp as ref void)
+    val result: bool = ensure_dir(tmp.ptr)
+    str.cstring_free[allocators.HeapAllocator](heap, tmp)
     return result
 }
 
 /// View-taking variant of `path_contains_dir`.
 pub fn path_contains_dir_view(target: str.StringView) bool = trust {
-    val tmp: ref u8 = str.view_to_cstr_raw(target)
-    if tmp == none {
+    val heap: allocators.HeapAllocator = @zeroed
+    val tmp: str.CString = str.cstring_from_view[allocators.HeapAllocator](heap, target)
+    if tmp.ptr == none {
         return false
     }
-    val result: bool = path_contains_dir(tmp)
-    @free(tmp as ref void)
+    val result: bool = path_contains_dir(tmp.ptr)
+    str.cstring_free[allocators.HeapAllocator](heap, tmp)
     return result
 }
 

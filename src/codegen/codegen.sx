@@ -5603,6 +5603,37 @@ fn rewrite_fmt(ctx: ref CgCtx, s: ref u8) ref u8 = trust {
 }
 
 /// Intern a string literal without format rewriting, return its global label index.
+fn env_key_literal_node(node: ref parser.Node) ref parser.Node = trust {
+    if node == none {
+        return none
+    }
+    if node.kind == parser.NK_STR_LIT {
+        return node
+    }
+    if node.kind != parser.NK_CALL {
+        return none
+    }
+    val callee: ref parser.Node = parser.call_callee(node)
+    if callee == none || callee.kind != parser.NK_FIELD {
+        return none
+    }
+    if str.raw_cmp(parser.field_name_raw(callee), "view_cstr") != 0 {
+        return none
+    }
+    val call_args: ref void = parser.call_args(node) as ref void
+    if call_args == none || @len(call_args as list[ref parser.Node]) == 0 {
+        return none
+    }
+    val a0_opt = @get(call_args as list[ref parser.Node], 0 as usize)
+    if a0_opt is some a0_val {
+        val a0: ref parser.Node = a0_val as ref parser.Node
+        if a0 != none && a0.kind == parser.NK_STR_LIT {
+            return a0
+        }
+    }
+    return none
+}
+
 fn intern_string(ctx: mut ref CgCtx, s: str.StringView) i64 = trust {
     val strs: ref void = cg_strs(ctx)
     val len: i64 = @len(strs) as i64
@@ -5811,7 +5842,10 @@ fn static_global_init_value(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = 
         val inner: ref parser.Node = parser.unop_inner(expr)
         if uop == parser.UOP_NEG && inner != none {
             if inner.kind == parser.NK_INT_LIT {
-                val inner_val: ref u8 = normalize_static_int_text(ctx, parser.int_lit_text_raw(inner))
+                val inner_val: ref u8 = normalize_static_int_text(
+                    ctx,
+                    parser.int_lit_text_raw(inner)
+                )
                 val neg_buf: ref u8 = allocators.ScopedArena.alloc_or_none(
                     ctx.arena,
                     64 as usize
@@ -6190,7 +6224,10 @@ fn emit_global_val(ctx: mut ref CgCtx, mod_prefix: ref u8, node: ref parser.Node
 
     val ginit: mut ref u8 = "0"
     if gexpr != none {
-        if gexpr.kind == parser.NK_BUILTIN && str.raw_cmp(parser.node_str_raw(gexpr.d0), "embedlen") == 0 {
+        if gexpr.kind == parser.NK_BUILTIN && str.raw_cmp(
+            parser.node_str_raw(gexpr.d0),
+            "embedlen"
+        ) == 0 {
             ginit = arenafmt.format(ctx.arena, str.view_cstr("{lld}"), {gexpr.d3}).ptr
         } else {
             val static_init: ref u8 = static_global_init_value(ctx, gexpr)
@@ -9920,7 +9957,11 @@ fn cg_try_inline_call(
                                 cg_register_local_ref_type(ctx, pname)
                                 val inner: ref parser.Node = pty.d0 as ref parser.Node
                                 if inner != none && inner.kind == parser.TY_NAMED {
-                                    cg_register_local_type(ctx, pname, parser.node_str_raw(inner.d0))
+                                    cg_register_local_type(
+                                        ctx,
+                                        pname,
+                                        parser.node_str_raw(inner.d0)
+                                    )
                                 }
                             } elif pty.kind == parser.TY_NAMED {
                                 cg_register_local_type(ctx, pname, parser.node_str_raw(pty.d0))
@@ -9959,8 +10000,9 @@ fn gen_call(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
             if args_list != none && (@len(args_list as list[ref parser.Node]) as i64) > 0 {
                 val key_opt = @get(args_list as list[ref parser.Node], 0 as usize)
                 if key_opt is some key_val {
-                    val key_node: ref parser.Node = key_val as ref parser.Node
-                    if key_node.kind == parser.NK_STR_LIT {
+                    val key_candidate: ref parser.Node = key_val as ref parser.Node
+                    val key_node: ref parser.Node = env_key_literal_node(key_candidate)
+                    if key_node != none {
                         val key: str.StringView = parser.str_lit_text(key_node)
                         val value_opt = defines.get(key)
                         if value_opt is some value {
@@ -11384,7 +11426,11 @@ fn cg_embed_label(ctx: mut ref CgCtx, path: ref u8) ref u8 = trust {
         i++
     }
 
-    val label: ref u8 = arenafmt.format(ctx.arena, str.view_cstr("sx__embed_{lld}"), {ctx.embed_count}).ptr
+    val label: ref u8 = arenafmt.format(
+        ctx.arena,
+        str.view_cstr("sx__embed_{lld}"),
+        {ctx.embed_count}
+    ).ptr
     ctx.embed_count = ctx.embed_count + (1 as i64)
     @append(ctx.embed_paths, path)
     @append(ctx.embed_labels, label)
@@ -14982,7 +15028,10 @@ fn gen_stmt(ctx: mut ref CgCtx, stmt: ref parser.Node) void = trust {
                     } elif expr.kind == parser.NK_CAST {
                         val cast_inner: ref parser.Node = expr.d0 as ref parser.Node
                         if cast_inner != none && cast_inner.kind == parser.NK_INT_LIT {
-                            zero_named_init = str.raw_cmp(parser.int_lit_text_raw(cast_inner), "0") == 0
+                            zero_named_init = str.raw_cmp(
+                                parser.int_lit_text_raw(cast_inner),
+                                "0"
+                            ) == 0
                         }
                     }
                 }
@@ -19597,7 +19646,11 @@ pub fn get_used_prefixes(root: ref module.ResolvedModule) list[ref u8] = trust {
 fn gen_test_fn(ctx: mut ref CgCtx, body_stmts: ref parser.Node, test_id: i64) void = trust {
     cg_dvars_clear(ctx)
     val fname: ref u8 = arenafmt.format(ctx.arena, str.view_cstr("__sx_test_{lld}"), {test_id}).ptr
-    val hdr: ref u8 = arenafmt.format(ctx.arena, str.view_cstr("export function w ${s}() {\n@start\n"), {fname}).ptr
+    val hdr: ref u8 = arenafmt.format(
+        ctx.arena,
+        str.view_cstr("export function w ${s}() {\n@start\n"),
+        {fname}
+    ).ptr
     emit(ctx, hdr)
     val gnames_list: ref void = cg_global_src_names(ctx)
     val glen: i64 = @len(gnames_list) as i64

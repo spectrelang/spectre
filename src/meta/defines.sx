@@ -3,16 +3,19 @@
 /// SPDX-License-Identifier: GPL-3.0-only
 /// (C) Navid Momtahen - 2026
 
-val str = use("std/string")
+val str        = use("std/string")
+val allocators = use("std/allocators")
+
+val heap: allocators.HeapAllocator = @zeroed
 
 pub type Define = {
-    name: mut str.StringView
-    value: mut str.StringView
+    name: mut str.CString
+    value: mut str.CString
     next: mut ref Define
 }
 
 pub type EnvAlias = {
-    name: mut str.StringView
+    name: mut str.CString
     next: mut ref EnvAlias
 }
 
@@ -38,13 +41,13 @@ pub fn register_env_alias(name: str.StringView) void = trust {
         if cur == none {
             break
         }
-        if str.view_eql(cur.name, name) {
+        if str.view_eql(str.cstring_view(cur.name), name) {
             return
         }
         cur = cur.next
     }
     val alias: mut ref EnvAlias = @alloc(@sizeof(EnvAlias)) as ref EnvAlias
-    alias.name = name
+    alias.name = str.cstring_from_view[allocators.HeapAllocator](heap, name)
     alias.next = env_aliases
     env_aliases = alias
 }
@@ -56,7 +59,7 @@ pub fn is_env_alias(name: str.StringView) bool = {
         if cur == none {
             break
         }
-        if trust str.view_eql(cur.name, name) {
+        if trust str.view_eql(str.cstring_view(cur.name), name) {
             return true
         }
         cur = cur.next
@@ -70,15 +73,16 @@ pub fn set(name: str.StringView, value: str.StringView) void = trust {
         if cur == none {
             break
         }
-        if str.view_eql(cur.name, name) {
-            cur.value = value
+        if str.view_eql(str.cstring_view(cur.name), name) {
+            str.cstring_free[allocators.HeapAllocator](heap, cur.value)
+            cur.value = str.cstring_from_view[allocators.HeapAllocator](heap, value)
             return
         }
         cur = cur.next
     }
     val d: mut ref Define = @alloc(@sizeof(Define)) as ref Define
-    d.name = name
-    d.value = value
+    d.name = str.cstring_from_view[allocators.HeapAllocator](heap, name)
+    d.value = str.cstring_from_view[allocators.HeapAllocator](heap, value)
     d.next = defs
     defs = d
 }
@@ -89,8 +93,8 @@ pub fn get(name: str.StringView) option[str.StringView] = {
         if cur == none {
             break
         }
-        if trust str.view_eql(cur.name, name) {
-            return some cur.value
+        if trust str.view_eql(str.cstring_view(cur.name), name) {
+            return some str.cstring_view(cur.value)
         }
         cur = cur.next
     }
@@ -104,7 +108,7 @@ pub fn has(name: str.StringView) bool = {
         if cur == none {
             break
         }
-        if trust str.view_eql(cur.name, name) {
+        if trust str.view_eql(str.cstring_view(cur.name), name) {
             return true
         }
         cur = cur.next
@@ -131,10 +135,9 @@ pub fn add_spec(definition: str.StringView) bool = trust {
     if eq <= 0 {
         return false
     }
-    val name_text = str.view_to_cstr_raw(str.view_slice(definition, 0, eq))
-    val value_text = str.view_to_cstr_raw(
+    set(
+        str.view_slice(definition, 0, eq),
         str.view_slice(definition, eq + 1, len)
     )
-    set(str.view(name_text, eq), str.view(value_text, len - eq - 1))
     return true
 }

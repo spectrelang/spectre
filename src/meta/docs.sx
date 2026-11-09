@@ -851,15 +851,24 @@ fn render_type_signature(node: ref parser.Node) ref u8 = trust {
     }
     if node.kind == parser.NK_ENUMDEF {
         val variants = render_variant_list(node.d2 as list[ref u8], ", ")
-        return dfmt("{s}enum {s} = \\{ {s} \\}", {public_prefix, parser.node_str_raw(node.d1), variants})
+        return dfmt(
+            "{s}enum {s} = \\{ {s} \\}",
+            {public_prefix, parser.node_str_raw(node.d1), variants}
+        )
     }
     if node.kind == parser.NK_UNIONDEF {
         val variants = render_type_list(node.d2 as list[ref parser.Node], " | ")
-        return dfmt("{s}union {s} = \\{ {s} \\}", {public_prefix, parser.node_str_raw(node.d1), variants})
+        return dfmt(
+            "{s}union {s} = \\{ {s} \\}",
+            {public_prefix, parser.node_str_raw(node.d1), variants}
+        )
     }
     if node.kind == parser.NK_TAGGED_UNIONDEF {
         val variants = render_tagged_variants(node.d2 as list[ref parser.Node])
-        return dfmt("{s}union {s} = \\{ {s} \\}", {public_prefix, parser.node_str_raw(node.d1), variants})
+        return dfmt(
+            "{s}union {s} = \\{ {s} \\}",
+            {public_prefix, parser.node_str_raw(node.d1), variants}
+        )
     }
     return ""
 }
@@ -2446,7 +2455,11 @@ fn render_entry_details_md(sb: ref void, entry: ref DocEntry) void = trust {
                     sb,
                     dfmt(
                         "| `{s}` | `{s}{s}` |\n",
-                        {parser.node_str_raw(field.d0), prefix, render_type(field.d2 as ref parser.Node)}
+                        {
+                            parser.node_str_raw(field.d0),
+                            prefix,
+                            render_type(field.d2 as ref parser.Node)
+                        }
                     )
                 )
             }
