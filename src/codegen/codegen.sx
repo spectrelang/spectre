@@ -4688,10 +4688,6 @@ fn emitln(ctx: mut ref CgCtx, s: ref u8) void = trust {
     str.StringBuilder.append_char(cg_sb(ctx), 10 as u8)
 }
 
-fn emit_view(ctx: mut ref CgCtx, s: str.StringView) void = trust {
-    str.StringBuilder.append(cg_sb(ctx), s)
-}
-
 fn emitln_view(ctx: mut ref CgCtx, s: str.StringView) void = trust {
     str.StringBuilder.append(cg_sb(ctx), s)
     str.StringBuilder.append_char(cg_sb(ctx), 10 as u8)
