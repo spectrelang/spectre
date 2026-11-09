@@ -1,0 +1,15 @@
+// Returning an ordinary string literal from a function declared to return
+// `ref u8` is accepted by the compiler. The literal is a StringView, so the
+// returned value is not a NUL-terminated C string; this should be rejected.
+
+val stdio = use("std/stdio")
+
+pub fn entrypoint() ref u8 = {
+    return "main"
+}
+
+pub fn main() void = trust {
+    val name: ref u8 = entrypoint()
+    assert @load8(name) == (109 as u8)
+    stdio.print("{s}\n", {name})
+}

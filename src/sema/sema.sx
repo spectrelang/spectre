@@ -69,6 +69,8 @@ type SemaCtx = {
     argspack_params: mut list[ref u8]
     var_origin_names: mut list[ref u8]
     var_origin_types: mut list[ref u8]
+    current_ret_ty: mut ref parser.Node
+    current_ret_is_ref: mut i64
     arena: mut allocators.ScopedArenaAllocator
 }
 
@@ -3780,6 +3782,266 @@ fn infer_expr_scope_is_ref(ctx: ref SemaCtx, node: ref parser.Node) i64 = trust 
         return sema_ty_is_ref(node.d1 as ref parser.Node)
     }
     return 0
+}
+
+/// Ref-ness for type checking, including calls to functions returning refs.
+fn expr_is_ref_value(ctx: ref SemaCtx, expr: ref parser.Node) i64 = trust {
+    if expr == none {
+        return 0
+    }
+    val k: i64 = expr.kind
+    if k == parser.NK_TRUST {
+        return expr_is_ref_value(ctx, expr.d0 as ref parser.Node)
+    }
+    if k == parser.NK_UNOP {
+        return expr_is_ref_value(ctx, parser.unop_inner(expr))
+    }
+    if k == parser.NK_CAST {
+        return sema_ty_is_ref(expr.d1 as ref parser.Node)
+    }
+    if k == parser.NK_STR_LIT {
+        if parser.str_lit_is_cstr(expr) {
+            return 1
+        }
+        return 0
+    }
+    if k == parser.NK_IDENT {
+        return scope_lookup_is_ref(ctx, parser.node_str_raw(expr.d0))
+    }
+    if k == parser.NK_CALL {
+        val fn_node: ref parser.Node = resolve_called_fn(ctx, parser.call_callee(expr))
+        if fn_node == none {
+            return 0
+        }
+        if fn_node.kind == parser.NK_FN || fn_node.kind == parser.NK_GENERIC_FN {
+            return sema_ty_is_ref(fn_node.d4 as ref parser.Node)
+        }
+        if fn_node.kind == parser.NK_EXTERN_FN {
+            return sema_ty_is_ref(fn_node.d5 as ref parser.Node)
+        }
+    }
+    return 0
+}
+
+fn type_name_is_string_view(tname: ref u8) bool = trust {
+    if tname == none || cstr.eql(tname, c"") {
+        return false
+    }
+    return cstr.eql(unqualified_type_name(tname), c"StringView")
+}
+
+/// True when an expression is a C string / raw u8 pointer rather than a view.
+fn expr_is_cstr_value(ctx: ref SemaCtx, expr: ref parser.Node) bool = trust {
+    if expr == none {
+        return false
+    }
+    val k: i64 = expr.kind
+    if k == parser.NK_NONE || k == parser.NK_CAST {
+        return false
+    }
+    if k == parser.NK_TRUST {
+        return expr_is_cstr_value(ctx, expr.d0 as ref parser.Node)
+    }
+    if k == parser.NK_UNOP {
+        return expr_is_cstr_value(ctx, parser.unop_inner(expr))
+    }
+    if k == parser.NK_STR_LIT {
+        return parser.str_lit_is_cstr(expr)
+    }
+    return expr_is_ref_value(ctx, expr) == 1
+}
+
+fn expr_known_type_name(ctx: ref SemaCtx, expr: ref parser.Node) ref u8 = trust {
+    val inferred: ref u8 = infer_expr_scope_type_name(ctx, expr)
+    if inferred != none && !cstr.eql(inferred, c"") {
+        return inferred
+    }
+    return sema_try_operand_type_name(ctx, expr)
+}
+
+/// True when the expression is definitely not a reference value.
+fn expr_definitely_non_ref(ctx: ref SemaCtx, expr: ref parser.Node) bool = trust {
+    if expr == none {
+        return false
+    }
+    val k: i64 = expr.kind
+    if k == parser.NK_NONE {
+        return false
+    }
+    if k == parser.NK_TRUST {
+        return expr_definitely_non_ref(ctx, expr.d0 as ref parser.Node)
+    }
+    if k == parser.NK_UNOP {
+        return expr_definitely_non_ref(ctx, parser.unop_inner(expr))
+    }
+    if k == parser.NK_CAST {
+        return sema_ty_is_ref(expr.d1 as ref parser.Node) == 0
+    }
+    if k == parser.NK_INT_LIT || k == parser.NK_FLOAT_LIT || k == parser.NK_BOOL ||
+    k == parser.NK_CHAR_LIT || k == parser.NK_STRUCT_LIT || k == parser.NK_LIST_LIT {
+        return true
+    }
+    if k == parser.NK_STR_LIT {
+        return !parser.str_lit_is_cstr(expr)
+    }
+    if k == parser.NK_IDENT {
+        val tname: ref u8 = expr_known_type_name(ctx, expr)
+        if tname == none || cstr.eql(tname, c"") || is_type_parameter(ctx, tname) {
+            return false
+        }
+        return expr_is_ref_value(ctx, expr) == 0
+    }
+    if k == parser.NK_CALL {
+        val tname2: ref u8 = expr_known_type_name(ctx, expr)
+        if tname2 == none || cstr.eql(tname2, c"") || is_type_parameter(ctx, tname2) {
+            return false
+        }
+        return expr_is_ref_value(ctx, expr) == 0
+    }
+    return false
+}
+
+fn sema_type_name_proves_not_option(ctx: ref SemaCtx, tname: ref u8) bool = trust {
+    if tname == none || cstr.eql(tname, c"") {
+        return false
+    }
+    val unqual: ref u8 = unqualified_type_name(tname)
+    if cstr.eql(unqual, c"option") || cstr.eql(unqual, c"result") {
+        return false
+    }
+    if is_type_parameter(ctx, tname) || is_type_parameter(ctx, unqual) {
+        return false
+    }
+    return true
+}
+
+fn sema_ty_proves_not_option_node(ctx: ref SemaCtx, ty: ref parser.Node) bool = trust {
+    val resolved: ref parser.Node = unwrap_mut_type(ty)
+    if resolved == none {
+        return false
+    }
+    val k: i64 = resolved.kind
+    if k == parser.TY_OPTION || k == parser.TY_RESULT {
+        return false
+    }
+    if k == parser.TY_REF {
+        return true
+    }
+    if k == parser.TY_LIST || k == parser.TY_SLICE || k == parser.TY_FIXED_ARR ||
+    k == parser.TY_FNPTR || k == parser.TY_VOID {
+        return true
+    }
+    if k != parser.TY_NAMED {
+        return false
+    }
+    val tname: ref u8 = parser.node_str_raw(resolved.d0)
+    return sema_type_name_proves_not_option(ctx, tname)
+}
+
+/// True when an expression is known to be a concrete non-option value.
+fn sema_try_operand_proves_not_option(ctx: ref SemaCtx, expr: ref parser.Node) bool = trust {
+    if expr == none {
+        return false
+    }
+    val k: i64 = expr.kind
+    if k == parser.NK_TRUST {
+        return sema_try_operand_proves_not_option(ctx, expr.d0 as ref parser.Node)
+    }
+    if k == parser.NK_CAST {
+        return sema_ty_proves_not_option_node(ctx, expr.d1 as ref parser.Node)
+    }
+    if k == parser.NK_IDENT {
+        val name: ref u8 = parser.node_str_raw(expr.d0)
+        if scope_lookup_wrap_kind(ctx, name) == 2 {
+            return false
+        }
+        return sema_type_name_proves_not_option(ctx, scope_lookup_type(ctx, name))
+    }
+    if k == parser.NK_CALL {
+        val fn_node: ref parser.Node = resolve_called_fn(ctx, parser.call_callee(expr))
+        if fn_node == none {
+            return false
+        }
+        if fn_node.kind == parser.NK_FN || fn_node.kind == parser.NK_GENERIC_FN {
+            return sema_ty_proves_not_option_node(ctx, fn_node.d4 as ref parser.Node)
+        }
+        if fn_node.kind == parser.NK_EXTERN_FN {
+            return sema_ty_proves_not_option_node(ctx, fn_node.d5 as ref parser.Node)
+        }
+        return false
+    }
+    if k == parser.NK_INT_LIT || k == parser.NK_FLOAT_LIT || k == parser.NK_STR_LIT ||
+    k == parser.NK_BOOL || k == parser.NK_CHAR_LIT || k == parser.NK_NONE ||
+    k == parser.NK_LIST_LIT || k == parser.NK_STRUCT_LIT {
+        return true
+    }
+    return false
+}
+
+fn check_return_value(
+    ctx: ref SemaCtx,
+    expr: ref parser.Node,
+    filename: ref u8,
+    line: i64
+) void = trust {
+    val ret_ty: ref parser.Node = ctx.current_ret_ty
+    if ret_ty == none || ret_ty.kind == parser.TY_VOID || expr == none {
+        return
+    }
+
+    if ctx.current_ret_is_ref == 1 {
+        if expr.kind == parser.NK_NONE {
+            return
+        }
+        if expr.kind == parser.NK_STR_LIT && !parser.str_lit_is_cstr(expr) {
+            val buf: ref u8 = allocators.ScopedArena.alloc_or_none(
+                ctx.arena,
+                (512) as usize
+            ) as ref u8
+            @snprintf(
+                buf,
+                512,
+                "{s}:{lld}: cannot return a StringView where a ref type is expected, use a C string literal (c\"...\") or an explicit cast",
+                {filename, line}
+            )
+            add_error(ctx, buf)
+            return
+        }
+        if expr_definitely_non_ref(ctx, expr) {
+            val ret_name: ref u8 = format_type_for_error(
+                ctx,
+                extract_type_name(ret_ty),
+                1
+            )
+            val buf2: ref u8 = allocators.ScopedArena.alloc_or_none(
+                ctx.arena,
+                (512) as usize
+            ) as ref u8
+            @snprintf(
+                buf2,
+                512,
+                "{s}:{lld}: cannot return a non-reference value from a function returning '{s}'",
+                {filename, line, ret_name}
+            )
+            add_error(ctx, buf2)
+        }
+        return
+    }
+
+    val ret_name2: ref u8 = extract_type_name(ret_ty)
+    if type_name_is_string_view(ret_name2) && expr_is_cstr_value(ctx, expr) {
+        val buf3: ref u8 = allocators.ScopedArena.alloc_or_none(
+            ctx.arena,
+            (512) as usize
+        ) as ref u8
+        @snprintf(
+            buf3,
+            512,
+            "{s}:{lld}: cannot return a C string as StringView, use an ordinary string literal or convert explicitly",
+            {filename, line}
+        )
+        add_error(ctx, buf3)
+    }
 }
 
 /// Maps a declared type node to the broad category used by format checking.
@@ -8086,6 +8348,20 @@ fn check_stmt(ctx: mut ref SemaCtx, stmt: ref parser.Node, filename: ref u8) voi
                     add_error(ctx, buf)
                 }
             }
+            if is_ref_flag == 0 && init_expr != none &&
+            type_name_is_string_view(tname) && expr_is_cstr_value(ctx, init_expr) {
+                val svbuf: ref u8 = allocators.ScopedArena.alloc_or_none(
+                    ctx.arena,
+                    (512) as usize
+                ) as ref u8
+                @snprintf(
+                    svbuf,
+                    512,
+                    "{s}:{lld}: cannot assign a C string to StringView, use an ordinary string literal or convert explicitly",
+                    {filename, line}
+                )
+                add_error(ctx, svbuf)
+            }
             scope_define(ctx, name, mutable, tname, is_ref_flag, line)
             if tname == none && init_expr != none {
                 val origin_ns: ref u8 = extract_constructor_namespace(ctx, init_expr)
@@ -8226,6 +8502,20 @@ fn check_stmt(ctx: mut ref SemaCtx, stmt: ref parser.Node, filename: ref u8) voi
                         add_error(ctx, buf)
                     }
                 }
+                if target_is_ref == 0 && type_name_is_string_view(target_type_name) &&
+                expr_is_cstr_value(ctx, rhs) {
+                    val svbuf: ref u8 = allocators.ScopedArena.alloc_or_none(
+                        ctx.arena,
+                        (512) as usize
+                    ) as ref u8
+                    @snprintf(
+                        svbuf,
+                        512,
+                        "{s}:{lld}: cannot assign a C string to StringView, use an ordinary string literal or convert explicitly",
+                        {filename, line}
+                    )
+                    add_error(ctx, svbuf)
+                }
             }
         } elif target.kind == parser.NK_FIELD {
             val root: ref parser.Node = find_root_ident(target)
@@ -8293,6 +8583,20 @@ fn check_stmt(ctx: mut ref SemaCtx, stmt: ref parser.Node, filename: ref u8) voi
                                     )
                                     add_error(ctx, buf3)
                                 }
+                            } elif fty != none &&
+                            type_name_is_string_view(extract_type_name(fty)) &&
+                            expr_is_cstr_value(ctx, rhs) {
+                                val svbuf2: ref u8 = allocators.ScopedArena.alloc_or_none(
+                                    ctx.arena,
+                                    (512) as usize
+                                ) as ref u8
+                                @snprintf(
+                                    svbuf2,
+                                    512,
+                                    "{s}:{lld}: cannot assign a C string to StringView, use an ordinary string literal or convert explicitly",
+                                    {filename, line}
+                                )
+                                add_error(ctx, svbuf2)
                             }
                         }
                     }
@@ -8329,7 +8633,9 @@ fn check_stmt(ctx: mut ref SemaCtx, stmt: ref parser.Node, filename: ref u8) voi
     }
 
     if k == parser.NK_RETURN {
-        check_expr(ctx, stmt.d0 as ref parser.Node, filename)
+        val ret_expr: ref parser.Node = stmt.d0 as ref parser.Node
+        check_expr(ctx, ret_expr, filename)
+        check_return_value(ctx, ret_expr, filename, line)
         return
     }
     if k == parser.NK_EXPR_STMT {
@@ -8501,7 +8807,8 @@ fn check_stmt(ctx: mut ref SemaCtx, stmt: ref parser.Node, filename: ref u8) voi
         val match_expr: ref parser.Node = stmt.d0 as ref parser.Node
         check_expr(ctx, match_expr, filename)
         val opt_wrap_kind: i64 = expr_wrap_kind(ctx, match_expr)
-        if opt_wrap_kind == 3 {
+        if opt_wrap_kind == 3 ||
+        (opt_wrap_kind == 0 && sema_try_operand_proves_not_option(ctx, match_expr)) {
             val buf: ref u8 = allocators.ScopedArena.alloc_or_none(
                 ctx.arena,
                 (512) as usize
@@ -8928,7 +9235,13 @@ fn check_fn(ctx: mut ref SemaCtx, fn_node: ref parser.Node, filename: ref u8) vo
     }
     val ret_ty: ref parser.Node = fn_node.d4 as ref parser.Node
     val body: ref void = fn_node.d5 as ref void
+    val prev_ret_ty: ref parser.Node = ctx.current_ret_ty
+    val prev_ret_is_ref: i64 = ctx.current_ret_is_ref
+    ctx.current_ret_ty = ret_ty
+    ctx.current_ret_is_ref = sema_ty_is_ref(ret_ty)
     check_stmts(ctx, body, filename)
+    ctx.current_ret_ty = prev_ret_ty
+    ctx.current_ret_is_ref = prev_ret_is_ref
     ctx.argspack_params = prev_argspack
     if ret_ty != none && ret_ty.kind != parser.TY_VOID && !stmts_guarantee_return(ctx, body) {
         val buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, (512) as usize) as ref u8
@@ -9137,7 +9450,13 @@ fn check_generic_fn(ctx: mut ref SemaCtx, fn_node: ref parser.Node, filename: re
     }
 
     val ret_ty: ref parser.Node = fn_node.d4 as ref parser.Node
+    val prev_ret_ty: ref parser.Node = ctx.current_ret_ty
+    val prev_ret_is_ref: i64 = ctx.current_ret_is_ref
+    ctx.current_ret_ty = ret_ty
+    ctx.current_ret_is_ref = sema_ty_is_ref(ret_ty)
     check_stmts(ctx, body, filename)
+    ctx.current_ret_ty = prev_ret_ty
+    ctx.current_ret_is_ref = prev_ret_is_ref
     ctx.argspack_params = prev_argspack
     val fn_name: ref u8 = parser.node_str_raw(fn_node.d2)
     if ret_ty != none && ret_ty.kind != parser.TY_VOID && !stmts_guarantee_return(ctx, body) {

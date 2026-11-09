@@ -1,0 +1,13 @@
+// Assigning a C string literal to a StringView is accepted by the compiler.
+// The result is a malformed view, and using it as a format argument crashes.
+
+val stdio = use("std/stdio")
+val str   = use("std/string")
+
+pub fn main() void = trust {
+    val view: mut str.StringView = ""
+    view = c"hello"
+
+    val text: ref u8 = @fmtalloc("prefix:{s}", {view})
+    stdio.print("{s}\n", {text})
+}

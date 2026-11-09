@@ -1,0 +1,21 @@
+// Regression sample for `lib` resolution.
+//
+// On v0.0.16 this crashed in libfind.pkg_config_libs when static linking:
+// `static_arg` was changed from `StringView` to `c" --static"`, which the
+// compiler accepted and then formatted as an invalid pointer.
+//
+// On the unfixed compiler, this reproduces the static-link crash even when
+// LIBRARY_PATH is set. The separate null-getenv crash in
+// libfind.native_search_dirs needs a library that is not found by the C
+// compiler's default search path (for example `lib "SDL3"` with `-dynamic`
+// and LIBRARY_PATH unset).
+
+lib "m"
+
+val math  = use("std/math")
+val stdio = use("std/stdio")
+
+pub fn main() void = trust {
+    val root: i32 = math.sqrt(9.0) as i32
+    stdio.print("{d}\n", {root})
+}

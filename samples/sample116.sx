@@ -174,7 +174,7 @@ when windows {
 
 /// Returns the absolute path to the current executable.
 pub fn get_exe_path[T: allocators.Allocator](ac: T) ref u8 = trust {
-    val buf_opt: ref u8 = T.alloc(ac, 1024)
+    val buf_opt: option[ref u8] = T.alloc(ac, 1024)
     if buf_opt is some buf {
         when posix {
             val n = readlink(c"/proc/self/exe", buf, 1024)

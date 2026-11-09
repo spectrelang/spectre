@@ -1,0 +1,15 @@
+// Pattern matching a raw `ref u8` with `is some` is accepted by the compiler.
+// The pointer is treated as if it were an option struct, so a null pointer
+// from getenv is dereferenced and the program crashes.
+
+val os    = use("std/os")
+val stdio = use("std/stdio")
+
+pub fn main() void = trust {
+    val value: ref u8 = os.getenv(c"SPECTRE_DEFINITELY_NOT_SET_42")
+    if value is some found {
+        stdio.print("found={s}\n", {found as ref u8})
+    } else {
+        stdio.puts("not set\n")
+    }
+}
