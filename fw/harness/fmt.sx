@@ -3,7 +3,6 @@
 /// SPDX-License-Identifier: GPL-3.0-only
 /// (C) Navid Momtahen - 2026
 
-val os    = use("std/os")
 val fs    = use("std/fs")
 val mem   = use("../../src/meta/mem.sx")
 val fmt   = use("../../src/meta/fmt.sx")
@@ -12,13 +11,13 @@ val check = use("lib/check.sx")
 test "formatter does not leak" {
     trust {
         mem.init()
-        val path: ref u8 = "./s-out/checkmem-fmt.sx"
-        fs.write_all(path, "pub fn main() void = {\n    val x: i64 = 1\n}\n")
+        val path = "./s-out/checkmem-fmt.sx"
+        fs.write_all_view(path, "pub fn main() void = {\n    val x: i64 = 1\n}\n")
         val targets: mut list[ref u8] = mem.new[ref u8]()
-        @append(targets, path)
+        @append(targets, check.cptr(path))
         val before = check.baseline()
         val code: i32 = fmt.cmd_fmt(targets, false)
-        os.delete(path)
+        fs.delete_view(path)
         mem.close()
         check.expect_clean_since("fmt", before)
         assert code == 0

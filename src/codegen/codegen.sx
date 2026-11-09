@@ -912,6 +912,12 @@ fn cg_payload_storage_size(ctx: mut ref CgCtx, ty: ref parser.Node, depth: i64) 
         if raw_starts_with(tname, c"option[") || raw_starts_with(tname, c"result[") {
             return cg_ann_payload_size(ctx, tname, depth + 1)
         }
+        if cg_lookup_struct(ctx, tname) != none {
+            return 8
+        }
+        if cg_lookup_union_suffix(ctx, tname) != none {
+            return 8
+        }
         return cg_alloc_size_for_type(ctx, resolved)
     }
     if k == parser.TY_FIXED_ARR {
@@ -976,12 +982,7 @@ fn cg_wrap_payload_is_aggregate(ctx: mut ref CgCtx, ty: ref parser.Node) bool = 
         if raw_starts_with(n, c"option[") || raw_starts_with(n, c"result[") {
             return true
         }
-        if cg_lookup_struct(ctx, n) != none {
-            return true
-        }
-        if cg_lookup_union_suffix(ctx, n) != none {
-            return true
-        }
+        return false
     }
     return false
 }
@@ -1052,7 +1053,7 @@ fn cg_emit_bind_typed(
         val dst: i64 = fresh_tmp(ctx)
         val off_tmp: i64 = fresh_tmp(ctx)
         val buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 512 as usize) as ref u8
-        @snprintf(buf, 512, "    %%t{lld} =l call $malloc(l {lld})\n    %%t{lld} =l add {s}, {lld}\n    call $memcpy(l %%t{lld}, l %%t{lld}, l {lld})\n",
+        @snprintf(buf, 512, "    %%t{lld} =l alloc8 {lld}\n    %%t{lld} =l add {s}, {lld}\n    call $memcpy(l %%t{lld}, l %%t{lld}, l {lld})\n",
             {dst, sz, off_tmp, base, offset, dst, off_tmp, sz})
         emit(ctx, buf)
         val tmp_str: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 32 as usize) as ref u8
@@ -15183,6 +15184,36 @@ fn gen_stmts(ctx: mut ref CgCtx, stmts: ref parser.Node) void = trust {
     }
 }
 
+/// True when a `val` initializer produces an aggregate copy that is owned by
+/// a temporary and must be moved into a heap box.
+fn cg_val_init_needs_box(ctx: mut ref CgCtx, expr: ref parser.Node) bool = trust {
+    val e0: mut ref parser.Node = expr
+    for {
+        if e0 == none {
+            break
+        }
+        if e0.kind == parser.NK_TRUST || e0.kind == parser.NK_CAST {
+            e0 = e0.d0 as ref parser.Node
+        } else {
+            break
+        }
+    }
+    if e0 == none {
+        return false
+    }
+    if e0.kind == parser.NK_STRUCT_LIT || e0.kind == parser.NK_ZERO_INIT {
+        return true
+    }
+    if e0.kind == parser.NK_TRY {
+        val ann: ref u8 = infer_type_annotation(ctx, e0)
+        if str.raw_cmp(ann, c"") != 0 {
+            val ty: ref parser.Node = cg_named_ty_from_ann(ctx, ann)
+            return cg_wrap_payload_is_aggregate(ctx, ty)
+        }
+    }
+    return false
+}
+
 fn gen_stmt(ctx: mut ref CgCtx, stmt: ref parser.Node) void = trust {
     if stmt == none {
         return
@@ -15387,9 +15418,7 @@ fn gen_stmt(ctx: mut ref CgCtx, stmt: ref parser.Node) void = trust {
             && str.raw_cmp(imm_agg_name, c"") != 0
             && !is_ref_type(imm_ty_node)
             && (imm_agg_fields != none || imm_agg_union != none)
-            val imm_should_box: bool = val_tmp != none
-            && str.len_raw(val_tmp) > 0
-            && @load8(val_tmp) == 37
+            val imm_should_box: bool = cg_val_init_needs_box(ctx, expr)
             if imm_is_named_aggregate && imm_should_box {
                 val imm_agg_size: i64 = cg_alloc_size_for_type(ctx, imm_ty_node)
                 val imm_agg_ptr: i64 = fresh_tmp(ctx)

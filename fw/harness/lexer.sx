@@ -10,8 +10,8 @@ val check = use("lib/check.sx")
 test "lexer does not leak tokens" {
     trust {
         mem.init()
-        val source: ref u8 = "fn main() void = { val x = 42 }\n// trailing comment\n"
-        match lexer.tokenize(source) {
+        val source = "fn main() void = { val x = 42 }\n// trailing comment\n"
+        match lexer.tokenize_view(source) {
             ok tokens => {
                 assert @len(tokens) as i64 > 0
                 lexer.free_tokens(tokens)

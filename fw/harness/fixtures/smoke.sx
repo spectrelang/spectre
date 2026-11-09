@@ -39,8 +39,8 @@ pub fn main() void = {
     if direction == Direction.North {
         p.x = 3
     }
-    val text: ref u8 = "ok"
-    if text == "ok" {
+    val text: ref u8 = c"ok"
+    if text == c"ok" {
         p.x = p.x + 1
     }
 }

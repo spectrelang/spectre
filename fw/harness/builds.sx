@@ -8,26 +8,46 @@ val mem    = use("../../src/meta/mem.sx")
 val builds = use("../../src/meta/builds.sx")
 val check  = use("lib/check.sx")
 
+fn compiler_kind(compiler: string.StringView) string.StringView = {
+    return string.view_cstr(builds.alt_compiler_kind(check.cptr(compiler)))
+}
+
+fn std_flag(kind: string.StringView) string.StringView = {
+    return string.view_cstr(builds.compiler_std_flag(check.cptr(kind)))
+}
+
+fn opt_flag(kind: string.StringView, release: bool) string.StringView = {
+    return string.view_cstr(builds.compiler_opt_flag(check.cptr(kind), release))
+}
+
+fn warn_flag(compiler: string.StringView) string.StringView = {
+    return string.view_cstr(builds.compiler_warn_flag(check.cptr(compiler)))
+}
+
+fn parsed_alt_arg(arg: string.StringView) string.StringView = {
+    return string.view_cstr(builds.parse_alt_compiler_arg(check.cptr(arg)))
+}
+
 test "build helpers do not leak" {
     trust {
         mem.init()
-        assert string.raw_cmp(builds.alt_compiler_kind("clang"), "gnu") == 0
-        assert string.raw_cmp(builds.alt_compiler_kind("clang-cl"), "clang-cl") == 0
-        assert string.raw_cmp(builds.alt_compiler_kind("cl"), "msvc") == 0
-        assert string.raw_cmp(builds.compiler_std_flag("gnu"), "-std=c99") == 0
-        assert string.raw_cmp(builds.compiler_opt_flag("gnu", true), "-O3") == 0
-        assert string.raw_cmp(builds.compiler_warn_flag("clang"), "-Wno-everything") == 0
-        assert builds.supports_static_linking("linux")
-        assert !builds.supports_static_linking("windows")
-        assert string.raw_cmp(builds.parse_alt_compiler_arg("-alt:clang"), "clang") == 0
+        assert string.view_eql(compiler_kind("clang"), "gnu")
+        assert string.view_eql(compiler_kind("clang-cl"), "clang-cl")
+        assert string.view_eql(compiler_kind("cl"), "msvc")
+        assert string.view_eql(std_flag("gnu"), "-std=c99")
+        assert string.view_eql(opt_flag("gnu", true), "-O3")
+        assert string.view_eql(warn_flag("clang"), "-Wno-everything")
+        assert builds.supports_static_linking(check.cptr("linux"))
+        assert !builds.supports_static_linking(check.cptr("windows"))
+        assert string.view_eql(parsed_alt_arg("-alt:clang"), "clang")
 
-        val plain: ref u8 = builds.get_tmp_path("spectre-checkmem.txt")
-        assert string.len_raw(plain) > 0
+        val plain: ref u8 = builds.get_tmp_path(check.cptr("spectre-checkmem.txt"))
+        assert string.view_len(string.view_cstr(plain)) > 0
         @free(plain)
 
-        val first: ref u8 = builds.get_unique_tmp_path("spectre-checkmem.txt")
-        val second: ref u8 = builds.get_unique_tmp_path("spectre-checkmem.txt")
-        assert string.raw_cmp(first, second) != 0
+        val first: ref u8 = builds.get_unique_tmp_path(check.cptr("spectre-checkmem.txt"))
+        val second: ref u8 = builds.get_unique_tmp_path(check.cptr("spectre-checkmem.txt"))
+        assert !string.view_eql(string.view_cstr(first), string.view_cstr(second))
         @free(first)
         @free(second)
 

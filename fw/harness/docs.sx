@@ -12,13 +12,16 @@ test "docs generator does not leak" {
     trust {
         mem.init()
         val before = check.baseline()
+        val target = "./fw/harness/fixtures/smoke.sx"
+        val output = "./s-out/checkmem-docs"
+        val read = ""
         val code: i32 = docs.cmd_doc(
-            "./fw/harness/fixtures/smoke.sx",
+            check.cptr(target),
             false,
-            "./s-out/checkmem-docs",
-            ""
+            check.cptr(output),
+            check.cptr(read)
         )
-        os.run("rm -rf ./s-out/checkmem-docs")
+        os.run(check.cptr("rm -rf ./s-out/checkmem-docs"))
         mem.close()
         check.expect_clean_since("docs", before)
         assert code == 0

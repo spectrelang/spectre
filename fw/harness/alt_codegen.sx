@@ -16,8 +16,10 @@ test "alt codegen does not leak" {
         val arena: allocators.ScopedArenaAllocator = allocators.ScopedArena.new(
             67108864 as usize
         )?
-        val root = check.resolve(arena, "./fw/harness/fixtures/smoke.sx")
-        val errors = sema.check_module_tree(arena, root, 1, "")
+        val path = "./fw/harness/fixtures/smoke.sx"
+        val src_target = ""
+        val root = check.resolve(arena, path)
+        val errors = sema.check_module_tree(arena, root, 1, check.cptr(src_target))
         if (@len(errors) as i64) > 0 {
             for error in errors {
                 stdio.print("[FAIL] sema: {s}\n", {error})
@@ -30,7 +32,7 @@ test "alt codegen does not leak" {
             root,
             false,
             mem.new[ref u8](),
-            "",
+            check.cptr(src_target),
             false,
             0,
             false

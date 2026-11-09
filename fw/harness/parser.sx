@@ -15,7 +15,7 @@ test "parser does not leak" {
         val arena: allocators.ScopedArenaAllocator = allocators.ScopedArena.new(
             4194304 as usize
         )?
-        val source: ref u8 = \\type Point = { x: i64, y: i64 }
+        val source = \\type Point = { x: i64, y: i64 }
         \\fn add(a: i64, b: i64) i64 = { return a + b }
         \\pub fn main() void = {
         \\    val p: Point = {x: 1, y: 2}
@@ -23,10 +23,10 @@ test "parser does not leak" {
         \\        p.x = 3
         \\    }
         \\}
-        val token_result = lexer.tokenize_with(arena, source)
+        val token_result = lexer.tokenize_with_view(arena, source)
         match token_result {
             ok tokens => {
-                val parse_result = parser.parse_module_with(arena, tokens, "<harness>")
+                val parse_result = parser.parse_module_with(arena, tokens, check.cptr("<harness>"))
                 match parse_result {
                     ok items => {
                         assert @len(items) as i64 > 0

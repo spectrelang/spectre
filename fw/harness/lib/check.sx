@@ -58,7 +58,7 @@ pub fn discard_baseline(before: Baseline) void = trust {
 
 /// Fail the current test unless leak checking is enabled and all tracked
 /// allocations have been released.
-pub fn expect_clean(name: ref u8) void = trust {
+pub fn expect_clean(name: string.StringView) void = trust {
     val diagnostics = @dumpmemleaks()
     if diagnostics.enabled != 1 {
         stdio.print("[FAIL] {s}: leak checking is not enabled\n", {name})
@@ -82,7 +82,7 @@ pub fn expect_clean(name: ref u8) void = trust {
 /// Fail unless the module added no live allocations or invalid frees since
 /// `before`. Baseline allocations that the target happens to release are
 /// ignored; only newly live allocation records count as leaks.
-pub fn expect_clean_since(name: ref u8, before: Baseline) void = trust {
+pub fn expect_clean_since(name: string.StringView, before: Baseline) void = trust {
     val diagnostics = @dumpmemleaks()
     if diagnostics.enabled != 1 {
         stdio.print("[FAIL] {s}: leak checking is not enabled\n", {name})
@@ -142,16 +142,22 @@ pub fn expect_clean_since(name: ref u8, before: Baseline) void = trust {
     )
 }
 
+/// Borrow a raw C-string pointer from a view. The view must be NUL-terminated.
+/// String literals and `view_cstr` views satisfy this.
+pub fn cptr(v: string.StringView) ref u8 = {
+    return v.ptr
+}
+
 /// Resolve a module tree into `arena`, returning the root module.
 pub fn resolve(
     arena: allocators.ScopedArenaAllocator,
-    path: ref u8
+    path: string.StringView
 ) ref module.ResolvedModule = trust {
     val result = module.resolve_module(
         arena,
-        path,
+        cptr(path),
         mem.new[ref u8](),
-        ".",
+        cptr("."),
         none
     )
     match result {
