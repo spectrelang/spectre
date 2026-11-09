@@ -47,7 +47,7 @@ An example program:
 
 ```spectre
 val stdio = use("std/stdio")
-val str = use("std/string")
+val str   = use("std/string")
 
 pub fn main() void = {
     val xs: [_]str.StringView = [
