@@ -80,7 +80,7 @@ pub fn main() i32 = trust {
                 val spec_opt = @get(args, spec_i)
                 if spec_opt is some spec_val {
                     val def_spec: ref u8 = spec_val as ref u8
-                    if !defines.add_spec(def_spec) {
+                    if !defines.add_spec(string.view_cstr(def_spec)) {
                         stdio.print(
                             "error: invalid define '{s}', expected NAME=VALUE\n",
                             {def_spec}
@@ -96,7 +96,7 @@ pub fn main() i32 = trust {
                 }
             } elif string.raw_starts_with(pre_arg, "-d:") {
                 val def_spec: ref u8 = string.substr(pre_arg, 3, string.len_raw(pre_arg) - 3)
-                if !defines.add_spec(def_spec) {
+                if !defines.add_spec(string.view_cstr(def_spec)) {
                     stdio.print("error: invalid define '{s}', expected -d:NAME=VALUE\n", {pre_arg})
                     allocators.Arena.free(arena)
                     return 1
@@ -619,7 +619,7 @@ pub fn main() i32 = trust {
     if !flag_first_translate_c {
         val mod_version: ref u8 = commands.load_version_for(input)
         if string.len_raw(mod_version) > 0 {
-            defines.set("SPECTRE_MOD_VERSION", mod_version)
+            defines.set(string.view_cstr("SPECTRE_MOD_VERSION"), string.view_cstr(mod_version))
         }
     }
 
@@ -706,7 +706,7 @@ pub fn main() i32 = trust {
                     val next_opt = @get(parse_args, next_i)
                     if next_opt is some dv {
                         val def_spec: ref u8 = dv as ref u8
-                        if !defines.add_spec(def_spec) {
+                        if !defines.add_spec(string.view_cstr(def_spec)) {
                             stdio.print(
                                 "error: invalid define '{s}', expected NAME=VALUE\n",
                                 {def_spec}
@@ -727,7 +727,7 @@ pub fn main() i32 = trust {
                 }
             } elif string.raw_starts_with(arg, "-d:") {
                 val def_spec: ref u8 = string.substr(arg, 3, string.len_raw(arg) - 3)
-                if !defines.add_spec(def_spec) {
+                if !defines.add_spec(string.view_cstr(def_spec)) {
                     stdio.print("error: invalid define '{s}', expected -d:NAME=VALUE\n", {arg})
                     allocators.Arena.free(arena)
                     return 1

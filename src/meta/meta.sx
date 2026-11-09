@@ -3,11 +3,11 @@ val str   = use("std/string")
 val env   = use("env.sx")
 
 pub fn get_spectre_version() ref u8 = {
-    return env.get("SPECTRE_MOD_VERSION")
+    return env.get(str.view_cstr("SPECTRE_MOD_VERSION")).ptr
 }
 
 pub fn get_commit_hash() ref u8 = {
-    val hash: ref u8 = env.get("GIT_HASH")
+    val hash: ref u8 = env.get(str.view_cstr("GIT_HASH")).ptr
     if str.raw_cmp(hash, "") == 0 {
         return "unknown"
     }

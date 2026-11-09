@@ -1304,8 +1304,8 @@ fn resolve_module_impl(
                 exe_dir,
                 workspace
             )
-            if defines.is_env_module_path(resolved_path) {
-                defines.register_env_alias(import_name)
+            if defines.is_env_module_path(str.view_cstr(resolved_path)) {
+                defines.register_env_alias(str.view_cstr(import_name))
             }
             val needed_grandchildren: mut ref void = none
             if @len(needed_subs) > 0 {

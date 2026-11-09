@@ -4507,17 +4507,17 @@ fn gen_call(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
         val env_base: ref parser.Node = parser.field_base(callee)
         val env_name: ref u8 = parser.field_name_raw(callee)
         if env_base != none && env_base.kind == parser.NK_IDENT &&
-        defines.is_env_alias(parser.node_str_raw(env_base.d0)) &&
+        defines.is_env_alias(parser.node_str(env_base.d0)) &&
         str.raw_cmp(env_name, "get") == 0 {
             if args != none && (@len(args as list[ref parser.Node]) as i64) > 0 {
                 val key_opt = @get(args as list[ref parser.Node], 0 as usize)
                 if key_opt is some key_val {
                     val key_node: ref parser.Node = key_val as ref parser.Node
                     if key_node.kind == parser.NK_STR_LIT {
-                        val key: ref u8 = parser.str_lit_text_raw(key_node)
+                        val key: str.StringView = parser.str_lit_text(key_node)
                         val value_opt = defines.get(key)
                         if value_opt is some value {
-                            val idx: i64 = intern_string(ctx, value as ref u8)
+                            val idx: i64 = intern_string(ctx, value.ptr)
                             val sbuf: ref u8 = allocators.ScopedArena.alloc_or_none(
                                 ctx.arena,
                                 128 as usize

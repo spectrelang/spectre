@@ -27,7 +27,7 @@ pub type CgCtx = {
     current_fn_ret_union: mut ref u8
     current_fn_ret_ty: mut ref void
     expected_ty: mut ref void
-    strs: mut list[ref u8]
+    strs: mut list[str.StringView]
     str_cnt: mut i64
     tdefs: mut list[ref void]
     edefs: mut list[ref void]
@@ -154,7 +154,7 @@ fn cg_new() ref CgCtx = trust {
     ctx.current_fn_ret_union = ""
     ctx.current_fn_ret_ty = none
     ctx.expected_ty = none
-    ctx.strs = mem.new[ref u8]()
+    ctx.strs = mem.new[str.StringView]()
     ctx.str_cnt = 0
     ctx.tdefs = mem.new[ref void]()
     ctx.edefs = mem.new[ref void]()
@@ -3670,7 +3670,7 @@ fn cg_emit_invariant_checks(ctx: mut ref CgCtx) void = trust {
                             @snprintf(msg_buf, 512,
                                 "spectre: invariant violated for type '{s}' in '{s}'\n",
                                 {type_name, fn_name})
-                            val msg_idx: i64 = intern_string(
+                            val msg_idx: i64 = intern_string_raw(
                                 ctx,
                                 msg_buf
                             )
@@ -5603,7 +5603,7 @@ fn rewrite_fmt(ctx: ref CgCtx, s: ref u8) ref u8 = trust {
 }
 
 /// Intern a string literal without format rewriting, return its global label index.
-fn intern_string(ctx: mut ref CgCtx, s: ref u8) i64 = trust {
+fn intern_string(ctx: mut ref CgCtx, s: str.StringView) i64 = trust {
     val strs: ref void = cg_strs(ctx)
     val len: i64 = @len(strs) as i64
     val i: mut i64 = 0
@@ -5613,46 +5613,37 @@ fn intern_string(ctx: mut ref CgCtx, s: ref u8) i64 = trust {
         }
         val s_opt = @get(strs, i as usize)
         if s_opt is some existing {
-            if str.raw_cmp(existing as ref u8, s) == 0 {
+            val ev: str.StringView = existing as str.StringView
+            if str.view_eql(ev, s) {
                 return i
             }
         }
         i++
     }
-    val slen: i64 = str.len_raw(s)
-    val scopy: ref u8 = allocators.ScopedArena.alloc_or_none(
+    val scopy_ptr: ref u8 = allocators.ScopedArena.alloc_or_none(
         ctx.arena,
-        (slen + 1) as usize
+        (s.len + 1) as usize
     ) as ref u8
-    @memcpy(scopy, s, slen + 1)
+    if s.len > 0 {
+        @memcpy(scopy_ptr, s.ptr as ref void, s.len as usize)
+    }
+    @store8(@ptradd(scopy_ptr, s.len), 0)
+    val scopy: str.StringView = str.view(scopy_ptr, s.len)
     @append(strs, scopy)
     val idx: i64 = cg_str_cnt(ctx)
     cg_set_str_cnt(ctx, idx + 1)
     return idx
 }
 
+/// Raw-pointer compatibility wrapper for intern_string.
+fn intern_string_raw(ctx: mut ref CgCtx, s: ref u8) i64 = trust {
+    return intern_string(ctx, str.view_cstr(s))
+}
+
 /// Intern a format string with rewriting ({d} → %d), return its global label index.
 fn intern_format_string(ctx: mut ref CgCtx, s: ref u8) i64 = trust {
     val rewritten: ref u8 = rewrite_fmt(ctx, s)
-    val strs: ref void = cg_strs(ctx)
-    val len: i64 = @len(strs) as i64
-    val i: mut i64 = 0
-    for {
-        if i >= len {
-            break
-        }
-        val s_opt = @get(strs, i as usize)
-        if s_opt is some existing {
-            if str.raw_cmp(existing as ref u8, rewritten) == 0 {
-                return i
-            }
-        }
-        i++
-    }
-    @append(strs, rewritten)
-    val idx: i64 = cg_str_cnt(ctx)
-    cg_set_str_cnt(ctx, idx + 1)
-    return idx
+    return intern_string(ctx, str.view_cstr(rewritten))
 }
 
 /// Emit all interned string data sections.
@@ -5665,20 +5656,20 @@ fn emit_string_data(ctx: mut ref CgCtx) void = trust {
             break
         }
         val s_opt = @get(strs, i as usize)
-        if s_opt is some s {
+        if s_opt is some s_val {
+            val s: str.StringView = s_val as str.StringView
             val str_buf: ref u8 = allocators.ScopedArena.alloc_or_none(
                 ctx.arena,
                 64 as usize
             ) as ref u8
             @snprintf(str_buf, 64, "data $__str{lld} = \\{ b \"", {i})
             emit(ctx, str_buf) // emit each byte, escaping special chars
-            val sptr: ref u8 = s as ref u8
             val j: mut i64 = 0
             for {
-                val c: u8 = @load8(@ptradd(sptr, j))
-                if c == 0 {
+                if j >= s.len {
                     break
                 }
+                val c: u8 = @load8(@ptradd(s.ptr, j))
                 if c == 10 {
                     emit(ctx, "\\n")
                 } elif c == 9 {
@@ -5832,7 +5823,7 @@ fn static_global_init_value(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = 
     }
     if k == parser.NK_STR_LIT {
         val s: ref u8 = parser.str_lit_text_raw(expr)
-        val idx: i64 = intern_string(ctx, s)
+        val idx: i64 = intern_string_raw(ctx, s)
         val sbuf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 64 as usize) as ref u8
         @snprintf(sbuf, 64, "$__str{lld}", {idx})
         return sbuf
@@ -6551,7 +6542,7 @@ fn gen_expr(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
 
     if k == parser.NK_STR_LIT {
         val s: ref u8 = parser.str_lit_text_raw(expr)
-        val idx: i64 = intern_string(ctx, s)
+        val idx: i64 = intern_string_raw(ctx, s)
         val tmp3: i64 = fresh_tmp(ctx)
         val buf3: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 64 as usize) as ref u8
         @snprintf(buf3, 64, "    %%t{lld} =l copy $__str{lld}\n", {tmp3, idx})
@@ -9963,17 +9954,17 @@ fn gen_call(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
         val env_base: ref parser.Node = parser.field_base(callee_node)
         val env_name: ref u8 = parser.field_name_raw(callee_node)
         if env_base != none && env_base.kind == parser.NK_IDENT &&
-        defines.is_env_alias(parser.node_str_raw(env_base.d0)) &&
+        defines.is_env_alias(parser.node_str(env_base.d0)) &&
         str.raw_cmp(env_name, "get") == 0 {
             if args_list != none && (@len(args_list as list[ref parser.Node]) as i64) > 0 {
                 val key_opt = @get(args_list as list[ref parser.Node], 0 as usize)
                 if key_opt is some key_val {
                     val key_node: ref parser.Node = key_val as ref parser.Node
                     if key_node.kind == parser.NK_STR_LIT {
-                        val key: ref u8 = parser.str_lit_text_raw(key_node)
+                        val key: str.StringView = parser.str_lit_text(key_node)
                         val value_opt = defines.get(key)
                         if value_opt is some value {
-                            val idx: i64 = intern_string(ctx, value as ref u8)
+                            val idx: i64 = intern_string(ctx, value)
                             val sbuf: ref u8 = allocators.ScopedArena.alloc_or_none(
                                 ctx.arena,
                                 64 as usize
@@ -11086,7 +11077,7 @@ fn format_arg_is_view(ctx: mut ref CgCtx, node: ref parser.Node) bool = trust {
 }
 
 fn intern_c_format(ctx: mut ref CgCtx, s: ref u8) ref u8 = trust {
-    val idx: i64 = intern_string(ctx, s)
+    val idx: i64 = intern_string_raw(ctx, s)
     val tmp: i64 = fresh_tmp(ctx)
     val buf: ref u8 = allocators.ScopedArena.alloc_or_none(
         ctx.arena,
@@ -11954,7 +11945,7 @@ fn gen_builtin(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
     } elif str.raw_cmp(name, "alloc") == 0 {
         val sz: ref u8 = get_arg(ctx, args, 0)
         if ctx.leak_check {
-            val file_index: i64 = intern_string(ctx, ctx.current_filename)
+            val file_index: i64 = intern_string_raw(ctx, ctx.current_filename)
             @snprintf(
                 buf,
                 512,
@@ -11982,7 +11973,7 @@ fn gen_builtin(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
         val ptr2: ref u8 = get_arg(ctx, args, 0)
         val sz2: ref u8 = get_arg(ctx, args, 1)
         if ctx.leak_check {
-            val file_index: i64 = intern_string(ctx, ctx.current_filename)
+            val file_index: i64 = intern_string_raw(ctx, ctx.current_filename)
             @snprintf(
                 buf,
                 512,
@@ -15386,7 +15377,7 @@ fn gen_stmt(ctx: mut ref CgCtx, stmt: ref parser.Node) void = trust {
             512 as usize
         ) as ref u8
         @snprintf(msg_buf, 512, "spectre: assertion failed at line {lld}\n", {node.line})
-        val msg_idx: i64 = intern_string(ctx, msg_buf)
+        val msg_idx: i64 = intern_string_raw(ctx, msg_buf)
         val msg_tmp: i64 = fresh_tmp(ctx)
         val abuf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 256 as usize) as ref u8
         @snprintf(abuf, 256,
@@ -15446,7 +15437,7 @@ fn gen_stmt(ctx: mut ref CgCtx, stmt: ref parser.Node) void = trust {
                         @snprintf(msg_buf, 512, "spectre: {s} violated in function '{s}'\n",
                             {kind_str, fn_name})
                     }
-                    val msg_idx: i64 = intern_string(ctx, msg_buf)
+                    val msg_idx: i64 = intern_string_raw(ctx, msg_buf)
                     val msg_tmp: i64 = fresh_tmp(ctx)
                     val call_buf: ref u8 = allocators.ScopedArena.alloc_or_none(
                         ctx.arena,
@@ -17093,7 +17084,7 @@ fn gen_match_str(ctx: mut ref CgCtx, stmt: ref parser.Node) void = trust {
             if arm_opt is some arm {
                 val arm_node: ref parser.Node = arm as ref parser.Node
                 val pat: ref u8 = parser.match_str_arm_value_raw(arm_node)
-                val pat_idx: i64 = intern_string(ctx, pat)
+                val pat_idx: i64 = intern_string_raw(ctx, pat)
                 val body_lbl: i64 = fresh_lbl(ctx)
                 val next_lbl: i64 = fresh_lbl(ctx)
                 val cmp: i64 = fresh_tmp(ctx)
@@ -18323,7 +18314,7 @@ fn preregister_items(
                             cval_reg = "0"
                         }
                     } elif cexpr.kind == parser.NK_STR_LIT {
-                        val sidx: i64 = intern_string(ctx, parser.str_lit_text_raw(cexpr))
+                        val sidx: i64 = intern_string_raw(ctx, parser.str_lit_text_raw(cexpr))
                         val sbuf: ref u8 = allocators.ScopedArena.alloc_or_none(
                             ctx.arena,
                             64 as usize
@@ -19708,8 +19699,8 @@ fn gen_test_main(
             if name_opt is some name_val {
                 val tname: ref u8 = name_val as ref u8
                 if tname != none && str.len_raw(tname) > 0 {
-                    val fmt_idx: i64 = intern_string(ctx, "[pass] %s\n")
-                    val name_idx: i64 = intern_string(ctx, tname)
+                    val fmt_idx: i64 = intern_string_raw(ctx, "[pass] %s\n")
+                    val name_idx: i64 = intern_string_raw(ctx, tname)
                     val fmt_tmp: i64 = fresh_tmp(ctx)
                     val name_tmp: i64 = fresh_tmp(ctx)
                     val call_tmp: i64 = fresh_tmp(ctx)
@@ -19729,7 +19720,7 @@ fn gen_test_main(
         }
         ti++
     }
-    val ok_idx: i64 = intern_string(ctx, "[note] all tests passed\n")
+    val ok_idx: i64 = intern_string_raw(ctx, "[note] all tests passed\n")
     val ok_tmp: i64 = fresh_tmp(ctx)
     val ok_buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 128 as usize) as ref u8
     @snprintf(ok_buf, 128, "    %%t{lld} =l copy $__str{lld}\n    call $printf(l %%t{lld})\n    ret 0\n}\n\n",

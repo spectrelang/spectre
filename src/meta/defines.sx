@@ -6,13 +6,13 @@
 val str = use("std/string")
 
 pub type Define = {
-    name: mut ref u8
-    value: mut ref u8
+    name: mut str.StringView
+    value: mut str.StringView
     next: mut ref Define
 }
 
 pub type EnvAlias = {
-    name: mut ref u8
+    name: mut str.StringView
     next: mut ref EnvAlias
 }
 
@@ -21,24 +21,24 @@ val env_aliases: mut ref EnvAlias = none
 
 /// Return true when a resolved module path is the standard or compiler-local
 /// environment module.
-pub fn is_env_module_path(module_path: ref u8) bool = trust {
-    if str.raw_ends_with(module_path, "/spectrelib/env/core.sx") {
+pub fn is_env_module_path(module_path: str.StringView) bool = trust {
+    if str.view_ends_with(module_path, str.view_cstr("/spectrelib/env/core.sx")) {
         return true
     }
-    if str.raw_ends_with(module_path, "/src/meta/env.sx") {
+    if str.view_ends_with(module_path, str.view_cstr("/src/meta/env.sx")) {
         return true
     }
     return false
 }
 
 /// Register an import alias that refers to the environment module.
-pub fn register_env_alias(name: ref u8) void = trust {
+pub fn register_env_alias(name: str.StringView) void = trust {
     val cur: mut ref EnvAlias = env_aliases
     for {
         if cur == none {
             break
         }
-        if str.raw_cmp(cur.name, name) == 0 {
+        if str.view_eql(cur.name, name) {
             return
         }
         cur = cur.next
@@ -50,13 +50,13 @@ pub fn register_env_alias(name: ref u8) void = trust {
 }
 
 /// Return true when an identifier is an import alias for the environment module.
-pub fn is_env_alias(name: ref u8) bool = {
+pub fn is_env_alias(name: str.StringView) bool = {
     val cur: mut ref EnvAlias = env_aliases
     for {
         if cur == none {
             break
         }
-        if str.raw_cmp(cur.name, name) == 0 {
+        if trust str.view_eql(cur.name, name) {
             return true
         }
         cur = cur.next
@@ -64,13 +64,13 @@ pub fn is_env_alias(name: ref u8) bool = {
     return false
 }
 
-pub fn set(name: ref u8, value: ref u8) void = trust {
+pub fn set(name: str.StringView, value: str.StringView) void = trust {
     val cur: mut ref Define = defs
     for {
         if cur == none {
             break
         }
-        if str.raw_cmp(cur.name, name) == 0 {
+        if str.view_eql(cur.name, name) {
             cur.value = value
             return
         }
@@ -83,13 +83,13 @@ pub fn set(name: ref u8, value: ref u8) void = trust {
     defs = d
 }
 
-pub fn get(name: ref u8) option[ref u8] = {
+pub fn get(name: str.StringView) option[str.StringView] = {
     val cur: mut ref Define = defs
     for {
         if cur == none {
             break
         }
-        if str.raw_cmp(cur.name, name) == 0 {
+        if trust str.view_eql(cur.name, name) {
             return some cur.value
         }
         cur = cur.next
@@ -98,13 +98,13 @@ pub fn get(name: ref u8) option[ref u8] = {
 }
 
 /// Return true when a compile-time definition with the given name exists.
-pub fn has(name: ref u8) bool = {
+pub fn has(name: str.StringView) bool = {
     val cur: mut ref Define = defs
     for {
         if cur == none {
             break
         }
-        if str.raw_cmp(cur.name, name) == 0 {
+        if trust str.view_eql(cur.name, name) {
             return true
         }
         cur = cur.next
@@ -113,15 +113,15 @@ pub fn has(name: ref u8) bool = {
 }
 
 /// Parse a NAME=VALUE definition and add it to the compile-time environment.
-pub fn add_spec(definition: ref u8) bool = trust {
-    val len: i64 = str.len_raw(definition)
+pub fn add_spec(definition: str.StringView) bool = trust {
+    val len: i64 = definition.len
     val eq: mut i64 = -1
     val i: mut i64 = 0
     for {
         if i >= len {
             break
         }
-        val c: u8 = @load8(@ptradd(definition, i)) as u8
+        val c: u8 = @load8(@ptradd(definition.ptr, i)) as u8
         if c == 61 {
             eq = i
             break
@@ -131,8 +131,13 @@ pub fn add_spec(definition: ref u8) bool = trust {
     if eq <= 0 {
         return false
     }
-    val name: ref u8 = str.substr(definition, 0, eq)
-    val value: ref u8 = str.substr(definition, eq + 1, len - eq - 1)
-    set(name, value)
+    val name: ref u8 = str.substr(definition.ptr, 0, eq)
+    val value: ref u8 = str.substr(definition.ptr, eq + 1, len - eq - 1)
+    set(str.view_cstr(name), str.view_cstr(value))
     return true
+}
+
+/// Raw-pointer compatibility wrapper for add_spec.
+pub fn add_spec_raw(definition: ref u8) bool = trust {
+    return add_spec(str.view_cstr(definition))
 }
