@@ -6479,6 +6479,12 @@ fn gen_builtin(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
     if str.raw_cmp(bname, c"stdin") == 0 {
         return c"(int64_t)(intptr_t)stdin"
     }
+    if str.raw_cmp(bname, c"stdout") == 0 {
+        return c"(int64_t)(intptr_t)stdout"
+    }
+    if str.raw_cmp(bname, c"stderr") == 0 {
+        return c"(int64_t)(intptr_t)stderr"
+    }
     if str.raw_cmp(bname, c"fgets") == 0 {
         val b: ref u8 = get_arg(
             ctx,
@@ -8002,9 +8008,8 @@ fn gen_if_stmt(ctx: mut ref CCtx, stmt: ref parser.Node) void = trust {
 }
 
 fn cc_autovec_offset(ctx: ref CCtx, plan: ref autovec.Plan) ref u8 = trust {
-    val idx: ref u8 = plan.index
     val buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 128 as usize) as ref u8
-    @snprintf(buf, 128, "(t_{s}*(INT64_C({lld})))", {idx, plan.elem_size})
+    @snprintf(buf, 128, "(t_{s}*(INT64_C({lld})))", {plan.index, plan.elem_size})
     return buf
 }
 
