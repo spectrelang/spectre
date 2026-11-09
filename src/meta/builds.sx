@@ -32,7 +32,7 @@ pub fn get_tmp_path(name: ref u8) ref u8 = trust {
         }
         return tmp_join("C:/Windows/Temp", name)
     }
-    return tmp_join("/tmp", name)
+    return tmp_join(c"/tmp", name)
 }
 
 /// Returns a unique platform-appropriate temp path for a build artifact.
@@ -105,30 +105,30 @@ pub fn is_compiler_available(compiler: ref u8) bool = {
 }
 
 pub fn select_alt_compiler(requested: ref u8) ref u8 = {
-    if string.raw_cmp(requested, "") != 0 {
+    if string.raw_cmp(requested, c"") != 0 {
         return requested
     }
-    if is_compiler_available("clang") {
-        return "clang"
+    if is_compiler_available(c"clang") {
+        return c"clang"
     }
     when windows {
         if is_compiler_available("clang-cl") {
-            return "clang-cl"
+            return c"clang-cl"
         }
         if is_compiler_available("cl") {
-            return "cl"
+            return c"cl"
         }
     }
-    if is_compiler_available("gcc") {
-        return "gcc"
+    if is_compiler_available(c"gcc") {
+        return c"gcc"
     }
-    if is_compiler_available("cc") {
-        return "cc"
+    if is_compiler_available(c"cc") {
+        return c"cc"
     }
-    if is_compiler_available("tcc") {
-        return "tcc"
+    if is_compiler_available(c"tcc") {
+        return c"tcc"
     }
-    return "cc"
+    return c"cc"
 }
 
 /// Classify an alternative-backend C compiler driver.
@@ -137,89 +137,89 @@ pub fn select_alt_compiler(requested: ref u8) ref u8 = {
 /// MSVC-compatible driver. "msvc" is cl.exe. "tcc" is TinyCC.
 pub fn alt_compiler_kind(compiler: ref u8) ref u8 = {
     if string.len_raw(compiler) == 0 {
-        return "unknown"
+        return c"unknown"
     }
-    if string.raw_cmp(compiler, "tcc") == 0
-    || string.raw_ends_with(compiler, "tcc.exe") {
-        return "tcc"
+    if string.raw_cmp(compiler, c"tcc") == 0
+    || string.raw_ends_with(compiler, c"tcc.exe") {
+        return c"tcc"
     }
-    if string.raw_cmp(compiler, "clang-cl") == 0
-    || string.raw_ends_with(compiler, "clang-cl.exe") {
-        return "clang-cl"
+    if string.raw_cmp(compiler, c"clang-cl") == 0
+    || string.raw_ends_with(compiler, c"clang-cl.exe") {
+        return c"clang-cl"
     }
-    if string.raw_cmp(compiler, "cl") == 0
-    || string.raw_ends_with(compiler, "\\cl.exe")
-    || string.raw_ends_with(compiler, "/cl.exe") {
-        return "msvc"
+    if string.raw_cmp(compiler, c"cl") == 0
+    || string.raw_ends_with(compiler, c"\\cl.exe")
+    || string.raw_ends_with(compiler, c"/cl.exe") {
+        return c"msvc"
     }
-    return "gnu"
+    return c"gnu"
 }
 
 pub fn compiler_uses_msvc_flags(kind: ref u8) bool = {
-    return string.raw_cmp(kind, "msvc") == 0
-    || string.raw_cmp(kind, "clang-cl") == 0
+    return string.raw_cmp(kind, c"msvc") == 0
+    || string.raw_cmp(kind, c"clang-cl") == 0
 }
 
 pub fn compiler_uses_gnu_vectors(kind: ref u8) bool = {
-    return string.raw_cmp(kind, "gnu") == 0
-    || string.raw_cmp(kind, "clang-cl") == 0
+    return string.raw_cmp(kind, c"gnu") == 0
+    || string.raw_cmp(kind, c"clang-cl") == 0
 }
 
 /// Return the SIMD backend to use for the alt code generator.
 ///
 /// 0 = GNU/Clang vector extensions, 1 = MSVC intrinsics, 2 = scalar only.
 pub fn alt_simd_backend(compiler: ref u8, platform: ref u8, arch: ref u8) i64 = {
-    if string.raw_cmp(platform, "windows") != 0
-    && string.raw_cmp(platform, "linux") != 0
-    && string.raw_cmp(platform, "darwin") != 0 {
+    if string.raw_cmp(platform, c"windows") != 0
+    && string.raw_cmp(platform, c"linux") != 0
+    && string.raw_cmp(platform, c"darwin") != 0 {
         return 2
     }
-    if string.raw_cmp(arch, "x86_64") != 0
-    && string.raw_cmp(arch, "aarch64") != 0 {
+    if string.raw_cmp(arch, c"x86_64") != 0
+    && string.raw_cmp(arch, c"aarch64") != 0 {
         return 2
     }
     val kind: ref u8 = alt_compiler_kind(compiler)
     if compiler_uses_gnu_vectors(kind) {
         return 0
     }
-    if string.raw_cmp(kind, "msvc") == 0 {
+    if string.raw_cmp(kind, c"msvc") == 0 {
         return 1
     }
     return 2
 }
 
 pub fn compiler_std_flag(kind: ref u8) ref u8 = {
-    if string.raw_cmp(kind, "msvc") == 0 {
-        return "/std:c11"
+    if string.raw_cmp(kind, c"msvc") == 0 {
+        return c"/std:c11"
     }
-    if string.raw_cmp(kind, "clang-cl") == 0 {
-        return "-std=c11"
+    if string.raw_cmp(kind, c"clang-cl") == 0 {
+        return c"-std=c11"
     }
-    return "-std=c99"
+    return c"-std=c99"
 }
 
 pub fn compiler_opt_flag(kind: ref u8, release_mode: bool) ref u8 = {
     if compiler_uses_msvc_flags(kind) {
         if release_mode {
-            return "/O2"
+            return c"/O2"
         }
-        return "/Od /Zi"
+        return c"/Od /Zi"
     }
     if release_mode {
-        return "-O3"
+        return c"-O3"
     }
-    return "-g"
+    return c"-g"
 }
 
 pub fn compiler_warn_flag(compiler: ref u8) ref u8 = {
     val kind: ref u8 = alt_compiler_kind(compiler)
     if compiler_uses_msvc_flags(kind) {
-        return "/W0"
+        return c"/W0"
     }
-    if string.raw_cmp(compiler, "clang") == 0 {
-        return "-Wno-everything"
+    if string.raw_cmp(compiler, c"clang") == 0 {
+        return c"-Wno-everything"
     }
-    return "-w"
+    return c"-w"
 }
 
 pub fn compiler_native_flags(
@@ -229,35 +229,35 @@ pub fn compiler_native_flags(
     native_mode: bool
 ) ref u8 = {
     if !native_mode {
-        return ""
+        return c""
     }
     if compiler_uses_msvc_flags(kind) {
-        if string.raw_cmp(arch, "x86_64") == 0 {
-            return "/arch:AVX2"
+        if string.raw_cmp(arch, c"x86_64") == 0 {
+            return c"/arch:AVX2"
         }
-        return ""
+        return c""
     }
-    if string.raw_cmp(kind, "gnu") != 0 {
-        return ""
+    if string.raw_cmp(kind, c"gnu") != 0 {
+        return c""
     }
-    if string.raw_cmp(platform, "darwin") == 0
-    && string.raw_cmp(arch, "aarch64") == 0 {
-        return ""
+    if string.raw_cmp(platform, c"darwin") == 0
+    && string.raw_cmp(arch, c"aarch64") == 0 {
+        return c""
     }
-    if string.raw_cmp(arch, "x86_64") == 0 {
-        return "-march=native"
+    if string.raw_cmp(arch, c"x86_64") == 0 {
+        return c"-march=native"
     }
-    if string.raw_cmp(arch, "aarch64") == 0 {
-        return "-mcpu=native"
+    if string.raw_cmp(arch, c"aarch64") == 0 {
+        return c"-mcpu=native"
     }
-    return ""
+    return c""
 }
 
 pub fn compiler_unroll_flag(kind: ref u8, unroll_mode: bool) ref u8 = {
-    if unroll_mode && string.raw_cmp(kind, "gnu") == 0 {
-        return "-funroll-loops"
+    if unroll_mode && string.raw_cmp(kind, c"gnu") == 0 {
+        return c"-funroll-loops"
     }
-    return ""
+    return c""
 }
 
 pub fn compiler_include_flag(kind: ref u8, path: ref u8) ref u8 = trust {
@@ -269,22 +269,22 @@ pub fn compiler_include_flag(kind: ref u8, path: ref u8) ref u8 = trust {
 
 pub fn compiler_strip_flag(kind: ref u8, release_mode: bool) ref u8 = {
     if !release_mode {
-        return ""
+        return c""
     }
     if compiler_uses_msvc_flags(kind) {
-        return ""
+        return c""
     }
-    return "-s"
+    return c"-s"
 }
 
 pub fn translate_link_flag(kind: ref u8, flag: ref u8) ref u8 = trust {
     if !compiler_uses_msvc_flags(kind) {
         return flag
     }
-    if string.raw_cmp(flag, "-pthread") == 0 {
-        return ""
+    if string.raw_cmp(flag, c"-pthread") == 0 {
+        return c""
     }
-    if string.raw_starts_with(flag, "-l") {
+    if string.raw_starts_with(flag, c"-l") {
         val name: ref u8 = string.substr(flag, 2, string.len_raw(flag) - 2)
         return @fmtalloc("{s}.lib", {name})
     }
@@ -294,19 +294,19 @@ pub fn translate_link_flag(kind: ref u8, flag: ref u8) ref u8 = trust {
 /// Returns true when the host platform can produce a completely statically
 /// linked executable.
 pub fn supports_static_linking(platform: ref u8) bool = {
-    if string.raw_cmp(platform, "linux") == 0 {
+    if string.raw_cmp(platform, c"linux") == 0 {
         return true
     }
-    if string.raw_cmp(platform, "freebsd") == 0 {
+    if string.raw_cmp(platform, c"freebsd") == 0 {
         return true
     }
-    if string.raw_cmp(platform, "openbsd") == 0 {
+    if string.raw_cmp(platform, c"openbsd") == 0 {
         return true
     }
-    if string.raw_cmp(platform, "netbsd") == 0 {
+    if string.raw_cmp(platform, c"netbsd") == 0 {
         return true
     }
-    if string.raw_cmp(platform, "dragonflybsd") == 0 {
+    if string.raw_cmp(platform, c"dragonflybsd") == 0 {
         return true
     }
     return false
@@ -316,18 +316,18 @@ pub fn supports_static_linking(platform: ref u8) bool = {
 /// empty string when static linking is disabled or unsupported on the platform.
 pub fn static_link_flag(platform: ref u8, dynamic_linking: bool) ref u8 = {
     if dynamic_linking {
-        return ""
+        return c""
     }
     if supports_static_linking(platform) {
-        return "-static"
+        return c"-static"
     }
-    return ""
+    return c""
 }
 
 /// tcc cannot reliably produce fully static binaries, so it should not be used
 /// when static linking is requested.
 pub fn compiler_supports_static_linking(compiler: ref u8) bool = {
-    if string.raw_cmp(compiler, "tcc") == 0 {
+    if string.raw_cmp(compiler, c"tcc") == 0 {
         return false
     }
     return true
@@ -337,16 +337,16 @@ pub fn compiler_supports_static_linking(compiler: ref u8) bool = {
 /// when symbols should be retained.
 pub fn strip_link_flag(release_mode: bool) ref u8 = {
     if release_mode {
-        return "-s"
+        return c"-s"
     }
-    return ""
+    return c""
 }
 
 pub fn parse_alt_compiler_arg(arg: ref u8) ref u8 = {
-    if string.raw_starts_with(arg, "-alt:") {
+    if string.raw_starts_with(arg, c"-alt:") {
         return trust @ptradd(arg, 5) as ref u8
     }
-    return ""
+    return c""
 }
 
 pub fn filter_c_diagnostics(raw: ref u8) ref u8 = trust {
@@ -427,14 +427,14 @@ pub fn root_has_direct_links(items: list[ref parser.Node]) bool = {
 }
 
 pub fn input_is_in_std(input: ref u8, arena: ref allocators.Arena) bool = {
-    if string.raw_starts_with(input, "std/") {
+    if string.raw_starts_with(input, c"std/") {
         return true
     }
-    if string.raw_starts_with(input, "./std/") {
+    if string.raw_starts_with(input, c"./std/") {
         return true
     }
     val input_string = trust string.from[allocators.Arena](arena, input)
-    val std_segment = trust string.from[allocators.Arena](arena, "/std/")
+    val std_segment = trust string.from[allocators.Arena](arena, c"/std/")
     val in_std: bool = string.contains(input_string, std_segment)
     if in_std {
         return true
@@ -449,35 +449,35 @@ pub fn pick_alt_backend(
     root_items: list[ref parser.Node],
     arena: ref allocators.Arena
 ) ref u8 = {
-    if string.raw_cmp(requested, "") != 0 {
+    if string.raw_cmp(requested, c"") != 0 {
         return requested
     }
     if release_mode || (!input_is_in_std(input, arena) && root_has_direct_links(root_items)) {
-        if is_compiler_available("clang") {
-            return "clang"
+        if is_compiler_available(c"clang") {
+            return c"clang"
         }
     }
-    if is_compiler_available("clang") {
-        return "clang"
+    if is_compiler_available(c"clang") {
+        return c"clang"
     }
     when windows {
         if is_compiler_available("clang-cl") {
-            return "clang-cl"
+            return c"clang-cl"
         }
         if is_compiler_available("cl") {
-            return "cl"
+            return c"cl"
         }
     }
-    if is_compiler_available("gcc") {
-        return "gcc"
+    if is_compiler_available(c"gcc") {
+        return c"gcc"
     }
-    if is_compiler_available("cc") {
-        return "cc"
+    if is_compiler_available(c"cc") {
+        return c"cc"
     }
-    if is_compiler_available("tcc") {
-        return "tcc"
+    if is_compiler_available(c"tcc") {
+        return c"tcc"
     }
-    return "cc"
+    return c"cc"
 }
 
 pub fn append_debug_runtime_links(
@@ -490,24 +490,24 @@ pub fn append_debug_runtime_links(
 ) void = trust {
     val platform: ref u8 = reflection.current_platform_name[allocators.Arena](arena)
     val kind: ref u8 = alt_compiler_kind(compiler)
-    if string.raw_cmp(platform, "windows") == 0 {
+    if string.raw_cmp(platform, c"windows") == 0 {
         if compiler_uses_msvc_flags(kind) {
-            @append(links, "bcrypt.lib")
+            @append(links, c"bcrypt.lib")
         } else {
-            @append(links, "-lbcrypt")
+            @append(links, c"-lbcrypt")
         }
     }
     if release_mode {
         return
     }
-    val panic_c: ref u8 = path.join(exe_dir, "spectrelib/csources/panic_handler.c")
-    val panic_o: ref u8 = path.join(exe_dir, "spectrelib/csources/panic_handler.o")
-    val panic_cf = fs.open(panic_c, "r")
+    val panic_c: ref u8 = path.join(exe_dir, c"spectrelib/csources/panic_handler.c")
+    val panic_o: ref u8 = path.join(exe_dir, c"spectrelib/csources/panic_handler.o")
+    val panic_cf = fs.open(panic_c, c"r")
     if panic_cf is some hc {
         fs.close(hc)
         @append(links, panic_c)
     } else {
-        val panic_of = fs.open(panic_o, "r")
+        val panic_of = fs.open(panic_o, c"r")
         if panic_of is some ho {
             fs.close(ho)
             @append(links, panic_o)
@@ -515,94 +515,94 @@ pub fn append_debug_runtime_links(
             stdio.print("warning: panic_handler.c not found at: {s}\n", {panic_c})
         }
     }
-    if string.raw_cmp(platform, "windows") == 0 {
+    if string.raw_cmp(platform, c"windows") == 0 {
         if compiler_uses_msvc_flags(kind) {
-            @append(links, "Dbghelp.lib")
+            @append(links, c"Dbghelp.lib")
         } else {
-            @append(links, "-lDbghelp")
+            @append(links, c"-lDbghelp")
         }
     }
 }
 
 pub fn is_posix_platform(name: ref u8) bool = {
-    if string.raw_cmp(name, "linux") == 0 {
+    if string.raw_cmp(name, c"linux") == 0 {
         return true
     }
-    if string.raw_cmp(name, "darwin") == 0 {
+    if string.raw_cmp(name, c"darwin") == 0 {
         return true
     }
-    if string.raw_cmp(name, "freebsd") == 0 {
+    if string.raw_cmp(name, c"freebsd") == 0 {
         return true
     }
-    if string.raw_cmp(name, "openbsd") == 0 {
+    if string.raw_cmp(name, c"openbsd") == 0 {
         return true
     }
-    if string.raw_cmp(name, "netbsd") == 0 {
+    if string.raw_cmp(name, c"netbsd") == 0 {
         return true
     }
-    if string.raw_cmp(name, "dragonflybsd") == 0 {
+    if string.raw_cmp(name, c"dragonflybsd") == 0 {
         return true
     }
-    if string.raw_cmp(name, "android") == 0 {
+    if string.raw_cmp(name, c"android") == 0 {
         return true
     }
-    if string.raw_cmp(name, "haiku") == 0 {
+    if string.raw_cmp(name, c"haiku") == 0 {
         return true
     }
-    if string.raw_cmp(name, "redox") == 0 {
+    if string.raw_cmp(name, c"redox") == 0 {
         return true
     }
     return false
 }
 
 pub fn is_bsd_platform(name: ref u8) bool = {
-    if string.raw_cmp(name, "freebsd") == 0 {
+    if string.raw_cmp(name, c"freebsd") == 0 {
         return true
     }
-    if string.raw_cmp(name, "openbsd") == 0 {
+    if string.raw_cmp(name, c"openbsd") == 0 {
         return true
     }
-    if string.raw_cmp(name, "netbsd") == 0 {
+    if string.raw_cmp(name, c"netbsd") == 0 {
         return true
     }
-    if string.raw_cmp(name, "dragonflybsd") == 0 {
+    if string.raw_cmp(name, c"dragonflybsd") == 0 {
         return true
     }
     return false
 }
 
 pub fn is_known_platform(name: ref u8) bool = {
-    if string.raw_cmp(name, "windows") == 0 {
+    if string.raw_cmp(name, c"windows") == 0 {
         return true
     }
-    if string.raw_cmp(name, "linux") == 0 {
+    if string.raw_cmp(name, c"linux") == 0 {
         return true
     }
-    if string.raw_cmp(name, "darwin") == 0 {
+    if string.raw_cmp(name, c"darwin") == 0 {
         return true
     }
-    if string.raw_cmp(name, "freebsd") == 0 {
+    if string.raw_cmp(name, c"freebsd") == 0 {
         return true
     }
-    if string.raw_cmp(name, "openbsd") == 0 {
+    if string.raw_cmp(name, c"openbsd") == 0 {
         return true
     }
-    if string.raw_cmp(name, "netbsd") == 0 {
+    if string.raw_cmp(name, c"netbsd") == 0 {
         return true
     }
-    if string.raw_cmp(name, "dragonflybsd") == 0 {
+    if string.raw_cmp(name, c"dragonflybsd") == 0 {
         return true
     }
-    if string.raw_cmp(name, "android") == 0 {
+    if string.raw_cmp(name, c"android") == 0 {
         return true
     }
-    if string.raw_cmp(name, "haiku") == 0 {
+    if string.raw_cmp(name, c"haiku") == 0 {
         return true
     }
-    if string.raw_cmp(name, "redox") == 0 {
+    if string.raw_cmp(name, c"redox") == 0 {
         return true
     }
-    if string.raw_cmp(name, "plan9") == 0 {
+    if string.raw_cmp(name, c"plan9") == 0 {
         return true
     }
     return false
@@ -613,7 +613,7 @@ pub fn is_known_platform(name: ref u8) bool = {
 pub fn platform_matches_with_target(name: ref u8, src_target: ref u8) bool = trust {
     val arena: allocators.Arena = allocators.Arena.new(256 as usize)?
     val cur: mut ref u8 = reflection.current_platform_name[allocators.Arena](arena)
-    if string.raw_cmp(src_target, "") != 0 {
+    if string.raw_cmp(src_target, c"") != 0 {
         cur = src_target
     }
     val matched: mut bool = false
@@ -621,9 +621,9 @@ pub fn platform_matches_with_target(name: ref u8, src_target: ref u8) bool = tru
         if string.raw_cmp(name, cur) == 0 {
             matched = true
         }
-    } elif string.raw_cmp(name, "posix") == 0 || string.raw_cmp(name, "unix") == 0 {
+    } elif string.raw_cmp(name, c"posix") == 0 || string.raw_cmp(name, c"unix") == 0 {
         matched = is_posix_platform(cur)
-    } elif string.raw_cmp(name, "bsd") == 0 {
+    } elif string.raw_cmp(name, c"bsd") == 0 {
         matched = is_bsd_platform(cur)
     }
     allocators.Arena.free(arena)
@@ -635,11 +635,11 @@ pub fn arch_matches(name: ref u8) bool = trust {
     val arena: allocators.Arena = allocators.Arena.new(256 as usize)?
     val current: ref u8 = reflection.current_arch_name[allocators.Arena](arena)
     val wanted: mut ref u8 = name
-    if string.raw_cmp(wanted, "amd64") == 0 {
-        wanted = "x86_64"
+    if string.raw_cmp(wanted, c"amd64") == 0 {
+        wanted = c"x86_64"
     }
-    if string.raw_cmp(wanted, "arm64") == 0 {
-        wanted = "aarch64"
+    if string.raw_cmp(wanted, c"arm64") == 0 {
+        wanted = c"aarch64"
     }
     val matched: bool = string.raw_cmp(wanted, current) == 0
     allocators.Arena.free(arena)

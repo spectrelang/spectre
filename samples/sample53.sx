@@ -11,7 +11,7 @@ pub fn main() void = trust {
         some handle => {
             @puts("Got something:")
             stdio.print("Raw string: {s}\n", {raw_str})
-            if (json.obj_get_str(json.doc_root(handle), "Alice")) is some v {
+            if (json.obj_get_str(json.doc_root(handle), c"Alice")) is some v {
                 stdio.print("{s}", {v})
             }
             val root: ref void = json.doc_root(handle)

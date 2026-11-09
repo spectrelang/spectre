@@ -1,15 +1,15 @@
 val stdio = use("std/stdio")
 val str   = use("std/string")
-val env   = use("env.sx")
+val menv  = use("env.sx")
 
 pub fn get_spectre_version() str.StringView = {
-    return env.get(str.view_cstr("SPECTRE_MOD_VERSION"))
+    return menv.get("SPECTRE_MOD_VERSION")
 }
 
 pub fn get_commit_hash() str.StringView = {
-    val hash: str.StringView = env.get(str.view_cstr("GIT_HASH"))
+    val hash: str.StringView = menv.get("GIT_HASH")
     if hash.len == 0 {
-        return str.view_cstr("unknown")
+        return "unknown"
     }
     return hash
 }
@@ -87,12 +87,12 @@ fn print_flag_help(
 }
 
 pub fn print_help(topic: str.StringView) i32 = trust {
-    if str.view_eql_cstr(topic, "") == 0 {
+    if str.view_eql_cstr(topic, c"") == 0 {
         print_usage()
         return 0
     }
 
-    if str.view_eql_cstr(topic, "init") == 0 {
+    if str.view_eql_cstr(topic, c"init") == 0 {
         stdio.puts("init - Initialize a new project")
         stdio.puts("")
         stdio.puts("usage:")
@@ -103,7 +103,7 @@ pub fn print_help(topic: str.StringView) i32 = trust {
         return 0
     }
 
-    if str.view_eql_cstr(topic, "fmt") == 0 {
+    if str.view_eql_cstr(topic, c"fmt") == 0 {
         stdio.puts("fmt - Format Spectre source files")
         stdio.puts("")
         stdio.puts("usage:")
@@ -122,7 +122,7 @@ pub fn print_help(topic: str.StringView) i32 = trust {
         return 0
     }
 
-    if str.view_eql_cstr(topic, "critic") == 0 {
+    if str.view_eql_cstr(topic, c"critic") == 0 {
         stdio.puts("critic - Point out antipatterns in Spectre source files")
         stdio.puts("")
         stdio.puts("usage:")
@@ -137,7 +137,7 @@ pub fn print_help(topic: str.StringView) i32 = trust {
         return 0
     }
 
-    if str.view_eql_cstr(topic, "build") == 0 {
+    if str.view_eql_cstr(topic, c"build") == 0 {
         stdio.puts("build - Build using a configuration from sx.mod")
         stdio.puts("")
         stdio.puts("usage:")
@@ -150,7 +150,7 @@ pub fn print_help(topic: str.StringView) i32 = trust {
         return 0
     }
 
-    if str.view_eql_cstr(topic, "install") == 0 {
+    if str.view_eql_cstr(topic, c"install") == 0 {
         stdio.puts("install - Build and install a Spectre project from a repository")
         stdio.puts("")
         stdio.puts("usage:")
@@ -181,7 +181,7 @@ pub fn print_help(topic: str.StringView) i32 = trust {
         return 0
     }
 
-    if str.view_eql_cstr(topic, "run") == 0 {
+    if str.view_eql_cstr(topic, c"run") == 0 {
         stdio.puts("run - Compile and immediately run a program")
         stdio.puts("")
         stdio.puts("usage:")
@@ -191,7 +191,7 @@ pub fn print_help(topic: str.StringView) i32 = trust {
         return 0
     }
 
-    if str.view_eql_cstr(topic, "doc") == 0 {
+    if str.view_eql_cstr(topic, c"doc") == 0 {
         stdio.puts("doc - Generate documentation for a source file")
         stdio.puts("")
         stdio.puts("usage:")
@@ -211,7 +211,7 @@ pub fn print_help(topic: str.StringView) i32 = trust {
         return 0
     }
 
-    if str.view_eql_cstr(topic, "add") == 0 {
+    if str.view_eql_cstr(topic, c"add") == 0 {
         stdio.puts("add - Add a git dependency")
         stdio.puts("")
         stdio.puts("usage:")
@@ -221,7 +221,7 @@ pub fn print_help(topic: str.StringView) i32 = trust {
         return 0
     }
 
-    if str.view_eql_cstr(topic, "remove") == 0 {
+    if str.view_eql_cstr(topic, c"remove") == 0 {
         stdio.puts("remove - Remove a dependency")
         stdio.puts("")
         stdio.puts("usage:")
@@ -231,7 +231,7 @@ pub fn print_help(topic: str.StringView) i32 = trust {
         return 0
     }
 
-    if str.view_eql_cstr(topic, "upgrade") == 0 {
+    if str.view_eql_cstr(topic, c"upgrade") == 0 {
         stdio.puts("upgrade - Upgrade dependencies to their latest HEAD")
         stdio.puts("")
         stdio.puts("usage:")
@@ -243,7 +243,7 @@ pub fn print_help(topic: str.StringView) i32 = trust {
         return 0
     }
 
-    if str.view_eql_cstr(topic, "restore") == 0 {
+    if str.view_eql_cstr(topic, c"restore") == 0 {
         stdio.puts("restore - Restore project dependencies")
         stdio.puts("")
         stdio.puts("usage:")
@@ -253,7 +253,7 @@ pub fn print_help(topic: str.StringView) i32 = trust {
         return 0
     }
 
-    if str.view_eql_cstr(topic, "graph") == 0 {
+    if str.view_eql_cstr(topic, c"graph") == 0 {
         stdio.puts("graph - Visualize the project dependency tree")
         stdio.puts("")
         stdio.puts("usage:")
@@ -261,7 +261,7 @@ pub fn print_help(topic: str.StringView) i32 = trust {
         return 0
     }
 
-    if str.view_eql_cstr(topic, "ref") == 0 {
+    if str.view_eql_cstr(topic, c"ref") == 0 {
         stdio.puts("ref - Generate the language reference")
         stdio.puts("")
         stdio.puts("usage:")
@@ -271,7 +271,7 @@ pub fn print_help(topic: str.StringView) i32 = trust {
         return 0
     }
 
-    if str.view_eql_cstr(topic, "clean") == 0 {
+    if str.view_eql_cstr(topic, c"clean") == 0 {
         stdio.puts("clean - Remove build artifacts")
         stdio.puts("")
         stdio.puts("usage:")
@@ -281,7 +281,7 @@ pub fn print_help(topic: str.StringView) i32 = trust {
         return 0
     }
 
-    if str.view_eql_cstr(topic, "doctor") == 0 {
+    if str.view_eql_cstr(topic, c"doctor") == 0 {
         stdio.puts("doctor - Show system and Spectre installation information")
         stdio.puts("")
         stdio.puts("usage:")
@@ -289,7 +289,7 @@ pub fn print_help(topic: str.StringView) i32 = trust {
         return 0
     }
 
-    if str.view_eql_cstr(topic, "help") == 0 {
+    if str.view_eql_cstr(topic, c"help") == 0 {
         stdio.puts("help - Show detailed help for a command or flag")
         stdio.puts("")
         stdio.puts("usage:")
@@ -302,271 +302,271 @@ pub fn print_help(topic: str.StringView) i32 = trust {
         return 0
     }
 
-    if str.view_eql_cstr(topic, "-ast") == 0 {
+    if str.view_eql_cstr(topic, c"-ast") == 0 {
         print_flag_help(
-            str.view_cstr("-ast"),
-            str.view_cstr("Print the AST in a unicode tree and exit."),
-            str.view_cstr("spectre <input.sx> -ast")
+            "-ast",
+            "Print the AST in a unicode tree and exit.",
+            "spectre <input.sx> -ast"
         )
         return 0
     }
 
-    if str.view_eql_cstr(topic, "-syntax-check") == 0 {
+    if str.view_eql_cstr(topic, c"-syntax-check") == 0 {
         print_flag_help(
-            str.view_cstr("-syntax-check"),
-            str.view_cstr("Check the validity of the syntax without compiling."),
-            str.view_cstr("spectre <input.sx> -syntax-check")
+            "-syntax-check",
+            "Check the validity of the syntax without compiling.",
+            "spectre <input.sx> -syntax-check"
         )
         return 0
     }
 
-    if str.view_eql_cstr(topic, "-emit-ssa") == 0 {
+    if str.view_eql_cstr(topic, c"-emit-ssa") == 0 {
         print_flag_help(
-            str.view_cstr("-emit-ssa"),
-            str.view_cstr("Print QBE IR to stdout and exit (POSIX only)."),
-            str.view_cstr("spectre <input.sx> -emit-ssa")
+            "-emit-ssa",
+            "Print QBE IR to stdout and exit (POSIX only).",
+            "spectre <input.sx> -emit-ssa"
         )
         return 0
     }
 
-    if str.view_eql_cstr(topic, "-emit-alt") == 0 {
+    if str.view_eql_cstr(topic, c"-emit-alt") == 0 {
         print_flag_help(
-            str.view_cstr("-emit-alt"),
-            str.view_cstr("Print alternative IR to stdout and exit."),
-            str.view_cstr("spectre <input.sx> -emit-alt")
+            "-emit-alt",
+            "Print alternative IR to stdout and exit.",
+            "spectre <input.sx> -emit-alt"
         )
         return 0
     }
 
-    if str.view_eql_cstr(topic, "-emit-asm") == 0 {
+    if str.view_eql_cstr(topic, c"-emit-asm") == 0 {
         print_flag_help(
-            str.view_cstr("-emit-asm"),
-            str.view_cstr("Print assembly to stdout and exit."),
-            str.view_cstr("spectre <input.sx> -emit-asm")
+            "-emit-asm",
+            "Print assembly to stdout and exit.",
+            "spectre <input.sx> -emit-asm"
         )
         return 0
     }
 
     if str.view_eql_cstr(
         topic,
-        "-src-target"
-    ) == 0 || str.view_eql_cstr(topic, "-src-target:<os>") == 0 {
+        c"-src-target"
+    ) == 0 || str.view_eql_cstr(topic, c"-src-target:<os>") == 0 {
         print_src_target_help()
         return 0
     }
 
-    if str.view_eql_cstr(topic, "-translate-c") == 0 {
+    if str.view_eql_cstr(topic, c"-translate-c") == 0 {
         print_flag_help(
-            str.view_cstr("-translate-c"),
-            str.view_cstr("Translate C input into a single .sx file."),
-            str.view_cstr("spectre -translate-c <input.c|input.h>")
+            "-translate-c",
+            "Translate C input into a single .sx file.",
+            "spectre -translate-c <input.c|input.h>"
         )
         return 0
     }
 
     if str.view_eql_cstr(
         topic,
-        "-inc-path"
-    ) == 0 || str.view_eql_cstr(topic, "-inc-path:<dir>") == 0 {
+        c"-inc-path"
+    ) == 0 || str.view_eql_cstr(topic, c"-inc-path:<dir>") == 0 {
         print_flag_help(
-            str.view_cstr("-inc-path:<dir>"),
-            str.view_cstr("Add an include search path for the alternative backend."),
-            str.view_cstr("spectre <input.sx> -alt -inc-path:<dir>")
+            "-inc-path:<dir>",
+            "Add an include search path for the alternative backend.",
+            "spectre <input.sx> -alt -inc-path:<dir>"
         )
         return 0
     }
 
-    if str.view_eql_cstr(topic, "-show-cmd") == 0 {
+    if str.view_eql_cstr(topic, c"-show-cmd") == 0 {
         print_flag_help(
-            str.view_cstr("-show-cmd"),
-            str.view_cstr("Show the command used for linking."),
-            str.view_cstr("spectre <input.sx> -show-cmd")
+            "-show-cmd",
+            "Show the command used for linking.",
+            "spectre <input.sx> -show-cmd"
         )
         return 0
     }
 
-    if str.view_eql_cstr(topic, "-test") == 0 {
+    if str.view_eql_cstr(topic, c"-test") == 0 {
         print_flag_help(
-            str.view_cstr("-test"),
-            str.view_cstr("Run the unit tests in the current file."),
-            str.view_cstr("spectre <input.sx> -test")
+            "-test",
+            "Run the unit tests in the current file.",
+            "spectre <input.sx> -test"
         )
         return 0
     }
 
-    if str.view_eql_cstr(topic, "-test-all") == 0 {
+    if str.view_eql_cstr(topic, c"-test-all") == 0 {
         print_flag_help(
-            str.view_cstr("-test-all"),
-            str.view_cstr("Run the unit tests in every .sx file under the current directory, recursively."),
-            str.view_cstr("spectre -test-all [-test-depth:<n>] [directory]")
+            "-test-all",
+            "Run the unit tests in every .sx file under the current directory, recursively.",
+            "spectre -test-all [-test-depth:<n>] [directory]"
         )
         return 0
     }
 
-    if str.view_eql_cstr(topic, "-leak-check") == 0 {
+    if str.view_eql_cstr(topic, c"-leak-check") == 0 {
         print_flag_help(
-            str.view_cstr("-leak-check"),
-            str.view_cstr("Route allocations made by @alloc through the leak tracker and enable the @dumpmemleaks intrinsic."),
-            str.view_cstr("spectre <input.sx> -leak-check")
+            "-leak-check",
+            "Route allocations made by @alloc through the leak tracker and enable the @dumpmemleaks intrinsic.",
+            "spectre <input.sx> -leak-check"
         )
         return 0
     }
 
-    if str.view_eql_cstr(topic, "-release") == 0 {
+    if str.view_eql_cstr(topic, c"-release") == 0 {
         print_flag_help(
-            str.view_cstr("-release"),
-            str.view_cstr("Build in release mode with optimizations and stripped symbols."),
-            str.view_cstr("spectre <input.sx> -release")
+            "-release",
+            "Build in release mode with optimizations and stripped symbols.",
+            "spectre <input.sx> -release"
         )
         return 0
     }
 
-    if str.view_eql_cstr(topic, "-native") == 0 {
+    if str.view_eql_cstr(topic, c"-native") == 0 {
         print_flag_help(
-            str.view_cstr("-native"),
-            str.view_cstr("Optimize the alternative backend for the host CPU at the cost of portability across architectures."),
-            str.view_cstr("spectre <input.sx> -release -alt -native")
+            "-native",
+            "Optimize the alternative backend for the host CPU at the cost of portability across architectures.",
+            "spectre <input.sx> -release -alt -native"
         )
         return 0
     }
 
-    if str.view_eql_cstr(topic, "-unroll") == 0 {
+    if str.view_eql_cstr(topic, c"-unroll") == 0 {
         print_flag_help(
-            str.view_cstr("-unroll"),
-            str.view_cstr("Enable aggressive loop unrolling in the alternative backend with -funroll-loops."),
-            str.view_cstr("spectre <input.sx> -release -alt -unroll")
+            "-unroll",
+            "Enable aggressive loop unrolling in the alternative backend with -funroll-loops.",
+            "spectre <input.sx> -release -alt -unroll"
         )
         return 0
     }
 
-    if str.view_eql_cstr(topic, "-no-simd") == 0 {
+    if str.view_eql_cstr(topic, c"-no-simd") == 0 {
         print_flag_help(
-            str.view_cstr("-no-simd"),
-            str.view_cstr("Disable autovectorization and emit scalar loops. Useful for debugging and for platforms without a supported SIMD backend."),
-            str.view_cstr("spectre <input.sx> -release -alt -no-simd")
+            "-no-simd",
+            "Disable autovectorization and emit scalar loops. Useful for debugging and for platforms without a supported SIMD backend.",
+            "spectre <input.sx> -release -alt -no-simd"
         )
         return 0
     }
 
-    if str.view_eql_cstr(topic, "-dynamic") == 0 {
+    if str.view_eql_cstr(topic, c"-dynamic") == 0 {
         print_flag_help(
-            str.view_cstr("-dynamic"),
-            str.view_cstr("Link dynamically instead of statically. Static linking is the default on platforms that support it."),
-            str.view_cstr("spectre <input.sx> -dynamic")
+            "-dynamic",
+            "Link dynamically instead of statically. Static linking is the default on platforms that support it.",
+            "spectre <input.sx> -dynamic"
         )
         return 0
     }
 
-    if str.view_eql_cstr(topic, "-dll") == 0 {
+    if str.view_eql_cstr(topic, c"-dll") == 0 {
         print_flag_help(
-            str.view_cstr("-dll"),
-            str.view_cstr("Build a shared library."),
-            str.view_cstr("spectre <input.sx> -dll")
+            "-dll",
+            "Build a shared library.",
+            "spectre <input.sx> -dll"
         )
         return 0
     }
 
-    if str.view_eql_cstr(topic, "-a") == 0 || str.view_eql_cstr(topic, "-alt") == 0 {
+    if str.view_eql_cstr(topic, c"-a") == 0 || str.view_eql_cstr(topic, c"-alt") == 0 {
         print_flag_help(
-            str.view_cstr("-a, -alt"),
-            str.view_cstr("Compile with the fallback backend. Use -alt:<cc> to force a driver such as clang, clang-cl, cl, or tcc."),
-            str.view_cstr("spectre <input.sx> -alt:clang-cl")
+            "-a, -alt",
+            "Compile with the fallback backend. Use -alt:<cc> to force a driver such as clang, clang-cl, cl, or tcc.",
+            "spectre <input.sx> -alt:clang-cl"
         )
         return 0
     }
 
-    if str.view_eql_cstr(topic, "-b") == 0 || str.view_eql_cstr(topic, "-bootstrap") == 0 {
+    if str.view_eql_cstr(topic, c"-b") == 0 || str.view_eql_cstr(topic, c"-bootstrap") == 0 {
         print_flag_help(
-            str.view_cstr("-b, -bootstrap"),
-            str.view_cstr("Display backend output on error."),
-            str.view_cstr("spectre <input.sx> -bootstrap")
+            "-b, -bootstrap",
+            "Display backend output on error.",
+            "spectre <input.sx> -bootstrap"
         )
         return 0
     }
 
-    if str.view_eql_cstr(topic, "-c") == 0 || str.view_eql_cstr(topic, "-compile") == 0 {
+    if str.view_eql_cstr(topic, c"-c") == 0 || str.view_eql_cstr(topic, c"-compile") == 0 {
         print_flag_help(
-            str.view_cstr("-c, -compile"),
-            str.view_cstr("Compile only to produce an object file, without linking."),
-            str.view_cstr("spectre <input.sx> -compile")
+            "-c, -compile",
+            "Compile only to produce an object file, without linking.",
+            "spectre <input.sx> -compile"
         )
         return 0
     }
 
-    if str.view_eql_cstr(topic, "-d") == 0 || str.view_starts_with(topic, str.view_cstr("-d:")) {
+    if str.view_eql_cstr(topic, c"-d") == 0 || str.view_starts_with(topic, "-d:") {
         print_flag_help(
-            str.view_cstr("-d:<NAME>=<value>"),
-            str.view_cstr("Define a compile-time environment variable. Reads through env.get(\"NAME\") are replaced with the supplied value at compile time."),
-            str.view_cstr("spectre -d:GIT_HASH=abcdef <input.sx>")
+            "-d:<NAME>=<value>",
+            "Define a compile-time environment variable. Reads through env.get(\"NAME\") are replaced with the supplied value at compile time.",
+            "spectre -d:GIT_HASH=abcdef <input.sx>"
         )
         return 0
     }
 
     if str.view_eql_cstr(
         topic,
-        "-o"
+        c"-o"
     ) == 0 || str.view_eql_cstr(
         topic,
-        "-output"
-    ) == 0 || str.view_eql_cstr(topic, "-output=<file>") == 0 {
+        c"-output"
+    ) == 0 || str.view_eql_cstr(topic, c"-output=<file>") == 0 {
         print_flag_help(
-            str.view_cstr("-o, -output <file>"),
-            str.view_cstr("Set the output path for a binary or build artifact."),
-            str.view_cstr("spectre <input.sx> -o <file>")
+            "-o, -output <file>",
+            "Set the output path for a binary or build artifact.",
+            "spectre <input.sx> -o <file>"
         )
         return 0
     }
 
-    if str.view_eql_cstr(topic, "-l") == 0 || str.view_eql_cstr(topic, "-loud") == 0 {
+    if str.view_eql_cstr(topic, c"-l") == 0 || str.view_eql_cstr(topic, c"-loud") == 0 {
         print_flag_help(
-            str.view_cstr("-l, -loud"),
-            str.view_cstr("Show compilation stages with verbose output."),
-            str.view_cstr("spectre <input.sx> -loud")
+            "-l, -loud",
+            "Show compilation stages with verbose output.",
+            "spectre <input.sx> -loud"
         )
         return 0
     }
 
-    if str.view_eql_cstr(topic, "-v") == 0 || str.view_eql_cstr(topic, "-version") == 0 {
+    if str.view_eql_cstr(topic, c"-v") == 0 || str.view_eql_cstr(topic, c"-version") == 0 {
         print_flag_help(
-            str.view_cstr("-v, -version"),
-            str.view_cstr("Show the version of the installed Spectre compiler."),
-            str.view_cstr("spectre -v")
+            "-v, -version",
+            "Show the version of the installed Spectre compiler.",
+            "spectre -v"
         )
         return 0
     }
 
-    if str.view_eql_cstr(topic, "-h") == 0 || str.view_eql_cstr(topic, "-help") == 0 {
+    if str.view_eql_cstr(topic, c"-h") == 0 || str.view_eql_cstr(topic, c"-help") == 0 {
         print_flag_help(
-            str.view_cstr("-h, -help"),
-            str.view_cstr("Print the general help message."),
-            str.view_cstr("spectre -h\n  spectre help <command|flag>")
+            "-h, -help",
+            "Print the general help message.",
+            "spectre -h\n  spectre help <command|flag>"
         )
         return 0
     }
 
-    if str.view_eql_cstr(topic, "-stdio") == 0 {
+    if str.view_eql_cstr(topic, c"-stdio") == 0 {
         print_flag_help(
-            str.view_cstr("-stdio"),
-            str.view_cstr("Write formatted output to stdout instead of editing files in place."),
-            str.view_cstr("spectre fmt -stdio <file.sx|directory>...")
+            "-stdio",
+            "Write formatted output to stdout instead of editing files in place.",
+            "spectre fmt -stdio <file.sx|directory>..."
         )
         return 0
     }
 
-    if str.view_eql_cstr(topic, "-md") == 0 {
+    if str.view_eql_cstr(topic, c"-md") == 0 {
         print_flag_help(
-            str.view_cstr("-md"),
-            str.view_cstr("Generate Markdown documentation instead of HTML."),
-            str.view_cstr("spectre doc [path] -md")
+            "-md",
+            "Generate Markdown documentation instead of HTML.",
+            "spectre doc [path] -md"
         )
         return 0
     }
 
-    if str.view_eql_cstr(topic, "-fix") == 0 {
+    if str.view_eql_cstr(topic, c"-fix") == 0 {
         print_flag_help(
-            str.view_cstr("-fix"),
-            str.view_cstr("Apply safe critic fixes to .sx files or directories."),
-            str.view_cstr("spectre critic -fix <file.sx|directory>...")
+            "-fix",
+            "Apply safe critic fixes to .sx files or directories.",
+            "spectre critic -fix <file.sx|directory>..."
         )
         return 0
     }

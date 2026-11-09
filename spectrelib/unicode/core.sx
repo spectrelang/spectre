@@ -1082,7 +1082,7 @@ pub fn utf8_to_codepoints_string[A: allocators.GeneralAllocator](
 }
 
 test "unicode utf8 decodes encodes and classifies" {
-    val text: ref u8 = "héllo 🌍"
+    val text: ref u8 = c"héllo 🌍"
     val len: i64 = string.len_raw(text)
 
     assert utf8_validate(text, len)
@@ -1218,7 +1218,7 @@ test "unicode builds strings from code points" {
 
 test "unicode converts code point lists and byte indexes" {
     val heap: allocators.HeapAllocator = @zeroed
-    val text: ref u8 = "aé🌍"
+    val text: ref u8 = c"aé🌍"
     val len: i64 = string.len_raw(text)
 
     val index = utf8_byte_index(text, len, 2)

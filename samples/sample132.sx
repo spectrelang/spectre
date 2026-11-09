@@ -40,7 +40,7 @@ pub fn half_f64(x: f64) f64 = {
 }
 
 pub fn excite_str(x: ref u8) ref u8 = {
-    return trust str.concat_raw(x, "!")
+    return trust str.concat_raw(x, c"!")
 }
 
 pub fn shift_vec2(v: Vec2) Vec2 = {
@@ -89,7 +89,7 @@ pub fn main() void = {
 
     trust @print("float = {f}\n", {sum_floats})
 
-    val words = @list(la, "a", "b", "c")?
+    val words = @list(la, c"a", c"b", c"c")?
     val excited = map[allocators.ListArena, ref u8, ref u8](la, words, excite_str)
     val sentence = reduce[ref u8, ref u8](excited, "" as ref u8, concat_str)
 

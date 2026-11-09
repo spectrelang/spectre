@@ -1,7 +1,7 @@
 val stdio = use("std/stdio")
 
 pub fn main() void = trust {
-    val hello: ref u8 = "hello world"
+    val hello: ref u8 = c"hello world"
     val fmt_string: ref u8 = @fmtalloc("{d} {d} {s}", {12, 14, hello})
     stdio.print("{s}", {fmt_string})
 }

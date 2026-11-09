@@ -11,7 +11,7 @@ extern (C, header) fn getenv(name: ref u8) ref u8 = "getenv"
 pub fn get(name: ref u8) ref u8 = {
     val value: ref u8 = trust getenv(name)
     if value == none {
-        return ""
+        return c""
     }
     return value
 }

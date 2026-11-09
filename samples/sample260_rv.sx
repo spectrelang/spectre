@@ -66,7 +66,7 @@ pub fn main() i32 = trust {
     }
 
     val buf: mut [128]u8 = @zeroed
-    fmt_into(@addr(buf) as ref u8, 128, "n={d} s={s}", {7, "ok"})
+    fmt_into(@addr(buf) as ref u8, 128, c"n={d} s={s}", {7, c"ok"})
     if @strcmp(@addr(buf) as ref u8, "n=7 s=ok") != 0 {
         stdio.puts("dynamic format mismatch")
         return 6

@@ -308,7 +308,7 @@ pub fn write_all_view(path: str.StringView, data: str.StringView) bool = trust {
     if p.ptr == none {
         return false
     }
-    val handle = open(p.ptr, "w")
+    val handle = open(p.ptr, c"w")
     match handle {
         none => {
             return false
@@ -346,7 +346,7 @@ pub fn append_all_view(path: str.StringView, data: str.StringView) bool = trust 
     if p.ptr == none {
         return false
     }
-    val handle = open(p.ptr, "a")
+    val handle = open(p.ptr, c"a")
     match handle {
         none => {
             return false
@@ -459,7 +459,7 @@ pub fn close(f: ref void) void = trust {
 /// Return the size of a file in bytes.
 /// Returns none if the file could not be opened.
 pub fn file_size(path: ref u8) option[i64] = trust {
-    val handle = open(path, "rb")
+    val handle = open(path, c"rb")
     match handle {
         none => {
             return none
@@ -478,7 +478,7 @@ pub fn file_size(path: ref u8) option[i64] = trust {
 /// Read the entire contents of a file into an allocator-backed buffer.
 /// Returns a null-terminated ref u8, or none on error.
 pub fn read_all[A: allocators.Allocator](ac: A, path: ref u8) option[ref u8] = trust {
-    val handle = open(path, "rb")
+    val handle = open(path, c"rb")
     match handle {
         none => {
             return none
@@ -502,7 +502,7 @@ pub fn read_all[A: allocators.Allocator](ac: A, path: ref u8) option[ref u8] = t
 }
 
 pub fn read_all_raw(path: ref u8) option[ref u8] = trust {
-    val handle = open(path, "rb")
+    val handle = open(path, c"rb")
     match handle {
         none => {
             return none
@@ -571,14 +571,14 @@ pub fn write_bytes(f: ref void, data: ref void, len: i64) void = trust {
 /// Write a string followed by a newline.
 pub fn write_line(f: ref void, data: ref u8) void = trust {
     write(f, data)
-    val nl: ref u8 = "\n"
+    val nl: ref u8 = c"\n"
     val ptr: ref void = @load(f)
     fwrite(nl, 1 as usize, 1 as usize, ptr)
 }
 
 /// Write the entire contents of data to path, overwriting any existing file.
 pub fn write_all(path: ref u8, data: ref u8) bool = trust {
-    val handle = open(path, "w")
+    val handle = open(path, c"w")
     match handle {
         none => {
             return false
@@ -594,7 +594,7 @@ pub fn write_all(path: ref u8, data: ref u8) bool = trust {
 /// Write exactly `len` bytes to path, overwriting any existing file.
 /// The data may contain NUL bytes.
 pub fn write_all_bytes(path: ref u8, data: ref void, len: i64) bool = trust {
-    val handle = open(path, "wb")
+    val handle = open(path, c"wb")
     match handle {
         none => {
             return false
@@ -609,7 +609,7 @@ pub fn write_all_bytes(path: ref u8, data: ref void, len: i64) bool = trust {
 
 /// Append exactly `len` bytes to path, creating it if it does not exist.
 pub fn append_all_bytes(path: ref u8, data: ref void, len: i64) bool = trust {
-    val handle = open(path, "ab")
+    val handle = open(path, c"ab")
     match handle {
         none => {
             return false
@@ -624,7 +624,7 @@ pub fn append_all_bytes(path: ref u8, data: ref void, len: i64) bool = trust {
 
 /// Append data to a file, creating it if it does not exist.
 pub fn append_all(path: ref u8, data: ref u8) bool = trust {
-    val handle = open(path, "a")
+    val handle = open(path, c"a")
     match handle {
         none => {
             return false
@@ -728,11 +728,11 @@ pub fn cwd_raw() option[ref u8] = trust {
 /// Falls back to "/tmp" on POSIX if TMPDIR is not set.
 pub fn temp_dir[A: allocators.Allocator](ac: A) ref u8 = trust {
     when posix {
-        val t: ref u8 = getenv("TMPDIR")
+        val t: ref u8 = getenv(c"TMPDIR")
         if (t != none) {
             return copy_cstr[A](ac, t)
         }
-        return copy_cstr[A](ac, "/tmp")
+        return copy_cstr[A](ac, c"/tmp")
     }
     when windows {
         val t: ref u8 = getenv("TEMP")
@@ -745,16 +745,16 @@ pub fn temp_dir[A: allocators.Allocator](ac: A) ref u8 = trust {
         }
         return copy_cstr[A](ac, "C:\\Windows\\Temp")
     }
-    return copy_cstr[A](ac, "/tmp")
+    return copy_cstr[A](ac, c"/tmp")
 }
 
 pub fn temp_dir_raw() ref u8 = trust {
     when posix {
-        val t: ref u8 = getenv("TMPDIR")
+        val t: ref u8 = getenv(c"TMPDIR")
         if t != none {
             return t
         }
-        return "/tmp"
+        return c"/tmp"
     }
     when windows {
         val t: ref u8 = getenv("TEMP")
@@ -765,16 +765,16 @@ pub fn temp_dir_raw() ref u8 = trust {
         if t2 != none {
             return t2
         }
-        return "C:\\Windows\\Temp"
+        return c"C:\\Windows\\Temp"
     }
-    return "/tmp"
+    return c"/tmp"
 }
 
 /// Return the current user's home directory.
 /// Uses HOME on POSIX, USERPROFILE on Windows.
 pub fn home_dir[A: allocators.Allocator](ac: A) option[ref u8] = trust {
     when posix {
-        val h: ref u8 = getenv("HOME")
+        val h: ref u8 = getenv(c"HOME")
         if (h != none) {
             return some copy_cstr[A](ac, h)
         }
@@ -796,7 +796,7 @@ pub fn home_dir[A: allocators.Allocator](ac: A) option[ref u8] = trust {
 
 pub fn home_dir_raw() option[ref u8] = trust {
     when posix {
-        val h: ref u8 = getenv("HOME")
+        val h: ref u8 = getenv(c"HOME")
         if h != none {
             return some h
         }
@@ -822,16 +822,16 @@ pub fn home_dir_raw() option[ref u8] = trust {
 /// Returns none if no suitable directory can be determined.
 pub fn config_dir[A: allocators.Allocator](ac: A) option[ref u8] = trust {
     when posix {
-        val xdg: ref u8 = getenv("XDG_CONFIG_HOME")
+        val xdg: ref u8 = getenv(c"XDG_CONFIG_HOME")
         if (xdg != none) {
             return some copy_cstr[A](ac, xdg)
         }
-        val h: ref u8 = getenv("HOME")
+        val h: ref u8 = getenv(c"HOME")
         if (h == none) {
             return none
         }
         val hl: i64 = strlen(h)
-        val suffix: ref u8 = "/.config"
+        val suffix: ref u8 = c"/.config"
         val sl: i64 = strlen(suffix)
         val buf: ref u8 = alloc_cstr[A](ac, hl + sl)
         if buf == none {
@@ -853,16 +853,16 @@ pub fn config_dir[A: allocators.Allocator](ac: A) option[ref u8] = trust {
 
 pub fn config_dir_raw() option[ref u8] = trust {
     when posix {
-        val xdg: ref u8 = getenv("XDG_CONFIG_HOME")
+        val xdg: ref u8 = getenv(c"XDG_CONFIG_HOME")
         if xdg != none {
             return some xdg
         }
-        val h: ref u8 = getenv("HOME")
+        val h: ref u8 = getenv(c"HOME")
         if h == none {
             return none
         }
         val hl: i64 = strlen(h)
-        val suffix: ref u8 = "/.config"
+        val suffix: ref u8 = c"/.config"
         val sl: i64 = strlen(suffix)
         val buf: ref u8 = raw_alloc_cstr(hl + sl)
         if buf == none {
@@ -884,9 +884,9 @@ pub fn config_dir_raw() option[ref u8] = trust {
 
 test "file and directory operations roundtrip" {
     val arena: allocators.Arena = trust allocators.Arena.new(8192 as usize)?
-    val path: ref u8 = "test_file.txt"
+    val path: ref u8 = c"test_file.txt"
     @puts("1")
-    val success = trust write_all(path, "Hello, Spectre!")
+    val success = trust write_all(path, c"Hello, Spectre!")
     assert success
     @puts("2")
     val content_opt: option[ref u8] = trust read_all[allocators.Arena](arena, path)
@@ -900,14 +900,14 @@ test "file and directory operations roundtrip" {
 
             trust stdio.print(
                 "{s} {d}\n",
-                {content, str.compare[ref u8, ref u8](content, "Hello, Spectre!")}
+                {content, str.compare[ref u8, ref u8](content, c"Hello, Spectre!")}
             )
             @puts("2.6")
-            assert trust str.compare[ref u8, ref u8](content, "Hello, Spectre!") == 0
+            assert trust str.compare[ref u8, ref u8](content, c"Hello, Spectre!") == 0
         }
     }
     @puts("3")
-    val append_ok = trust append_all(path, " More text.")
+    val append_ok = trust append_all(path, c" More text.")
     assert append_ok
     @puts("4")
 
@@ -917,12 +917,12 @@ test "file and directory operations roundtrip" {
             assert false
         }
         some content2 => {
-            assert trust str.compare[ref u8, ref u8](content2, "Hello, Spectre! More text.") == 0
+            assert trust str.compare[ref u8, ref u8](content2, c"Hello, Spectre! More text.") == 0
         }
     }
     @puts("5")
 
-    val overwrite_ok = trust write_all(path, "Overwritten.")
+    val overwrite_ok = trust write_all(path, c"Overwritten.")
     assert overwrite_ok
     @puts("6")
 
@@ -932,12 +932,12 @@ test "file and directory operations roundtrip" {
             assert false
         }
         some content3 => {
-            assert trust str.compare[ref u8, ref u8](content3, "Overwritten.") == 0
+            assert trust str.compare[ref u8, ref u8](content3, c"Overwritten.") == 0
         }
     }
     @puts("7")
 
-    val rename_ok = trust rename_path(path, "test_file2.txt")
+    val rename_ok = trust rename_path(path, c"test_file2.txt")
     assert rename_ok
 
     val gone_opt = trust read_all[allocators.Arena](arena, path)
@@ -948,26 +948,26 @@ test "file and directory operations roundtrip" {
         }
     }
 
-    val delete_ok = trust delete("test_file2.txt")
+    val delete_ok = trust delete(c"test_file2.txt")
     assert delete_ok
 
-    val delete_missing = trust delete("test_file2.txt")
+    val delete_missing = trust delete(c"test_file2.txt")
     assert !delete_missing
 
-    val lpath: ref u8 = "test_lines.txt"
-    val wh_opt = trust open(lpath, "w")
+    val lpath: ref u8 = c"test_lines.txt"
+    val wh_opt = trust open(lpath, c"w")
     match wh_opt {
         none => {
             assert false
         }
         some wh => {
-            trust write_line(wh, "line one")
-            trust write_line(wh, "line two")
+            trust write_line(wh, c"line one")
+            trust write_line(wh, c"line two")
             trust close(wh)
         }
     }
 
-    val rh_opt = trust open(lpath, "r")
+    val rh_opt = trust open(lpath, c"r")
     match rh_opt {
         none => {
             assert false
@@ -976,11 +976,11 @@ test "file and directory operations roundtrip" {
             val buf: ref u8 = @alloc(128)
             val got1 = trust read_line(rh, buf, 128)
             assert got1
-            assert trust str.compare[ref u8, ref u8](buf, "line one") == 0
+            assert trust str.compare[ref u8, ref u8](buf, c"line one") == 0
 
             val got2 = trust read_line(rh, buf, 128)
             assert got2
-            assert trust str.compare[ref u8, ref u8](buf, "line two") == 0
+            assert trust str.compare[ref u8, ref u8](buf, c"line two") == 0
 
             val got3 = trust read_line(rh, buf, 128)
             assert !got3
@@ -991,12 +991,12 @@ test "file and directory operations roundtrip" {
     }
     trust delete(lpath)
 
-    val dpath: ref u8 = "test_walk_dir"
+    val dpath: ref u8 = c"test_walk_dir"
     val mkdir_ok = trust mkdir_path(dpath)
     assert mkdir_ok
 
-    trust write_all("test_walk_dir/a.txt", "a")
-    trust write_all("test_walk_dir/b.txt", "b")
+    trust write_all(c"test_walk_dir/a.txt", c"a")
+    trust write_all(c"test_walk_dir/b.txt", c"b")
 
     val walk_heap: allocators.HeapAllocator = @zeroed
     val entries_opt = trust walk_dir[_](walk_heap, dpath)
@@ -1013,10 +1013,10 @@ test "file and directory operations roundtrip" {
                 count++
                 trust @print("entry: '{s}'\n", {entry})
 
-                if trust str.compare[ref u8, ref u8](entry, "a.txt") == 0 {
+                if trust str.compare[ref u8, ref u8](entry, c"a.txt") == 0 {
                     seen_a = 1
                 }
-                if trust str.compare[ref u8, ref u8](entry, "b.txt") == 0 {
+                if trust str.compare[ref u8, ref u8](entry, c"b.txt") == 0 {
                     seen_b = 1
                 }
 
@@ -1036,7 +1036,7 @@ test "file and directory operations roundtrip" {
         }
     }
 
-    val bad_opt = trust walk_dir[_](walk_heap, "__no_such_dir__")
+    val bad_opt = trust walk_dir[_](walk_heap, c"__no_such_dir__")
     match bad_opt {
         none => {}
         some _ => {
@@ -1044,8 +1044,8 @@ test "file and directory operations roundtrip" {
         }
     }
 
-    trust delete("test_walk_dir/a.txt")
-    trust delete("test_walk_dir/b.txt")
+    trust delete(c"test_walk_dir/a.txt")
+    trust delete(c"test_walk_dir/b.txt")
     val rmdir_ok = trust rmdir_path(dpath)
     assert rmdir_ok
 
@@ -1071,7 +1071,7 @@ test "file and directory operations roundtrip" {
             @store8(@ptradd(@addr(fake_dirent.d_name) as ref void, 3), 96)
         }
         val fake_name = trust copy_dirent_name[allocators.Arena](arena, fake_dirent)
-        assert trust str.compare[ref u8, ref u8](fake_name, "abc") == 0
+        assert trust str.compare[ref u8, ref u8](fake_name, c"abc") == 0
         trust @free(fake_dirent)
     }
 

@@ -98,19 +98,19 @@ pub fn get_current_platform[T: allocators.Allocator](ac: T) Platform = trust {
         val r = uname(@addr(buf))
         if r == 0 {
             val sysname: ref u8 = @addr(buf.sysname) as ref u8
-            if string.raw_cmp(sysname, "Linux") == 0 {
+            if string.raw_cmp(sysname, c"Linux") == 0 {
                 return Platform.Linux
             }
-            if string.raw_cmp(sysname, "Darwin") == 0 {
+            if string.raw_cmp(sysname, c"Darwin") == 0 {
                 return Platform.Darwin
             }
-            if string.raw_cmp(sysname, "FreeBSD") == 0 {
+            if string.raw_cmp(sysname, c"FreeBSD") == 0 {
                 return Platform.FreeBSD
             }
-            if string.raw_cmp(sysname, "OpenBSD") == 0 {
+            if string.raw_cmp(sysname, c"OpenBSD") == 0 {
                 return Platform.OpenBSD
             }
-            if string.raw_cmp(sysname, "NetBSD") == 0 {
+            if string.raw_cmp(sysname, c"NetBSD") == 0 {
                 return Platform.NetBSD
             }
         }
@@ -124,40 +124,40 @@ pub fn current_platform_name[T: allocators.Allocator](ac: T) ref u8 = trust {
     val p = get_current_platform[T](ac)
     match p {
         Platform.Linux => {
-            return "linux"
+            return c"linux"
         }
         Platform.Darwin => {
-            return "darwin"
+            return c"darwin"
         }
         Platform.FreeBSD => {
-            return "freebsd"
+            return c"freebsd"
         }
         Platform.OpenBSD => {
-            return "openbsd"
+            return c"openbsd"
         }
         Platform.NetBSD => {
-            return "netbsd"
+            return c"netbsd"
         }
         Platform.DragonflyBSD => {
-            return "dragonflybsd"
+            return c"dragonflybsd"
         }
         Platform.Windows => {
-            return "windows"
+            return c"windows"
         }
         Platform.Android => {
-            return "android"
+            return c"android"
         }
         Platform.Haiku => {
-            return "haiku"
+            return c"haiku"
         }
         Platform.Redox => {
-            return "redox"
+            return c"redox"
         }
         Platform.Plan9 => {
-            return "plan9"
+            return c"plan9"
         }
     }
-    return "unknown"
+    return c"unknown"
 }
 
 when posix {
@@ -177,12 +177,12 @@ pub fn get_exe_path[T: allocators.Allocator](ac: T) ref u8 = trust {
     val buf_opt: ref u8 = T.alloc(ac, 1024)
     if buf_opt is some buf {
         when posix {
-            val n = readlink("/proc/self/exe", buf, 1024)
+            val n = readlink(c"/proc/self/exe", buf, 1024)
             if n > 0 {
                 @store8(@ptradd(buf, n), 0)
                 return buf
             }
-            val n2 = readlink("/proc/curproc/file", buf, 1024)
+            val n2 = readlink(c"/proc/curproc/file", buf, 1024)
             if n2 > 0 {
                 @store8(@ptradd(buf, n2), 0)
                 return buf
@@ -194,7 +194,7 @@ pub fn get_exe_path[T: allocators.Allocator](ac: T) ref u8 = trust {
             }
         }
     }
-    return "."
+    return c"."
 }
 
 pub fn main() void = {

@@ -5,7 +5,7 @@ val algorithms = use("std/algorithms")
 pub fn main() void = trust {
     val arena: alc.ScopedArenaAllocator = alc.ScopedArena.new(10240 as usize)?
     val la: alc.ListArena = {arena: arena}
-    val files = fs.walk_dir[alc.ListArena](la, ".")
+    val files = fs.walk_dir[alc.ListArena](la, c".")
     if files is some f {
         for fls in algorithms.sort[alc.ListArena, ref u8](la, f) {
             @print("-> {s}\n", {fls})

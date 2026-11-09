@@ -2,7 +2,7 @@ val log = use("std/log")
 
 pub fn main() void = trust {
     log.set_colors(true)
-    log.info("Hi")
+    log.info(c"Hi")
     log.set_colors(false)
-    log.info("Hi")
+    log.info(c"Hi")
 }

@@ -32,7 +32,7 @@ pub fn main() i64 = {
     val sa: allocators.ScopedArenaAllocator = trust allocators.ScopedArena.new(4096 as usize)?
     val la: allocators.ListArena = {arena: sa}
     val ctx: LLCtx = {
-        fn_names: @list(la, "test_fn", "another_fn")?,
+        fn_names: @list(la, c"test_fn", c"another_fn")?,
         fn_params: @list(
             la,
             trust @bitcast(1, ref void),
@@ -42,7 +42,7 @@ pub fn main() i64 = {
     val ctx_ptr: ref LLCtx = @alloc(@sizeof(LLCtx)) as ref LLCtx
     trust @store(ctx_ptr as ref void, ctx)
 
-    val result = trust ll_lookup_fn_params(ctx_ptr, "test_fn")
+    val result = trust ll_lookup_fn_params(ctx_ptr, c"test_fn")
     if result == none {
         trust stdio.print("FAIL: lookup returned null\n", {})
         trust allocators.ScopedArena.free(sa)

@@ -5,16 +5,16 @@ val stdio      = use("std/stdio")
 fn index(_: ref netx.Request, res: mut ref netx.Response) void = trust {
     netx.Response.json(
         res,
-        "{\"name\":\"Spectre API\",\"version\":\"0.1.0\",\"endpoints\":[\"/health\",\"/hello\"]}"
+        c"{\"name\":\"Spectre API\",\"version\":\"0.1.0\",\"endpoints\":[\"/health\",\"/hello\"]}"
     )
 }
 
 fn health(_: ref netx.Request, res: mut ref netx.Response) void = trust {
-    netx.Response.json(res, "{\"status\":\"ok\"}")
+    netx.Response.json(res, c"{\"status\":\"ok\"}")
 }
 
 fn hello(_: ref netx.Request, res: mut ref netx.Response) void = trust {
-    netx.Response.json(res, "{\"message\":\"Hello, world!\"}")
+    netx.Response.json(res, c"{\"message\":\"Hello, world!\"}")
 }
 
 pub fn main() void = trust {
@@ -25,9 +25,9 @@ pub fn main() void = trust {
         return
     }
 
-    netx.WebServer.get(app, "/", index)
-    netx.WebServer.get(app, "/health", health)
-    netx.WebServer.get(app, "/hello", hello)
+    netx.WebServer.get(app, c"/", index)
+    netx.WebServer.get(app, c"/health", health)
+    netx.WebServer.get(app, c"/hello", hello)
 
     stdio.print("netx API listening on port {d}\n", {netx.WebServer.port(app)})
     netx.WebServer.serve(app)

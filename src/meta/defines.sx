@@ -27,10 +27,10 @@ val env_aliases: mut ref EnvAlias = none
 /// Return true when a resolved module path is the standard or compiler-local
 /// environment module.
 pub fn is_env_module_path(module_path: str.StringView) bool = trust {
-    if str.view_ends_with(module_path, str.view_cstr("/spectrelib/env/core.sx")) {
+    if str.view_ends_with(module_path, "/spectrelib/env/core.sx") {
         return true
     }
-    if str.view_ends_with(module_path, str.view_cstr("/src/meta/env.sx")) {
+    if str.view_ends_with(module_path, "/src/meta/env.sx") {
         return true
     }
     return false
@@ -89,33 +89,24 @@ pub fn set(name: str.StringView, value: str.StringView) void = trust {
     defs = d
 }
 
-pub fn get(name: str.StringView) option[str.StringView] = {
+/// Look up a compile-time definition. A null view means "not set".
+pub fn get(name: str.StringView) str.StringView = {
     val cur: mut ref Define = defs
     for {
         if cur == none {
             break
         }
         if trust str.view_eql(str.cstring_view(cur.name), name) {
-            return some str.cstring_view(cur.value)
+            return str.cstring_view(cur.value)
         }
         cur = cur.next
     }
-    return none
+    return str.view(none, 0)
 }
 
 /// Return true when a compile-time definition with the given name exists.
 pub fn has(name: str.StringView) bool = {
-    val cur: mut ref Define = defs
-    for {
-        if cur == none {
-            break
-        }
-        if trust str.view_eql(str.cstring_view(cur.name), name) {
-            return true
-        }
-        cur = cur.next
-    }
-    return false
+    return get(name).ptr != none
 }
 
 /// Parse a NAME=VALUE definition and add it to the compile-time environment.

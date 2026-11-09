@@ -7,7 +7,7 @@ pub fn mutates_list(l: mut list[ref u8]) void = {
 pub fn main() void = {
     val sa: allocators.ScopedArenaAllocator = trust allocators.ScopedArena.new(4096 as usize)?
     val la: allocators.ListArena = {arena: sa}
-    val l: list[ref u8] = @list(la, "hello, world")?
+    val l: list[ref u8] = @list(la, c"hello, world")?
     mutates_list(l)
     for ls in l {
         trust @print("{s}\n", {ls})

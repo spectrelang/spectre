@@ -650,54 +650,54 @@ pub fn re_match(
 
 fn kind_name(kind: i64) ref u8 = {
     if (kind == TOKEN_UNUSED) {
-        return "UNUSED"
+        return c"UNUSED"
     }
     if (kind == TOKEN_DOT) {
-        return "DOT"
+        return c"DOT"
     }
     if (kind == TOKEN_BEGIN) {
-        return "BEGIN"
+        return c"BEGIN"
     }
     if (kind == TOKEN_END) {
-        return "END"
+        return c"END"
     }
     if (kind == TOKEN_QUESTIONMARK) {
-        return "QUESTIONMARK"
+        return c"QUESTIONMARK"
     }
     if (kind == TOKEN_STAR) {
-        return "STAR"
+        return c"STAR"
     }
     if (kind == TOKEN_PLUS) {
-        return "PLUS"
+        return c"PLUS"
     }
     if (kind == TOKEN_CHAR) {
-        return "CHAR"
+        return c"CHAR"
     }
     if (kind == TOKEN_CHAR_CLASS) {
-        return "CHAR_CLASS"
+        return c"CHAR_CLASS"
     }
     if (kind == TOKEN_INV_CHAR_CLASS) {
-        return "INV_CHAR_CLASS"
+        return c"INV_CHAR_CLASS"
     }
     if (kind == TOKEN_DIGIT) {
-        return "DIGIT"
+        return c"DIGIT"
     }
     if (kind == TOKEN_NOT_DIGIT) {
-        return "NOT_DIGIT"
+        return c"NOT_DIGIT"
     }
     if (kind == TOKEN_ALPHA) {
-        return "ALPHA"
+        return c"ALPHA"
     }
     if (kind == TOKEN_NOT_ALPHA) {
-        return "NOT_ALPHA"
+        return c"NOT_ALPHA"
     }
     if (kind == TOKEN_WHITESPACE) {
-        return "WHITESPACE"
+        return c"WHITESPACE"
     }
     if (kind == TOKEN_NOT_WHITESPACE) {
-        return "NOT_WHITESPACE"
+        return c"NOT_WHITESPACE"
     }
-    return "UNKNOWN"
+    return c"UNKNOWN"
 }
 
 fn print_char(c: u8) void = trust {
@@ -761,7 +761,7 @@ pub fn re_print(pattern: ref void) void = {
 test "regex matches patterns and reports errors" {
     val heap: allocators.HeapAllocator = @zeroed
     val matchlength: mut i64 = 0
-    match re_match("^h.llo$", "hello", @addr(matchlength)) {
+    match re_match(c"^h.llo$", c"hello", @addr(matchlength)) {
         ok found => {
             match found {
                 some pos => {
@@ -778,7 +778,7 @@ test "regex matches patterns and reports errors" {
         }
     }
 
-    match re_match("a*bc", "aaabc", @addr(matchlength)) {
+    match re_match(c"a*bc", c"aaabc", @addr(matchlength)) {
         ok found => {
             match found {
                 some pos => {
@@ -795,7 +795,7 @@ test "regex matches patterns and reports errors" {
         }
     }
 
-    match re_match("colou?r", "color", @addr(matchlength)) {
+    match re_match(c"colou?r", c"color", @addr(matchlength)) {
         ok found => {
             match found {
                 some pos => {
@@ -812,7 +812,7 @@ test "regex matches patterns and reports errors" {
         }
     }
 
-    match re_match("\\d+", "abc123z", @addr(matchlength)) {
+    match re_match(c"\\d+", c"abc123z", @addr(matchlength)) {
         ok found => {
             match found {
                 some pos => {
@@ -829,7 +829,7 @@ test "regex matches patterns and reports errors" {
         }
     }
 
-    match re_match("xyz", "hello", @addr(matchlength)) {
+    match re_match(c"xyz", c"hello", @addr(matchlength)) {
         ok found => {
             if found is some _ {
                 assert false
@@ -841,9 +841,9 @@ test "regex matches patterns and reports errors" {
         }
     }
 
-    match re_compile_with[allocators.HeapAllocator](heap, "[a-z]+") {
+    match re_compile_with[allocators.HeapAllocator](heap, c"[a-z]+") {
         some compiled => {
-            match trust re_matchp(compiled, "spectre", @addr(matchlength)) {
+            match trust re_matchp(compiled, c"spectre", @addr(matchlength)) {
                 ok found => {
                     match found {
                         some pos => {
@@ -866,7 +866,7 @@ test "regex matches patterns and reports errors" {
         }
     }
 
-    match re_match("[", "hello", @addr(matchlength)) {
+    match re_match(c"[", c"hello", @addr(matchlength)) {
         ok _ => {
             assert false
         }
@@ -875,7 +875,7 @@ test "regex matches patterns and reports errors" {
         }
     }
 
-    if re_compile_with[allocators.HeapAllocator](heap, "[") is some compiled {
+    if re_compile_with[allocators.HeapAllocator](heap, c"[") is some compiled {
         trust re_free_with[allocators.HeapAllocator](heap, compiled)
         assert false
     }

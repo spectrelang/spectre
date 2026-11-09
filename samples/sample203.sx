@@ -104,13 +104,13 @@ fn send_all(client: i64, data: ref u8, length: i64) void = trust {
 
 fn respond(client: i64, status: ref u8, content_type: ref u8, body: ref u8) void = trust {
     val sb = string.StringBuilder.new()
-    string.StringBuilder.append_cstr(sb, "HTTP/1.1 ")
+    string.StringBuilder.append_cstr(sb, c"HTTP/1.1 ")
     string.StringBuilder.append_cstr(sb, status)
-    string.StringBuilder.append_cstr(sb, "\r\nContent-Type: ")
+    string.StringBuilder.append_cstr(sb, c"\r\nContent-Type: ")
     string.StringBuilder.append_cstr(sb, content_type)
-    string.StringBuilder.append_cstr(sb, "\r\nContent-Length: ")
+    string.StringBuilder.append_cstr(sb, c"\r\nContent-Length: ")
     string.StringBuilder.append_cstr(sb, @fmtalloc("{d}", {string.len_raw(body)}))
-    string.StringBuilder.append_cstr(sb, "\r\nConnection: close\r\n\r\n")
+    string.StringBuilder.append_cstr(sb, c"\r\nConnection: close\r\n\r\n")
     string.StringBuilder.append_cstr(sb, body)
 
     val response: string.String = string.StringBuilder.build(sb)
@@ -121,19 +121,19 @@ fn respond(client: i64, status: ref u8, content_type: ref u8, body: ref u8) void
 }
 
 fn route_request(client: i64, request: ref u8) void = trust {
-    if string.raw_starts_with(request, "GET / HTTP/1.1") {
+    if string.raw_starts_with(request, c"GET / HTTP/1.1") {
         respond(
             client,
-            "200 OK",
-            "application/json",
-            "{\"name\":\"Spectre API\",\"version\":\"0.1.0\",\"endpoints\":[\"/health\",\"/hello\"]}"
+            c"200 OK",
+            c"application/json",
+            c"{\"name\":\"Spectre API\",\"version\":\"0.1.0\",\"endpoints\":[\"/health\",\"/hello\"]}"
         )
-    } elif string.raw_starts_with(request, "GET /health HTTP/1.1") {
-        respond(client, "200 OK", "application/json", "{\"status\":\"ok\"}")
-    } elif string.raw_starts_with(request, "GET /hello HTTP/1.1") {
-        respond(client, "200 OK", "application/json", "{\"message\":\"Hello, world!\"}")
+    } elif string.raw_starts_with(request, c"GET /health HTTP/1.1") {
+        respond(client, c"200 OK", c"application/json", c"{\"status\":\"ok\"}")
+    } elif string.raw_starts_with(request, c"GET /hello HTTP/1.1") {
+        respond(client, c"200 OK", c"application/json", c"{\"message\":\"Hello, world!\"}")
     } else {
-        respond(client, "404 Not Found", "application/json", "{\"error\":\"Not found\"}")
+        respond(client, c"404 Not Found", c"application/json", c"{\"error\":\"Not found\"}")
     }
 }
 
@@ -222,9 +222,9 @@ pub fn main() void = trust {
                                 } elif client.length >= REQUEST_CAP - 1 {
                                     respond(
                                         fd,
-                                        "413 Payload Too Large",
-                                        "application/json",
-                                        "{\"error\":\"Request too large\"}"
+                                        c"413 Payload Too Large",
+                                        c"application/json",
+                                        c"{\"error\":\"Request too large\"}"
                                     )
                                     remove_client(loop, clients, fd)
                                 }

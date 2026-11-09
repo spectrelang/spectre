@@ -302,7 +302,7 @@ fn is_void_ident(ctx: mut ref Ctx, idx: i64) bool = trust {
     val k: lexer.TokenKind = token_kind(ctx, idx)
     match k {
         Ident s => {
-            return str.raw_cmp(s, "void") == 0
+            return str.raw_cmp(s, c"void") == 0
         }
         else => {
             return false
@@ -360,7 +360,7 @@ fn add_issue(ctx: mut ref Ctx, line: i64, message: ref u8) void = trust {
 
 fn arena_copy_cstr(arena: allocators.Arena, text: ref u8) ref u8 = trust {
     if text == none {
-        return ""
+        return c""
     }
     val len: i64 = str.len_raw(text)
     val buf: ref u8 = allocators.Arena.alloc_or_none(
@@ -368,7 +368,7 @@ fn arena_copy_cstr(arena: allocators.Arena, text: ref u8) ref u8 = trust {
         (len + 1) as usize
     ) as ref u8
     if buf == none {
-        return ""
+        return c""
     }
     if len > 0 {
         @memcpy(buf, text, len as usize)
@@ -453,7 +453,7 @@ fn add_remove_trust_keyword_fix(ctx: mut ref Ctx, idx: i64) void = trust {
         }
         end++
     }
-    add_fix(ctx, start, end, "")
+    add_fix(ctx, start, end, c"")
 }
 
 fn add_remove_token_fix(ctx: mut ref Ctx, idx: i64) void = trust {
@@ -464,7 +464,7 @@ fn add_remove_token_fix(ctx: mut ref Ctx, idx: i64) void = trust {
     if start < 0 {
         return
     }
-    add_fix(ctx, start, start + 1, "")
+    add_fix(ctx, start, start + 1, c"")
 }
 
 fn add_unwrap_trust_block_fixes(ctx: mut ref Ctx, idx: i64) void = trust {
@@ -532,7 +532,7 @@ fn add_mut_var(
     line: i64,
     type_name: ref u8
 ) void = trust {
-    if name == none || str.raw_cmp(name, "_") == 0 {
+    if name == none || str.raw_cmp(name, c"_") == 0 {
         return
     }
     val v: mut ref MutVar = allocators.Arena.alloc_or_none(
@@ -553,8 +553,8 @@ fn is_refish_type_name(name: ref u8) bool = trust {
     if name == none {
         return false
     }
-    return str.raw_starts_with(name, "ref ") || str.raw_starts_with(name, "mut ref ")
-    || str.raw_starts_with(name, "list[") || str.raw_starts_with(name, "mut list[")
+    return str.raw_starts_with(name, c"ref ") || str.raw_starts_with(name, c"mut ref ")
+    || str.raw_starts_with(name, c"list[") || str.raw_starts_with(name, c"mut list[")
 }
 
 fn mut_var_is_refish(ctx: ref Ctx, name: ref u8) bool = trust {
@@ -659,7 +659,7 @@ fn add_remove_mut_keyword_fix(ctx: mut ref Ctx, idx: i64) void = trust {
         }
         end++
     }
-    add_fix(ctx, start, end, "")
+    add_fix(ctx, start, end, c"")
 }
 
 fn param_is_mutating(ty: ref parser.Node) bool = trust {
@@ -682,13 +682,13 @@ fn param_is_mutating(ty: ref parser.Node) bool = trust {
 }
 
 fn is_mutating_builtin(name: ref u8) bool = trust {
-    return str.raw_cmp(name, "memcpy") == 0 || str.raw_cmp(name, "store8") == 0
-    || str.raw_cmp(name, "memset") == 0 || str.raw_cmp(name, "addr") == 0
-    || str.raw_cmp(name, "memmove") == 0 || str.raw_cmp(name, "set") == 0
-    || str.raw_cmp(name, "insert") == 0 || str.raw_cmp(name, "realloc") == 0
-    || str.raw_cmp(name, "free") == 0 || str.raw_cmp(name, "store") == 0
-    || str.raw_cmp(name, "append") == 0 || str.raw_cmp(name, "remove") == 0
-    || str.raw_cmp(name, "reserve") == 0 || str.raw_cmp(name, "getmut") == 0
+    return str.raw_cmp(name, c"memcpy") == 0 || str.raw_cmp(name, c"store8") == 0
+    || str.raw_cmp(name, c"memset") == 0 || str.raw_cmp(name, c"addr") == 0
+    || str.raw_cmp(name, c"memmove") == 0 || str.raw_cmp(name, c"set") == 0
+    || str.raw_cmp(name, c"insert") == 0 || str.raw_cmp(name, c"realloc") == 0
+    || str.raw_cmp(name, c"free") == 0 || str.raw_cmp(name, c"store") == 0
+    || str.raw_cmp(name, c"append") == 0 || str.raw_cmp(name, c"remove") == 0
+    || str.raw_cmp(name, c"reserve") == 0 || str.raw_cmp(name, c"getmut") == 0
 }
 
 fn lookup_fn_sig(ctx: ref Ctx, name: ref u8) ref FnSig = trust {
@@ -754,7 +754,7 @@ fn finish_mut_vars(ctx: mut ref Ctx) void = trust {
             v.line,
             str.cstr(fmt.format[allocators.Arena](
                     ctx.arena,
-                    "mutable variable '{s}' declared mutable but never mutated",
+                    c"mutable variable '{s}' declared mutable but never mutated",
                     {v.name}
                 ))
         )
@@ -776,9 +776,9 @@ fn walk_mut_body(ctx: mut ref Ctx, stmts: list[ref parser.Node]) void = trust {
 
 fn report_redundant_trust(ctx: mut ref Ctx, line: i64, block: bool) void = trust {
     if block {
-        add_issue(ctx, line, "redundant 'trust' block; already in a trusted context")
+        add_issue(ctx, line, c"redundant 'trust' block; already in a trusted context")
     } else {
-        add_issue(ctx, line, "redundant 'trust' statement; already in a trusted context")
+        add_issue(ctx, line, c"redundant 'trust' statement; already in a trusted context")
     }
 }
 
@@ -836,7 +836,7 @@ fn add_remove_line_fix(ctx: mut ref Ctx, line: i64) void = trust {
     if stop < ctx.len && byte_at(ctx.src, stop) == 10 {
         stop++
     }
-    add_fix(ctx, start, stop, "")
+    add_fix(ctx, start, stop, c"")
 }
 
 fn is_blank_line(ctx: mut ref Ctx, line: i64) bool = trust {
@@ -973,7 +973,7 @@ fn check_snake_name(ctx: mut ref Ctx, line: i64, name: ref u8, kind: ref u8) voi
         line,
         str.cstr(fmt.format[allocators.Arena](
                 ctx.arena,
-                "{s} name '{s}' should be snake_case",
+                c"{s} name '{s}' should be snake_case",
                 {kind, name}
             ))
     )
@@ -993,7 +993,7 @@ fn check_screaming_snake_name(
         line,
         str.cstr(fmt.format[allocators.Arena](
                 ctx.arena,
-                "{s} name '{s}' should be SCREAMING_SNAKE_CASE",
+                c"{s} name '{s}' should be SCREAMING_SNAKE_CASE",
                 {kind, name}
             ))
     )
@@ -1008,7 +1008,7 @@ fn check_pascal_name(ctx: mut ref Ctx, line: i64, name: ref u8, kind: ref u8) vo
         line,
         str.cstr(fmt.format[allocators.Arena](
                 ctx.arena,
-                "{s} name '{s}' should be PascalCase",
+                c"{s} name '{s}' should be PascalCase",
                 {kind, name}
             ))
     )
@@ -1027,28 +1027,28 @@ fn type_to_string(arena: allocators.Arena, ty: ref parser.Node) ref u8 = trust {
         if inner == none {
             return none
         }
-        return str.cstr(fmt.format[allocators.Arena](arena, "ref {s}", {inner}))
+        return str.cstr(fmt.format[allocators.Arena](arena, c"ref {s}", {inner}))
     }
     if k == parser.TY_MUT {
         val inner: ref u8 = type_to_string(arena, ty.d0 as ref parser.Node)
         if inner == none {
             return none
         }
-        return str.cstr(fmt.format[allocators.Arena](arena, "mut {s}", {inner}))
+        return str.cstr(fmt.format[allocators.Arena](arena, c"mut {s}", {inner}))
     }
     if k == parser.TY_OPTION {
         val inner: ref u8 = type_to_string(arena, ty.d0 as ref parser.Node)
         if inner == none {
             return none
         }
-        return str.cstr(fmt.format[allocators.Arena](arena, "option[{s}]", {inner}))
+        return str.cstr(fmt.format[allocators.Arena](arena, c"option[{s}]", {inner}))
     }
     if k == parser.TY_LIST {
         val inner: ref u8 = type_to_string(arena, ty.d0 as ref parser.Node)
         if inner == none {
             return none
         }
-        return str.cstr(fmt.format[allocators.Arena](arena, "list[{s}]", {inner}))
+        return str.cstr(fmt.format[allocators.Arena](arena, c"list[{s}]", {inner}))
     }
     if k == parser.TY_RESULT {
         val ok_ty: ref u8 = type_to_string(arena, ty.d0 as ref parser.Node)
@@ -1056,30 +1056,30 @@ fn type_to_string(arena: allocators.Arena, ty: ref parser.Node) ref u8 = trust {
         if ok_ty == none || err_ty == none {
             return none
         }
-        return str.cstr(fmt.format[allocators.Arena](arena, "result[{s}, {s}]", {ok_ty, err_ty}))
+        return str.cstr(fmt.format[allocators.Arena](arena, c"result[{s}, {s}]", {ok_ty, err_ty}))
     }
     if k == parser.TY_SLICE {
         val inner: ref u8 = type_to_string(arena, ty.d0 as ref parser.Node)
         if inner == none {
             return none
         }
-        return str.cstr(fmt.format[allocators.Arena](arena, "[]{s}", {inner}))
+        return str.cstr(fmt.format[allocators.Arena](arena, c"[]{s}", {inner}))
     }
     if k == parser.TY_FIXED_ARR {
         val inner: ref u8 = type_to_string(arena, ty.d1 as ref parser.Node)
         if inner == none {
             return none
         }
-        return str.cstr(fmt.format[allocators.Arena](arena, "[{d}]{s}", {ty.d0, inner}))
+        return str.cstr(fmt.format[allocators.Arena](arena, c"[{d}]{s}", {ty.d0, inner}))
     }
     if k == parser.TY_VOID {
-        return "void"
+        return c"void"
     }
     if k == parser.TY_ARGSPACK {
-        return "argspack"
+        return c"argspack"
     }
     if k == parser.TY_INFER {
-        return "_"
+        return c"_"
     }
     return none
 }
@@ -1122,7 +1122,7 @@ fn is_ref_type_name(name: ref u8) bool = trust {
     if name == none {
         return false
     }
-    return str.raw_starts_with(name, "ref ") || str.raw_starts_with(name, "mut ref ")
+    return str.raw_starts_with(name, c"ref ") || str.raw_starts_with(name, c"mut ref ")
 }
 
 fn expr_type(ctx: mut ref Ctx, node: ref parser.Node) ref u8 = trust {
@@ -1151,7 +1151,7 @@ fn expr_type(ctx: mut ref Ctx, node: ref parser.Node) ref u8 = trust {
         if inner_ty == none || is_ref_type_name(inner_ty) {
             return none
         }
-        return str.cstr(fmt.format[allocators.Arena](ctx.arena, "ref {s}", {inner_ty}))
+        return str.cstr(fmt.format[allocators.Arena](ctx.arena, c"ref {s}", {inner_ty}))
     }
     return none
 }
@@ -1167,8 +1167,8 @@ fn infer_concrete_type(ctx: mut ref Ctx, node: ref parser.Node) ref u8 = trust {
         val inner_type: ref u8 = expr_type(ctx, node.d0 as ref parser.Node)
         if inner_type == none || str.raw_cmp(
             inner_type,
-            "void"
-        ) == 0 || str.raw_cmp(inner_type, "ref void") == 0 {
+            c"void"
+        ) == 0 || str.raw_cmp(inner_type, c"ref void") == 0 {
             return none
         }
         return inner_type
@@ -1197,7 +1197,7 @@ fn walk_type(ctx: mut ref Ctx, ty: ref parser.Node) void = trust {
     if k == parser.TY_REF {
         val inner: ref parser.Node = ty.d0 as ref parser.Node
         if inner != none && inner.kind == parser.TY_VOID {
-            add_issue(ctx, ty.line, "avoid 'ref void'; use a concrete type when known")
+            add_issue(ctx, ty.line, c"avoid 'ref void'; use a concrete type when known")
         }
         walk_type(ctx, inner)
         return
@@ -1353,7 +1353,7 @@ fn add_cast_removal_fix(ctx: mut ref Ctx, as_idx: i64) void = trust {
         return
     }
     val start: i64 = trim_ws_before(ctx, as_start)
-    add_fix(ctx, start, void_start + 4, "")
+    add_fix(ctx, start, void_start + 4, c"")
 }
 
 fn is_ref_void_decl_initializer(ctx: mut ref Ctx, as_idx: i64) bool = trust {
@@ -1407,8 +1407,8 @@ fn collect_ref_void_decl_fix(
     val inferred: ref u8 = infer_concrete_type(ctx, init)
     if inferred == none || str.raw_cmp(
         inferred,
-        "void"
-    ) == 0 || str.raw_cmp(inferred, "ref void") == 0 {
+        c"void"
+    ) == 0 || str.raw_cmp(inferred, c"ref void") == 0 {
         return
     }
     val span: ref TokSpan = find_val_ref_void_span(ctx, name, line)
@@ -1565,22 +1565,22 @@ fn token_lexeme(ctx: mut ref Ctx, idx: i64) ref u8 = trust {
     val k: lexer.TokenKind = token_kind(ctx, idx)
     match k {
         Dot() => {
-            return "."
+            return c"."
         }
         Star() => {
-            return "*"
+            return c"*"
         }
         LBracket() => {
-            return "["
+            return c"["
         }
         RBracket() => {
-            return "]"
+            return c"]"
         }
         LParen() => {
-            return "("
+            return c"("
         }
         RParen() => {
-            return ")"
+            return c")"
         }
         else => {
             return none
@@ -1662,20 +1662,20 @@ fn collect_redundant_arithmetic_fixes(ctx: mut ref Ctx) void = trust {
         val amount: ref u8 = token_text(ctx, int_idx)
         val int_end: i64 = token_start(ctx, int_idx) + str.len_raw(amount)
         val replacement: mut ref u8 = none
-        if is_add && str.raw_cmp(amount, "1") == 0 {
-            replacement = str.cstr(fmt.format[allocators.Arena](ctx.arena, "{s}++", {lhs_text}))
-        } elif is_sub && str.raw_cmp(amount, "1") == 0 {
-            replacement = str.cstr(fmt.format[allocators.Arena](ctx.arena, "{s}--", {lhs_text}))
+        if is_add && str.raw_cmp(amount, c"1") == 0 {
+            replacement = str.cstr(fmt.format[allocators.Arena](ctx.arena, c"{s}++", {lhs_text}))
+        } elif is_sub && str.raw_cmp(amount, c"1") == 0 {
+            replacement = str.cstr(fmt.format[allocators.Arena](ctx.arena, c"{s}--", {lhs_text}))
         } elif is_add {
             replacement = str.cstr(fmt.format[allocators.Arena](
                     ctx.arena,
-                    "{s} += {s}",
+                    c"{s} += {s}",
                     {lhs_text, amount}
                 ))
         } else {
             replacement = str.cstr(fmt.format[allocators.Arena](
                     ctx.arena,
-                    "{s} -= {s}",
+                    c"{s} -= {s}",
                     {lhs_text, amount}
                 ))
         }
@@ -1712,7 +1712,7 @@ fn collect_duplicate_condition_fixes(ctx: mut ref Ctx) void = trust {
                                 val first_end: i64 = first_start + token_ident_len(ctx, i)
                                 val second_start: i64 = token_start(ctx, i + 2)
                                 val second_end: i64 = second_start + token_ident_len(ctx, i + 2)
-                                add_fix(ctx, first_end, second_end, "")
+                                add_fix(ctx, first_end, second_end, c"")
                             }
                         }
                         else => {}
@@ -1751,7 +1751,7 @@ fn check_unused_imports(ctx: mut ref Ctx) void = trust {
             add_issue(
                 ctx,
                 use_node.line,
-                str.cstr(fmt.format[allocators.Arena](ctx.arena, "unused import '{s}'", {alias}))
+                str.cstr(fmt.format[allocators.Arena](ctx.arena, c"unused import '{s}'", {alias}))
             )
             if ctx.fix_mode {
                 add_remove_line_fix(ctx, use_node.line)
@@ -1967,7 +1967,7 @@ fn check_duplicate_condition(ctx: mut ref Ctx, node: ref parser.Node) void = tru
                 b = b_val as ref parser.Node
             }
             if nodes_equal(a, b) {
-                add_issue(ctx, node.line, "duplicate condition in boolean expression")
+                add_issue(ctx, node.line, c"duplicate condition in boolean expression")
                 found = true
             }
             j++
@@ -1990,14 +1990,14 @@ fn expr_to_text(arena: allocators.Arena, node: ref parser.Node) ref u8 = trust {
         if base == none || name == none {
             return none
         }
-        return str.cstr(fmt.format[allocators.Arena](arena, "{s}.{s}", {base, name}))
+        return str.cstr(fmt.format[allocators.Arena](arena, c"{s}.{s}", {base, name}))
     }
     if node.kind == parser.NK_DEREF {
         val inner: ref u8 = expr_to_text(arena, node.d0 as ref parser.Node)
         if inner == none {
             return none
         }
-        return str.cstr(fmt.format[allocators.Arena](arena, "*{s}", {inner}))
+        return str.cstr(fmt.format[allocators.Arena](arena, c"*{s}", {inner}))
     }
     return none
 }
@@ -2023,20 +2023,20 @@ fn check_redundant_arithmetic_assignment(ctx: mut ref Ctx, node: ref parser.Node
     val lhs_text: ref u8 = expr_to_text(ctx.arena, lhs)
     val suggestion: mut ref u8 = none
     if lhs_text != none {
-        if op == parser.OP_ADD && str.raw_cmp(amount, "1") == 0 {
-            suggestion = str.cstr(fmt.format[allocators.Arena](ctx.arena, "{s}++", {lhs_text}))
-        } elif op == parser.OP_SUB && str.raw_cmp(amount, "1") == 0 {
-            suggestion = str.cstr(fmt.format[allocators.Arena](ctx.arena, "{s}--", {lhs_text}))
+        if op == parser.OP_ADD && str.raw_cmp(amount, c"1") == 0 {
+            suggestion = str.cstr(fmt.format[allocators.Arena](ctx.arena, c"{s}++", {lhs_text}))
+        } elif op == parser.OP_SUB && str.raw_cmp(amount, c"1") == 0 {
+            suggestion = str.cstr(fmt.format[allocators.Arena](ctx.arena, c"{s}--", {lhs_text}))
         } elif op == parser.OP_ADD {
             suggestion = str.cstr(fmt.format[allocators.Arena](
                     ctx.arena,
-                    "{s} += {s}",
+                    c"{s} += {s}",
                     {lhs_text, amount}
                 ))
         } else {
             suggestion = str.cstr(fmt.format[allocators.Arena](
                     ctx.arena,
-                    "{s} -= {s}",
+                    c"{s} -= {s}",
                     {lhs_text, amount}
                 ))
         }
@@ -2047,12 +2047,12 @@ fn check_redundant_arithmetic_assignment(ctx: mut ref Ctx, node: ref parser.Node
             node.line,
             str.cstr(fmt.format[allocators.Arena](
                     ctx.arena,
-                    "redundant arithmetic assignment; use '{s}' instead",
+                    c"redundant arithmetic assignment; use '{s}' instead",
                     {suggestion}
                 ))
         )
     } else {
-        add_issue(ctx, node.line, "redundant arithmetic assignment")
+        add_issue(ctx, node.line, c"redundant arithmetic assignment")
     }
 }
 
@@ -2170,7 +2170,7 @@ fn walk_params(ctx: mut ref Ctx, params: list[ref parser.Node]) void = trust {
         }
         val name: ref u8 = parser.node_str_raw(param.d0)
         val ty: ref parser.Node = param.d1 as ref parser.Node
-        check_snake_name(ctx, param.line, name, "variable")
+        check_snake_name(ctx, param.line, name, c"variable")
         walk_type(ctx, ty)
         add_var_type(ctx, name, ty, param.line)
     }
@@ -2178,7 +2178,7 @@ fn walk_params(ctx: mut ref Ctx, params: list[ref parser.Node]) void = trust {
 
 fn check_fn_node(ctx: mut ref Ctx, fn_node: ref parser.Node, check_body: bool) void = trust {
     val name: ref u8 = parser.node_str_raw(fn_node.d2)
-    check_snake_name(ctx, fn_node.line, name, "function")
+    check_snake_name(ctx, fn_node.line, name, c"function")
     val params: list[ref parser.Node] = fn_node.d3 as list[ref parser.Node]
     walk_params(ctx, params)
     walk_type(ctx, fn_node.d4 as ref parser.Node)
@@ -2209,7 +2209,7 @@ fn check_fn_node(ctx: mut ref Ctx, fn_node: ref parser.Node, check_body: bool) v
             fn_node.line,
             str.cstr(fmt.format[allocators.Arena](
                     ctx.arena,
-                    "empty function body for '{s}'",
+                    c"empty function body for '{s}'",
                     {name}
                 ))
         )
@@ -2226,7 +2226,7 @@ fn check_fn_node(ctx: mut ref Ctx, fn_node: ref parser.Node, check_body: bool) v
                     fn_node.line,
                     str.cstr(fmt.format[allocators.Arena](
                             ctx.arena,
-                            "empty function body for '{s}'",
+                            c"empty function body for '{s}'",
                             {name}
                         ))
                 )
@@ -2240,14 +2240,14 @@ fn check_fn_node(ctx: mut ref Ctx, fn_node: ref parser.Node, check_body: bool) v
 }
 
 fn walk_type_def(ctx: mut ref Ctx, node: ref parser.Node) void = trust {
-    check_pascal_name(ctx, node.line, parser.node_str_raw(node.d1), "type")
+    check_pascal_name(ctx, node.line, parser.node_str_raw(node.d1), c"type")
     val fields: list[ref parser.Node] = node.d2 as list[ref parser.Node]
     if fields != none {
         for field in fields {
             if field == none {
                 continue
             }
-            check_snake_name(ctx, field.line, parser.node_str_raw(field.d0), "variable")
+            check_snake_name(ctx, field.line, parser.node_str_raw(field.d0), c"variable")
             walk_type(ctx, field.d2 as ref parser.Node)
         }
     }
@@ -2260,7 +2260,7 @@ fn walk_type_def(ctx: mut ref Ctx, node: ref parser.Node) void = trust {
 }
 
 fn walk_union_def(ctx: mut ref Ctx, node: ref parser.Node) void = trust {
-    check_pascal_name(ctx, node.line, parser.node_str_raw(node.d1), "type")
+    check_pascal_name(ctx, node.line, parser.node_str_raw(node.d1), c"type")
     val variants: list[ref parser.Node] = node.d2 as list[ref parser.Node]
     if variants == none {
         return
@@ -2283,7 +2283,7 @@ fn walk_union_def(ctx: mut ref Ctx, node: ref parser.Node) void = trust {
 }
 
 fn walk_spec(ctx: mut ref Ctx, node: ref parser.Node) void = trust {
-    check_pascal_name(ctx, node.line, parser.node_str_raw(node.d1), "spec")
+    check_pascal_name(ctx, node.line, parser.node_str_raw(node.d1), c"spec")
     val methods: list[ref parser.Node] = node.d2 as list[ref parser.Node]
     if methods == none {
         return
@@ -2335,7 +2335,7 @@ fn walk_stmts(ctx: mut ref Ctx, stmts: list[ref parser.Node]) void = trust {
         val k: i64 = stmt.kind
         if k == parser.NK_VAL {
             val name: ref u8 = parser.node_str_raw(stmt.d0)
-            check_snake_name(ctx, stmt.line, name, "variable")
+            check_snake_name(ctx, stmt.line, name, c"variable")
             val ty: ref parser.Node = stmt.d2 as ref parser.Node
             val init: ref parser.Node = stmt.d3 as ref parser.Node
             if stmt.d1 != 0 {
@@ -2365,7 +2365,7 @@ fn walk_stmts(ctx: mut ref Ctx, stmts: list[ref parser.Node]) void = trust {
             val rhs: ref parser.Node = stmt.d1 as ref parser.Node
             mark_root_mutated(ctx, lhs)
             if nodes_equal(lhs, rhs) {
-                add_issue(ctx, stmt.line, "self-assignment has no effect")
+                add_issue(ctx, stmt.line, c"self-assignment has no effect")
             }
             check_redundant_arithmetic_assignment(ctx, stmt)
             walk_expr(ctx, lhs)
@@ -2380,7 +2380,7 @@ fn walk_stmts(ctx: mut ref Ctx, stmts: list[ref parser.Node]) void = trust {
             if stmt.d1 == 0 && stmt.d2 == 0 && stmt.d3 == 0 {
                 val else_body: list[ref parser.Node] = stmt.d0 as list[ref parser.Node]
                 if list_len(else_body) == 0 {
-                    add_issue(ctx, stmt.line, "empty else body")
+                    add_issue(ctx, stmt.line, c"empty else body")
                 }
                 walk_stmts(ctx, else_body)
                 continue
@@ -2389,7 +2389,7 @@ fn walk_stmts(ctx: mut ref Ctx, stmts: list[ref parser.Node]) void = trust {
                 walk_expr(ctx, stmt.d0 as ref parser.Node)
                 val elif_body: list[ref parser.Node] = stmt.d1 as list[ref parser.Node]
                 if list_len(elif_body) == 0 {
-                    add_issue(ctx, stmt.line, "empty elif body")
+                    add_issue(ctx, stmt.line, c"empty elif body")
                 }
                 walk_stmts(ctx, elif_body)
                 continue
@@ -2397,7 +2397,7 @@ fn walk_stmts(ctx: mut ref Ctx, stmts: list[ref parser.Node]) void = trust {
             walk_expr(ctx, stmt.d0 as ref parser.Node)
             val then_body: list[ref parser.Node] = stmt.d1 as list[ref parser.Node]
             if list_len(then_body) == 0 {
-                add_issue(ctx, stmt.line, "empty if body")
+                add_issue(ctx, stmt.line, c"empty if body")
             }
             walk_stmts(ctx, then_body)
             val elif_list: list[ref parser.Node] = stmt.d2 as list[ref parser.Node]
@@ -2415,7 +2415,7 @@ fn walk_stmts(ctx: mut ref Ctx, stmts: list[ref parser.Node]) void = trust {
         if k == parser.NK_FOR {
             val var_name: ref u8 = parser.node_str_raw(stmt.d0)
             if var_name != none {
-                check_snake_name(ctx, stmt.line, var_name, "variable")
+                check_snake_name(ctx, stmt.line, var_name, c"variable")
             }
             walk_expr(ctx, stmt.d1 as ref parser.Node)
             walk_expr(ctx, stmt.d2 as ref parser.Node)
@@ -2425,7 +2425,7 @@ fn walk_stmts(ctx: mut ref Ctx, stmts: list[ref parser.Node]) void = trust {
         }
         if k == parser.NK_FORIN {
             val var_name: ref u8 = parser.node_str_raw(stmt.d0)
-            check_snake_name(ctx, stmt.line, var_name, "variable")
+            check_snake_name(ctx, stmt.line, var_name, c"variable")
             walk_expr(ctx, stmt.d1 as ref parser.Node)
             walk_stmts(ctx, stmt.d2 as list[ref parser.Node])
             continue
@@ -2471,7 +2471,7 @@ fn walk_stmts(ctx: mut ref Ctx, stmts: list[ref parser.Node]) void = trust {
             walk_expr(ctx, stmt.d0 as ref parser.Node)
             val some_bind: ref u8 = parser.node_str_raw(stmt.d1)
             if some_bind != none {
-                check_snake_name(ctx, stmt.line, some_bind, "variable")
+                check_snake_name(ctx, stmt.line, some_bind, c"variable")
             }
             val some_body: ref parser.Node = stmt.d2 as ref parser.Node
             if some_body != none {
@@ -2484,7 +2484,7 @@ fn walk_stmts(ctx: mut ref Ctx, stmts: list[ref parser.Node]) void = trust {
                     add_issue(
                         ctx,
                         stmt.line,
-                        "empty none arm; handle the none case or remove the arm"
+                        c"empty none arm; handle the none case or remove the arm"
                     )
                 }
                 walk_stmts(ctx, none_stmts)
@@ -2495,11 +2495,11 @@ fn walk_stmts(ctx: mut ref Ctx, stmts: list[ref parser.Node]) void = trust {
             walk_expr(ctx, stmt.d0 as ref parser.Node)
             val ok_bind: ref u8 = parser.node_str_raw(stmt.d1)
             if ok_bind != none {
-                check_snake_name(ctx, stmt.line, ok_bind, "variable")
+                check_snake_name(ctx, stmt.line, ok_bind, c"variable")
             }
             val err_bind: ref u8 = parser.node_str_raw(stmt.d3)
             if err_bind != none {
-                check_snake_name(ctx, stmt.line, err_bind, "variable")
+                check_snake_name(ctx, stmt.line, err_bind, c"variable")
             }
             val ok_body: ref parser.Node = stmt.d2 as ref parser.Node
             if ok_body != none {
@@ -2554,7 +2554,7 @@ fn walk_stmts(ctx: mut ref Ctx, stmts: list[ref parser.Node]) void = trust {
                     val arm_binds: list[ref u8] = tu_arm.d1 as list[ref u8]
                     if arm_binds != none {
                         for arm_bind in arm_binds {
-                            check_snake_name(ctx, tu_arm.line, arm_bind, "variable")
+                            check_snake_name(ctx, tu_arm.line, arm_bind, c"variable")
                         }
                     }
                     walk_stmts(ctx, tu_arm.d2 as list[ref parser.Node])
@@ -2594,7 +2594,7 @@ fn walk_items(ctx: mut ref Ctx, items: list[ref parser.Node]) void = trust {
             continue
         }
         if k == parser.NK_ENUMDEF {
-            check_pascal_name(ctx, item.line, parser.node_str_raw(item.d1), "type")
+            check_pascal_name(ctx, item.line, parser.node_str_raw(item.d1), c"type")
             continue
         }
         if k == parser.NK_UNIONDEF || k == parser.NK_TAGGED_UNIONDEF {
@@ -2606,12 +2606,12 @@ fn walk_items(ctx: mut ref Ctx, items: list[ref parser.Node]) void = trust {
             continue
         }
         if k == parser.NK_CONST {
-            check_screaming_snake_name(ctx, item.line, parser.node_str_raw(item.d1), "variable")
+            check_screaming_snake_name(ctx, item.line, parser.node_str_raw(item.d1), c"variable")
             walk_expr(ctx, item.d2 as ref parser.Node)
             continue
         }
         if k == parser.NK_USE {
-            check_snake_name(ctx, item.line, parser.node_str_raw(item.d1), "variable")
+            check_snake_name(ctx, item.line, parser.node_str_raw(item.d1), c"variable")
             @append(ctx.uses, item)
             continue
         }
@@ -2879,7 +2879,7 @@ fn print_issues(ctx: ref Ctx, filename: ref u8) void = trust {
 }
 
 fn has_sx_suffix(file: ref u8) bool = {
-    return str.raw_ends_with(file, ".sx")
+    return str.raw_ends_with(file, c".sx")
 }
 
 fn join_path(arena: allocators.Arena, dir: ref u8, name: ref u8) ref u8 = trust {

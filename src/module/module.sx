@@ -65,7 +65,7 @@ fn arena_string(arena: allocators.ScopedArenaAllocator, src: ref u8) String = tr
 
 /// Check if a file exists by trying to open it.
 fn file_exists(path: ref u8) bool = trust {
-    val f = fs.open(path, "r")
+    val f = fs.open(path, c"r")
     if f is some h {
         fs.close(h)
         return true
@@ -84,7 +84,7 @@ fn find_workspace_root(start_dir: ref u8) ref u8 = trust {
             break
         }
         limit--
-        val spectre_mod: mut ref u8 = path.join(cur, "sx.mod")
+        val spectre_mod: mut ref u8 = path.join(cur, c"sx.mod")
         val found_here: bool = file_exists(spectre_mod) &&
         commands.is_project_sxmod_at(cur)
         @free(spectre_mod)
@@ -93,12 +93,12 @@ fn find_workspace_root(start_dir: ref u8) ref u8 = trust {
         }
         val parent: mut ref u8 = path.dir(cur)
         if str.raw_cmp(parent, cur) == 0 {
-            if str.raw_cmp(parent, ".") != 0 {
+            if str.raw_cmp(parent, c".") != 0 {
                 @free(parent)
             }
             break
         }
-        if str.raw_cmp(parent, ".") == 0 {
+        if str.raw_cmp(parent, c".") == 0 {
             break
         }
         if cur != start_dir {
@@ -145,7 +145,7 @@ pub fn resolve_use_path(
     workspace: ref u8
 ) ref u8 = trust {
     val owned_use: mut ref u8 = none
-    if str.raw_starts_with(use_path, "std/") {
+    if str.raw_starts_with(use_path, c"std/") {
         owned_use = @fmtalloc("spectrelib/{s}", {@ptradd(use_path, 4) as ref u8})
         use_path = owned_use
     }
@@ -1209,7 +1209,7 @@ fn resolve_module_impl(
     }
     val src_arena: allocators.Arena = allocators.Arena.new((src_arena_cap + 8) as usize)?
     val src_opt = fs.read_all[allocators.Arena](src_arena, canonical_path)
-    val src: mut ref u8 = ""
+    val src: mut ref u8 = c""
     if src_opt is some s {
         src = s as ref u8
     } else {
@@ -1243,7 +1243,7 @@ fn resolve_module_impl(
 
     val dir_part: mut ref u8 = path.dir(canonical_path)
     val file_dir = arena_string(arena, dir_part)
-    if str.raw_cmp(dir_part, ".") != 0 {
+    if str.raw_cmp(dir_part, c".") != 0 {
         @free(dir_part)
     }
     val file_dir_c = str.cstr(file_dir)
@@ -1254,11 +1254,11 @@ fn resolve_module_impl(
     val cur_progress: mut list[ref u8] = in_progress
     @append(cur_progress, canonical_path)
 
-    val is_std_module: bool = str.raw_cmp(canonical_path, "std/sx") == 0 ||
+    val is_std_module: bool = str.raw_cmp(canonical_path, c"std/sx") == 0 ||
     (str.len_raw(canonical_path) >= 10 &&
         str.raw_cmp(
             @ptradd(canonical_path, str.len_raw(canonical_path) - 10) as ref u8,
-            "std/sx"
+            c"std/sx"
         ) == 0)
 
     for item in items {
@@ -1266,8 +1266,8 @@ fn resolve_module_impl(
         if node.kind == parser.NK_USE {
             val import_name: ref u8 = parser.node_str_raw(node.d1)
             val use_path: mut ref u8 = parser.node_str_raw(node.d2)
-            val is_json_or_net: bool = str.raw_cmp(import_name, "json") == 0 ||
-            str.raw_cmp(import_name, "net") == 0
+            val is_json_or_net: bool = str.raw_cmp(import_name, c"json") == 0 ||
+            str.raw_cmp(import_name, c"net") == 0
             val skip_std_dce: bool = is_std_module && !is_json_or_net
             val needed_subs: list[ref u8] = collect_needed_subnames_transitive(
                 items,
@@ -1665,7 +1665,7 @@ fn link_workspace_root() ref u8 = trust {
             return find_workspace_root(cwd)
         }
         none => {
-            return "."
+            return c"."
         }
     }
 }
@@ -1689,7 +1689,7 @@ fn module_link_root(m: ref ResolvedModule) ref u8 = trust {
             break
         }
         limit--
-        val spectre_mod: ref u8 = path.join(cur, "sx.mod")
+        val spectre_mod: ref u8 = path.join(cur, c"sx.mod")
         if file_exists(spectre_mod) && commands.is_project_sxmod_at(cur) {
             return cur
         }
@@ -1738,7 +1738,7 @@ fn resolve_link_path(flag: ref u8, workspace: ref u8) ref u8 = trust {
     if !link_path_has_separator(flag) {
         return flag
     }
-    if workspace == none || str.raw_cmp(workspace, "") == 0 || str.raw_cmp(workspace, ".") == 0 {
+    if workspace == none || str.raw_cmp(workspace, c"") == 0 || str.raw_cmp(workspace, c".") == 0 {
         return flag
     }
     val name: mut ref u8 = flag
@@ -1778,25 +1778,25 @@ fn collect_links_with_root(
     val arena: allocators.Arena = allocators.Arena.new(256 as usize)?
     val links: mut list[ref u8] = mem.new[ref u8]()
     val p: i64 = reflection.get_current_platform[allocators.Arena](arena) as i64
-    val platform: mut ref u8 = "unknown"
+    val platform: mut ref u8 = c"unknown"
     if p == 0 {
-        platform = "windows"
+        platform = c"windows"
     } elif p == 1 {
-        platform = "linux"
+        platform = c"linux"
     } elif p == 2 {
-        platform = "darwin"
+        platform = c"darwin"
     } elif p == 3 {
-        platform = "netbsd"
+        platform = c"netbsd"
     } elif p == 4 {
-        platform = "dragonflybsd"
+        platform = c"dragonflybsd"
     } elif p == 5 {
-        platform = "freebsd"
+        platform = c"freebsd"
     } elif p == 6 {
-        platform = "openbsd"
+        platform = c"openbsd"
     } elif p == 7 {
-        platform = "android"
+        platform = c"android"
     } elif p == 8 {
-        platform = "haiku"
+        platform = c"haiku"
     }
 
     for item in items {
@@ -1859,9 +1859,9 @@ fn collect_links_with_root(
     val result: mut list[ref u8] = mem.new[ref u8]()
     val workspace: ref u8 = link_root
     for the_link in links {
-        if str.raw_cmp(the_link, "__sx__internal__json__") == 0 {
-            val shim_c: ref u8 = path.join(exe_dir, "spectrelib/csources/yyjson_shim.c")
-            val shim_o: ref u8 = path.join(exe_dir, "spectrelib/csources/yyjson_shim.o")
+        if str.raw_cmp(the_link, c"__sx__internal__json__") == 0 {
+            val shim_c: ref u8 = path.join(exe_dir, c"spectrelib/csources/yyjson_shim.c")
+            val shim_o: ref u8 = path.join(exe_dir, c"spectrelib/csources/yyjson_shim.o")
 
             if file_exists(shim_c) {
                 @append(result, shim_c)
@@ -1959,8 +1959,8 @@ pub fn collect_links_filtered(
         val mod_opt = @get(m.import_modules, ci as usize)
         if name_opt is some name {
             if mod_opt is some child {
-                val child_prefix: mut ref u8 = ""
-                if str.raw_cmp(prefix, "") == 0 {
+                val child_prefix: mut ref u8 = c""
+                if str.raw_cmp(prefix, c"") == 0 {
                     child_prefix = name as ref u8
                 } else {
                     child_prefix = @fmtalloc("{s}__{s}", {prefix, name as ref u8})
@@ -2034,8 +2034,8 @@ pub fn collect_links_all(
         val mod_opt = @get(m.import_modules, ci as usize)
         if name_opt is some name {
             if mod_opt is some child {
-                val child_prefix: mut ref u8 = ""
-                if str.raw_cmp(prefix, "") == 0 {
+                val child_prefix: mut ref u8 = c""
+                if str.raw_cmp(prefix, c"") == 0 {
                     child_prefix = name as ref u8
                 } else {
                     child_prefix = @fmtalloc("{s}__{s}", {prefix, name as ref u8})
@@ -2077,41 +2077,41 @@ fn selector_segment_eq(seg: ref u8, seg_len: i64, lit: ref u8) bool = trust {
 }
 
 fn platform_is_posix(current: ref u8) bool = trust {
-    if str.raw_cmp(current, "linux") == 0 {
+    if str.raw_cmp(current, c"linux") == 0 {
         return true
     }
-    if str.raw_cmp(current, "darwin") == 0 {
+    if str.raw_cmp(current, c"darwin") == 0 {
         return true
     }
-    if str.raw_cmp(current, "freebsd") == 0 {
+    if str.raw_cmp(current, c"freebsd") == 0 {
         return true
     }
-    if str.raw_cmp(current, "openbsd") == 0 {
+    if str.raw_cmp(current, c"openbsd") == 0 {
         return true
     }
-    if str.raw_cmp(current, "netbsd") == 0 {
+    if str.raw_cmp(current, c"netbsd") == 0 {
         return true
     }
-    if str.raw_cmp(current, "dragonflybsd") == 0 {
+    if str.raw_cmp(current, c"dragonflybsd") == 0 {
         return true
     }
-    if str.raw_cmp(current, "haiku") == 0 {
+    if str.raw_cmp(current, c"haiku") == 0 {
         return true
     }
-    if str.raw_cmp(current, "android") == 0 {
+    if str.raw_cmp(current, c"android") == 0 {
         return true
     }
-    if str.raw_cmp(current, "redox") == 0 {
+    if str.raw_cmp(current, c"redox") == 0 {
         return true
     }
     return false
 }
 
 fn platform_is_bsd(current: ref u8) bool = trust {
-    return str.raw_cmp(current, "freebsd") == 0 ||
-    str.raw_cmp(current, "openbsd") == 0 ||
-    str.raw_cmp(current, "netbsd") == 0 ||
-    str.raw_cmp(current, "dragonflybsd") == 0
+    return str.raw_cmp(current, c"freebsd") == 0 ||
+    str.raw_cmp(current, c"openbsd") == 0 ||
+    str.raw_cmp(current, c"netbsd") == 0 ||
+    str.raw_cmp(current, c"dragonflybsd") == 0
 }
 
 /// Match a platform segment that may be a concrete OS or a group alias.
@@ -2119,50 +2119,50 @@ fn platform_segment_matches(current: ref u8, seg: ref u8, seg_len: i64) bool = t
     if selector_segment_eq(seg, seg_len, current) {
         return true
     }
-    if selector_segment_eq(seg, seg_len, "posix") ||
-    selector_segment_eq(seg, seg_len, "unix") {
+    if selector_segment_eq(seg, seg_len, c"posix") ||
+    selector_segment_eq(seg, seg_len, c"unix") {
         return platform_is_posix(current)
     }
-    if selector_segment_eq(seg, seg_len, "bsd") {
+    if selector_segment_eq(seg, seg_len, c"bsd") {
         return platform_is_bsd(current)
     }
     return false
 }
 
 fn is_arch_selector(name: ref u8) bool = trust {
-    return str.raw_cmp(name, "x86_64") == 0 ||
-    str.raw_cmp(name, "amd64") == 0 ||
-    str.raw_cmp(name, "aarch64") == 0 ||
-    str.raw_cmp(name, "arm64") == 0 ||
-    str.raw_cmp(name, "riscv64") == 0 ||
-    str.raw_cmp(name, "riscv32") == 0 ||
-    str.raw_cmp(name, "riscv") == 0 ||
-    str.raw_cmp(name, "x86") == 0 ||
-    str.raw_cmp(name, "i386") == 0 ||
-    str.raw_cmp(name, "i686") == 0 ||
-    str.raw_cmp(name, "arm") == 0 ||
-    str.raw_cmp(name, "armv7") == 0 ||
-    str.raw_cmp(name, "mips") == 0 ||
-    str.raw_cmp(name, "mips64") == 0 ||
-    str.raw_cmp(name, "ppc64") == 0 ||
-    str.raw_cmp(name, "powerpc64") == 0 ||
-    str.raw_cmp(name, "s390x") == 0 ||
-    str.raw_cmp(name, "wasm32") == 0 ||
-    str.raw_cmp(name, "wasm64") == 0
+    return str.raw_cmp(name, c"x86_64") == 0 ||
+    str.raw_cmp(name, c"amd64") == 0 ||
+    str.raw_cmp(name, c"aarch64") == 0 ||
+    str.raw_cmp(name, c"arm64") == 0 ||
+    str.raw_cmp(name, c"riscv64") == 0 ||
+    str.raw_cmp(name, c"riscv32") == 0 ||
+    str.raw_cmp(name, c"riscv") == 0 ||
+    str.raw_cmp(name, c"x86") == 0 ||
+    str.raw_cmp(name, c"i386") == 0 ||
+    str.raw_cmp(name, c"i686") == 0 ||
+    str.raw_cmp(name, c"arm") == 0 ||
+    str.raw_cmp(name, c"armv7") == 0 ||
+    str.raw_cmp(name, c"mips") == 0 ||
+    str.raw_cmp(name, c"mips64") == 0 ||
+    str.raw_cmp(name, c"ppc64") == 0 ||
+    str.raw_cmp(name, c"powerpc64") == 0 ||
+    str.raw_cmp(name, c"s390x") == 0 ||
+    str.raw_cmp(name, c"wasm32") == 0 ||
+    str.raw_cmp(name, c"wasm64") == 0
 }
 
 fn normalize_arch_name(name: ref u8) ref u8 = trust {
-    if str.raw_cmp(name, "amd64") == 0 {
-        return "x86_64"
+    if str.raw_cmp(name, c"amd64") == 0 {
+        return c"x86_64"
     }
-    if str.raw_cmp(name, "arm64") == 0 {
-        return "aarch64"
+    if str.raw_cmp(name, c"arm64") == 0 {
+        return c"aarch64"
     }
-    if str.raw_cmp(name, "i386") == 0 || str.raw_cmp(name, "i686") == 0 {
-        return "x86"
+    if str.raw_cmp(name, c"i386") == 0 || str.raw_cmp(name, c"i686") == 0 {
+        return c"x86"
     }
-    if str.raw_cmp(name, "powerpc64") == 0 {
-        return "ppc64"
+    if str.raw_cmp(name, c"powerpc64") == 0 {
+        return c"ppc64"
     }
     return name
 }

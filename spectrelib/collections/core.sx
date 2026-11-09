@@ -821,23 +821,23 @@ test "string map stores, updates and deletes keys" {
     assert StringMap.len(m) == 0
 
     @puts("sm: set hello")
-    trust StringMap.set[allocators.HeapAllocator](heap, m, "hello", 1 as usize)
+    trust StringMap.set[allocators.HeapAllocator](heap, m, c"hello", 1 as usize)
     @puts("sm: set world")
-    trust StringMap.set[allocators.HeapAllocator](heap, m, "world", 2 as usize)
+    trust StringMap.set[allocators.HeapAllocator](heap, m, c"world", 2 as usize)
     @puts("sm: set foo")
-    trust StringMap.set[allocators.HeapAllocator](heap, m, "foo", 3 as usize)
+    trust StringMap.set[allocators.HeapAllocator](heap, m, c"foo", 3 as usize)
 
     @puts("sm: len==3")
     assert StringMap.len(m) == 3
     @puts("sm: contains hello")
-    assert StringMap.contains(m, "hello")
+    assert StringMap.contains(m, c"hello")
     @puts("sm: contains world")
-    assert StringMap.contains(m, "world")
+    assert StringMap.contains(m, c"world")
     @puts("sm: !contains bar")
-    assert !StringMap.contains(m, "bar")
+    assert !StringMap.contains(m, c"bar")
 
     @puts("sm: get hello")
-    match StringMap.get(m, "hello") {
+    match StringMap.get(m, c"hello") {
         some v => {
             assert v == 1
         }
@@ -846,7 +846,7 @@ test "string map stores, updates and deletes keys" {
         }
     }
     @puts("sm: get world")
-    match StringMap.get(m, "world") {
+    match StringMap.get(m, c"world") {
         some v => {
             assert v == 2
         }
@@ -855,14 +855,14 @@ test "string map stores, updates and deletes keys" {
         }
     }
     @puts("sm: get missing")
-    if StringMap.get(m, "missing") is some _ {
+    if StringMap.get(m, c"missing") is some _ {
         assert false
     }
 
     @puts("sm: update hello=99")
-    trust StringMap.set[allocators.HeapAllocator](heap, m, "hello", 99 as usize)
+    trust StringMap.set[allocators.HeapAllocator](heap, m, c"hello", 99 as usize)
     @puts("sm: get hello==99")
-    match StringMap.get(m, "hello") {
+    match StringMap.get(m, c"hello") {
         some v => {
             assert v == 99
         }
@@ -874,16 +874,16 @@ test "string map stores, updates and deletes keys" {
     assert StringMap.len(m) == 3
 
     @puts("sm: delete world")
-    val deleted = trust StringMap.delete[allocators.HeapAllocator](heap, m, "world")
+    val deleted = trust StringMap.delete[allocators.HeapAllocator](heap, m, c"world")
     @puts("sm: assert deleted==1")
     assert deleted == 1
     @puts("sm: len==2")
     assert StringMap.len(m) == 2
     @puts("sm: !contains world")
-    assert !StringMap.contains(m, "world")
+    assert !StringMap.contains(m, c"world")
 
     @puts("sm: delete world again")
-    val not_deleted = trust StringMap.delete[allocators.HeapAllocator](heap, m, "world")
+    val not_deleted = trust StringMap.delete[allocators.HeapAllocator](heap, m, c"world")
     @puts("sm: assert not_deleted==0")
     assert not_deleted == 0
 
@@ -1170,17 +1170,17 @@ test "index map preserves insertion order" {
 
     assert IndexMap.len(m) == 0
 
-    trust IndexMap.set[allocators.HeapAllocator](heap, m, "c", 3 as usize)
-    trust IndexMap.set[allocators.HeapAllocator](heap, m, "a", 1 as usize)
-    trust IndexMap.set[allocators.HeapAllocator](heap, m, "b", 2 as usize)
+    trust IndexMap.set[allocators.HeapAllocator](heap, m, c"c", 3 as usize)
+    trust IndexMap.set[allocators.HeapAllocator](heap, m, c"a", 1 as usize)
+    trust IndexMap.set[allocators.HeapAllocator](heap, m, c"b", 2 as usize)
 
     assert IndexMap.len(m) == 3
-    assert IndexMap.contains(m, "a")
-    assert IndexMap.contains(m, "b")
-    assert IndexMap.contains(m, "c")
-    assert !IndexMap.contains(m, "z")
+    assert IndexMap.contains(m, c"a")
+    assert IndexMap.contains(m, c"b")
+    assert IndexMap.contains(m, c"c")
+    assert !IndexMap.contains(m, c"z")
 
-    match trust IndexMap.get(m, "a") {
+    match trust IndexMap.get(m, c"a") {
         some v => {
             assert v == 1
         }
@@ -1188,7 +1188,7 @@ test "index map preserves insertion order" {
             assert false
         }
     }
-    match trust IndexMap.get(m, "b") {
+    match trust IndexMap.get(m, c"b") {
         some v => {
             assert v == 2
         }
@@ -1196,7 +1196,7 @@ test "index map preserves insertion order" {
             assert false
         }
     }
-    match trust IndexMap.get(m, "c") {
+    match trust IndexMap.get(m, c"c") {
         some v => {
             assert v == 3
         }
@@ -1205,8 +1205,8 @@ test "index map preserves insertion order" {
         }
     }
 
-    trust IndexMap.set[allocators.HeapAllocator](heap, m, "a", 99 as usize)
-    match trust IndexMap.get(m, "a") {
+    trust IndexMap.set[allocators.HeapAllocator](heap, m, c"a", 99 as usize)
+    match trust IndexMap.get(m, c"a") {
         some v => {
             assert v == 99
         }
@@ -1218,7 +1218,7 @@ test "index map preserves insertion order" {
 
     match IndexMap.key_at(m, 0 as usize) {
         some k => {
-            assert trust cstr_eq(k, "c")
+            assert trust cstr_eq(k, c"c")
         }
         none => {
             assert false
@@ -1226,7 +1226,7 @@ test "index map preserves insertion order" {
     }
     match IndexMap.key_at(m, 1 as usize) {
         some k => {
-            assert trust cstr_eq(k, "a")
+            assert trust cstr_eq(k, c"a")
         }
         none => {
             assert false
@@ -1234,21 +1234,21 @@ test "index map preserves insertion order" {
     }
     match IndexMap.key_at(m, 2 as usize) {
         some k => {
-            assert trust cstr_eq(k, "b")
+            assert trust cstr_eq(k, c"b")
         }
         none => {
             assert false
         }
     }
 
-    val deleted = trust IndexMap.delete[allocators.HeapAllocator](heap, m, "a")
+    val deleted = trust IndexMap.delete[allocators.HeapAllocator](heap, m, c"a")
     assert deleted == 1
     assert IndexMap.len(m) == 2
-    assert !IndexMap.contains(m, "a")
+    assert !IndexMap.contains(m, c"a")
 
     match IndexMap.key_at(m, 0 as usize) {
         some k => {
-            assert trust cstr_eq(k, "c")
+            assert trust cstr_eq(k, c"c")
         }
         none => {
             assert false
@@ -1256,7 +1256,7 @@ test "index map preserves insertion order" {
     }
     match IndexMap.key_at(m, 1 as usize) {
         some k => {
-            assert trust cstr_eq(k, "b")
+            assert trust cstr_eq(k, c"b")
         }
         none => {
             assert false
@@ -1269,9 +1269,9 @@ test "index map preserves insertion order" {
 
 test "raw index map stores and retrieves values" {
     val m: ref void = trust RawIndexMap.new(8 as usize)
-    trust RawIndexMap.set(m, "hello", 11 as usize)
-    assert RawIndexMap.contains(m, "hello")
-    match trust RawIndexMap.get(m, "hello") {
+    trust RawIndexMap.set(m, c"hello", 11 as usize)
+    assert RawIndexMap.contains(m, c"hello")
+    match trust RawIndexMap.get(m, c"hello") {
         some v => {
             assert v == 11
         }

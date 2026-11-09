@@ -1,7 +1,7 @@
 val stdio = use("std/stdio")
 
 fn get_str() ref u8 = {
-    return "hello"
+    return c"hello"
 }
 
 fn identity(s: ref u8) ref u8 = {

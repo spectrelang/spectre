@@ -48,7 +48,7 @@ fn kind_is_fn(k: TokenKind) bool = trust {
 
 pub fn main() void = trust {
 
-    val y: TokenKind = Int("42")
+    val y: TokenKind = Int(c"42")
     match y {
         Int _ => {
             @puts("its an int...here...")

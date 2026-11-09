@@ -394,11 +394,11 @@ fn win_parse_url(url: ref u8) ref WinUrl = trust {
         if win_char(raw_path, 0) == 47 {
             parsed.path = raw_path
         } else {
-            parsed.path = string.concat_raw("/", raw_path)
+            parsed.path = string.concat_raw(c"/", raw_path)
             @free(raw_path)
         }
     } else {
-        parsed.path = string.concat_raw("/", "")
+        parsed.path = string.concat_raw(c"/", c"")
     }
 
     if parsed.host == none || parsed.path == none {
@@ -840,7 +840,7 @@ test "http client fetches a response" {
     val ac: allocators.HeapAllocator = @zeroed
     Http.init()
 
-    val url: ref u8 = "https://example.com"
+    val url: ref u8 = c"https://example.com"
     val resp: ref Response = trust Http.get[_](ac, url)
     assert resp != none
 

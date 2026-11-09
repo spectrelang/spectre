@@ -15,19 +15,19 @@ fn make_thing(k: Kind) ref Thing = trust {
 fn get_text(t: ref Thing) ref u8 = trust {
     match t.kind {
         A() => {
-            return "got A"
+            return c"got A"
         }
         B s => {
             return s
         }
         else => {
-            return "unknown"
+            return c"unknown"
         }
     }
 }
 
 pub fn main() void = trust {
-    val t1 = make_thing(B("hello"))
+    val t1 = make_thing(B(c"hello"))
     val text = get_text(t1)
     @print("{s}\n", {text})
 }

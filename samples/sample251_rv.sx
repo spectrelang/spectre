@@ -3,13 +3,13 @@ pub fn atoi(s: ref u8) i64 = {
 }
 
 pub fn main() void = trust {
-    assert atoi("") == 0
-    assert atoi("0") == 0
-    assert atoi("42") == 42
-    assert atoi("+7") == 7
-    assert atoi("-123") == -123
-    assert atoi("  99xyz") == 99
-    assert atoi("abc") == 0
-    assert atoi("-") == 0
+    assert atoi(c"") == 0
+    assert atoi(c"0") == 0
+    assert atoi(c"42") == 42
+    assert atoi(c"+7") == 7
+    assert atoi(c"-123") == -123
+    assert atoi(c"  99xyz") == 99
+    assert atoi(c"abc") == 0
+    assert atoi(c"-") == 0
     @puts("atoi ok\n")
 }

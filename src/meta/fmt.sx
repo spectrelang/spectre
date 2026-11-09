@@ -1223,11 +1223,11 @@ fn format_statement_separators(src: ref u8) ref u8 = trust {
 
             if starts_stmt && kind_ends_statement(prev_k) {
                 val continuation: mut bool = false
-                if lexer.kind_is_ident(k) && token_ident_is(tokens, i, "is") {
+                if lexer.kind_is_ident(k) && token_ident_is(tokens, i, c"is") {
                     continuation = true
                 }
-                if token_ident_is(tokens, i - 1, "is") ||
-                token_ident_is(tokens, i - 1, "or") {
+                if token_ident_is(tokens, i - 1, c"is") ||
+                token_ident_is(tokens, i - 1, c"or") {
                     continuation = true
                 }
                 if lexer.kind_is_ident(k) && lexer.kind_is_rparen(prev_k) {
@@ -1550,7 +1550,7 @@ fn rewrite_match_at(
     }
 
     val bind_opt = @get(tokens, (arm0.start + 1) as usize)
-    val bind: mut ref u8 = "_"
+    val bind: mut ref u8 = c"_"
     if bind_opt is some bind_val {
         val bind_tok: ref lexer.Token = bind_val as ref lexer.Token
         match bind_tok.kind {
@@ -1588,7 +1588,7 @@ fn rewrite_match_at(
     val edits: mut list[ref Edit] = mem.new[ref Edit]()
 
     // match -> if
-    @append(edits, edit_new(m_start, m_start + 5, "if"))
+    @append(edits, edit_new(m_start, m_start + 5, c"if"))
 
     // Normalize the whitespace before the body brace so the inserted
     // condition does not end up with doubled spaces or a missing space.
@@ -1604,7 +1604,7 @@ fn rewrite_match_at(
         ws_start--
     }
 
-    @append(edits, edit_new(ws_start, m_open, ""))
+    @append(edits, edit_new(ws_start, m_open, c""))
     @append(edits, edit_new(m_open, m_open, @fmtalloc(" is some {s} ", {bind})))
 
     val some_removal_start: mut i64 = m_open + 1
@@ -1645,9 +1645,9 @@ fn rewrite_match_at(
         }
     }
 
-    @append(edits, edit_new(some_removal_start, some_removal_end, ""))
-    @append(edits, edit_new(s_close_end, m_close, ""))
-    @append(edits, edit_new(m_close, m_close_end, ""))
+    @append(edits, edit_new(some_removal_start, some_removal_end, c""))
+    @append(edits, edit_new(s_close_end, m_close, c""))
+    @append(edits, edit_new(m_close, m_close_end, c""))
 
     return some apply_edits(src, edits)
 }
@@ -1849,7 +1849,7 @@ fn format_else_join(src: ref u8) ref u8 = trust {
             val already_one: bool =
             after_pos - (close_pos + 1) == 1 && byte_at(src, close_pos + 1) == 32
             if !already_one {
-                @append(edits, edit_new(close_pos + 1, after_pos, " "))
+                @append(edits, edit_new(close_pos + 1, after_pos, c" "))
             }
         }
     }
@@ -1929,7 +1929,7 @@ fn format_match_arm_spacing(src: ref u8) ref u8 = trust {
                         ws_before--
                     }
                     if ws_before < comma_pos {
-                        @append(edits, edit_new(ws_before, comma_pos, ""))
+                        @append(edits, edit_new(ws_before, comma_pos, c""))
                     }
 
                     if j + 1 < i {
@@ -1937,7 +1937,7 @@ fn format_match_arm_spacing(src: ref u8) ref u8 = trust {
                         if next_line == arrow_line {
                             val next_pos: i64 = token_start(tokens, starts, j + 1)
                             if range_is_whitespace(src, comma_pos + 1, next_pos) {
-                                @append(edits, edit_new(comma_pos + 1, next_pos, " "))
+                                @append(edits, edit_new(comma_pos + 1, next_pos, c" "))
                             }
                         }
                     }
@@ -1968,7 +1968,7 @@ fn format_match_arm_spacing(src: ref u8) ref u8 = trust {
                 val arrow_gap: i64 = arrow_pos - ws_arrow
                 val arrow_one: bool = arrow_gap == 1 && byte_at(src, ws_arrow) == 32
                 if !arrow_one {
-                    @append(edits, edit_new(ws_arrow, arrow_pos, " "))
+                    @append(edits, edit_new(ws_arrow, arrow_pos, c" "))
                 }
             }
         }
@@ -2051,9 +2051,9 @@ fn format_decl_separators(src: ref u8) ref u8 = trust {
                                 token_line(tokens, j + 1) == token_line(tokens, j)
 
                                 if same_line {
-                                    @append(edits, edit_new(comma_pos, comma_pos + 1, "\n"))
+                                    @append(edits, edit_new(comma_pos, comma_pos + 1, c"\n"))
                                 } else {
-                                    @append(edits, edit_new(comma_pos, comma_pos + 1, ""))
+                                    @append(edits, edit_new(comma_pos, comma_pos + 1, c""))
                                 }
                             }
                         }
@@ -2122,7 +2122,7 @@ fn format_paren_separators(src: ref u8) ref u8 = trust {
                     ws_before--
                 }
                 if ws_before < comma_pos {
-                    @append(edits, edit_new(ws_before, comma_pos, ""))
+                    @append(edits, edit_new(ws_before, comma_pos, c""))
                 }
 
                 if i + 1 < ntokens && token_line(tokens, i + 1) == token_line(tokens, i) {
@@ -2130,7 +2130,7 @@ fn format_paren_separators(src: ref u8) ref u8 = trust {
                     if !lexer.kind_is_rparen(next_kind) {
                         val next_pos: i64 = token_start(tokens, starts, i + 1)
                         if range_is_whitespace(src, comma_pos + 1, next_pos) {
-                            @append(edits, edit_new(comma_pos + 1, next_pos, " "))
+                            @append(edits, edit_new(comma_pos + 1, next_pos, c" "))
                         }
                     }
                 }
@@ -2187,7 +2187,7 @@ fn format_colon_spacing(src: ref u8) ref u8 = trust {
                 ws_before--
             }
             if ws_before < colon_pos {
-                @append(edits, edit_new(ws_before, colon_pos, ""))
+                @append(edits, edit_new(ws_before, colon_pos, c""))
             }
 
             if i + 1 < ntokens && token_line(tokens, i + 1) == token_line(tokens, i) {
@@ -2195,7 +2195,7 @@ fn format_colon_spacing(src: ref u8) ref u8 = trust {
                 if !lexer.kind_is_colon(next_kind) {
                     val next_pos: i64 = token_start(tokens, starts, i + 1)
                     if range_is_whitespace(src, colon_pos + 1, next_pos) {
-                        @append(edits, edit_new(colon_pos + 1, next_pos, " "))
+                        @append(edits, edit_new(colon_pos + 1, next_pos, c" "))
                     }
                 }
             }
@@ -2260,7 +2260,7 @@ fn format_eq_spacing(src: ref u8) ref u8 = trust {
                 val gap: i64 = eq_pos - ws_before
                 val already_one: bool = gap == 1 && byte_at(src, ws_before) == 32
                 if !already_one {
-                    @append(edits, edit_new(ws_before, eq_pos, " "))
+                    @append(edits, edit_new(ws_before, eq_pos, c" "))
                 }
             }
 
@@ -2270,7 +2270,7 @@ fn format_eq_spacing(src: ref u8) ref u8 = trust {
                     val already_one_after: bool =
                     next_pos - (eq_pos + 1) == 1 && byte_at(src, eq_pos + 1) == 32
                     if !already_one_after {
-                        @append(edits, edit_new(eq_pos + 1, next_pos, " "))
+                        @append(edits, edit_new(eq_pos + 1, next_pos, c" "))
                     }
                 }
             }
@@ -2335,7 +2335,7 @@ fn format_as_spacing(src: ref u8) ref u8 = trust {
                 val gap: i64 = as_pos - ws_before
                 val already_one: bool = gap == 1 && byte_at(src, ws_before) == 32
                 if !already_one {
-                    @append(edits, edit_new(ws_before, as_pos, " "))
+                    @append(edits, edit_new(ws_before, as_pos, c" "))
                 }
             }
 
@@ -2345,7 +2345,7 @@ fn format_as_spacing(src: ref u8) ref u8 = trust {
                     val already_one_after: bool =
                     next_pos - (as_pos + 1) == 1 && byte_at(src, as_pos + 1) == 32
                     if !already_one_after {
-                        @append(edits, edit_new(as_pos + 1, next_pos, " "))
+                        @append(edits, edit_new(as_pos + 1, next_pos, c" "))
                     }
                 }
             }
@@ -2412,7 +2412,7 @@ fn format_operator_spacing(src: ref u8) ref u8 = trust {
                 val gap: i64 = op_pos - ws_before
                 val already_one: bool = gap == 1 && byte_at(src, ws_before) == 32
                 if !already_one {
-                    @append(edits, edit_new(ws_before, op_pos, " "))
+                    @append(edits, edit_new(ws_before, op_pos, c" "))
                 }
             }
 
@@ -2422,7 +2422,7 @@ fn format_operator_spacing(src: ref u8) ref u8 = trust {
                     val already_one_after: bool =
                     next_pos - (op_pos + op_len) == 1 && byte_at(src, op_pos + op_len) == 32
                     if !already_one_after {
-                        @append(edits, edit_new(op_pos + op_len, next_pos, " "))
+                        @append(edits, edit_new(op_pos + op_len, next_pos, c" "))
                     }
                 }
             }
@@ -2499,7 +2499,7 @@ fn format_assert_spacing(src: ref u8) ref u8 = trust {
                                 }
                                 content_start++
                             }
-                            @append(edits, edit_new(keyword_end, content_start, " "))
+                            @append(edits, edit_new(keyword_end, content_start, c" "))
 
                             val content_end: mut i64 = close_pos
                             for {
@@ -2512,7 +2512,7 @@ fn format_assert_spacing(src: ref u8) ref u8 = trust {
                                 }
                                 content_end--
                             }
-                            @append(edits, edit_new(content_end, close_pos + 1, ""))
+                            @append(edits, edit_new(content_end, close_pos + 1, c""))
                         } elif token_line(
                             tokens,
                             i + 1
@@ -2520,7 +2520,7 @@ fn format_assert_spacing(src: ref u8) ref u8 = trust {
                             tokens,
                             i
                         ) && range_is_whitespace(src, keyword_end, open_pos) {
-                            @append(edits, edit_new(keyword_end, open_pos, " "))
+                            @append(edits, edit_new(keyword_end, open_pos, c" "))
                         }
                     }
                 } elif token_line(tokens, i + 1) == token_line(tokens, i) {
@@ -2529,7 +2529,7 @@ fn format_assert_spacing(src: ref u8) ref u8 = trust {
                         val already_one: bool =
                         next_pos - keyword_end == 1 && byte_at(src, keyword_end) == 32
                         if !already_one {
-                            @append(edits, edit_new(keyword_end, next_pos, " "))
+                            @append(edits, edit_new(keyword_end, next_pos, c" "))
                         }
                     }
                 }
@@ -2595,7 +2595,7 @@ fn format_block_brace_spacing(src: ref u8) ref u8 = trust {
                 val gap: i64 = brace_pos - ws_start
                 val already_one: bool = gap == 1 && byte_at(src, ws_start) == 32
                 if !already_one {
-                    @append(edits, edit_new(ws_start, brace_pos, " "))
+                    @append(edits, edit_new(ws_start, brace_pos, c" "))
                 }
             }
         }
@@ -2681,7 +2681,7 @@ fn format_fn_return_spacing(src: ref u8) ref u8 = trust {
                             val already_one: bool =
                             next_pos - close_end == 1 && byte_at(src, close_end) == 32
                             if !already_one {
-                                @append(edits, edit_new(close_end, next_pos, " "))
+                                @append(edits, edit_new(close_end, next_pos, c" "))
                             }
                         }
                     }
@@ -2726,34 +2726,34 @@ fn segment_starts_with_keyword(src: ref u8, start: i64, end: i64, keyword: ref u
 }
 
 fn line_is_block_decl_start(src: ref u8, start: i64, end: i64) bool = trust {
-    if segment_starts_with_keyword(src, start, end, "pub fn") {
+    if segment_starts_with_keyword(src, start, end, c"pub fn") {
         return true
     }
-    if segment_starts_with_keyword(src, start, end, "fn") {
+    if segment_starts_with_keyword(src, start, end, c"fn") {
         return true
     }
-    if segment_starts_with_keyword(src, start, end, "pub type") {
+    if segment_starts_with_keyword(src, start, end, c"pub type") {
         return true
     }
-    if segment_starts_with_keyword(src, start, end, "type") {
+    if segment_starts_with_keyword(src, start, end, c"type") {
         return true
     }
-    if segment_starts_with_keyword(src, start, end, "pub union") {
+    if segment_starts_with_keyword(src, start, end, c"pub union") {
         return true
     }
-    if segment_starts_with_keyword(src, start, end, "union") {
+    if segment_starts_with_keyword(src, start, end, c"union") {
         return true
     }
-    if segment_starts_with_keyword(src, start, end, "pub enum") {
+    if segment_starts_with_keyword(src, start, end, c"pub enum") {
         return true
     }
-    if segment_starts_with_keyword(src, start, end, "enum") {
+    if segment_starts_with_keyword(src, start, end, c"enum") {
         return true
     }
-    if segment_starts_with_keyword(src, start, end, "pub spec") {
+    if segment_starts_with_keyword(src, start, end, c"pub spec") {
         return true
     }
-    if segment_starts_with_keyword(src, start, end, "spec") {
+    if segment_starts_with_keyword(src, start, end, c"spec") {
         return true
     }
     return false
@@ -2761,8 +2761,8 @@ fn line_is_block_decl_start(src: ref u8, start: i64, end: i64) bool = trust {
 
 fn import_eq_pos(src: ref u8, start: i64, end: i64) i64 = trust {
     val is_import: bool =
-    segment_starts_with(src, start, end, "val ") ||
-    segment_starts_with(src, start, end, "pub val ")
+    segment_starts_with(src, start, end, c"val ") ||
+    segment_starts_with(src, start, end, c"pub val ")
 
     if !is_import {
         return -1
@@ -2795,7 +2795,7 @@ fn import_eq_pos(src: ref u8, start: i64, end: i64) i64 = trust {
         }
         use_start++
     }
-    if use_start < end && segment_starts_with(src, use_start, end, "use(") {
+    if use_start < end && segment_starts_with(src, use_start, end, c"use(") {
         return eq
     }
     return -1
@@ -3388,11 +3388,11 @@ fn append_remove_paren_open(
     ) == token_line(tokens, open_idx) {
         val next_pos: i64 = token_start(tokens, starts, next_idx)
         if range_is_whitespace(src, open_pos + 1, next_pos) {
-            @append(edits, edit_new(open_pos, next_pos, ""))
+            @append(edits, edit_new(open_pos, next_pos, c""))
             return
         }
     }
-    @append(edits, edit_new(open_pos, open_pos + 1, ""))
+    @append(edits, edit_new(open_pos, open_pos + 1, c""))
 }
 
 fn append_remove_paren_close(
@@ -3418,11 +3418,11 @@ fn append_remove_paren_close(
             ws_start--
         }
         if ws_start > prev_pos {
-            @append(edits, edit_new(ws_start, close_pos + 1, ""))
+            @append(edits, edit_new(ws_start, close_pos + 1, c""))
             return
         }
     }
-    @append(edits, edit_new(close_pos, close_pos + 1, ""))
+    @append(edits, edit_new(close_pos, close_pos + 1, c""))
 }
 
 fn append_for_separator(
@@ -3449,12 +3449,12 @@ fn append_for_separator(
     if idx + 1 < n && token_line(tokens, idx + 1) == token_line(tokens, idx) {
         val next_pos: i64 = token_start(tokens, starts, idx + 1)
         if range_is_whitespace(src, comma_pos + 1, next_pos) {
-            @append(edits, edit_new(ws_start, next_pos, ", "))
+            @append(edits, edit_new(ws_start, next_pos, c", "))
             return
         }
     }
 
-    @append(edits, edit_new(ws_start, comma_pos + 1, ","))
+    @append(edits, edit_new(ws_start, comma_pos + 1, c","))
 }
 
 fn format_for_headers(src: ref u8) ref u8 = trust {
@@ -3517,7 +3517,7 @@ fn format_for_headers(src: ref u8) ref u8 = trust {
                                 val already_one: bool =
                                 header_pos - keyword_end == 1 && byte_at(src, keyword_end) == 32
                                 if !already_one {
-                                    @append(edits, edit_new(keyword_end, header_pos, " "))
+                                    @append(edits, edit_new(keyword_end, header_pos, c" "))
                                 }
                             }
 
@@ -3768,7 +3768,7 @@ fn wrap_delimited_at(
 ) ref u8 = trust {
     val edits: mut list[ref Edit] = mem.new[ref Edit]()
     val open_pos: i64 = token_start(tokens, starts, open_idx)
-    @append(edits, edit_new(open_pos + 1, open_pos + 1, "\n"))
+    @append(edits, edit_new(open_pos + 1, open_pos + 1, c"\n"))
 
     val parens: mut i64 = 0
     val brackets: mut i64 = 0
@@ -3802,7 +3802,7 @@ fn wrap_delimited_at(
             if parens == 0 && brackets == 0 && braces == 0 {
                 if i + 1 < close_idx {
                     val comma_pos: i64 = token_start(tokens, starts, i)
-                    @append(edits, edit_new(comma_pos + 1, comma_pos + 1, "\n"))
+                    @append(edits, edit_new(comma_pos + 1, comma_pos + 1, c"\n"))
                 }
             }
         }
@@ -3810,7 +3810,7 @@ fn wrap_delimited_at(
     }
 
     val close_pos: i64 = token_start(tokens, starts, close_idx)
-    @append(edits, edit_new(close_pos, close_pos, "\n"))
+    @append(edits, edit_new(close_pos, close_pos, c"\n"))
     return apply_edits(src, edits)
 }
 
@@ -4050,12 +4050,12 @@ fn append_i64(buf: mut ref Buf, value: i64) void = trust {
 fn make_ignore_marker(seed: i64, closing: bool) ref u8 = trust {
     val out: mut ref Buf = buf_new(64)
     if closing {
-        buf_append_cstr(out, "__spectre_fmt_ignore_end_")
+        buf_append_cstr(out, c"__spectre_fmt_ignore_end_")
     } else {
-        buf_append_cstr(out, "__spectre_fmt_ignore_start_")
+        buf_append_cstr(out, c"__spectre_fmt_ignore_start_")
     }
     append_i64(out, seed)
-    buf_append_cstr(out, "__")
+    buf_append_cstr(out, c"__")
     return buf_build(out)
 }
 
@@ -4232,7 +4232,7 @@ fn collect_ignore_regions(src: ref u8) list[ref IgnoreRegion] = trust {
         val content_start: i64 = skip_horizontal_space(src, line_start, line_end)
         val content_end: i64 = trim_horizontal_space(src, content_start, line_end)
 
-        if segment_equals(src, content_start, content_end, "//!fmt-ignore") &&
+        if segment_equals(src, content_start, content_end, c"//!fmt-ignore") &&
         i + 1 < nlines {
             val target_start: i64 = i64_at(starts, i + 1)
             if target_start >= 0 {
@@ -4485,7 +4485,7 @@ fn format_source(src: ref u8) ref u8 = trust {
 }
 
 fn has_sx_suffix(file: ref u8) bool = {
-    return str.raw_ends_with(file, ".sx")
+    return str.raw_ends_with(file, c".sx")
 }
 
 fn format_file(file: ref u8, to_stdout: bool) i32 = trust {

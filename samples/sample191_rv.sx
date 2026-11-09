@@ -6,7 +6,7 @@ fn print_copy(p: ref u8) void = {
 }
 
 pub fn main() void = {
-    val p: ref u8 = "hello"
+    val p: ref u8 = c"hello"
     val pp = p
     trust @print("pp {p}, p {p}\n", {pp, p})
     trust @print("pp={s}, p={s}\n", {pp, p})

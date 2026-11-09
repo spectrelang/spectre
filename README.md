@@ -47,9 +47,10 @@ An example program:
 
 ```spectre
 val stdio = use("std/stdio")
+val str = use("std/string")
 
 pub fn main() void = {
-    val xs: [_]ref u8 = [
+    val xs: [_]str.StringView = [
         "hello", "world", "this", "is", "a", "test"
     ]
     for x in xs {

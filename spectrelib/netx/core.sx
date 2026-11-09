@@ -152,7 +152,7 @@ pub fn (WebServer) new_with_capacity[A: allocators.GeneralAllocator](
         @store8(client.response_buffer, 0)
         val response: mut ref Response = client.response
         response.status_code = 200
-        response.content_type = "text/plain; charset=utf-8"
+        response.content_type = c"text/plain; charset=utf-8"
         response.body = client.response_buffer
         response.body_len = 0
         response.body_cap = DEFAULT_RESPONSE_SIZE
@@ -200,7 +200,7 @@ pub fn (WebServer) get(
     path: ref u8,
     handler: fn(ref Request, mut ref Response) void
 ) bool = trust {
-    return WebServer.add_route(server, "GET", path, handler)
+    return WebServer.add_route(server, c"GET", path, handler)
 }
 
 /// Register a POST route.
@@ -209,7 +209,7 @@ pub fn (WebServer) post_route(
     path: ref u8,
     handler: fn(ref Request, mut ref Response) void
 ) bool = trust {
-    return WebServer.add_route(server, "POST", path, handler)
+    return WebServer.add_route(server, c"POST", path, handler)
 }
 
 /// Register a PUT route.
@@ -218,7 +218,7 @@ pub fn (WebServer) put(
     path: ref u8,
     handler: fn(ref Request, mut ref Response) void
 ) bool = trust {
-    return WebServer.add_route(server, "PUT", path, handler)
+    return WebServer.add_route(server, c"PUT", path, handler)
 }
 
 /// Register a PATCH route.
@@ -227,7 +227,7 @@ pub fn (WebServer) patch(
     path: ref u8,
     handler: fn(ref Request, mut ref Response) void
 ) bool = trust {
-    return WebServer.add_route(server, "PATCH", path, handler)
+    return WebServer.add_route(server, c"PATCH", path, handler)
 }
 
 /// Register a DELETE route.
@@ -236,7 +236,7 @@ pub fn (WebServer) delete(
     path: ref u8,
     handler: fn(ref Request, mut ref Response) void
 ) bool = trust {
-    return WebServer.add_route(server, "DELETE", path, handler)
+    return WebServer.add_route(server, c"DELETE", path, handler)
 }
 
 /// Set the HTTP status code.
@@ -247,7 +247,7 @@ pub fn (Response) set_status(res: mut self, code: i32) void = trust {
 /// Reset the response to a fresh 200 text response.
 pub fn (Response) reset(res: mut self) void = trust {
     res.status_code = 200
-    res.content_type = "text/plain; charset=utf-8"
+    res.content_type = c"text/plain; charset=utf-8"
     res.body_len = 0
     if res.body != none {
         @store8(res.body, 0)
@@ -277,51 +277,51 @@ pub fn (Response) write(res: mut self, text: ref u8) void = trust {
 
 /// Set a plain-text response body.
 pub fn (Response) text(res: mut self, body: ref u8) void = trust {
-    res.content_type = "text/plain; charset=utf-8"
+    res.content_type = c"text/plain; charset=utf-8"
     res.body_len = 0
     Response.write(res, body)
 }
 
 /// Set a JSON response body.
 pub fn (Response) json(res: mut self, body: ref u8) void = trust {
-    res.content_type = "application/json"
+    res.content_type = c"application/json"
     res.body_len = 0
     Response.write(res, body)
 }
 
 /// Set an HTML response body.
 pub fn (Response) html(res: mut self, body: ref u8) void = trust {
-    res.content_type = "text/html; charset=utf-8"
+    res.content_type = c"text/html; charset=utf-8"
     res.body_len = 0
     Response.write(res, body)
 }
 
 fn status_text(code: i32) ref u8 = {
     if code == 200 {
-        return "OK"
+        return c"OK"
     }
     if code == 201 {
-        return "Created"
+        return c"Created"
     }
     if code == 204 {
-        return "No Content"
+        return c"No Content"
     }
     if code == 400 {
-        return "Bad Request"
+        return c"Bad Request"
     }
     if code == 404 {
-        return "Not Found"
+        return c"Not Found"
     }
     if code == 405 {
-        return "Method Not Allowed"
+        return c"Method Not Allowed"
     }
     if code == 413 {
-        return "Payload Too Large"
+        return c"Payload Too Large"
     }
     if code == 500 {
-        return "Internal Server Error"
+        return c"Internal Server Error"
     }
-    return "OK"
+    return c"OK"
 }
 
 fn find_header_end(raw: ref u8, len: i64) i64 = trust {
@@ -386,8 +386,8 @@ fn parse_request(raw: ref u8, len: i64, req: mut ref Request) bool = trust {
     req.method = raw
     req.path = @ptradd(raw, first_space + 1)
     req.version = @ptradd(raw, second_space + 1)
-    req.query = ""
-    req.body = ""
+    req.query = c""
+    req.body = c""
     req.body_len = 0
 
     val path_len: i64 = second_space - first_space - 1
@@ -435,15 +435,15 @@ fn send_all(client: i64, data: ref u8, len: i64) void = trust {
 fn send_response(client: ref Client) void = trust {
     val res = client.response
     val sb = string.StringBuilder.new()
-    string.StringBuilder.append_cstr(sb, "HTTP/1.1 ")
+    string.StringBuilder.append_cstr(sb, c"HTTP/1.1 ")
     string.StringBuilder.append_cstr(sb, @fmtalloc("{d}", {res.status_code}))
-    string.StringBuilder.append_cstr(sb, " ")
+    string.StringBuilder.append_cstr(sb, c" ")
     string.StringBuilder.append_cstr(sb, status_text(res.status_code))
-    string.StringBuilder.append_cstr(sb, "\r\nContent-Type: ")
+    string.StringBuilder.append_cstr(sb, c"\r\nContent-Type: ")
     string.StringBuilder.append_cstr(sb, res.content_type)
-    string.StringBuilder.append_cstr(sb, "\r\nContent-Length: ")
+    string.StringBuilder.append_cstr(sb, c"\r\nContent-Length: ")
     string.StringBuilder.append_cstr(sb, @fmtalloc("{d}", {res.body_len}))
-    string.StringBuilder.append_cstr(sb, "\r\nConnection: close\r\n\r\n")
+    string.StringBuilder.append_cstr(sb, c"\r\nConnection: close\r\n\r\n")
     if res.body_len > 0 {
         string.StringBuilder.append_cstr(sb, @fmtalloc("{s}", {res.body}))
     }
@@ -480,14 +480,14 @@ fn dispatch(server: ref WebServer, req: ref Request, res: mut ref Response) void
         val route = route_at(server, i)
         if string.raw_cmp(req.path, route.path) == 0 {
             Response.set_status(res, 405 as i32)
-            Response.json(res, "{\"error\":\"Method not allowed\"}")
+            Response.json(res, c"{\"error\":\"Method not allowed\"}")
             return
         }
         i++
     }
 
     Response.set_status(res, 404 as i32)
-    Response.json(res, "{\"error\":\"Not found\"}")
+    Response.json(res, c"{\"error\":\"Not found\"}")
 }
 
 fn find_client(server: ref WebServer, fd: i64) option[ref Client] = trust {
@@ -563,7 +563,7 @@ fn handle_client(server: mut ref WebServer, client: mut ref Client, revents: i32
     val remaining: i64 = DEFAULT_REQUEST_SIZE - 1 - client.request_len
     if remaining <= 0 {
         Response.set_status(client.response, 413 as i32)
-        Response.json(client.response, "{\"error\":\"Request too large\"}")
+        Response.json(client.response, c"{\"error\":\"Request too large\"}")
         send_response(client)
         close_client(server, client)
         return
@@ -591,7 +591,7 @@ fn handle_client(server: mut ref WebServer, client: mut ref Client, revents: i32
         dispatch(server, client.request, client.response)
     } else {
         Response.set_status(client.response, 400 as i32)
-        Response.json(client.response, "{\"error\":\"Bad request\"}")
+        Response.json(client.response, c"{\"error\":\"Bad request\"}")
     }
 
     send_response(client)
@@ -701,10 +701,10 @@ test "web server registers a route" {
     val server: mut ref WebServer = trust WebServer.new[allocators.HeapAllocator](ac, 8091 as i32)
     assert server != none
     assert WebServer.port(server) == 8091
-    assert trust WebServer.get(server, "/health", health_test_handler)
+    assert trust WebServer.get(server, c"/health", health_test_handler)
     trust WebServer.free[allocators.HeapAllocator](ac, server)
 }
 
 fn health_test_handler(_: ref Request, res: mut ref Response) void = trust {
-    Response.json(res, "{\"status\":\"ok\"}")
+    Response.json(res, c"{\"status\":\"ok\"}")
 }

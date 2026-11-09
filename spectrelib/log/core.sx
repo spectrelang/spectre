@@ -69,46 +69,46 @@ pub fn debug(msg: ref u8) void = {
     if !should_log(Level.Debug) {
         return
     }
-    trust log_out(msg, "DEBUG", "\x1b[34m")
+    trust log_out(msg, c"DEBUG", c"\x1b[34m")
 }
 
 pub fn info(msg: ref u8) void = {
     if !should_log(Level.Info) {
         return
     }
-    trust log_out(msg, "INFO", "\x1b[32m")
+    trust log_out(msg, c"INFO", c"\x1b[32m")
 }
 
 pub fn warn(msg: ref u8) void = {
     if !should_log(Level.Warn) {
         return
     }
-    trust log_err(msg, "WARN", "\x1b[33m")
+    trust log_err(msg, c"WARN", c"\x1b[33m")
 }
 
 pub fn error(msg: ref u8) void = {
     if !should_log(Level.Error) {
         return
     }
-    trust log_err(msg, "ERROR", "\x1b[31m")
+    trust log_err(msg, c"ERROR", c"\x1b[31m")
 }
 
 pub fn fatal(msg: ref u8) void = {
-    trust log_err(msg, "FATAL", "\x1b[31m")
+    trust log_err(msg, c"FATAL", c"\x1b[31m")
     trust os.exit(1)
 }
 
 test "log levels filter messages" {
     set_colors(false)
     set_level(Level.Debug)
-    debug("This is a debug")
-    info("This is some info message")
-    warn("This is some warning")
-    error("This is an error")
+    debug(c"This is a debug")
+    info(c"This is some info message")
+    warn(c"This is some warning")
+    error(c"This is an error")
     set_level(Level.Warn)
     set_colors(true)
-    debug("This should not appear")
-    info("This should not appear")
-    warn("This should appear")
-    error("This should appear")
+    debug(c"This should not appear")
+    info(c"This should not appear")
+    warn(c"This should appear")
+    error(c"This should appear")
 }

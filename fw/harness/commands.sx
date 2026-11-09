@@ -60,7 +60,7 @@ test "commands build does not leak" {
         val prefix: ref u8 = "entry \"./main.sx\"\nversion \"1.2.3\"\nspectre_version \""
         val suffix: ref u8 = "\"\nbuild checkmem { action \"true\" }\n"
         assert fs.write_all("./s-out/checkmem-commands/sx.mod", prefix)
-        assert fs.append_all_view(str.view_cstr("./s-out/checkmem-commands/sx.mod"), version)
+        assert fs.append_all_view("./s-out/checkmem-commands/sx.mod", version)
         assert fs.append_all("./s-out/checkmem-commands/sx.mod", suffix)
 
         when posix {

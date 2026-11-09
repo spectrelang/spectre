@@ -124,40 +124,40 @@ pub fn current_platform_name[T](ac: allocators.Allocator) ref u8 = trust {
     val p = get_current_platform[T](ac)
     match p {
         Platform.Linux => {
-            return "linux"
+            return c"linux"
         }
         Platform.Darwin => {
-            return "darwin"
+            return c"darwin"
         }
         Platform.FreeBSD => {
-            return "freebsd"
+            return c"freebsd"
         }
         Platform.OpenBSD => {
-            return "openbsd"
+            return c"openbsd"
         }
         Platform.NetBSD => {
-            return "netbsd"
+            return c"netbsd"
         }
         Platform.DragonflyBSD => {
-            return "dragonflybsd"
+            return c"dragonflybsd"
         }
         Platform.Windows => {
-            return "windows"
+            return c"windows"
         }
         Platform.Android => {
-            return "android"
+            return c"android"
         }
         Platform.Haiku => {
-            return "haiku"
+            return c"haiku"
         }
         Platform.Redox => {
-            return "redox"
+            return c"redox"
         }
         Platform.Plan9 => {
-            return "plan9"
+            return c"plan9"
         }
     }
-    return "unknown"
+    return c"unknown"
 }
 
 when posix {
@@ -197,7 +197,7 @@ pub fn get_exe_path[T](ac: allocators.Allocator) ref u8 = trust {
             return buf
         }
     }
-    return "."
+    return c"."
 }
 
 test {

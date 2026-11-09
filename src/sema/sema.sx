@@ -25,10 +25,20 @@ type ScopeEntry = {
 /// Result of a compile-time constant evaluation. Unlike option[i64], this can
 /// represent every i64 value, including -1.
 type SemaConstVal = {
-    known: bool
-    is_float: bool
-    value: i64
-    fvalue: f64
+    known: mut bool
+    is_float: mut bool
+    value: mut i64
+    fvalue: mut f64
+}
+
+/// Parallel storage for named constant arguments. Keeping the components in
+/// separate primitive lists avoids relying on aggregate option payloads.
+type SemaConstEnv = {
+    names: mut list[ref u8]
+    known: mut list[i64]
+    is_float: mut list[i64]
+    value: mut list[i64]
+    fvalue: mut list[i64]
 }
 
 type SemaCtx = {
@@ -71,7 +81,7 @@ fn sema_new(arena: allocators.ScopedArenaAllocator) ref SemaCtx = trust {
 }
 
 fn sema_platform_matches(ctx: ref SemaCtx, name: ref u8) bool = trust {
-    if string.raw_cmp(ctx.src_target, "") != 0 {
+    if string.raw_cmp(ctx.src_target, c"") != 0 {
         return modinfo.platform_matches(ctx.src_target, name)
     }
     val arena: allocators.Arena = allocators.Arena.new(256 as usize)?
@@ -143,11 +153,11 @@ fn canonicalize_path(ctx: ref SemaCtx, path: ref u8) ref u8 = trust {
         ) as ref u8
         @memcpy(seg, @ptradd(path, start), seg_len as usize)
         @store8(@ptradd(seg, seg_len), 0)
-        if string.raw_cmp(seg, "..") == 0 {
+        if string.raw_cmp(seg, c"..") == 0 {
             if @len(segs) as i64 > 0 {
                 @remove(segs, @len(segs) - 1)
             }
-        } elif string.raw_cmp(seg, ".") != 0 {
+        } elif string.raw_cmp(seg, c".") != 0 {
             @append(segs, seg)
         }
     }
@@ -221,137 +231,137 @@ fn normalize_path(arena: allocators.ScopedArenaAllocator, path: ref u8) ref u8 =
 fn builtin_min_arity(name: ref u8) i64 = trust {
     if string.str_eql(
         name,
-        "get"
-    ) || string.str_eql(name, "getref") || string.str_eql(name, "getmut") {
+        c"get"
+    ) || string.str_eql(name, c"getref") || string.str_eql(name, c"getmut") {
         return 2
     }
-    if string.str_eql(name, "set") {
+    if string.str_eql(name, c"set") {
         return 3
     }
-    if string.str_eql(name, "len") {
+    if string.str_eql(name, c"len") {
         return 1
     }
-    if string.str_eql(name, "append") {
+    if string.str_eql(name, c"append") {
         return 2
     }
-    if string.str_eql(name, "insert") {
+    if string.str_eql(name, c"insert") {
         return 3
     }
-    if string.str_eql(name, "remove") {
+    if string.str_eql(name, c"remove") {
         return 2
     }
-    if string.str_eql(name, "reserve") {
+    if string.str_eql(name, c"reserve") {
         return 2
     }
-    if string.str_eql(name, "capacity") {
+    if string.str_eql(name, c"capacity") {
         return 1
     }
-    if string.str_eql(name, "embed") {
+    if string.str_eql(name, c"embed") {
         return 1
     }
-    if string.str_eql(name, "embedlen") {
+    if string.str_eql(name, c"embedlen") {
         return 1
     }
-    if string.str_eql(name, "alloc") {
+    if string.str_eql(name, c"alloc") {
         return 1
     }
-    if string.str_eql(name, "free") {
+    if string.str_eql(name, c"free") {
         return 1
     }
-    if string.str_eql(name, "realloc") {
+    if string.str_eql(name, c"realloc") {
         return 2
     }
-    if string.str_eql(name, "load") {
+    if string.str_eql(name, c"load") {
         return 1
     }
-    if string.str_eql(name, "load8") {
+    if string.str_eql(name, c"load8") {
         return 1
     }
-    if string.str_eql(name, "load16") {
+    if string.str_eql(name, c"load16") {
         return 1
     }
-    if string.str_eql(name, "load32") {
+    if string.str_eql(name, c"load32") {
         return 1
     }
-    if string.str_eql(name, "load64") {
+    if string.str_eql(name, c"load64") {
         return 1
     }
-    if string.str_eql(name, "store") {
+    if string.str_eql(name, c"store") {
         return 2
     }
-    if string.str_eql(name, "store8") {
+    if string.str_eql(name, c"store8") {
         return 2
     }
-    if string.str_eql(name, "store16") {
+    if string.str_eql(name, c"store16") {
         return 2
     }
-    if string.str_eql(name, "store32") {
+    if string.str_eql(name, c"store32") {
         return 2
     }
-    if string.str_eql(name, "store64") {
+    if string.str_eql(name, c"store64") {
         return 2
     }
-    if string.str_eql(name, "ptradd") {
+    if string.str_eql(name, c"ptradd") {
         return 2
     }
-    if string.str_eql(name, "memcpy") {
+    if string.str_eql(name, c"memcpy") {
         return 3
     }
-    if string.str_eql(name, "memset") {
+    if string.str_eql(name, c"memset") {
         return 3
     }
-    if string.str_eql(name, "memmove") {
+    if string.str_eql(name, c"memmove") {
         return 3
     }
-    if string.str_eql(name, "sizeof") {
+    if string.str_eql(name, c"sizeof") {
         return 1
     }
-    if string.str_eql(name, "bitcast") {
+    if string.str_eql(name, c"bitcast") {
         return 2
     }
-    if string.str_eql(name, "print") {
+    if string.str_eql(name, c"print") {
         return 1
     }
-    if string.str_eql(name, "dprintf") {
+    if string.str_eql(name, c"dprintf") {
         return 2
     }
-    if string.str_eql(name, "snprintf") {
+    if string.str_eql(name, c"snprintf") {
         return 3
     }
-    if string.str_eql(name, "fmtalloc") {
+    if string.str_eql(name, c"fmtalloc") {
         return 1
     }
-    if string.str_eql(name, "argsalloc") {
+    if string.str_eql(name, c"argsalloc") {
         return 1
     }
-    if string.str_eql(name, "listalloc") {
+    if string.str_eql(name, c"listalloc") {
         return 1
     }
-    if string.str_eql(name, "list") {
+    if string.str_eql(name, c"list") {
         return 1
     }
-    if string.str_eql(name, "listfree") {
+    if string.str_eql(name, c"listfree") {
         return 1
     }
-    if string.str_eql(name, "puts") {
+    if string.str_eql(name, c"puts") {
         return 1
     }
-    if string.str_eql(name, "fgets") {
+    if string.str_eql(name, c"fgets") {
         return 3
     }
-    if string.str_eql(name, "strlen") {
+    if string.str_eql(name, c"strlen") {
         return 1
     }
-    if string.str_eql(name, "strcmp") {
+    if string.str_eql(name, c"strcmp") {
         return 2
     }
-    if string.str_eql(name, "atoi") {
+    if string.str_eql(name, c"atoi") {
         return 1
     }
-    if string.str_eql(name, "staticerror") {
+    if string.str_eql(name, c"staticerror") {
         return 1
     }
-    if string.str_eql(name, "call") {
+    if string.str_eql(name, c"call") {
         return 1
     }
     return 0
@@ -433,64 +443,64 @@ fn resolve_embed_builtin(
 
 fn is_known_builtin(name: ref u8) bool = trust {
     val builtins: mut list[ref u8] = mem.new[ref u8]()
-    @append(builtins, "alloc")
-    @append(builtins, "free")
-    @append(builtins, "realloc")
-    @append(builtins, "sizeof")
-    @append(builtins, "memcpy")
-    @append(builtins, "memset")
-    @append(builtins, "memmove")
-    @append(builtins, "ptradd")
-    @append(builtins, "fgets")
-    @append(builtins, "stdin")
-    @append(builtins, "stderr")
-    @append(builtins, "load")
-    @append(builtins, "load64")
-    @append(builtins, "load8")
-    @append(builtins, "load16")
-    @append(builtins, "load32")
-    @append(builtins, "addr")
-    @append(builtins, "deref")
-    @append(builtins, "store")
-    @append(builtins, "store64")
-    @append(builtins, "store8")
-    @append(builtins, "store16")
-    @append(builtins, "store32")
-    @append(builtins, "append")
-    @append(builtins, "remove")
-    @append(builtins, "insert")
-    @append(builtins, "get")
-    @append(builtins, "getref")
-    @append(builtins, "getmut")
-    @append(builtins, "set")
-    @append(builtins, "len")
-    @append(builtins, "reserve")
-    @append(builtins, "capacity")
-    @append(builtins, "fmtalloc")
-    @append(builtins, "argsalloc")
-    @append(builtins, "listalloc")
-    @append(builtins, "list")
-    @append(builtins, "listfree")
-    @append(builtins, "snprintf")
-    @append(builtins, "print")
-    @append(builtins, "dprintf")
-    @append(builtins, "puts")
-    @append(builtins, "args")
-    @append(builtins, "call")
-    @append(builtins, "stdin")
-    @append(builtins, "stdout")
-    @append(builtins, "stderr")
-    @append(builtins, "fgets")
-    @append(builtins, "getchar")
-    @append(builtins, "strlen")
-    @append(builtins, "strcmp")
-    @append(builtins, "atoi")
-    @append(builtins, "staticerror")
-    @append(builtins, "dumpmemleaks")
-    @append(builtins, "flush")
-    @append(builtins, "bitcast")
-    @append(builtins, "embed")
-    @append(builtins, "embedlen")
+    @append(builtins, c"alloc")
+    @append(builtins, c"free")
+    @append(builtins, c"realloc")
+    @append(builtins, c"sizeof")
+    @append(builtins, c"memcpy")
+    @append(builtins, c"memset")
+    @append(builtins, c"memmove")
+    @append(builtins, c"ptradd")
+    @append(builtins, c"fgets")
+    @append(builtins, c"stdin")
+    @append(builtins, c"stderr")
+    @append(builtins, c"load")
+    @append(builtins, c"load64")
+    @append(builtins, c"load8")
+    @append(builtins, c"load16")
+    @append(builtins, c"load32")
+    @append(builtins, c"addr")
+    @append(builtins, c"deref")
+    @append(builtins, c"store")
+    @append(builtins, c"store64")
+    @append(builtins, c"store8")
+    @append(builtins, c"store16")
+    @append(builtins, c"store32")
+    @append(builtins, c"append")
+    @append(builtins, c"remove")
+    @append(builtins, c"insert")
+    @append(builtins, c"get")
+    @append(builtins, c"getref")
+    @append(builtins, c"getmut")
+    @append(builtins, c"set")
+    @append(builtins, c"len")
+    @append(builtins, c"reserve")
+    @append(builtins, c"capacity")
+    @append(builtins, c"fmtalloc")
+    @append(builtins, c"argsalloc")
+    @append(builtins, c"listalloc")
+    @append(builtins, c"list")
+    @append(builtins, c"listfree")
+    @append(builtins, c"snprintf")
+    @append(builtins, c"print")
+    @append(builtins, c"dprintf")
+    @append(builtins, c"puts")
+    @append(builtins, c"args")
+    @append(builtins, c"call")
+    @append(builtins, c"stdin")
+    @append(builtins, c"stdout")
+    @append(builtins, c"stderr")
+    @append(builtins, c"fgets")
+    @append(builtins, c"getchar")
+    @append(builtins, c"strlen")
+    @append(builtins, c"strcmp")
+    @append(builtins, c"atoi")
+    @append(builtins, c"staticerror")
+    @append(builtins, c"dumpmemleaks")
+    @append(builtins, c"flush")
+    @append(builtins, c"bitcast")
+    @append(builtins, c"embed")
+    @append(builtins, c"embedlen")
 
     for builtin in builtins {
         if string.str_eql(name, builtin) {
@@ -533,7 +543,7 @@ fn pop_scope(ctx: ref SemaCtx, filename: ref u8, _: i64) void = trust {
                 if e_opt is some e {
                     val entry: ref ScopeEntry = e as ref ScopeEntry
                     if entry.name != none {
-                        if string.raw_cmp(entry.name, "_") != 0 {
+                        if string.raw_cmp(entry.name, c"_") != 0 {
                             if entry.used == 0 {
                                 val buf: ref u8 = allocators.ScopedArena.alloc_or_none(
                                     ctx.arena,
@@ -667,7 +677,7 @@ fn is_c_escape_expr(node: ref parser.Node) bool = trust {
     if root == none {
         return false
     }
-    return string.str_eql(parser.node_str_raw(root.d0), "C")
+    return string.str_eql(parser.node_str_raw(root.d0), c"C")
 }
 
 /// Strips NK_CAST and NK_TRUST wrappers, then delegates to find_root_ident.
@@ -1640,11 +1650,11 @@ fn find_type_def_in_module_tree(
 /// Resolve whether a named type exists, including types declared in imported
 /// modules (both qualified and unqualified through `use`).
 fn sema_type_name_known(ctx: ref SemaCtx, type_name: ref u8) bool = trust {
-    if type_name == none || string.str_eql(type_name, "") {
+    if type_name == none || string.str_eql(type_name, c"") {
         return true
     }
     if is_builtin_type_name(type_name) || is_type_parameter(ctx, type_name) ||
-    string.str_eql(type_name, "self") {
+    string.str_eql(type_name, c"self") {
         return true
     }
     for registered in ctx.type_names {
@@ -1839,7 +1849,7 @@ fn sema_type_contains_recursive(
         return false
     }
     val name: ref u8 = parser.node_str_raw(ty.d0)
-    if name == none || string.str_eql(name, "") {
+    if name == none || string.str_eql(name, c"") {
         return false
     }
     if string.str_eql(name, target) {
@@ -1942,7 +1952,7 @@ fn sema_validate_fn_types(
         fn_node.d4 as ref parser.Node,
         filename,
         fn_node.line,
-        "return type",
+        c"return type",
         fn_name
     )
     if fn_node.kind == parser.NK_EXTERN_FN {
@@ -2056,15 +2066,15 @@ fn expr_wrap_kind(ctx: ref SemaCtx, expr: ref parser.Node) i64 = trust {
         val bname: ref u8 = parser.node_str_raw(expr.d0)
         if string.str_eql(
             bname,
-            "get"
-        ) || string.str_eql(bname, "getref") || string.str_eql(bname, "getmut") {
+            c"get"
+        ) || string.str_eql(bname, c"getref") || string.str_eql(bname, c"getmut") {
             return 2
         }
-        if string.str_eql(bname, "argsalloc") || string.str_eql(bname, "listalloc") ||
-        string.str_eql(bname, "list") {
+        if string.str_eql(bname, c"argsalloc") || string.str_eql(bname, c"listalloc") ||
+        string.str_eql(bname, c"list") {
             return 1
         }
-        if string.str_eql(bname, "fmtalloc") {
+        if string.str_eql(bname, c"fmtalloc") {
             val targs: list[ref parser.Node] = parser.builtin_type_args(expr)
             if (@len(targs) as i64) > 0 {
                 return 1
@@ -2073,7 +2083,7 @@ fn expr_wrap_kind(ctx: ref SemaCtx, expr: ref parser.Node) i64 = trust {
         }
         // Transitional: the raw @args form remains until all call sites are
         // migrated to @argsalloc.
-        if string.str_eql(bname, "args") {
+        if string.str_eql(bname, c"args") {
             return 3
         }
         return 0
@@ -2176,7 +2186,7 @@ fn type_node_matches_impl_type(
     }
     if spec_ty.kind == parser.TY_NAMED {
         val sname: ref u8 = parser.node_str_raw(spec_ty.d0)
-        if string.str_eql(sname, "self") {
+        if string.str_eql(sname, c"self") {
             return string.str_eql(impl_name, parser.node_str_raw(impl_ty.d0))
         }
         return string.str_eql(sname, parser.node_str_raw(impl_ty.d0))
@@ -2466,7 +2476,7 @@ fn is_builtin_type_name(name: ref u8) bool = trust {
     if sema_type_name_is_numeric(name) {
         return true
     }
-    return string.str_eql(name, "char") || string.str_eql(name, "void")
+    return string.str_eql(name, c"char") || string.str_eql(name, c"void")
 }
 
 fn imported_owner_prefix_for_callee(ctx: ref SemaCtx, callee: ref parser.Node) ref u8 = trust {
@@ -2496,7 +2506,7 @@ fn qualify_type_name_for_callee(
     if type_name == none {
         return none
     }
-    if string.str_eql(type_name, "") {
+    if string.str_eql(type_name, c"") {
         return type_name
     }
     if is_type_parameter(ctx, type_name) {
@@ -2545,7 +2555,7 @@ fn canonical_type_prefix_for_imported_module(
     val end: mut i64 = len
     if len >= 8 {
         val tail_core: ref u8 = @ptradd(fname, len - 8) as ref u8
-        if string.str_eql(tail_core, "/core.sx") {
+        if string.str_eql(tail_core, c"/core.sx") {
             end = len - 8
         }
     }
@@ -2637,7 +2647,7 @@ fn emitted_type_prefix_for_imported_module(
     if fname == none {
         return none
     }
-    if path_contains_segment(fname, "/spectrelib/") {
+    if path_contains_segment(fname, c"/spectrelib/") {
         return canonical_type_prefix_for_imported_module(ctx, imported)
     }
     if ctx != none && ctx.root_mod != none {
@@ -2673,7 +2683,7 @@ fn canonicalize_import_alias_type_name(ctx: ref SemaCtx, type_name: ref u8) ref 
     if type_name == none {
         return none
     }
-    if string.str_eql(type_name, "") {
+    if string.str_eql(type_name, c"") {
         return type_name
     }
     val owner: ref u8 = qualified_owner_prefix(ctx, type_name)
@@ -2754,6 +2764,13 @@ fn types_compatible(ctx: ref SemaCtx, param_type: ref u8, arg_type: ref u8) bool
     val param_unqual: ref u8 = unqualified_type_name(param_type)
     val arg_unqual: ref u8 = unqualified_type_name(arg_type)
 
+    // `StringView` is a compiler-known structural type. A plain string
+    // literal has this shape even when std/string is not imported, while an
+    // imported `std/string` declaration is qualified as `str.StringView`.
+    if string.str_eql(param_unqual, c"StringView") && string.str_eql(arg_unqual, c"StringView") {
+        return true
+    }
+
     if string.str_eql(spec_impl_name(ctx, param_type), arg_type) {
         return true
     }
@@ -2769,93 +2786,93 @@ fn types_compatible(ctx: ref SemaCtx, param_type: ref u8, arg_type: ref u8) bool
         }
     }
 
-    if string.str_eql(param_unqual, "i64") {
+    if string.str_eql(param_unqual, c"i64") {
         if string.str_eql(
             arg_unqual,
-            "i8"
-        ) || string.str_eql(arg_unqual, "i16") || string.str_eql(arg_unqual, "i32") ||
+            c"i8"
+        ) || string.str_eql(arg_unqual, c"i16") || string.str_eql(arg_unqual, c"i32") ||
         string.str_eql(
             arg_unqual,
-            "u8"
-        ) || string.str_eql(arg_unqual, "u16") || string.str_eql(arg_unqual, "u32") ||
+            c"u8"
+        ) || string.str_eql(arg_unqual, c"u16") || string.str_eql(arg_unqual, c"u32") ||
         string.str_eql(
             arg_unqual,
-            "usize"
-        ) || string.str_eql(arg_unqual, "isize") || string.str_eql(arg_unqual, "bool") {
+            c"usize"
+        ) || string.str_eql(arg_unqual, c"isize") || string.str_eql(arg_unqual, c"bool") {
             return true
         }
     }
 
-    if string.str_eql(param_unqual, "i32") {
-        if string.str_eql(arg_unqual, "i8") || string.str_eql(arg_unqual, "i16") ||
+    if string.str_eql(param_unqual, c"i32") {
+        if string.str_eql(arg_unqual, c"i8") || string.str_eql(arg_unqual, c"i16") ||
         string.str_eql(
             arg_unqual,
-            "u8"
-        ) || string.str_eql(arg_unqual, "u16") || string.str_eql(arg_unqual, "bool") {
+            c"u8"
+        ) || string.str_eql(arg_unqual, c"u16") || string.str_eql(arg_unqual, c"bool") {
             return true
         }
     }
 
-    if string.str_eql(param_unqual, "i16") {
+    if string.str_eql(param_unqual, c"i16") {
         if string.str_eql(
             arg_unqual,
-            "i8"
-        ) || string.str_eql(arg_unqual, "u8") || string.str_eql(arg_unqual, "bool") {
+            c"i8"
+        ) || string.str_eql(arg_unqual, c"u8") || string.str_eql(arg_unqual, c"bool") {
             return true
         }
     }
 
-    if string.str_eql(param_unqual, "u64") {
+    if string.str_eql(param_unqual, c"u64") {
         if string.str_eql(
             arg_unqual,
-            "u8"
-        ) || string.str_eql(arg_unqual, "u16") || string.str_eql(arg_unqual, "u32") ||
-        string.str_eql(arg_unqual, "usize") || string.str_eql(arg_unqual, "bool") {
+            c"u8"
+        ) || string.str_eql(arg_unqual, c"u16") || string.str_eql(arg_unqual, c"u32") ||
+        string.str_eql(arg_unqual, c"usize") || string.str_eql(arg_unqual, c"bool") {
             return true
         }
     }
 
-    if string.str_eql(param_unqual, "u32") {
+    if string.str_eql(param_unqual, c"u32") {
         if string.str_eql(
             arg_unqual,
-            "u8"
-        ) || string.str_eql(arg_unqual, "u16") || string.str_eql(arg_unqual, "bool") {
+            c"u8"
+        ) || string.str_eql(arg_unqual, c"u16") || string.str_eql(arg_unqual, c"bool") {
             return true
         }
     }
 
-    if string.str_eql(param_unqual, "u16") {
-        if string.str_eql(arg_unqual, "u8") || string.str_eql(arg_unqual, "bool") {
+    if string.str_eql(param_unqual, c"u16") {
+        if string.str_eql(arg_unqual, c"u8") || string.str_eql(arg_unqual, c"bool") {
             return true
         }
     }
 
-    if string.str_eql(param_unqual, "f64") {
-        if string.str_eql(arg_unqual, "f32") {
+    if string.str_eql(param_unqual, c"f64") {
+        if string.str_eql(arg_unqual, c"f32") {
             return true
         }
     }
 
-    if string.str_eql(param_unqual, "usize") {
+    if string.str_eql(param_unqual, c"usize") {
         if string.str_eql(
             arg_unqual,
-            "u8"
-        ) || string.str_eql(arg_unqual, "u16") || string.str_eql(arg_unqual, "u32") ||
-        string.str_eql(arg_unqual, "u64") || string.str_eql(arg_unqual, "bool") {
+            c"u8"
+        ) || string.str_eql(arg_unqual, c"u16") || string.str_eql(arg_unqual, c"u32") ||
+        string.str_eql(arg_unqual, c"u64") || string.str_eql(arg_unqual, c"bool") {
             return true
         }
     }
 
-    if string.str_eql(param_unqual, "isize") {
+    if string.str_eql(param_unqual, c"isize") {
         if string.str_eql(
             arg_unqual,
-            "i8"
-        ) || string.str_eql(arg_unqual, "i16") || string.str_eql(arg_unqual, "i32") ||
+            c"i8"
+        ) || string.str_eql(arg_unqual, c"i16") || string.str_eql(arg_unqual, c"i32") ||
         string.str_eql(
             arg_unqual,
-            "i64"
-        ) || string.str_eql(arg_unqual, "u8") || string.str_eql(arg_unqual, "u16") ||
-        string.str_eql(arg_unqual, "u32") || string.str_eql(arg_unqual, "bool") {
+            c"i64"
+        ) || string.str_eql(arg_unqual, c"u8") || string.str_eql(arg_unqual, c"u16") ||
+        string.str_eql(arg_unqual, c"u32") || string.str_eql(arg_unqual, c"bool") {
             return true
         }
     }
@@ -2870,11 +2887,11 @@ fn is_comparison_op(op: i64) bool = trust {
 }
 
 fn format_type_for_error(ctx: ref SemaCtx, type_name: ref u8, is_ref: i64) ref u8 = trust {
-    if is_ref == 1 && (type_name == none || string.str_eql(type_name, "")) {
-        return "ref void"
+    if is_ref == 1 && (type_name == none || string.str_eql(type_name, c"")) {
+        return c"ref void"
     }
-    if type_name == none || string.str_eql(type_name, "") {
-        return "unknown"
+    if type_name == none || string.str_eql(type_name, c"") {
+        return c"unknown"
     }
     if is_ref == 0 {
         return type_name
@@ -2892,7 +2909,7 @@ fn expr_is_ref_void(ctx: ref SemaCtx, node: ref parser.Node) bool = trust {
         return false
     }
     val type_name: ref u8 = infer_expr_scope_type_name(ctx, node)
-    return type_name == none || string.str_eql(type_name, "")
+    return type_name == none || string.str_eql(type_name, c"")
 }
 
 fn expr_is_numeric_value(ctx: ref SemaCtx, node: ref parser.Node) bool = trust {
@@ -2905,7 +2922,7 @@ fn expr_is_numeric_value(ctx: ref SemaCtx, node: ref parser.Node) bool = trust {
     }
     if k == parser.NK_IDENT {
         val cat: ref u8 = get_expr_type_category(ctx, node)
-        return string.str_eql(cat, "int") || string.str_eql(cat, "float")
+        return string.str_eql(cat, c"int") || string.str_eql(cat, c"float")
     }
     if k == parser.NK_TRUST {
         return expr_is_numeric_value(ctx, node.d0 as ref parser.Node)
@@ -2927,29 +2944,29 @@ fn expr_is_numeric_value(ctx: ref SemaCtx, node: ref parser.Node) bool = trust {
 }
 
 fn sema_type_name_is_numeric(type_name: ref u8) bool = trust {
-    if type_name == none || string.str_eql(type_name, "") {
+    if type_name == none || string.str_eql(type_name, c"") {
         return false
     }
     val name: ref u8 = unqualified_type_name(type_name)
     return string.str_eql(
         name,
-        "i8"
-    ) || string.str_eql(name, "i16") || string.str_eql(name, "i32") ||
-    string.str_eql(name, "i64") || string.str_eql(name, "u8") || string.str_eql(name, "u16") ||
-    string.str_eql(name, "u32") || string.str_eql(name, "u64") || string.str_eql(name, "usize") ||
-    string.str_eql(name, "isize") || string.str_eql(name, "f32") || string.str_eql(name, "f64") ||
-    string.str_eql(name, "bool") || string.str_eql(name, "i") || string.str_eql(name, "u") ||
-    string.str_eql(name, "f")
+        c"i8"
+    ) || string.str_eql(name, c"i16") || string.str_eql(name, c"i32") ||
+    string.str_eql(name, c"i64") || string.str_eql(name, c"u8") || string.str_eql(name, c"u16") ||
+    string.str_eql(name, c"u32") || string.str_eql(name, c"u64") || string.str_eql(name, c"usize") ||
+    string.str_eql(name, c"isize") || string.str_eql(name, c"f32") || string.str_eql(name, c"f64") ||
+    string.str_eql(name, c"bool") || string.str_eql(name, c"i") || string.str_eql(name, c"u") ||
+    string.str_eql(name, c"f")
 }
 
 fn sema_type_name_proves_not_result(type_name: ref u8) bool = trust {
-    if type_name == none || string.str_eql(type_name, "") {
+    if type_name == none || string.str_eql(type_name, c"") {
         return false
     }
     val name: ref u8 = unqualified_type_name(type_name)
     return sema_type_name_is_numeric(name) ||
-    string.str_eql(name, "char") ||
-    string.str_eql(name, "void")
+    string.str_eql(name, c"char") ||
+    string.str_eql(name, c"void")
 }
 
 fn sema_ty_proves_not_result(ctx: ref SemaCtx, ty: ref parser.Node) bool = trust {
@@ -3026,10 +3043,10 @@ fn comparison_wrap_kind(ctx: ref SemaCtx, expr: ref parser.Node) i64 = trust {
 fn comparison_type_name(ctx: ref SemaCtx, expr: ref parser.Node) ref u8 = trust {
     val wrap_kind: i64 = comparison_wrap_kind(ctx, expr)
     if wrap_kind == 1 {
-        return "result"
+        return c"result"
     }
     if wrap_kind == 2 {
-        return "option"
+        return c"option"
     }
     return format_type_for_error(ctx,
         infer_expr_scope_type_name(ctx, expr),
@@ -3216,8 +3233,8 @@ fn type_nodes_equivalent(a: ref parser.Node, b: ref parser.Node) bool = trust {
 }
 
 fn ref_type_names_match(expected: ref u8, actual: ref u8) bool = trust {
-    if ((expected == none || string.str_eql(expected, "")) &&
-        (actual == none || string.str_eql(actual, ""))) {
+    if ((expected == none || string.str_eql(expected, c"")) &&
+        (actual == none || string.str_eql(actual, c""))) {
         return true
     }
     if expected == none || actual == none {
@@ -3237,6 +3254,11 @@ fn ref_assignment_rhs_ok(
     }
     if rhs.kind == parser.NK_NONE {
         return true
+    }
+    if target_is_ref == 1 && rhs.kind == parser.NK_STR_LIT &&
+    !parser.str_lit_is_cstr(rhs) {
+        // A plain string literal is a StringView; C strings are spelled c"...".
+        return false
     }
     if rhs.kind == parser.NK_CAST {
         val cast_ty: ref parser.Node = rhs.d1 as ref parser.Node
@@ -3303,7 +3325,7 @@ fn comparison_operands_compatible(
     if lhs_type == none || rhs_type == none {
         return true
     }
-    if string.str_eql(lhs_type, "") || string.str_eql(rhs_type, "") {
+    if string.str_eql(lhs_type, c"") || string.str_eql(rhs_type, c"") {
         return true
     }
 
@@ -3322,7 +3344,7 @@ fn comparison_operands_compatible(
     val lhs_cat: ref u8 = get_expr_type_category(ctx, lhs)
     val rhs_cat: ref u8 = get_expr_type_category(ctx, rhs)
     if lhs_cat != none && rhs_cat != none &&
-    !string.str_eql(lhs_cat, "unknown") && string.str_eql(lhs_cat, rhs_cat) {
+    !string.str_eql(lhs_cat, c"unknown") && string.str_eql(lhs_cat, rhs_cat) {
         return true
     }
 
@@ -3649,23 +3671,23 @@ fn fmt_specifier_conversion(specifier: ref u8) u8 = trust {
 fn fmt_specifier_category(specifier: ref u8) ref u8 = trust {
     val conv: u8 = fmt_specifier_conversion(specifier)
     if conv == 115 { // s
-        return "str"
+        return c"str"
     }
     if conv == 99 { // c
-        return "u8"
+        return c"u8"
     }
     if conv == 102 || conv == 70 || conv == 101 || conv == 69 ||
     conv == 103 || conv == 71 || conv == 97 || conv == 65 {
-        return "float"
+        return c"float"
     }
     if conv == 100 || conv == 105 || conv == 111 || conv == 117 ||
     conv == 120 || conv == 88 {
-        return "int"
+        return c"int"
     }
     if conv == 112 || conv == 110 {
-        return "ptr"
+        return c"ptr"
     }
-    return "unknown"
+    return c"unknown"
 }
 
 fn sema_ty_is_ref(ty: ref parser.Node) i64 = trust {
@@ -3686,30 +3708,33 @@ fn sema_ty_is_ref(ty: ref parser.Node) i64 = trust {
 
 fn infer_expr_scope_type_name(ctx: ref SemaCtx, node: ref parser.Node) ref u8 = trust {
     if node == none {
-        return ""
+        return c""
     }
     val k: i64 = node.kind
     if k == parser.NK_INT_LIT {
-        return "i64"
+        return c"i64"
     }
     if k == parser.NK_FLOAT_LIT {
-        return "f64"
+        return c"f64"
     }
     if k == parser.NK_BOOL {
-        return "bool"
+        return c"bool"
     }
     if k == parser.NK_CHAR_LIT {
-        return "u8"
+        return c"u8"
     }
     if k == parser.NK_STR_LIT {
-        return "u8"
+        if parser.str_lit_is_cstr(node) {
+            return c"u8"
+        }
+        return c"StringView"
     }
     if k == parser.NK_IDENT {
         val tname: ref u8 = scope_lookup_type(ctx, parser.node_str_raw(node.d0))
         if tname != none {
             return spec_impl_name(ctx, tname)
         }
-        return ""
+        return c""
     }
     if k == parser.NK_TRUST {
         return infer_expr_scope_type_name(ctx, node.d0 as ref parser.Node)
@@ -3722,11 +3747,11 @@ fn infer_expr_scope_type_name(ctx: ref SemaCtx, node: ref parser.Node) ref u8 = 
     }
     if k == parser.NK_BUILTIN {
         val bname: ref u8 = parser.node_str_raw(node.d0)
-        if string.str_eql(bname, "dumpmemleaks") {
-            return "testing.LeakDiagnostics"
+        if string.str_eql(bname, c"dumpmemleaks") {
+            return c"testing.LeakDiagnostics"
         }
     }
-    return ""
+    return c""
 }
 
 fn infer_expr_scope_is_ref(ctx: ref SemaCtx, node: ref parser.Node) i64 = trust {
@@ -3735,7 +3760,10 @@ fn infer_expr_scope_is_ref(ctx: ref SemaCtx, node: ref parser.Node) i64 = trust 
     }
     val k: i64 = node.kind
     if k == parser.NK_STR_LIT {
-        return 1
+        if parser.str_lit_is_cstr(node) {
+            return 1
+        }
+        return 0
     }
     if k == parser.NK_IDENT {
         return scope_lookup_is_ref(ctx, parser.node_str_raw(node.d0))
@@ -3755,7 +3783,7 @@ fn infer_expr_scope_is_ref(ctx: ref SemaCtx, node: ref parser.Node) i64 = trust 
 /// Maps a declared type node to the broad category used by format checking.
 fn type_node_category(ty: ref parser.Node) ref u8 = trust {
     if ty == none {
-        return "unknown"
+        return c"unknown"
     }
     val k: i64 = ty.kind
     if k == parser.TY_MUT {
@@ -3764,58 +3792,58 @@ fn type_node_category(ty: ref parser.Node) ref u8 = trust {
     if k == parser.TY_REF {
         val inner: ref parser.Node = ty.d0 as ref parser.Node
         if inner != none && inner.kind == parser.TY_NAMED &&
-        string.str_eql(unqualified_type_name(parser.node_str_raw(inner.d0)), "u8") {
-            return "str"
+        string.str_eql(unqualified_type_name(parser.node_str_raw(inner.d0)), c"u8") {
+            return c"str"
         }
-        return "ptr"
+        return c"ptr"
     }
     if k == parser.TY_LIST || k == parser.TY_SLICE ||
     k == parser.TY_FIXED_ARR || k == parser.TY_FNPTR {
-        return "ptr"
+        return c"ptr"
     }
     if k != parser.TY_NAMED {
-        return "unknown"
+        return c"unknown"
     }
     val name: ref u8 = unqualified_type_name(parser.node_str_raw(ty.d0))
-    if string.str_eql(name, "String") || string.str_eql(name, "StringView") {
-        return "str"
+    if string.str_eql(name, c"String") || string.str_eql(name, c"StringView") {
+        return c"str"
     }
-    if string.str_eql(name, "u8") {
-        return "u8"
+    if string.str_eql(name, c"u8") {
+        return c"u8"
     }
-    if string.str_eql(name, "i8") || string.str_eql(name, "i16") || string.str_eql(name, "i32") ||
-    string.str_eql(name, "i64") || string.str_eql(name, "u16") || string.str_eql(name, "u32") ||
-    string.str_eql(name, "u64") || string.str_eql(name, "usize") || string.str_eql(name, "isize") ||
-    string.str_eql(name, "i") || string.str_eql(name, "u") || string.str_eql(name, "bool") {
-        return "int"
+    if string.str_eql(name, c"i8") || string.str_eql(name, c"i16") || string.str_eql(name, c"i32") ||
+    string.str_eql(name, c"i64") || string.str_eql(name, c"u16") || string.str_eql(name, c"u32") ||
+    string.str_eql(name, c"u64") || string.str_eql(name, c"usize") || string.str_eql(name, c"isize") ||
+    string.str_eql(name, c"i") || string.str_eql(name, c"u") || string.str_eql(name, c"bool") {
+        return c"int"
     }
-    if string.str_eql(name, "f32") || string.str_eql(name, "f64") || string.str_eql(name, "f") {
-        return "float"
+    if string.str_eql(name, c"f32") || string.str_eql(name, c"f64") || string.str_eql(name, c"f") {
+        return c"float"
     }
-    return "unknown"
+    return c"unknown"
 }
 
 /// Infers a broad type category for an expression node.
 /// Returns "int", "str", "u8", "float", "ptr", or "unknown".
 fn get_expr_type_category(ctx: ref SemaCtx, node: ref parser.Node) ref u8 = trust {
     if node == none {
-        return "unknown"
+        return c"unknown"
     }
     val k: i64 = node.kind
     if k == parser.NK_INT_LIT {
-        return "int"
+        return c"int"
     }
     if k == parser.NK_FLOAT_LIT {
-        return "float"
+        return c"float"
     }
     if k == parser.NK_STR_LIT {
-        return "str"
+        return c"str"
     }
     if k == parser.NK_CHAR_LIT {
-        return "u8"
+        return c"u8"
     }
     if k == parser.NK_BOOL {
-        return "int"
+        return c"int"
     }
     if k == parser.NK_CAST {
         return type_node_category(node.d1 as ref parser.Node)
@@ -3839,7 +3867,7 @@ fn get_expr_type_category(ctx: ref SemaCtx, node: ref parser.Node) ref u8 = trus
                 }
             }
         }
-        return "unknown"
+        return c"unknown"
     }
     if k == parser.NK_CALL {
         val fn_node: ref parser.Node = resolve_called_fn(ctx, parser.call_callee(node))
@@ -3851,79 +3879,79 @@ fn get_expr_type_category(ctx: ref SemaCtx, node: ref parser.Node) ref u8 = trus
                 return type_node_category(fn_node.d5 as ref parser.Node)
             }
         }
-        return "unknown"
+        return c"unknown"
     }
     if k == parser.NK_IDENT {
         val vname: ref u8 = parser.node_str_raw(node.d0)
         val tname: ref u8 = scope_lookup_type(ctx, vname)
         val iref: i64 = scope_lookup_is_ref(ctx, vname)
         if tname == none {
-            return "unknown"
+            return c"unknown"
         }
         val uname: ref u8 = unqualified_type_name(tname)
-        if string.str_eql(uname, "String") || string.str_eql(uname, "StringView") {
-            return "str"
+        if string.str_eql(uname, c"String") || string.str_eql(uname, c"StringView") {
+            return c"str"
         }
         if iref == 1 {
-            if string.str_eql(tname, "u8") {
-                return "str"
+            if string.str_eql(tname, c"u8") {
+                return c"str"
             }
-            return "ptr"
+            return c"ptr"
         }
-        if string.str_eql(tname, "u8") {
-            return "u8"
+        if string.str_eql(tname, c"u8") {
+            return c"u8"
         }
-        if string.str_eql(tname, "i8") {
-            return "int"
+        if string.str_eql(tname, c"i8") {
+            return c"int"
         }
-        if string.str_eql(tname, "i16") {
-            return "int"
+        if string.str_eql(tname, c"i16") {
+            return c"int"
         }
-        if string.str_eql(tname, "i32") {
-            return "int"
+        if string.str_eql(tname, c"i32") {
+            return c"int"
         }
-        if string.str_eql(tname, "i64") {
-            return "int"
+        if string.str_eql(tname, c"i64") {
+            return c"int"
         }
-        if string.str_eql(tname, "u8") {
-            return "int"
+        if string.str_eql(tname, c"u8") {
+            return c"int"
         }
-        if string.str_eql(tname, "u16") {
-            return "int"
+        if string.str_eql(tname, c"u16") {
+            return c"int"
         }
-        if string.str_eql(tname, "u32") {
-            return "int"
+        if string.str_eql(tname, c"u32") {
+            return c"int"
         }
-        if string.str_eql(tname, "u64") {
-            return "int"
+        if string.str_eql(tname, c"u64") {
+            return c"int"
         }
-        if string.str_eql(tname, "usize") {
-            return "int"
+        if string.str_eql(tname, c"usize") {
+            return c"int"
         }
-        if string.str_eql(tname, "isize") {
-            return "int"
+        if string.str_eql(tname, c"isize") {
+            return c"int"
         }
-        if string.str_eql(tname, "i") {
-            return "int"
+        if string.str_eql(tname, c"i") {
+            return c"int"
         }
-        if string.str_eql(tname, "u") {
-            return "int"
+        if string.str_eql(tname, c"u") {
+            return c"int"
         }
-        if string.str_eql(tname, "bool") {
-            return "int"
+        if string.str_eql(tname, c"bool") {
+            return c"int"
         }
-        if string.str_eql(tname, "f32") {
-            return "float"
+        if string.str_eql(tname, c"f32") {
+            return c"float"
         }
-        if string.str_eql(tname, "f64") {
-            return "float"
+        if string.str_eql(tname, c"f64") {
+            return c"float"
         }
-        if string.str_eql(tname, "f") {
-            return "float"
+        if string.str_eql(tname, c"f") {
+            return c"float"
         }
-        return "unknown"
+        return c"unknown"
     }
-    return "unknown"
+    return c"unknown"
 }
 
 /// Validates a printf/dprintf format string against its argument pack.
@@ -3934,7 +3962,7 @@ fn get_expr_type_category(ctx: ref SemaCtx, node: ref parser.Node) ref u8 = trus
 fn check_printf_fmt(ctx: ref SemaCtx, fmt_str: ref u8, all_args: ref void,
     args_start_idx: i64, filename: ref u8, line: i64) void = trust {
     if has_c_style_specifier(fmt_str) {
-        if !string.raw_ends_with(filename, "codegen.sx") {
+        if !string.raw_ends_with(filename, c"codegen.sx") {
             val buf: ref u8 = allocators.ScopedArena.alloc_or_none(
                 ctx.arena,
                 (256) as usize
@@ -4030,7 +4058,7 @@ fn check_printf_fmt(ctx: ref SemaCtx, fmt_str: ref u8, all_args: ref void,
         if spec_opt is some spec_raw {
             val specifier: ref u8 = spec_raw as ref u8
             val exp_cat: ref u8 = fmt_specifier_category(specifier)
-            if !string.str_eql(exp_cat, "unknown") {
+            if !string.str_eql(exp_cat, c"unknown") {
                 val arg_node: mut ref parser.Node = none
                 if pack_style && pack_inner != none {
                     val arg_opt = @get(pack_inner, idx as usize)
@@ -4046,10 +4074,10 @@ fn check_printf_fmt(ctx: ref SemaCtx, fmt_str: ref u8, all_args: ref void,
                 }
                 if arg_node != none {
                     val arg_wrap: i64 = expr_wrap_kind(ctx, arg_node)
-                    if arg_wrap != 0 && !string.str_eql(exp_cat, "ptr") {
-                        val wrap_name: mut ref u8 = "option"
+                    if arg_wrap != 0 && !string.str_eql(exp_cat, c"ptr") {
+                        val wrap_name: mut ref u8 = c"option"
                         if arg_wrap == 1 {
-                            wrap_name = "result"
+                            wrap_name = c"result"
                         }
                         val buf_wrap: ref u8 = allocators.ScopedArena.alloc_or_none(
                             ctx.arena,
@@ -4063,15 +4091,15 @@ fn check_printf_fmt(ctx: ref SemaCtx, fmt_str: ref u8, all_args: ref void,
                         continue
                     }
                     val act_cat: ref u8 = get_expr_type_category(ctx, arg_node)
-                    if !string.str_eql(act_cat, "unknown") {
+                    if !string.str_eql(act_cat, c"unknown") {
                         val its_ok: mut bool = string.str_eql(exp_cat, act_cat)
-                        if string.str_eql(exp_cat, "u8") && string.str_eql(act_cat, "int") {
+                        if string.str_eql(exp_cat, c"u8") && string.str_eql(act_cat, c"int") {
                             its_ok = true
                         }
-                        if string.str_eql(exp_cat, "int") && string.str_eql(act_cat, "u8") {
+                        if string.str_eql(exp_cat, c"int") && string.str_eql(act_cat, c"u8") {
                             its_ok = true
                         }
-                        if string.str_eql(exp_cat, "ptr") && string.str_eql(act_cat, "str") {
+                        if string.str_eql(exp_cat, c"ptr") && string.str_eql(act_cat, c"str") {
                             its_ok = true
                         }
                         if !its_ok {
@@ -4110,22 +4138,22 @@ fn generic_targ_type_compatible(
     if arg_node.kind == parser.NK_INT_LIT {
         if string.str_eql(
             canon_expected,
-            "i8"
-        ) || string.str_eql(canon_expected, "i16") || string.str_eql(canon_expected, "i32") ||
+            c"i8"
+        ) || string.str_eql(canon_expected, c"i16") || string.str_eql(canon_expected, c"i32") ||
         string.str_eql(
             canon_expected,
-            "i64"
-        ) || string.str_eql(canon_expected, "u8") || string.str_eql(canon_expected, "u16") ||
+            c"i64"
+        ) || string.str_eql(canon_expected, c"u8") || string.str_eql(canon_expected, c"u16") ||
         string.str_eql(
             canon_expected,
-            "u32"
-        ) || string.str_eql(canon_expected, "u64") || string.str_eql(canon_expected, "usize") ||
-        string.str_eql(canon_expected, "isize") || string.str_eql(canon_expected, "bool") {
+            c"u32"
+        ) || string.str_eql(canon_expected, c"u64") || string.str_eql(canon_expected, c"usize") ||
+        string.str_eql(canon_expected, c"isize") || string.str_eql(canon_expected, c"bool") {
             return true
         }
     }
     if arg_node.kind == parser.NK_FLOAT_LIT {
-        if string.str_eql(canon_expected, "f32") || string.str_eql(canon_expected, "f64") {
+        if string.str_eql(canon_expected, c"f32") || string.str_eql(canon_expected, c"f64") {
             return true
         }
     }
@@ -4213,9 +4241,9 @@ fn check_generic_call_constraints(ctx: ref SemaCtx, fn_found: ref parser.Node, c
                                                 callee_mod,
                                                 expected_owner
                                             )
-                                            val dbg_exp_null: mut ref u8 = "non-null"
+                                            val dbg_exp_null: mut ref u8 = c"non-null"
                                             if expected_mod == none {
-                                                dbg_exp_null = "null"
+                                                dbg_exp_null = c"null"
                                             }
                                             if arg_mod != none && expected_mod != none {
                                                 val arg_fname: ref u8 = canonicalize_path(
@@ -4267,7 +4295,7 @@ fn concrete_generic_param_type_name(fn_found: ref parser.Node, callee: ref parse
     if callee == none || callee.kind != parser.NK_GENERIC_INST {
         return none
     }
-    if param_type_name == none || string.str_eql(param_type_name, "") {
+    if param_type_name == none || string.str_eql(param_type_name, c"") {
         return none
     }
     val tparams: ref void = fn_found.d6 as ref void
@@ -4384,7 +4412,7 @@ fn check_generic_call_arg_types(ctx: ref SemaCtx, fn_found: ref parser.Node, cal
                                     }
                                     val generic_int_const_arg_ok: bool =
                                     expected_tname != none &&
-                                    !string.str_eql(expected_tname, "") &&
+                                    !string.str_eql(expected_tname, c"") &&
                                     !expected_is_tparam &&
                                     sema_int_const_arg_compatible(
                                         ctx,
@@ -4395,7 +4423,7 @@ fn check_generic_call_arg_types(ctx: ref SemaCtx, fn_found: ref parser.Node, cal
                                     )
                                     val generic_float_const_arg_ok: bool =
                                     expected_tname != none &&
-                                    !string.str_eql(expected_tname, "") &&
+                                    !string.str_eql(expected_tname, c"") &&
                                     !expected_is_tparam &&
                                     sema_float_const_arg_compatible(
                                         ctx,
@@ -4406,10 +4434,10 @@ fn check_generic_call_arg_types(ctx: ref SemaCtx, fn_found: ref parser.Node, cal
                                     )
                                     if expected_tname != none && !string.str_eql(
                                         expected_tname,
-                                        ""
+                                        c""
                                     ) &&
                                     !expected_is_tparam &&
-                                    arg_tname != none && !string.str_eql(arg_tname, "") &&
+                                    arg_tname != none && !string.str_eql(arg_tname, c"") &&
                                     !generic_targ_type_compatible(
                                         ctx,
                                         expected_tname,
@@ -4645,7 +4673,7 @@ fn resolve_generic_inst_inference(ctx: mut ref SemaCtx, callee: mut ref parser.N
                     inferred = infer_targ_for_tparam(ctx, tparam_name, fn_params, cargs)
                 }
                 if inferred == none {
-                    val tname_for_err: mut ref u8 = "?"
+                    val tname_for_err: mut ref u8 = c"?"
                     if tp_opt is some tp2 {
                         tname_for_err = parser.tparam_name_raw(tp2 as ref parser.Node)
                     }
@@ -4701,8 +4729,8 @@ fn infer_targ_for_tparam(ctx: ref SemaCtx, tparam_name: ref u8,
                         val resolved_tn: ref u8 = resolve_arg_originating_type(ctx, arg_node)
                         if resolved_tn != none && !string.str_eql(
                             resolved_tn,
-                            ""
-                        ) && !string.str_eql(resolved_tn, "unknown") {
+                            c""
+                        ) && !string.str_eql(resolved_tn, c"unknown") {
                             val out: mut ref parser.Node = parser.make_node(
                                 ctx.arena,
                                 parser.TY_NAMED,
@@ -4871,9 +4899,9 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
                     ctx.arena,
                     (512) as usize
                 ) as ref u8
-                if string.raw_cmp(lhs_type, "unknown") == 0 {
+                if string.raw_cmp(lhs_type, c"unknown") == 0 {
                     return
-                } elif string.raw_cmp(rhs_type, "unknown") == 0 {
+                } elif string.raw_cmp(rhs_type, c"unknown") == 0 {
                     return
                 }
                 @snprintf(
@@ -4954,7 +4982,7 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
                 (512) as usize
             ) as ref u8
             val tname: ref u8 = sema_try_operand_type_name(ctx, inner)
-            if tname != none && !string.str_eql(tname, "") {
+            if tname != none && !string.str_eql(tname, c"") {
                 @snprintf(
                     buf,
                     512,
@@ -5177,9 +5205,9 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
                                         fn_name_w = parser.field_name_raw(base_callee)
                                     }
                                 }
-                                val arg_wrap_str: mut ref u8 = "option"
+                                val arg_wrap_str: mut ref u8 = c"option"
                                 if arg_wrap == 1 {
-                                    arg_wrap_str = "result"
+                                    arg_wrap_str = c"result"
                                 }
                                 val pname_w: ref u8 = parser.node_str_raw(param_node.d0)
                                 val wbuf: ref u8 = allocators.ScopedArena.alloc_or_none(
@@ -5205,7 +5233,7 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
                             val effective_param_type_name: mut ref u8 = raw_param_type_name
                             if concrete_param_type_name != none && !string.str_eql(
                                 concrete_param_type_name,
-                                ""
+                                c""
                             ) {
                                 effective_param_type_name = concrete_param_type_name
                             }
@@ -5217,7 +5245,7 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
                             val arg_type_name: ref u8 = infer_expr_scope_type_name(ctx, arg_node)
                             val arg_is_ref: i64 = infer_expr_scope_is_ref(ctx, arg_node)
 
-                            if param_type_name != none && !string.str_eql(param_type_name, "") {
+                            if param_type_name != none && !string.str_eql(param_type_name, c"") {
                                 val skip_type_check: mut bool = false
 
                                 if ((is_type_parameter(
@@ -5277,17 +5305,22 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
                                         line
                                     )
 
-                                    if param_expects_ref && string.str_eql(param_type_name, "u8") {
-                                        if arg_node.kind == parser.NK_INT_LIT || arg_node.kind == parser.NK_FLOAT_LIT || arg_node.kind == parser.NK_BOOL {
+                                    if param_expects_ref && string.str_eql(param_type_name, c"u8") {
+                                        if arg_node.kind == parser.NK_STR_LIT &&
+                                        !parser.str_lit_is_cstr(arg_node) {
+                                            // Plain literals are StringView values; raw C
+                                            // strings must be written as c"...".
+                                            type_mismatch = true
+                                        } elif arg_node.kind == parser.NK_INT_LIT || arg_node.kind == parser.NK_FLOAT_LIT || arg_node.kind == parser.NK_BOOL {
                                             type_mismatch = true
                                         } elif arg_node.kind == parser.NK_IDENT && arg_is_ref == 0 {
                                             if arg_type_name != none && !string.str_eql(
                                                 arg_type_name,
-                                                ""
+                                                c""
                                             ) {
                                                 if !string.str_eql(
                                                     arg_type_name,
-                                                    "u8"
+                                                    c"u8"
                                                 ) && !string.str_eql(
                                                     arg_type_name,
                                                     param_type_name
@@ -5298,7 +5331,7 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
                                         }
                                     } elif !param_expects_ref && arg_type_name != none && !string.str_eql(
                                         arg_type_name,
-                                        ""
+                                        c""
                                     ) {
                                         if arg_is_ref == 1 && is_builtin_type_name(unqualified_type_name(param_type_name)) {
                                             type_mismatch = true
@@ -5484,9 +5517,9 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
 
                                     if expected_type_name != none && !string.str_eql(
                                         expected_type_name,
-                                        ""
+                                        c""
                                     ) &&
-                                    arg_type_name != none && !string.str_eql(arg_type_name, "") {
+                                    arg_type_name != none && !string.str_eql(arg_type_name, c"") {
                                         if !types_compatible(
                                             ctx,
                                             expected_type_name,
@@ -5549,8 +5582,8 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
             val fname: ref u8 = parser.field_name_raw(base_callee)
             val is_print_call: bool = string.str_eql(
                 fname,
-                "print"
-            ) || string.str_eql(fname, "eprint")
+                c"print"
+            ) || string.str_eql(fname, c"eprint")
             if is_print_call && cargs != none && @len(cargs) > 0 {
                 val fmt_opt = @get(cargs, 0)
                 if fmt_opt is some fmt_raw {
@@ -5695,9 +5728,9 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
 
         if type_argc > 0 && !string.str_eql(
             bname,
-            "fmtalloc"
-        ) && !string.str_eql(bname, "argsalloc") &&
-        !string.str_eql(bname, "listalloc") {
+            c"fmtalloc"
+        ) && !string.str_eql(bname, c"argsalloc") &&
+        !string.str_eql(bname, c"listalloc") {
             val ebuf: ref u8 = allocators.ScopedArena.alloc_or_none(
                 ctx.arena,
                 (512) as usize
@@ -5708,7 +5741,7 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
             return
         }
 
-        if string.str_eql(bname, "argsalloc") {
+        if string.str_eql(bname, c"argsalloc") {
             if type_argc != 1 {
                 val ebuf: ref u8 = allocators.ScopedArena.alloc_or_none(
                     ctx.arena,
@@ -5731,7 +5764,7 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
             }
         }
 
-        if string.str_eql(bname, "listalloc") {
+        if string.str_eql(bname, c"listalloc") {
             if type_argc < 1 || type_argc > 2 {
                 val ebuf: ref u8 = allocators.ScopedArena.alloc_or_none(
                     ctx.arena,
@@ -5754,7 +5787,7 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
             }
         }
 
-        if string.str_eql(bname, "dumpmemleaks") {
+        if string.str_eql(bname, c"dumpmemleaks") {
             if type_argc != 0 {
                 val ebuf: ref u8 = allocators.ScopedArena.alloc_or_none(
                     ctx.arena,
@@ -5777,7 +5810,7 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
             }
         }
 
-        if string.str_eql(bname, "listfree") {
+        if string.str_eql(bname, c"listfree") {
             if type_argc != 0 {
                 val ebuf: ref u8 = allocators.ScopedArena.alloc_or_none(
                     ctx.arena,
@@ -5805,8 +5838,8 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
                         ctx,
                         first_raw as ref parser.Node
                     )
-                    if string.raw_cmp(arg_ty, "") != 0
-                    && !string.raw_starts_with(arg_ty, "list[") {
+                    if string.raw_cmp(arg_ty, c"") != 0
+                    && !string.raw_starts_with(arg_ty, c"list[") {
                         val ebuf: ref u8 = allocators.ScopedArena.alloc_or_none(
                             ctx.arena,
                             (640) as usize
@@ -5821,7 +5854,7 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
             }
         }
 
-        if string.str_eql(bname, "puts") {
+        if string.str_eql(bname, c"puts") {
             val valid: mut bool = actual_argc == 1
             if valid && bargs != none {
                 val first_opt = @get(bargs as list[ref parser.Node], 0 as usize)
@@ -5846,7 +5879,7 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
             }
         }
 
-        if string.str_eql(bname, "fmtalloc") && type_argc > 0 {
+        if string.str_eql(bname, c"fmtalloc") && type_argc > 0 {
             if type_argc != 1 {
                 val ebuf: ref u8 = allocators.ScopedArena.alloc_or_none(
                     ctx.arena,
@@ -5872,9 +5905,9 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
         val min_arity: i64 = builtin_min_arity(bname)
         if min_arity > 0 {
             if actual_argc < min_arity {
-                val plural: mut ref u8 = "s"
+                val plural: mut ref u8 = c"s"
                 if min_arity == 1 {
-                    plural = ""
+                    plural = c""
                 }
                 val ebuf: ref u8 = allocators.ScopedArena.alloc_or_none(
                     ctx.arena,
@@ -5887,53 +5920,53 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
             }
         }
 
-        if string.str_eql(bname, "embed") || string.str_eql(bname, "embedlen") {
+        if string.str_eql(bname, c"embed") || string.str_eql(bname, c"embedlen") {
             resolve_embed_builtin(ctx, expr, bargs, filename, bname)
         }
 
         val is_unsafe_builtin: bool = string.str_eql(
             bname,
-            "store8"
+            c"store8"
         ) || string.str_eql(
             bname,
-            "store"
+            c"store"
         ) || string.str_eql(
             bname,
-            "load8"
+            c"load8"
         ) || string.str_eql(
             bname,
-            "load"
+            c"load"
         ) || string.str_eql(
             bname,
-            "ptradd"
+            c"ptradd"
         ) || string.str_eql(
             bname,
-            "dprintf"
+            c"dprintf"
         ) || string.str_eql(
             bname,
-            "print"
+            c"print"
         ) || string.str_eql(
             bname,
-            "fmtalloc"
+            c"fmtalloc"
         ) || string.str_eql(
             bname,
-            "memset"
+            c"memset"
         ) || string.str_eql(
             bname,
-            "memcpy"
+            c"memcpy"
         ) || string.str_eql(
             bname,
-            "memmove"
+            c"memmove"
         ) || string.str_eql(
             bname,
-            "free"
+            c"free"
         ) || string.str_eql(
             bname,
-            "realloc"
+            c"realloc"
         ) || string.str_eql(
             bname,
-            "addr"
-        ) || string.str_eql(bname, "deref") || string.str_eql(bname, "bitcast")
+            c"addr"
+        ) || string.str_eql(bname, c"deref") || string.str_eql(bname, c"bitcast")
         if is_unsafe_builtin {
             if ctx.in_unsafe_fn == 0 && ctx.in_trust == 0 {
                 val ebuf: ref u8 = allocators.ScopedArena.alloc_or_none(
@@ -5952,10 +5985,10 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
             }
         }
 
-        val is_printf: bool = string.str_eql(bname, "print")
-        val is_dprintf: bool = string.str_eql(bname, "dprintf")
-        val is_snprintf: bool = string.str_eql(bname, "snprintf")
-        val is_fmtalloc: bool = string.str_eql(bname, "fmtalloc")
+        val is_printf: bool = string.str_eql(bname, c"print")
+        val is_dprintf: bool = string.str_eql(bname, c"dprintf")
+        val is_snprintf: bool = string.str_eql(bname, c"snprintf")
+        val is_fmtalloc: bool = string.str_eql(bname, c"fmtalloc")
         if is_printf || is_dprintf || is_snprintf || is_fmtalloc {
             val fmt_idx: mut i64 = 0
             val args_start: mut i64 = 1
@@ -5987,39 +6020,39 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
         }
         if string.str_eql(
             bname,
-            "memcpy"
+            c"memcpy"
         ) || string.str_eql(
             bname,
-            "store8"
+            c"store8"
         ) || string.str_eql(
             bname,
-            "memset"
+            c"memset"
         ) || string.str_eql(
             bname,
-            "addr"
+            c"addr"
         ) || string.str_eql(
             bname,
-            "memmove"
+            c"memmove"
         ) || string.str_eql(
             bname,
-            "set"
+            c"set"
         ) || string.str_eql(
             bname,
-            "insert"
+            c"insert"
         ) || string.str_eql(
             bname,
-            "realloc"
+            c"realloc"
         ) || string.str_eql(
             bname,
-            "free"
+            c"free"
         ) || string.str_eql(
             bname,
-            "store"
+            c"store"
         ) || string.str_eql(
             bname,
-            "append"
-        ) || string.str_eql(bname, "remove") || string.str_eql(bname, "reserve")
-        || string.str_eql(bname, "getmut") {
+            c"append"
+        ) || string.str_eql(bname, c"remove") || string.str_eql(bname, c"reserve")
+        || string.str_eql(bname, c"getmut") {
             if bargs != none {
                 val btarget_opt = @get(bargs as list[ref parser.Node], 0)
                 if btarget_opt is some btarget {
@@ -6047,7 +6080,7 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
             }
         }
 
-        if string.str_eql(bname, "sizeof") {
+        if string.str_eql(bname, c"sizeof") {
             if bargs != none {
                 for barg in bargs as list[ref parser.Node] {
                     if barg.kind == parser.NK_IDENT {
@@ -6290,6 +6323,74 @@ fn sema_const_known(v: i64) SemaConstVal = trust {
     return r
 }
 
+/// Copy a constant value into stable storage so it can be held in a list.
+fn sema_const_env_new(ctx: ref SemaCtx) ref SemaConstEnv = trust {
+    val env: mut ref SemaConstEnv = allocators.ScopedArena.alloc_or_none(
+        ctx.arena,
+        @sizeof(SemaConstEnv) as usize
+    ) as ref SemaConstEnv
+    env.names = mem.new[ref u8]()
+    env.known = mem.new[i64]()
+    env.is_float = mem.new[i64]()
+    env.value = mem.new[i64]()
+    env.fvalue = mem.new[i64]()
+    return env
+}
+
+fn sema_const_env_push(env: mut ref SemaConstEnv, name: ref u8, v: SemaConstVal) void = trust {
+    @append(env.names, name)
+    if v.known {
+        @append(env.known, 1)
+    } else {
+        @append(env.known, 0)
+    }
+    if v.is_float {
+        @append(env.is_float, 1)
+    } else {
+        @append(env.is_float, 0)
+    }
+    @append(env.value, v.value)
+    @append(env.fvalue, @bitcast(v.fvalue, i64))
+}
+
+fn sema_const_env_lookup(env: ref SemaConstEnv, name: ref u8) SemaConstVal = trust {
+    if env == none {
+        return sema_const_unknown()
+    }
+    val flen: i64 = @len(env.names) as i64
+    val fi: mut i64 = 0
+    for {
+        if fi >= flen {
+            break
+        }
+        val fn_opt = @get(env.names, fi as usize)
+        if fn_opt is some fname {
+            if string.raw_cmp(fname as ref u8, name) == 0 {
+                val k_opt = @get(env.known, fi as usize)
+                val f_opt = @get(env.is_float, fi as usize)
+                val v_opt = @get(env.value, fi as usize)
+                val d_opt = @get(env.fvalue, fi as usize)
+                val out: mut SemaConstVal = sema_const_unknown()
+                if k_opt is some kv {
+                    out.known = (kv as i64) != 0
+                }
+                if f_opt is some fv {
+                    out.is_float = (fv as i64) != 0
+                }
+                if v_opt is some vv {
+                    out.value = vv as i64
+                }
+                if d_opt is some dv {
+                    out.fvalue = @bitcast(dv as i64, f64)
+                }
+                return out
+            }
+        }
+        fi++
+    }
+    return sema_const_unknown()
+}
+
 fn sema_const_known_float(v: f64) SemaConstVal = trust {
     val r: SemaConstVal = {
         known: true
@@ -6405,8 +6506,7 @@ fn sema_parse_float_lit_text(text: ref u8) SemaConstVal = trust {
 /// Constant-fold a simple comparison/boolean expression.
 fn sema_const_eval(
     expr: ref parser.Node,
-    field_names: ref void,
-    field_vals: ref void
+    env: ref SemaConstEnv
 ) SemaConstVal = trust {
     if expr == none {
         return sema_const_unknown()
@@ -6427,37 +6527,15 @@ fn sema_const_eval(
         return sema_const_known(expr.d0 as i64)
     }
     if k == parser.NK_CAST || k == parser.NK_TRUST {
-        return sema_const_eval(expr.d0 as ref parser.Node, field_names, field_vals)
+        return sema_const_eval(expr.d0 as ref parser.Node, env)
     }
     if k == parser.NK_IDENT {
-        val iname: ref u8 = parser.node_str_raw(expr.d0)
-        val flen: i64 = @len(field_names as list[ref u8]) as i64
-        val fi: mut i64 = 0
-        for {
-            if fi >= flen {
-                break
-            }
-            val fn_opt = @get(field_names as list[ref u8], fi as usize)
-            if fn_opt is some func {
-                if string.raw_cmp(func as ref u8, iname) == 0 {
-                    val value_opt = @get(
-                        field_vals as list[SemaConstVal],
-                        fi as usize
-                    )
-                    if value_opt is some value {
-                        return value as SemaConstVal
-                    }
-                    return sema_const_unknown()
-                }
-            }
-            fi++
-        }
-        return sema_const_unknown()
+        return sema_const_env_lookup(env, parser.node_str_raw(expr.d0))
     }
     if k == parser.NK_UNOP {
         val uop: i64 = expr.d0 as i64
         val inner: ref parser.Node = expr.d1 as ref parser.Node
-        val iv: SemaConstVal = sema_const_eval(inner, field_names, field_vals)
+        val iv: SemaConstVal = sema_const_eval(inner, env)
         if !iv.known {
             return sema_const_unknown()
         }
@@ -6483,13 +6561,11 @@ fn sema_const_eval(
         val op: i64 = expr.d0 as i64
         val lv: SemaConstVal = sema_const_eval(
             expr.d1 as ref parser.Node,
-            field_names,
-            field_vals
+            env
         )
         val rv: SemaConstVal = sema_const_eval(
             expr.d2 as ref parser.Node,
-            field_names,
-            field_vals
+            env
         )
         if !lv.known || !rv.known {
             return sema_const_unknown()
@@ -6617,8 +6693,7 @@ fn sema_check_invariant_lit(ctx: ref SemaCtx, typedef_node: ref parser.Node,
         return
     }
 
-    val fnames: mut list[ref u8] = mem.new[ref u8]()
-    val fvals: mut list[SemaConstVal] = mem.new[SemaConstVal]()
+    val env: mut ref SemaConstEnv = sema_const_env_new(ctx)
     val flen: i64 = @len(fields as list[ref parser.Node]) as i64
     val alen: i64 = @len(args as list[ref parser.Node]) as i64
     val fi: mut i64 = 0
@@ -6634,17 +6709,12 @@ fn sema_check_invariant_lit(ctx: ref SemaCtx, typedef_node: ref parser.Node,
                 val fname: ref u8 = parser.node_str_raw(fld_node.d0)
                 val ftype: ref u8 = extract_type_name(fld_node.d2 as ref parser.Node)
                 val anode: ref parser.Node = arg as ref parser.Node
-                val aval: mut SemaConstVal = sema_const_eval(
-                    anode,
-                    fnames as ref void,
-                    fvals as ref void
-                )
+                val aval: mut SemaConstVal = sema_const_eval(anode, env)
                 if aval.known && !aval.is_float && sema_is_float_type_name(ftype) {
                     aval = sema_const_known_float(aval.value as f64)
                 }
                 if aval.known {
-                    @append(fnames, fname)
-                    @append(fvals, aval)
+                    sema_const_env_push(env, fname, aval)
                 }
             }
         }
@@ -6660,11 +6730,7 @@ fn sema_check_invariant_lit(ctx: ref SemaCtx, typedef_node: ref parser.Node,
         val inv_opt = @get(inv_list as list[ref parser.Node], ii as usize)
         if inv_opt is some inv {
             val inode: ref parser.Node = inv as ref parser.Node
-            val result: SemaConstVal = sema_const_eval(
-                inode,
-                fnames as ref void,
-                fvals as ref void
-            )
+            val result: SemaConstVal = sema_const_eval(inode, env)
             if result.known && sema_const_is_false(result) {
                 val type_name: ref u8 = parser.node_str_raw(typedef_node.d1)
                 val buf: ref u8 = allocators.ScopedArena.alloc_or_none(
@@ -6685,20 +6751,18 @@ fn sema_check_invariant_lit(ctx: ref SemaCtx, typedef_node: ref parser.Node,
 }
 
 fn sema_const_eval_no_fields(expr: ref parser.Node) SemaConstVal = trust {
-    val field_names: list[ref u8] = mem.new[ref u8]()
-    val field_vals: list[SemaConstVal] = mem.new[SemaConstVal]()
-    return sema_const_eval(expr, field_names as ref void, field_vals as ref void)
+    return sema_const_eval(expr, none)
 }
 
 fn sema_is_float_type_name(name: ref u8) bool = trust {
-    return string.str_eql(name, "f32") || string.str_eql(name, "f64")
+    return string.str_eql(name, c"f32") || string.str_eql(name, c"f64")
 }
 
 fn sema_is_int_type_name(name: ref u8) bool = trust {
-    return string.str_eql(name, "i8") || string.str_eql(name, "i16") || string.str_eql(name, "i32")
-    || string.str_eql(name, "i64") || string.str_eql(name, "isize")
-    || string.str_eql(name, "u8") || string.str_eql(name, "u16") || string.str_eql(name, "u32")
-    || string.str_eql(name, "u64") || string.str_eql(name, "usize")
+    return string.str_eql(name, c"i8") || string.str_eql(name, c"i16") || string.str_eql(name, c"i32")
+    || string.str_eql(name, c"i64") || string.str_eql(name, c"isize")
+    || string.str_eql(name, c"u8") || string.str_eql(name, c"u16") || string.str_eql(name, c"u32")
+    || string.str_eql(name, c"u64") || string.str_eql(name, c"usize")
 }
 
 /// Returns true if `expr` is a compile-time integer constant expression.
@@ -6756,13 +6820,13 @@ fn sema_int_const_arg_compatible(
     }
     val value: SemaConstVal = sema_const_eval_no_fields(expr)
     if !value.known {
-        if string.str_eql(tn, "u64") || string.str_eql(tn, "usize") {
+        if string.str_eql(tn, c"u64") || string.str_eql(tn, c"usize") {
             val lit: ref u8 = sema_direct_int_lit_text(expr)
-            if string.raw_cmp(lit, "") != 0 {
+            if string.raw_cmp(lit, c"") != 0 {
                 val is_hex: bool = @load8(lit) == 48 &&
                 (@load8(@ptradd(lit, 1)) == 120 || @load8(@ptradd(lit, 1)) == 88)
                 if is_hex {
-                    if !sema_hex_gt(lit, "FFFFFFFFFFFFFFFF") {
+                    if !sema_hex_gt(lit, c"FFFFFFFFFFFFFFFF") {
                         return true
                     }
                     sema_emit_int_overflow_error(
@@ -6771,12 +6835,12 @@ fn sema_int_const_arg_compatible(
                         line,
                         lit,
                         tn,
-                        "0",
-                        "18446744073709551615"
+                        c"0",
+                        c"18446744073709551615"
                     )
                     return true
                 }
-                if !sema_decimal_gt(lit, "18446744073709551615") {
+                if !sema_decimal_gt(lit, c"18446744073709551615") {
                     return true
                 }
                 sema_check_int_literal_range(ctx, tn, expr, filename, line)
@@ -6914,7 +6978,7 @@ fn sema_f32_lit_range_status(ctx: ref SemaCtx, text: ref u8) i64 = trust {
         return 0
     }
 
-    val max_digits: ref u8 = "340282346638528859811704183484516925440"
+    val max_digits: ref u8 = c"340282346638528859811704183484516925440"
     val max_len: i64 = string.len_raw(max_digits)
     val di: mut i64 = 0
     for {
@@ -6951,13 +7015,13 @@ fn sema_float_const_arg_compatible(
         return false
     }
     val tn: ref u8 = unqualified_type_name(type_name)
-    if !string.str_eql(tn, "f32") && !string.str_eql(tn, "f64") {
+    if !string.str_eql(tn, c"f32") && !string.str_eql(tn, c"f64") {
         return false
     }
     if !sema_is_float_const_expr(expr) {
         return false
     }
-    if string.str_eql(tn, "f64") {
+    if string.str_eql(tn, c"f64") {
         return true
     }
     val lit: mut ref parser.Node = sema_unwrap_trust_expr(expr)
@@ -6978,44 +7042,44 @@ fn sema_float_const_arg_compatible(
             filename,
             line,
             text,
-            "f32",
-            "-3.4028235e38",
-            "3.4028235e38"
+            c"f32",
+            c"-3.4028235e38",
+            c"3.4028235e38"
         )
     }
     return true
 }
 
 fn sema_int_type_lo(name: ref u8) i64 = trust {
-    if string.str_eql(name, "i8") {
+    if string.str_eql(name, c"i8") {
         return -128
     }
-    if string.str_eql(name, "i16") {
+    if string.str_eql(name, c"i16") {
         return -32768
     }
-    if string.str_eql(name, "i32") {
+    if string.str_eql(name, c"i32") {
         return -2147483648
     }
     return 0
 }
 
 fn sema_int_type_hi(name: ref u8) i64 = trust {
-    if string.str_eql(name, "i8") {
+    if string.str_eql(name, c"i8") {
         return 127
     }
-    if string.str_eql(name, "i16") {
+    if string.str_eql(name, c"i16") {
         return 32767
     }
-    if string.str_eql(name, "i32") {
+    if string.str_eql(name, c"i32") {
         return 2147483647
     }
-    if string.str_eql(name, "u8") {
+    if string.str_eql(name, c"u8") {
         return 255
     }
-    if string.str_eql(name, "u16") {
+    if string.str_eql(name, c"u16") {
         return 65535
     }
-    if string.str_eql(name, "u32") {
+    if string.str_eql(name, c"u32") {
         return 4294967295
     }
     return 9223372036854775807
@@ -7054,7 +7118,7 @@ fn sema_unwrap_trust_expr(expr: ref parser.Node) ref parser.Node = trust {
 fn sema_direct_int_lit_text(expr: ref parser.Node) ref u8 = trust {
     val cur: ref parser.Node = sema_unwrap_trust_expr(expr)
     if cur == none || cur.kind != parser.NK_INT_LIT {
-        return ""
+        return c""
     }
     return parser.int_lit_text_raw(cur)
 }
@@ -7180,12 +7244,12 @@ fn sema_check_int_literal_range(
     if sema_expr_casts_to(expr, type_name) {
         return
     }
-    if string.str_eql(type_name, "i64") || string.str_eql(type_name, "isize") {
+    if string.str_eql(type_name, c"i64") || string.str_eql(type_name, c"isize") {
         val cur: ref parser.Node = sema_unwrap_trust_expr(expr)
         if cur != none && cur.kind == parser.NK_UNOP && cur.d0 == parser.UOP_NEG {
             val inner: ref parser.Node = cur.d1 as ref parser.Node
             val lit: ref u8 = sema_direct_int_lit_text(inner)
-            if string.raw_cmp(lit, "") != 0 && sema_decimal_gt(lit, "9223372036854775808") {
+            if string.raw_cmp(lit, c"") != 0 && sema_decimal_gt(lit, c"9223372036854775808") {
                 val msg: ref u8 = allocators.ScopedArena.alloc_or_none(
                     ctx.arena,
                     128 as usize
@@ -7197,21 +7261,21 @@ fn sema_check_int_literal_range(
                     line,
                     msg,
                     type_name,
-                    "-9223372036854775808",
-                    "9223372036854775807"
+                    c"-9223372036854775808",
+                    c"9223372036854775807"
                 )
             }
         } else {
             val lit: ref u8 = sema_direct_int_lit_text(cur)
-            if string.raw_cmp(lit, "") != 0 && sema_decimal_gt(lit, "9223372036854775807") {
+            if string.raw_cmp(lit, c"") != 0 && sema_decimal_gt(lit, c"9223372036854775807") {
                 sema_emit_int_overflow_error(
                     ctx,
                     filename,
                     line,
                     lit,
                     type_name,
-                    "-9223372036854775808",
-                    "9223372036854775807"
+                    c"-9223372036854775808",
+                    c"9223372036854775807"
                 )
             }
         }
@@ -7219,17 +7283,17 @@ fn sema_check_int_literal_range(
     }
     val value: SemaConstVal = sema_const_eval_no_fields(expr)
     if !value.known {
-        if string.str_eql(type_name, "u64") || string.str_eql(type_name, "usize") {
+        if string.str_eql(type_name, c"u64") || string.str_eql(type_name, c"usize") {
             val lit: ref u8 = sema_direct_int_lit_text(expr)
-            if string.raw_cmp(lit, "") != 0 && sema_decimal_gt(lit, "18446744073709551615") {
+            if string.raw_cmp(lit, c"") != 0 && sema_decimal_gt(lit, c"18446744073709551615") {
                 sema_emit_int_overflow_error(
                     ctx,
                     filename,
                     line,
                     lit,
                     type_name,
-                    "0",
-                    "18446744073709551615"
+                    c"0",
+                    c"18446744073709551615"
                 )
             }
         }
@@ -7313,8 +7377,7 @@ fn sema_check_call_preconditions(
         return
     }
 
-    val pnames: mut list[ref u8] = mem.new[ref u8]()
-    val pvals: mut list[SemaConstVal] = mem.new[SemaConstVal]()
+    val env: mut ref SemaConstEnv = sema_const_env_new(ctx)
     val plen: i64 = @len(params as list[ref parser.Node]) as i64
     val alen: mut i64 = 0
     if cargs != none {
@@ -7337,8 +7400,7 @@ fn sema_check_call_preconditions(
                 }
             }
             if pval.known {
-                @append(pnames, pname)
-                @append(pvals, pval)
+                sema_const_env_push(env, pname, pval)
             }
         }
         pi++
@@ -7356,11 +7418,7 @@ fn sema_check_call_preconditions(
             }
             val label: ref u8 = parser.node_str_raw(c.d0)
             val cexpr: ref parser.Node = c.d1 as ref parser.Node
-            val result: SemaConstVal = sema_const_eval(
-                cexpr,
-                pnames as ref void,
-                pvals as ref void
-            )
+            val result: SemaConstVal = sema_const_eval(cexpr, env)
             if !result.known || !sema_const_is_false(result) {
                 continue
             }
@@ -7440,7 +7498,7 @@ fn sema_lookup_tagged_uniondef(ctx: ref SemaCtx, type_name: ref u8) ref parser.N
 
 fn sema_match_value_is_exhaustive(ctx: ref SemaCtx, stmt: ref parser.Node) bool = trust {
     val match_ty: ref u8 = infer_expr_scope_type_name(ctx, stmt.d0 as ref parser.Node)
-    if !string.str_eql(match_ty, "bool") {
+    if !string.str_eql(match_ty, c"bool") {
         return false
     }
     val arms: ref void = stmt.d1 as ref void
@@ -7568,7 +7626,7 @@ fn expr_is_staticerror(expr: ref parser.Node) bool = trust {
         return false
     }
     val bname: ref u8 = parser.node_str_raw(expr.d0)
-    return bname != none && string.str_eql(bname, "staticerror")
+    return bname != none && string.str_eql(bname, c"staticerror")
 }
 
 fn generic_when_branch_is_exhaustive(stmt: ref parser.Node) bool = trust {
@@ -7807,12 +7865,12 @@ fn infer_builtin_list_decl_type(
     val bname: ref u8 = parser.builtin_name_raw(expr)
     if string.str_eql(
         bname,
-        "list"
-    ) || string.str_eql(bname, "listalloc") || string.str_eql(bname, "argsalloc") {
-        val elem: mut ref u8 = ""
-        if string.str_eql(bname, "argsalloc") {
-            elem = "ref u8"
-        } elif string.str_eql(bname, "listalloc") {
+        c"list"
+    ) || string.str_eql(bname, c"listalloc") || string.str_eql(bname, c"argsalloc") {
+        val elem: mut ref u8 = c""
+        if string.str_eql(bname, c"argsalloc") {
+            elem = c"ref u8"
+        } elif string.str_eql(bname, c"listalloc") {
             val targs: list[ref parser.Node] = parser.builtin_type_args(expr)
             if @len(targs) as i64 >= 2 {
                 val e_opt = @get(targs, 1 as usize)
@@ -7833,7 +7891,7 @@ fn infer_builtin_list_decl_type(
             }
         }
         if elem == none {
-            elem = "unknown"
+            elem = c"unknown"
         }
         val buf: ref u8 = allocators.ScopedArena.alloc_or_none(
             ctx.arena,
@@ -7858,19 +7916,22 @@ fn infer_simple_literal_type_name(expr: ref parser.Node) ref u8 = trust {
     }
     val k: i64 = expr.kind
     if k == parser.NK_STR_LIT {
-        return "u8"
+        if parser.str_lit_is_cstr(expr) {
+            return c"u8"
+        }
+        return c"StringView"
     }
     if k == parser.NK_INT_LIT {
-        return "i64"
+        return c"i64"
     }
     if k == parser.NK_FLOAT_LIT {
-        return "f64"
+        return c"f64"
     }
     if k == parser.NK_BOOL {
-        return "bool"
+        return c"bool"
     }
     if k == parser.NK_CHAR_LIT {
-        return "u8"
+        return c"u8"
     }
     if k == parser.NK_TRUST {
         return infer_simple_literal_type_name(expr.d0 as ref parser.Node)
@@ -7917,7 +7978,7 @@ fn sema_infer_fixed_arr_sizes(ty: ref parser.Node, init: ref parser.Node) bool =
     }
     val elem_ty: ref parser.Node = ty.d1 as ref parser.Node
     val size_name: ref u8 = parser.fixed_arr_size_name_raw(ty)
-    val has_infer: bool = size_name != none && string.str_eql(size_name, "_")
+    val has_infer: bool = size_name != none && string.str_eql(size_name, c"_")
     if has_infer {
         if init == none || init.kind != parser.NK_LIST_LIT {
             return false
@@ -7928,7 +7989,7 @@ fn sema_infer_fixed_arr_sizes(ty: ref parser.Node, init: ref parser.Node) bool =
             count = @len(elems as list[ref parser.Node]) as i64
         }
         parser.node_store_slot[i64](@addr(ty.d0), count)
-        parser.node_store_string_slot(@addr(ty.d2), "")
+        parser.node_store_string_slot(@addr(ty.d2), c"")
     }
     if init != none && init.kind == parser.NK_LIST_LIT && elem_ty != none {
         val elems2: ref void = init.d0 as ref void
@@ -8400,12 +8461,12 @@ fn check_stmt(ctx: mut ref SemaCtx, stmt: ref parser.Node, filename: ref u8) voi
                 val pat_ty: ref u8 = infer_expr_scope_type_name(ctx, pat)
                 val pat_cat: ref u8 = get_expr_type_category(ctx, pat)
                 val compatible: mut bool = true
-                if string.str_eql(match_ty, "bool") && !string.str_eql(pat_ty, "") {
-                    compatible = string.str_eql(pat_ty, "bool")
-                } elif string.str_eql(match_cat, "float") && !string.str_eql(pat_cat, "unknown") {
-                    compatible = string.str_eql(pat_cat, "float")
-                } elif string.str_eql(match_cat, "int") && !string.str_eql(pat_cat, "unknown") {
-                    compatible = string.str_eql(pat_cat, "int") && !string.str_eql(pat_ty, "u8")
+                if string.str_eql(match_ty, c"bool") && !string.str_eql(pat_ty, c"") {
+                    compatible = string.str_eql(pat_ty, c"bool")
+                } elif string.str_eql(match_cat, c"float") && !string.str_eql(pat_cat, c"unknown") {
+                    compatible = string.str_eql(pat_cat, c"float")
+                } elif string.str_eql(match_cat, c"int") && !string.str_eql(pat_cat, c"unknown") {
+                    compatible = string.str_eql(pat_cat, c"int") && !string.str_eql(pat_ty, c"u8")
                 }
                 if !compatible {
                     val buf: ref u8 = allocators.ScopedArena.alloc_or_none(
@@ -8578,7 +8639,7 @@ fn check_stmt(ctx: mut ref SemaCtx, stmt: ref parser.Node, filename: ref u8) voi
                 val bindings: ref void = tu_arm.d1 as ref void
                 if bindings != none {
                     for bname in bindings as list[ref u8] {
-                        if string.raw_cmp(bname, "_") != 0 {
+                        if string.raw_cmp(bname, c"_") != 0 {
                             scope_define(ctx, bname, 1, none, 0, line)
                             scope_set_implicit_mut(ctx, bname)
                         }
@@ -8588,7 +8649,7 @@ fn check_stmt(ctx: mut ref SemaCtx, stmt: ref parser.Node, filename: ref u8) voi
                 check_stmts(ctx, arm_body, filename)
                 if bindings != none {
                     for bname2 in bindings as list[ref u8] {
-                        if string.raw_cmp(bname2, "_") != 0 {
+                        if string.raw_cmp(bname2, c"_") != 0 {
                             if !stmts_use_name(arm_body, bname2) {
                                 val buf: ref u8 = allocators.ScopedArena.alloc_or_none(
                                     ctx.arena,
@@ -8793,7 +8854,7 @@ fn check_fn(ctx: mut ref SemaCtx, fn_node: ref parser.Node, filename: ref u8) vo
     val fn_name: ref u8 = parser.node_str_raw(fn_node.d2)
     val fn_ns: ref u8 = parser.node_str_raw(fn_node.d1)
     val params: ref void = fn_node.d3 as ref void
-    if fn_name != none && fn_ns == none && string.str_eql(fn_name, "main") {
+    if fn_name != none && fn_ns == none && string.str_eql(fn_name, c"main") {
         if fn_node.d0 != 1 {
             val buf: ref u8 = allocators.ScopedArena.alloc_or_none(
                 ctx.arena,
@@ -9924,7 +9985,7 @@ pub fn check_module(
                 val suppresses_unused: bool = function_suppresses_unused(ctx, items, namec)
                 if !string.str_eql(
                     namec,
-                    "main"
+                    c"main"
                 ) && !is_variant && !is_public && !suppresses_unused {
                     val wbuf: ref u8 = allocators.ScopedArena.alloc_or_none(
                         ctx.arena,

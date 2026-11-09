@@ -11,14 +11,14 @@ fn talloc(size: usize) ref void = trust {
     return mem.alloc(size)
 }
 
-fn tfmt(format: ref u8, args: argspack) ref u8 = trust {
-    return arenafmt.format(mem.allocator().arena, string.view_cstr(format), args).ptr
+fn tfmt(format: string.StringView, args: argspack) ref u8 = trust {
+    return arenafmt.format(mem.allocator().arena, format, args).ptr
 }
 
 fn tsubstr(src: ref u8, start: i64, len: i64) ref u8 = trust {
     val out: ref u8 = talloc((len + 1) as usize) as ref u8
     if out == none {
-        return ""
+        return c""
     }
     if len > 0 {
         @memcpy(out, @ptradd(src, start), len as usize)
@@ -56,7 +56,7 @@ fn arena_copy_cstr(src: ref u8) ref u8 = trust {
 fn tdir(p: ref u8) ref u8 = trust {
     val dir: mut ref u8 = path.dir(p)
     val out = arena_copy_cstr(dir)
-    if string.raw_cmp(dir, ".") != 0 {
+    if string.raw_cmp(dir, c".") != 0 {
         @free(dir)
     }
     return out
@@ -208,122 +208,122 @@ fn is_ident_part(c: u8) bool = {
 }
 
 fn sanitize_identifier(name: ref u8) ref u8 = {
-    if string.raw_cmp(name, "fn") == 0 {
-        return "func"
+    if string.raw_cmp(name, c"fn") == 0 {
+        return c"func"
     }
-    if string.raw_cmp(name, "val") == 0 {
-        return "value"
+    if string.raw_cmp(name, c"val") == 0 {
+        return c"value"
     }
-    if string.raw_cmp(name, "mut") == 0 {
-        return "mutable"
+    if string.raw_cmp(name, c"mut") == 0 {
+        return c"mutable"
     }
-    if string.raw_cmp(name, "pub") == 0 {
-        return "public"
+    if string.raw_cmp(name, c"pub") == 0 {
+        return c"public"
     }
-    if string.raw_cmp(name, "type") == 0 {
-        return "type_value"
+    if string.raw_cmp(name, c"type") == 0 {
+        return c"type_value"
     }
-    if string.raw_cmp(name, "pre") == 0 {
-        return "precond"
+    if string.raw_cmp(name, c"pre") == 0 {
+        return c"precond"
     }
-    if string.raw_cmp(name, "post") == 0 {
-        return "postcond"
+    if string.raw_cmp(name, c"post") == 0 {
+        return c"postcond"
     }
-    if string.raw_cmp(name, "return") == 0 {
-        return "return_value"
+    if string.raw_cmp(name, c"returnc") == 0 {
+        return c"return_value"
     }
-    if string.raw_cmp(name, "if") == 0 {
-        return "if_value"
+    if string.raw_cmp(name, c"if") == 0 {
+        return c"if_value"
     }
-    if string.raw_cmp(name, "else") == 0 {
-        return "else_value"
+    if string.raw_cmp(name, c"else") == 0 {
+        return c"else_value"
     }
-    if string.raw_cmp(name, "elif") == 0 {
-        return "elif_value"
+    if string.raw_cmp(name, c"elif") == 0 {
+        return c"elif_value"
     }
-    if string.raw_cmp(name, "trust") == 0 {
-        return "trusted_value"
+    if string.raw_cmp(name, c"trust") == 0 {
+        return c"trusted_value"
     }
-    if string.raw_cmp(name, "use") == 0 {
-        return "used_value"
+    if string.raw_cmp(name, c"use") == 0 {
+        return c"used_value"
     }
-    if string.raw_cmp(name, "ref") == 0 {
-        return "reference"
+    if string.raw_cmp(name, c"ref") == 0 {
+        return c"reference"
     }
-    if string.raw_cmp(name, "for") == 0 {
-        return "loop_value"
+    if string.raw_cmp(name, c"for") == 0 {
+        return c"loop_value"
     }
-    if string.raw_cmp(name, "in") == 0 {
-        return "in_value"
+    if string.raw_cmp(name, c"in") == 0 {
+        return c"in_value"
     }
-    if string.raw_cmp(name, "some") == 0 {
-        return "some_value"
+    if string.raw_cmp(name, c"some") == 0 {
+        return c"some_value"
     }
-    if string.raw_cmp(name, "none") == 0 {
-        return "none_value"
+    if string.raw_cmp(name, c"none") == 0 {
+        return c"none_value"
     }
-    if string.raw_cmp(name, "ok") == 0 {
-        return "ok_value"
+    if string.raw_cmp(name, c"ok") == 0 {
+        return c"ok_value"
     }
-    if string.raw_cmp(name, "err") == 0 {
-        return "error_value"
+    if string.raw_cmp(name, c"err") == 0 {
+        return c"error_value"
     }
-    if string.raw_cmp(name, "match") == 0 {
-        return "match_value"
+    if string.raw_cmp(name, c"match") == 0 {
+        return c"match_value"
     }
-    if string.raw_cmp(name, "true") == 0 {
-        return "true_value"
+    if string.raw_cmp(name, c"true") == 0 {
+        return c"true_value"
     }
-    if string.raw_cmp(name, "false") == 0 {
-        return "false_value"
+    if string.raw_cmp(name, c"false") == 0 {
+        return c"false_value"
     }
-    if string.raw_cmp(name, "defer") == 0 {
-        return "deferred_value"
+    if string.raw_cmp(name, c"defer") == 0 {
+        return c"deferred_value"
     }
-    if string.raw_cmp(name, "break") == 0 {
-        return "break_value"
+    if string.raw_cmp(name, c"break") == 0 {
+        return c"break_value"
     }
-    if string.raw_cmp(name, "continue") == 0 {
-        return "continue_value"
+    if string.raw_cmp(name, c"continue") == 0 {
+        return c"continue_value"
     }
-    if string.raw_cmp(name, "as") == 0 {
-        return "as_value"
+    if string.raw_cmp(name, c"as") == 0 {
+        return c"as_value"
     }
-    if string.raw_cmp(name, "assert") == 0 {
-        return "assert_value"
+    if string.raw_cmp(name, c"assert") == 0 {
+        return c"assert_value"
     }
-    if string.raw_cmp(name, "when") == 0 {
-        return "when_value"
+    if string.raw_cmp(name, c"when") == 0 {
+        return c"when_value"
     }
-    if string.raw_cmp(name, "union") == 0 {
-        return "union_value"
+    if string.raw_cmp(name, c"union") == 0 {
+        return c"union_value"
     }
-    if string.raw_cmp(name, "enum") == 0 {
-        return "enum_value"
+    if string.raw_cmp(name, c"enum") == 0 {
+        return c"enum_value"
     }
-    if string.raw_cmp(name, "extern") == 0 {
-        return "external_value"
+    if string.raw_cmp(name, c"extern") == 0 {
+        return c"external_value"
     }
-    if string.raw_cmp(name, "link") == 0 {
-        return "link_value"
+    if string.raw_cmp(name, c"link") == 0 {
+        return c"link_value"
     }
-    if string.raw_cmp(name, "lib") == 0 {
-        return "lib_value"
+    if string.raw_cmp(name, c"lib") == 0 {
+        return c"lib_value"
     }
-    if string.raw_cmp(name, "guarded") == 0 {
-        return "guarded_value"
+    if string.raw_cmp(name, c"guarded") == 0 {
+        return c"guarded_value"
     }
-    if string.raw_cmp(name, "not") == 0 {
-        return "not_value"
+    if string.raw_cmp(name, c"not") == 0 {
+        return c"not_value"
     }
-    if string.raw_cmp(name, "test") == 0 {
-        return "test_value"
+    if string.raw_cmp(name, c"test") == 0 {
+        return c"test_value"
     }
-    if string.raw_cmp(name, "guard") == 0 {
-        return "guard_value"
+    if string.raw_cmp(name, c"guard") == 0 {
+        return c"guard_value"
     }
-    if string.raw_cmp(name, "invariant") == 0 {
-        return "invariant_value"
+    if string.raw_cmp(name, c"invariant") == 0 {
+        return c"invariant_value"
     }
     return name
 }
@@ -399,7 +399,7 @@ fn find_last_char(text: ref u8, target: u8) i64 = {
 fn trim_raw(text: ref u8) ref u8 = {
     val len: i64 = string.len_raw(text)
     if len == 0 {
-        return ""
+        return c""
     }
     val start: mut i64 = 0
     for {
@@ -424,7 +424,7 @@ fn trim_raw(text: ref u8) ref u8 = {
         end--
     }
     if end < start {
-        return ""
+        return c""
     }
     return trust tsubstr(text, start, end - start + 1)
 }
@@ -484,7 +484,7 @@ fn starts_keyword_paren(text: ref u8, keyword: ref u8) bool = {
 
 fn starts_do_statement(text: ref u8) bool = {
     val trimmed: ref u8 = trim_raw(text)
-    if !string.raw_starts_with(trimmed, "do") {
+    if !string.raw_starts_with(trimmed, c"do") {
         return false
     }
     val len: i64 = string.len_raw(trimmed)
@@ -553,7 +553,7 @@ fn push_indent(sb: ref void, indent: i64) void = {
         if i >= indent {
             break
         }
-        trust string.StringBuilder.append_cstr(sb, "    ")
+        trust string.StringBuilder.append_cstr(sb, c"    ")
         i++
     }
 }
@@ -570,12 +570,12 @@ fn append_blank_line(sb: ref void) void = {
 
 fn append_comment_line(sb: ref void, indent: i64, line: ref u8) void = {
     val trimmed: ref u8 = trim_raw(line)
-    if string.raw_cmp(trimmed, "") == 0 {
+    if string.raw_cmp(trimmed, c"") == 0 {
         append_blank_line(sb)
         return
     }
     push_indent(sb, indent)
-    trust string.StringBuilder.append_cstr(sb, "// ")
+    trust string.StringBuilder.append_cstr(sb, c"// ")
     trust string.StringBuilder.append_cstr(sb, trimmed)
     trust string.StringBuilder.append_char(sb, 10 as u8)
 }
@@ -930,14 +930,14 @@ fn lookup_flex_field_type(ctx: ref TranslationCtx, struct_name: ref u8) option[r
 }
 
 fn mark_mutable_name(ctx: mut ref TranslationCtx, name: ref u8) void = {
-    if string.raw_cmp(name, "") == 0 {
+    if string.raw_cmp(name, c"") == 0 {
         return
     }
     push_unique(ctx.mutable_names, name)
 }
 
 fn mark_address_taken_name(ctx: mut ref TranslationCtx, name: ref u8) void = {
-    if string.raw_cmp(name, "") == 0 {
+    if string.raw_cmp(name, c"") == 0 {
         return
     }
     push_unique(ctx.address_taken_names, name)
@@ -959,14 +959,14 @@ fn render_parameter_type(ctx: ref TranslationCtx, name: ref u8, type_name: ref u
     if !is_mutable_name(ctx, name) {
         return type_name
     }
-    if string.raw_starts_with(type_name, "mut ") {
+    if string.raw_starts_with(type_name, c"mut ") {
         return type_name
     }
     return trust tfmt("mut {s}", {type_name})
 }
 
 fn render_mutable_type(type_name: ref u8) ref u8 = {
-    if string.raw_starts_with(type_name, "mut ") {
+    if string.raw_starts_with(type_name, c"mut ") {
         return type_name
     }
     return trust tfmt("mut {s}", {type_name})
@@ -981,7 +981,7 @@ fn append_main_prelude_builder(ctx: ref TranslationCtx, sb: ref void) void = {
     val lines = trust split_lines(take_cstr(built))
     for line in lines {
         val trimmed: ref u8 = trim_raw(line)
-        if string.raw_cmp(trimmed, "") == 0 {
+        if string.raw_cmp(trimmed, c"") == 0 {
             continue
         }
         append_main_prelude_line(ctx, trimmed)
@@ -989,7 +989,7 @@ fn append_main_prelude_builder(ctx: ref TranslationCtx, sb: ref void) void = {
 }
 
 fn is_array_type_name(type_name: ref u8) bool = {
-    return string.raw_starts_with(type_name, "[")
+    return string.raw_starts_with(type_name, c"[")
 }
 
 fn array_type_close_index(type_name: ref u8) i64 = {
@@ -999,7 +999,7 @@ fn array_type_close_index(type_name: ref u8) i64 = {
 fn array_type_len_expr(type_name: ref u8) ref u8 = {
     val close_i: i64 = array_type_close_index(type_name)
     if close_i <= 1 {
-        return ""
+        return c""
     }
     return trust tsubstr(type_name, 1, close_i - 1)
 }
@@ -1008,7 +1008,7 @@ fn array_type_elem(type_name: ref u8) ref u8 = {
     val close_i: i64 = array_type_close_index(type_name)
     val len: i64 = string.len_raw(type_name)
     if close_i < 0 || close_i + 1 >= len {
-        return "void"
+        return c"void"
     }
     return trust tsubstr(type_name, close_i + 1, len - close_i - 1)
 }
@@ -1035,8 +1035,8 @@ fn is_string_literal_text(text: ref u8) bool = {
 }
 
 fn is_unsized_char_array(type_name: ref u8) bool = {
-    return string.raw_cmp(array_type_len_expr(type_name), "") == 0
-    && string.raw_cmp(array_type_elem(type_name), "u8") == 0
+    return string.raw_cmp(array_type_len_expr(type_name), c"") == 0
+    && string.raw_cmp(array_type_elem(type_name), c"u8") == 0
 }
 
 fn string_literal_storage_len(text: ref u8) i64 = {
@@ -1110,14 +1110,14 @@ fn parse_brace_initializer_items(text: ref u8) list[ref u8] = {
         return mem.new[ref u8]()
     }
     val inner: ref u8 = trim_raw(trust tsubstr(trimmed, 1, string.len_raw(trimmed) - 2))
-    if string.raw_cmp(inner, "") == 0 {
+    if string.raw_cmp(inner, c"") == 0 {
         return mem.new[ref u8]()
     }
     val raw_items = split_top_level(inner, 44 as u8)
     val items: mut list[ref u8] = mem.new[ref u8]()
     for raw_item in raw_items {
         val item: ref u8 = trim_raw(raw_item)
-        if string.raw_cmp(item, "") == 0 {
+        if string.raw_cmp(item, c"") == 0 {
             continue
         }
         @append(items, item)
@@ -1160,23 +1160,23 @@ fn emit_array_initializer_stores(
 }
 
 fn zero_init_expr(type_name: ref u8) ref u8 = {
-    if string.raw_cmp(type_name, "f32") == 0 || string.raw_cmp(type_name, "f64") == 0 {
-        return "0.0"
+    if string.raw_cmp(type_name, c"f32") == 0 || string.raw_cmp(type_name, c"f64") == 0 {
+        return c"0.0"
     }
-    if string.raw_cmp(type_name, "bool") == 0 {
-        return "false"
+    if string.raw_cmp(type_name, c"bool") == 0 {
+        return c"false"
     }
-    if string.raw_starts_with(type_name, "ref ")
-    || string.raw_starts_with(type_name, "mut ref ") {
-        return "none"
+    if string.raw_starts_with(type_name, c"ref ")
+    || string.raw_starts_with(type_name, c"mut ref ") {
+        return c"none"
     }
     return trust tfmt("0 as {s}", {type_name})
 }
 
 fn extract_assignment_base(lhs: ref u8) ref u8 = {
     val trimmed: ref u8 = trim_raw(lhs)
-    if string.raw_cmp(trimmed, "") == 0 {
-        return ""
+    if string.raw_cmp(trimmed, c"") == 0 {
+        return c""
     }
     val lhs_arrow: ref u8 = replace_arrow_access(trimmed)
     val dot_i: i64 = find_char(lhs_arrow, 46 as u8)
@@ -1185,15 +1185,15 @@ fn extract_assignment_base(lhs: ref u8) ref u8 = {
         if is_ident_text(base) {
             return rewrite_identifiers(base)
         }
-        return ""
+        return c""
     }
-    if str_contains(lhs_arrow, "[") {
-        return ""
+    if str_contains(lhs_arrow, c"[") {
+        return c""
     }
     if is_ident_text(trimmed) {
         return rewrite_identifiers(trimmed)
     }
-    return ""
+    return c""
 }
 
 fn find_top_level_else(text: ref u8) i64 = {
@@ -1256,7 +1256,7 @@ fn find_top_level_else(text: ref u8) i64 = {
             bracket--
         } elif paren == 0 && brace == 0 && bracket == 0 && i + 4 <= len {
             val frag: ref u8 = trust tsubstr(text, i, 4)
-            if string.raw_cmp(frag, "else") == 0 {
+            if string.raw_cmp(frag, c"else") == 0 {
                 val prev_ok: bool = i == 0 || !is_ident_part(trust @load8(@ptradd(
                             text,
                             i - 1
@@ -1383,18 +1383,18 @@ fn analyze_deref_writes(ctx: mut ref TranslationCtx, text: ref u8) void = {
 
 fn analyze_mutations_in_statement(ctx: mut ref TranslationCtx, line: ref u8) void = {
     val stripped: ref u8 = strip_trailing_semicolon(trim_raw(line))
-    if string.raw_cmp(stripped, "") == 0 {
+    if string.raw_cmp(stripped, c"") == 0 {
         return
     }
     analyze_deref_writes(ctx, stripped)
-    if string.raw_starts_with(stripped, "else") {
+    if string.raw_starts_with(stripped, c"else") {
         val tail: ref u8 = trim_raw(trust tsubstr(stripped, 4, string.len_raw(stripped) - 4))
-        if string.raw_cmp(tail, "") != 0 {
+        if string.raw_cmp(tail, c"") != 0 {
             analyze_mutations_in_statement(ctx, tail)
         }
         return
     }
-    if starts_keyword_paren(stripped, "if") {
+    if starts_keyword_paren(stripped, c"if") {
         val open_i: i64 = find_char(stripped, 40 as u8)
         val close_i: i64 = find_matching_delim(stripped, open_i, 40 as u8, 41 as u8)
         if open_i >= 0 && close_i > open_i {
@@ -1403,7 +1403,7 @@ fn analyze_mutations_in_statement(ctx: mut ref TranslationCtx, line: ref u8) voi
                     close_i + 1,
                     string.len_raw(stripped) - close_i - 1
                 ))
-            if string.raw_cmp(tail, "") != 0 {
+            if string.raw_cmp(tail, c"") != 0 {
                 val else_i: i64 = find_top_level_else(tail)
                 if else_i >= 0 {
                     val then_text: ref u8 = trim_raw(trust tsubstr(tail, 0, else_i))
@@ -1412,10 +1412,10 @@ fn analyze_mutations_in_statement(ctx: mut ref TranslationCtx, line: ref u8) voi
                             else_i + 4,
                             string.len_raw(tail) - else_i - 4
                         ))
-                    if string.raw_cmp(then_text, "") != 0 {
+                    if string.raw_cmp(then_text, c"") != 0 {
                         analyze_mutations_in_statement(ctx, then_text)
                     }
-                    if string.raw_cmp(else_text, "") != 0 {
+                    if string.raw_cmp(else_text, c"") != 0 {
                         analyze_mutations_in_statement(ctx, else_text)
                     }
                     return
@@ -1435,8 +1435,8 @@ fn analyze_mutations_in_statement(ctx: mut ref TranslationCtx, line: ref u8) voi
     val assign_i: i64 = find_top_level_assign(stripped)
     if assign_i > 0 {
         val lhs: ref u8 = trim_raw(trust tsubstr(stripped, 0, assign_i))
-        val can_be_decl: bool = str_contains(lhs, " ") || str_contains(lhs, "*")
-        || string.raw_starts_with(lhs, "struct ") || string.raw_starts_with(lhs, "enum ")
+        val can_be_decl: bool = str_contains(lhs, c" ") || str_contains(lhs, c"*")
+        || string.raw_starts_with(lhs, c"struct ") || string.raw_starts_with(lhs, c"enum ")
         if !can_be_decl {
             mark_mutable_name(ctx, extract_assignment_base(lhs))
         }
@@ -1583,16 +1583,16 @@ fn normalize_simple_incdec_stmt(text: ref u8) ref u8 = {
     val trimmed: ref u8 = trim_raw(text)
     val len: i64 = string.len_raw(trimmed)
     if len < 3 {
-        return ""
+        return c""
     }
     val first: u8 = trust @load8(@ptradd(trimmed, 0)) as u8
     val second: u8 = trust @load8(@ptradd(trimmed, 1)) as u8
     if ((first == 43 && second == 43) || (first == 45 && second == 45)) {
         val ident: ref u8 = trim_raw(trust tsubstr(trimmed, 2, len - 2))
         if is_ident_text(ident) {
-            val op: mut ref u8 = "+"
+            val op: mut ref u8 = c"+"
             if first == 45 {
-                op = "-"
+                op = c"-"
             }
             return trust tfmt("{s}{s}{s}", {rewrite_identifiers(ident), op, op})
         }
@@ -1602,21 +1602,21 @@ fn normalize_simple_incdec_stmt(text: ref u8) ref u8 = {
     if ((last2 == 43 && last1 == 43) || (last2 == 45 && last1 == 45)) {
         val ident2: ref u8 = trim_raw(trust tsubstr(trimmed, 0, len - 2))
         if is_ident_text(ident2) {
-            val op2: mut ref u8 = "+"
+            val op2: mut ref u8 = c"+"
             if last2 == 45 {
-                op2 = "-"
+                op2 = c"-"
             }
             return trust tfmt("{s}{s}{s}", {rewrite_identifiers(ident2), op2, op2})
         }
     }
-    return ""
+    return c""
 }
 
 fn normalize_deref_incdec_stmt(text: ref u8) ref u8 = {
     val trimmed: ref u8 = trim_raw(text)
     val len: i64 = string.len_raw(trimmed)
     if len < 6 {
-        return ""
+        return c""
     }
     val first: u8 = trust @load8(trimmed) as u8
     if first == 40 {
@@ -1628,17 +1628,17 @@ fn normalize_deref_incdec_stmt(text: ref u8) ref u8 = {
                     close_i + 1,
                     len - close_i - 1
                 ))
-            if string.raw_starts_with(inner, "*")
-            && (string.raw_cmp(tail, "++") == 0 || string.raw_cmp(tail, "--") == 0) {
+            if string.raw_starts_with(inner, c"*")
+            && (string.raw_cmp(tail, c"++") == 0 || string.raw_cmp(tail, c"--") == 0) {
                 val target: ref u8 = trim_raw(unwrap_outer_parens(trim_raw(trust tsubstr(
                                 inner,
                                 1,
                                 string.len_raw(inner) - 1
                             ))))
                 if is_ident_text(target) {
-                    val op: mut ref u8 = "+"
-                    if string.raw_cmp(tail, "--") == 0 {
-                        op = "-"
+                    val op: mut ref u8 = c"+"
+                    if string.raw_cmp(tail, c"--") == 0 {
+                        op = c"-"
                     }
                     val name: ref u8 = rewrite_identifiers(target)
                     return trust tfmt(
@@ -1648,7 +1648,7 @@ fn normalize_deref_incdec_stmt(text: ref u8) ref u8 = {
                 }
             }
         }
-        return ""
+        return c""
     }
     if len > 2 {
         val second: u8 = trust @load8(@ptradd(trimmed, 1)) as u8
@@ -1659,16 +1659,16 @@ fn normalize_deref_incdec_stmt(text: ref u8) ref u8 = {
             && (trust @load8(rest) as u8) == 40
             && (trust @load8(@ptradd(rest, rest_len - 1)) as u8) == 41 {
                 val inner2: ref u8 = trim_raw(trust tsubstr(rest, 1, rest_len - 2))
-                if string.raw_starts_with(inner2, "*") {
+                if string.raw_starts_with(inner2, c"*") {
                     val target2: ref u8 = trim_raw(unwrap_outer_parens(trim_raw(trust tsubstr(
                                     inner2,
                                     1,
                                     string.len_raw(inner2) - 1
                                 ))))
                     if is_ident_text(target2) {
-                        val op2: mut ref u8 = "+"
+                        val op2: mut ref u8 = c"+"
                         if first == 45 {
-                            op2 = "-"
+                            op2 = c"-"
                         }
                         val name2: ref u8 = rewrite_identifiers(target2)
                         return trust tfmt(
@@ -1680,7 +1680,7 @@ fn normalize_deref_incdec_stmt(text: ref u8) ref u8 = {
             }
         }
     }
-    return ""
+    return c""
 }
 
 fn lower_incdec_text(
@@ -1741,9 +1741,9 @@ fn lower_incdec_text(
         if i + 1 < len {
             val next: u8 = trust @load8(@ptradd(trimmed, i + 1)) as u8
             if ((c == 43 && next == 43) || (c == 45 && next == 45)) {
-                val op: mut ref u8 = "+"
+                val op: mut ref u8 = c"+"
                 if c == 45 {
-                    op = "-"
+                    op = c"-"
                 }
                 val j: mut i64 = i + 2
                 for {
@@ -1810,9 +1810,9 @@ fn lower_incdec_text(
                 val c1: u8 = trust @load8(@ptradd(trimmed, j2)) as u8
                 val c2: u8 = trust @load8(@ptradd(trimmed, j2 + 1)) as u8
                 if ((c1 == 43 && c2 == 43) || (c1 == 45 && c2 == 45)) {
-                    val op2: mut ref u8 = "+"
+                    val op2: mut ref u8 = c"+"
                     if c1 == 45 {
-                        op2 = "-"
+                        op2 = c"-"
                     }
                     emit_incdec_stmt(ident2, op2, indent, out)
                     trust string.StringBuilder.append_cstr(sb, ident2)
@@ -1845,7 +1845,7 @@ fn lower_incdec_expr(
 fn body_has_explicit_return(lines: list[ref u8]) bool = {
     for line in lines {
         val trimmed: ref u8 = trim_raw(line)
-        if string.raw_starts_with(trimmed, "return") {
+        if string.raw_starts_with(trimmed, c"return") {
             return true
         }
     }
@@ -1853,12 +1853,12 @@ fn body_has_explicit_return(lines: list[ref u8]) bool = {
 }
 
 fn contains_incdec_ops(text: ref u8) bool = {
-    return str_contains(text, "++") || str_contains(text, "--")
+    return str_contains(text, c"++") || str_contains(text, c"--")
 }
 
 fn analyze_address_taken_in_statement(ctx: mut ref TranslationCtx, line: ref u8) void = {
     val stripped: ref u8 = strip_trailing_semicolon(trim_raw(line))
-    if string.raw_cmp(stripped, "") == 0 {
+    if string.raw_cmp(stripped, c"") == 0 {
         return
     }
     val len: i64 = string.len_raw(stripped)
@@ -1966,33 +1966,33 @@ fn analyze_local_decl_types(ctx: mut ref TranslationCtx, lines: list[ref u8], st
         val line_opt = @get(lines, i as usize)
         if line_opt is some line_val {
             val stripped: ref u8 = strip_trailing_semicolon(trim_raw(line_val as ref u8))
-            if !string.raw_starts_with(stripped, "if")
-            && !string.raw_starts_with(stripped, "for")
-            && !string.raw_starts_with(stripped, "while")
-            && !string.raw_starts_with(stripped, "switch")
-            && !string.raw_starts_with(stripped, "return")
-            && !string.raw_starts_with(stripped, "else")
-            && !string.raw_starts_with(stripped, "case")
-            && !string.raw_starts_with(stripped, "break")
-            && !string.raw_starts_with(stripped, "continue") {
+            if !string.raw_starts_with(stripped, c"if")
+            && !string.raw_starts_with(stripped, c"for")
+            && !string.raw_starts_with(stripped, c"while")
+            && !string.raw_starts_with(stripped, c"switch")
+            && !string.raw_starts_with(stripped, c"return")
+            && !string.raw_starts_with(stripped, c"else")
+            && !string.raw_starts_with(stripped, c"case")
+            && !string.raw_starts_with(stripped, c"break")
+            && !string.raw_starts_with(stripped, c"continue") {
                 val assign_i: i64 = find_top_level_assign(stripped)
                 val lhs: mut ref u8 = stripped
                 if assign_i > 0 {
                     lhs = trim_raw(trust tsubstr(stripped, 0, assign_i))
                 }
-                val looks_like_decl: bool = (str_contains(lhs, " ")
-                    || string.raw_starts_with(lhs, "struct ")
-                    || string.raw_starts_with(lhs, "enum ")
-                    || string.raw_starts_with(lhs, "union "))
-                && !str_contains(lhs, "(")
-                if looks_like_decl && string.raw_cmp(lhs, "") != 0 {
-                    val decl: ref DeclInfo = parse_named_decl(ctx, lhs, "")
-                    if decl.its_ok && string.raw_cmp(decl.name, "") != 0 {
+                val looks_like_decl: bool = (str_contains(lhs, c" ")
+                    || string.raw_starts_with(lhs, c"struct ")
+                    || string.raw_starts_with(lhs, c"enum ")
+                    || string.raw_starts_with(lhs, c"union "))
+                && !str_contains(lhs, c"(")
+                if looks_like_decl && string.raw_cmp(lhs, c"") != 0 {
+                    val decl: ref DeclInfo = parse_named_decl(ctx, lhs, c"")
+                    if decl.its_ok && string.raw_cmp(decl.name, c"") != 0 {
                         val type_name: mut ref u8 = decl.type_name
                         if is_array_type_name(type_name) {
                             type_name = decay_array_type(type_name)
                         }
-                        if string.raw_starts_with(type_name, "ref ") {
+                        if string.raw_starts_with(type_name, c"ref ") {
                             remember_local_type(ctx, decl.name, type_name)
                         }
                     }
@@ -2038,19 +2038,19 @@ fn analyze_call_arg_mutations(ctx: mut ref TranslationCtx, text: ref u8) void = 
                 j++
             }
             if j < len && (trust @load8(@ptradd(trimmed, j)) as u8) == 40
-            && !string.raw_starts_with(ident, "if")
-            && !string.raw_starts_with(ident, "for")
-            && !string.raw_starts_with(ident, "while")
-            && !string.raw_starts_with(ident, "switch")
-            && !string.raw_starts_with(ident, "sizeof") {
+            && !string.raw_starts_with(ident, c"if")
+            && !string.raw_starts_with(ident, c"for")
+            && !string.raw_starts_with(ident, c"while")
+            && !string.raw_starts_with(ident, c"switch")
+            && !string.raw_starts_with(ident, c"sizeof") {
                 val call_text: ref u8 = trust tsubstr(trimmed, start_i, len - start_i)
                 val args = trust extract_call_args_text(call_text)
                 for arg in args {
                     val arg_text: ref u8 = trim_raw(arg)
                     if is_ident_text(arg_text) {
                         if lookup_local_type(ctx, arg_text) is some type_name {
-                            if string.raw_starts_with(type_name as ref u8, "ref ")
-                            || string.raw_starts_with(type_name as ref u8, "mut ref ") {
+                            if string.raw_starts_with(type_name as ref u8, c"ref ")
+                            || string.raw_starts_with(type_name as ref u8, c"mut ref ") {
                                 mark_mutable_name(ctx, rewrite_identifiers(arg_text))
                             }
                         }
@@ -2153,7 +2153,7 @@ fn strip_system_includes(text: ref u8) ref u8 = {
     val first: mut bool = true
     for line in lines {
         val trimmed: ref u8 = trim_raw(line)
-        if string.raw_starts_with(trimmed, "#include") && is_system_include(trimmed) {
+        if string.raw_starts_with(trimmed, c"#include") && is_system_include(trimmed) {
             continue
         }
         if !first {
@@ -2188,8 +2188,8 @@ fn preprocess_source(path: ref u8) option[ref u8] = trust {
             val original: ref u8 = content_val as ref u8
             val filtered: ref u8 = strip_system_includes(original)
             val current_dir: ref u8 = tdir(path)
-            val temp_path: ref u8 = tjoin(current_dir, "__spectre_translate_tmp__.c")
-            val pp_path: ref u8 = tjoin(current_dir, "__spectre_translate_tmp__.pp")
+            val temp_path: ref u8 = tjoin(current_dir, c"__spectre_translate_tmp__.c")
+            val pp_path: ref u8 = tjoin(current_dir, c"__spectre_translate_tmp__.pp")
             val wrote: bool = fs.write_all(temp_path, filtered)
             if !wrote {
                 allocators.Arena.free(arena)
@@ -2206,7 +2206,7 @@ fn preprocess_source(path: ref u8) option[ref u8] = trust {
                 ok out => {
                     val text: ref u8 = take_cstr(out)
                     allocators.Arena.free(arena)
-                    if string.raw_cmp(trim_raw(text), "") == 0 {
+                    if string.raw_cmp(trim_raw(text), c"") == 0 {
                         return some filtered
                     }
                     return some text
@@ -2223,7 +2223,7 @@ fn preprocess_source(path: ref u8) option[ref u8] = trust {
 fn extract_call_name(text: ref u8) ref u8 = {
     val open_i: i64 = find_char(text, 40 as u8)
     if open_i <= 0 {
-        return ""
+        return c""
     }
     return extract_identifier_before(text, open_i)
 }
@@ -2235,7 +2235,7 @@ fn extract_call_args_text(text: ref u8) list[ref u8] = trust {
         return mem.new[ref u8]()
     }
     val args_raw: ref u8 = trim_raw(tsubstr(text, open_i + 1, close_i - open_i - 1))
-    if string.raw_cmp(args_raw, "") == 0 {
+    if string.raw_cmp(args_raw, c"") == 0 {
         return mem.new[ref u8]()
     }
     return split_top_level(args_raw, 44 as u8)
@@ -2270,40 +2270,40 @@ fn is_integer_literal_text(text: ref u8) bool = {
 
 fn is_float_literal_text(text: ref u8) bool = {
     val trimmed: ref u8 = trim_raw(text)
-    return str_contains(trimmed, ".") && !is_string_literal_text(trimmed)
+    return str_contains(trimmed, c".") && !is_string_literal_text(trimmed)
 }
 
 fn infer_called_arg_type(ctx: ref TranslationCtx, text: ref u8) ref u8 = {
     val trimmed: ref u8 = trim_raw(text)
-    if string.raw_cmp(trimmed, "NULL") == 0 || string.raw_cmp(trimmed, "0") == 0 {
-        return "ref void"
+    if string.raw_cmp(trimmed, c"NULL") == 0 || string.raw_cmp(trimmed, c"0") == 0 {
+        return c"ref void"
     }
-    if string.raw_starts_with(trimmed, "@addr(") {
-        return "ref void"
+    if string.raw_starts_with(trimmed, c"@addr(") {
+        return c"ref void"
     }
     if is_string_literal_text(trimmed) {
-        return "ref u8"
+        return c"ref u8"
     }
     if is_integer_literal_text(trimmed) {
-        return "i32"
+        return c"i32"
     }
     if is_float_literal_text(trimmed) {
-        return "f64"
+        return c"f64"
     }
     if is_ident_text(trimmed) {
         if lookup_local_type(ctx, trimmed) is some type_name {
             return type_name as ref u8
         }
-        return "ref void"
+        return c"ref void"
     }
     val index_target: ref u8 = parse_index_target(trimmed)
-    if string.raw_cmp(index_target, "") != 0 {
+    if string.raw_cmp(index_target, c"") != 0 {
         val elem_type: ref u8 = lookup_index_element_type(ctx, index_target)
-        if string.raw_cmp(elem_type, "") != 0 {
+        if string.raw_cmp(elem_type, c"") != 0 {
             return elem_type
         }
     }
-    return "ref void"
+    return c"ref void"
 }
 
 fn remember_called_signature(
@@ -2322,7 +2322,7 @@ fn remember_called_signature(
         val arg_opt = @get(args, i as usize)
         if arg_opt is some arg_val {
             if !first {
-                trust string.StringBuilder.append_cstr(sb, ", ")
+                trust string.StringBuilder.append_cstr(sb, c", ")
             }
             val arg_type: ref u8 = infer_called_arg_type(ctx, arg_val as ref u8)
             trust string.StringBuilder.append_cstr(sb, tfmt("arg{d}: {s}", {i, arg_type}))
@@ -2382,7 +2382,7 @@ fn lookup_called_signature(ctx: ref TranslationCtx, call_name: ref u8) option[re
 
 fn track_called_expr(ctx: mut ref TranslationCtx, expr: ref u8) void = {
     val call_name: ref u8 = extract_call_name(expr)
-    if string.raw_cmp(call_name, "") != 0 && !string.raw_starts_with(expr, "@") {
+    if string.raw_cmp(call_name, c"") != 0 && !string.raw_starts_with(expr, c"@") {
         push_unique(ctx.called_names, call_name)
         remember_called_signature(ctx, call_name, trust extract_call_args_text(expr))
     }
@@ -2475,7 +2475,7 @@ fn rewrite_identifiers(text: ref u8) ref u8 = {
             val ident: ref u8 = trust tsubstr(trimmed, start, i - start)
             val preceded_by_at: bool = start > 0
             && (trust @load8(@ptradd(trimmed, start - 1)) as u8) == 64
-            if preceded_by_at && string.raw_cmp(ident, "sizeof") == 0 {
+            if preceded_by_at && string.raw_cmp(ident, c"sizeof") == 0 {
                 val j: mut i64 = i
                 for {
                     if j >= len {
@@ -2500,8 +2500,8 @@ fn rewrite_identifiers(text: ref u8) ref u8 = {
                     }
                 }
             }
-            if string.raw_cmp(ident, "NULL") == 0 {
-                trust string.StringBuilder.append_cstr(sb, "0")
+            if string.raw_cmp(ident, c"NULL") == 0 {
+                trust string.StringBuilder.append_cstr(sb, c"0")
                 continue
             }
             trust string.StringBuilder.append_cstr(sb, sanitize_identifier(ident))
@@ -2574,7 +2574,7 @@ fn is_probable_c_type(text: ref u8) bool = {
 
 fn is_known_c_type_name(ctx: ref TranslationCtx, text: ref u8) bool = {
     val trimmed: ref u8 = trim_raw(text)
-    if string.raw_cmp(trimmed, "") == 0 {
+    if string.raw_cmp(trimmed, c"") == 0 {
         return false
     }
     val no_stars_sb: ref void = string.StringBuilder.new()
@@ -2593,97 +2593,97 @@ fn is_known_c_type_name(ctx: ref TranslationCtx, text: ref u8) bool = {
     val no_stars_built: ref void = trust string.StringBuilder.build(no_stars_sb)
     trust string.StringBuilder.free(no_stars_sb)
     val base: ref u8 = trim_raw(trust take_cstr(no_stars_built))
-    if string.raw_cmp(base, "void") == 0 {
+    if string.raw_cmp(base, c"void") == 0 {
         return true
     }
-    if string.raw_cmp(base, "u8") == 0 {
+    if string.raw_cmp(base, c"u8") == 0 {
         return true
     }
-    if string.raw_cmp(base, "short") == 0 {
+    if string.raw_cmp(base, c"short") == 0 {
         return true
     }
-    if string.raw_cmp(base, "int") == 0 {
+    if string.raw_cmp(base, c"int") == 0 {
         return true
     }
-    if string.raw_cmp(base, "long") == 0 {
+    if string.raw_cmp(base, c"long") == 0 {
         return true
     }
-    if string.raw_cmp(base, "long long") == 0 {
+    if string.raw_cmp(base, c"long long") == 0 {
         return true
     }
-    if string.raw_cmp(base, "unsigned u8") == 0 {
+    if string.raw_cmp(base, c"unsigned u8") == 0 {
         return true
     }
-    if string.raw_cmp(base, "unsigned short") == 0 {
+    if string.raw_cmp(base, c"unsigned short") == 0 {
         return true
     }
-    if string.raw_cmp(base, "unsigned") == 0 {
+    if string.raw_cmp(base, c"unsigned") == 0 {
         return true
     }
-    if string.raw_cmp(base, "unsigned int") == 0 {
+    if string.raw_cmp(base, c"unsigned int") == 0 {
         return true
     }
-    if string.raw_cmp(base, "unsigned long") == 0 {
+    if string.raw_cmp(base, c"unsigned long") == 0 {
         return true
     }
-    if string.raw_cmp(base, "unsigned long long") == 0 {
+    if string.raw_cmp(base, c"unsigned long long") == 0 {
         return true
     }
-    if string.raw_cmp(base, "float") == 0 {
+    if string.raw_cmp(base, c"float") == 0 {
         return true
     }
-    if string.raw_cmp(base, "double") == 0 {
+    if string.raw_cmp(base, c"double") == 0 {
         return true
     }
-    if string.raw_cmp(base, "_Bool") == 0 {
+    if string.raw_cmp(base, c"_Bool") == 0 {
         return true
     }
-    if string.raw_cmp(base, "bool") == 0 {
+    if string.raw_cmp(base, c"bool") == 0 {
         return true
     }
-    if string.raw_cmp(base, "size_t") == 0 {
+    if string.raw_cmp(base, c"size_t") == 0 {
         return true
     }
-    if string.raw_cmp(base, "ssize_t") == 0 {
+    if string.raw_cmp(base, c"ssize_t") == 0 {
         return true
     }
-    if string.raw_cmp(base, "int8_t") == 0 {
+    if string.raw_cmp(base, c"int8_t") == 0 {
         return true
     }
-    if string.raw_cmp(base, "uint8_t") == 0 {
+    if string.raw_cmp(base, c"uint8_t") == 0 {
         return true
     }
-    if string.raw_cmp(base, "int16_t") == 0 {
+    if string.raw_cmp(base, c"int16_t") == 0 {
         return true
     }
-    if string.raw_cmp(base, "uint16_t") == 0 {
+    if string.raw_cmp(base, c"uint16_t") == 0 {
         return true
     }
-    if string.raw_cmp(base, "int32_t") == 0 {
+    if string.raw_cmp(base, c"int32_t") == 0 {
         return true
     }
-    if string.raw_cmp(base, "uint32_t") == 0 {
+    if string.raw_cmp(base, c"uint32_t") == 0 {
         return true
     }
-    if string.raw_cmp(base, "int64_t") == 0 {
+    if string.raw_cmp(base, c"int64_t") == 0 {
         return true
     }
-    if string.raw_cmp(base, "uint64_t") == 0 {
+    if string.raw_cmp(base, c"uint64_t") == 0 {
         return true
     }
-    if string.raw_cmp(base, "intptr_t") == 0 {
+    if string.raw_cmp(base, c"intptr_t") == 0 {
         return true
     }
-    if string.raw_cmp(base, "uintptr_t") == 0 {
+    if string.raw_cmp(base, c"uintptr_t") == 0 {
         return true
     }
-    if string.raw_starts_with(base, "struct ") {
+    if string.raw_starts_with(base, c"struct ") {
         return true
     }
-    if string.raw_starts_with(base, "enum ") {
+    if string.raw_starts_with(base, c"enum ") {
         return true
     }
-    if string.raw_starts_with(base, "union ") {
+    if string.raw_starts_with(base, c"union ") {
         return true
     }
     return list_contains(ctx.translated_type_names, base)
@@ -2718,7 +2718,7 @@ fn parse_index_target(text: ref u8) ref u8 = {
     val open_i: i64 = find_char(trimmed, 91 as u8)
     val close_i: i64 = find_last_char(trimmed, 93 as u8)
     if open_i <= 0 || close_i <= open_i {
-        return ""
+        return c""
     }
     return trim_raw(trust tsubstr(trimmed, 0, open_i))
 }
@@ -2728,30 +2728,30 @@ fn parse_index_expr(text: ref u8) ref u8 = {
     val open_i: i64 = find_char(trimmed, 91 as u8)
     val close_i: i64 = find_last_char(trimmed, 93 as u8)
     if open_i <= 0 || close_i <= open_i {
-        return ""
+        return c""
     }
     return trim_raw(trust tsubstr(trimmed, open_i + 1, close_i - open_i - 1))
 }
 
 fn lookup_index_element_type(ctx: ref TranslationCtx, base: ref u8) ref u8 = {
     if !is_ident_text(base) {
-        return ""
+        return c""
     }
     if lookup_local_type(ctx, base) is some type_name {
         val t: ref u8 = trim_raw(type_name as ref u8)
-        if string.raw_starts_with(t, "ref ") {
+        if string.raw_starts_with(t, c"ref ") {
             return trim_raw(trust tsubstr(t, 4, string.len_raw(t) - 4))
         }
         if is_array_type_name(t) {
             return decay_array_type(t)
         }
     }
-    return ""
+    return c""
 }
 
 fn render_index_ptr_expr(ctx: ref TranslationCtx, base: ref u8, index_expr: ref u8) ref u8 = {
     val elem_type: ref u8 = lookup_index_element_type(ctx, base)
-    if string.raw_cmp(elem_type, "") == 0 {
+    if string.raw_cmp(elem_type, c"") == 0 {
         return trust tfmt("@ptradd({s}, {s})", {base, index_expr})
     }
     return trust tfmt("@ptradd({s}, ({s}) * @sizeof({s}))", {base, index_expr, elem_type})
@@ -2858,12 +2858,12 @@ fn ensure_intrinsic_prefixes(text: ref u8) ref u8 = {
     val trimmed: ref u8 = trim_raw(text)
     val len: i64 = string.len_raw(trimmed)
     val names: list[ref u8] = mem.from6[ref u8](
-        "load",
-        "store",
-        "ptradd",
-        "sizeof",
-        "alloc",
-        "free"
+        c"load",
+        c"store",
+        c"ptradd",
+        c"sizeof",
+        c"alloc",
+        c"free"
     )
     val sb: ref void = string.StringBuilder.new()
     val i: mut i64 = 0
@@ -2913,12 +2913,12 @@ fn normalize_intrinsic_prefixes(text: ref u8) ref u8 = {
     val trimmed: ref u8 = trim_raw(text)
     val len: i64 = string.len_raw(trimmed)
     val names: list[ref u8] = mem.from6[ref u8](
-        "load",
-        "store",
-        "ptradd",
-        "sizeof",
-        "alloc",
-        "free"
+        c"load",
+        c"store",
+        c"ptradd",
+        c"sizeof",
+        c"alloc",
+        c"free"
     )
     val sb: ref void = string.StringBuilder.new()
     val i: mut i64 = 0
@@ -3112,25 +3112,25 @@ fn is_unary_deref_context(text: ref u8, star_i: i64) bool = {
             j--
         }
         val word: ref u8 = trust tsubstr(text, j + 1, end_i - j)
-        if string.raw_cmp(word, "return") == 0 {
+        if string.raw_cmp(word, c"return") == 0 {
             return true
         }
-        if string.raw_cmp(word, "if") == 0 {
+        if string.raw_cmp(word, c"if") == 0 {
             return true
         }
-        if string.raw_cmp(word, "while") == 0 {
+        if string.raw_cmp(word, c"while") == 0 {
             return true
         }
-        if string.raw_cmp(word, "for") == 0 {
+        if string.raw_cmp(word, c"for") == 0 {
             return true
         }
-        if string.raw_cmp(word, "case") == 0 {
+        if string.raw_cmp(word, c"case") == 0 {
             return true
         }
-        if string.raw_cmp(word, "switch") == 0 {
+        if string.raw_cmp(word, c"switch") == 0 {
             return true
         }
-        if string.raw_cmp(word, "sizeof") == 0 {
+        if string.raw_cmp(word, c"sizeof") == 0 {
             return true
         }
     }
@@ -3337,11 +3337,11 @@ fn is_printf_length_char(c: u8) bool = {
 }
 
 fn map_printf_specifier(length_mod: ref u8, specifier: u8) ref u8 = {
-    val is_size_mod: bool = string.raw_cmp(length_mod, "z") == 0
-    || string.raw_cmp(length_mod, "t") == 0
-    || string.raw_cmp(length_mod, "j") == 0
+    val is_size_mod: bool = string.raw_cmp(length_mod, c"z") == 0
+    || string.raw_cmp(length_mod, c"t") == 0
+    || string.raw_cmp(length_mod, c"j") == 0
     if is_size_mod && (specifier == 105 || specifier == 100 || specifier == 117) {
-        return "d"
+        return c"d"
     }
     if is_size_mod && (specifier == 120 || specifier == 88 || specifier == 111) {
         return trust tfmt("{c}", {specifier})
@@ -3365,16 +3365,16 @@ fn map_printf_specifier(length_mod: ref u8, specifier: u8) ref u8 = {
         return trust tfmt("{s}o", {length_mod})
     }
     if specifier == 99 {
-        return "c"
+        return c"c"
     }
     if specifier == 115 {
-        return "s"
+        return c"s"
     }
     if specifier == 112 {
-        return "p"
+        return c"p"
     }
     if specifier == 102 || specifier == 70 || specifier == 101 || specifier == 69 || specifier == 103 || specifier == 71 || specifier == 97 || specifier == 65 {
-        return "f"
+        return c"f"
     }
     return trust tfmt("{c}", {specifier})
 }
@@ -3478,7 +3478,7 @@ fn translate_printf_format(text: ref u8) ref u8 = {
 
 fn translate_printf_call(ctx: ref TranslationCtx, args: list[ref u8]) ref u8 = {
     val fmt_opt = @get(args, 0)
-    val fmt_expr: mut ref u8 = "\"\""
+    val fmt_expr: mut ref u8 = c"\"\""
     if fmt_opt is some fmt_val {
         fmt_expr = translate_printf_format(translate_expr_text(ctx, fmt_val as ref u8))
     }
@@ -3494,7 +3494,7 @@ fn translate_printf_call(ctx: ref TranslationCtx, args: list[ref u8]) ref u8 = {
         val arg_opt = @get(args, idx as usize)
         if arg_opt is some arg_val {
             if !first {
-                trust string.StringBuilder.append_cstr(sb, ", ")
+                trust string.StringBuilder.append_cstr(sb, c", ")
             }
             trust string.StringBuilder.append_cstr(sb, translate_expr_text(ctx, arg_val as ref u8))
             first = false
@@ -3520,7 +3520,7 @@ fn translate_variadic_args(ctx: ref TranslationCtx, args: list[ref u8], start_in
         val arg_opt = @get(args, idx as usize)
         if arg_opt is some arg_val {
             if !first {
-                trust string.StringBuilder.append_cstr(sb, ", ")
+                trust string.StringBuilder.append_cstr(sb, c", ")
             }
             trust string.StringBuilder.append_cstr(sb, translate_expr_text(ctx, arg_val as ref u8))
             first = false
@@ -3535,14 +3535,14 @@ fn translate_variadic_args(ctx: ref TranslationCtx, args: list[ref u8], start_in
 
 fn translate_stream_fd_expr(ctx: ref TranslationCtx, text: ref u8) ref u8 = {
     val trimmed: ref u8 = trim_raw(text)
-    if string.raw_cmp(trimmed, "stdin") == 0 {
-        return "0"
+    if string.raw_cmp(trimmed, c"stdin") == 0 {
+        return c"0"
     }
-    if string.raw_cmp(trimmed, "stdout") == 0 {
-        return "1"
+    if string.raw_cmp(trimmed, c"stdout") == 0 {
+        return c"1"
     }
-    if string.raw_cmp(trimmed, "stderr") == 0 {
-        return "2"
+    if string.raw_cmp(trimmed, c"stderr") == 0 {
+        return c"2"
     }
     return translate_expr_text(ctx, trimmed)
 }
@@ -3552,12 +3552,12 @@ fn translate_fprintf_call(ctx: ref TranslationCtx, args: list[ref u8]) ref u8 = 
     val fmt_opt = @get(args, 1)
     match stream_opt {
         none => {
-            return "/* unsupported fprintf */"
+            return c"/* unsupported fprintf */"
         }
         some stream_val => {
             match fmt_opt {
                 none => {
-                    return "/* unsupported fprintf */"
+                    return c"/* unsupported fprintf */"
                 }
                 some fmt_val => {
                     val fd_expr: ref u8 = translate_stream_fd_expr(ctx, stream_val as ref u8)
@@ -3581,7 +3581,7 @@ fn transform_call_expr(ctx: ref TranslationCtx, text: ref u8) ref u8 = {
         return trimmed
     }
     val call_name: ref u8 = extract_identifier_before(trimmed, open_i)
-    if string.raw_cmp(call_name, "") == 0 {
+    if string.raw_cmp(call_name, c"") == 0 {
         return trimmed
     }
     val call_start: i64 = open_i - string.len_raw(call_name)
@@ -3589,22 +3589,22 @@ fn transform_call_expr(ctx: ref TranslationCtx, text: ref u8) ref u8 = {
         return trimmed
     }
     val prefix_text: ref u8 = trim_raw(trust tsubstr(trimmed, 0, call_start))
-    if !(string.raw_cmp(prefix_text, "") == 0 || string.raw_cmp(prefix_text, "@") == 0) {
+    if !(string.raw_cmp(prefix_text, c"") == 0 || string.raw_cmp(prefix_text, c"@") == 0) {
         return trimmed
     }
     if close_i != string.len_raw(trimmed) - 1 {
         return trimmed
     }
-    val intrinsic_prefix: mut ref u8 = ""
-    if string.raw_starts_with(trimmed, "@") {
-        intrinsic_prefix = "@"
+    val intrinsic_prefix: mut ref u8 = c""
+    if string.raw_starts_with(trimmed, c"@") {
+        intrinsic_prefix = c"@"
     }
     val args_raw: ref u8 = trim_raw(trust tsubstr(trimmed, open_i + 1, close_i - open_i - 1))
     val args = split_top_level(args_raw, 44 as u8)
-    if string.raw_cmp(call_name, "printf") == 0 {
+    if string.raw_cmp(call_name, c"printf") == 0 {
         return translate_printf_call(ctx, args)
     }
-    if string.raw_cmp(call_name, "fprintf") == 0 {
+    if string.raw_cmp(call_name, c"fprintf") == 0 {
         return translate_fprintf_call(ctx, args)
     }
     val sb: ref void = string.StringBuilder.new()
@@ -3612,7 +3612,7 @@ fn transform_call_expr(ctx: ref TranslationCtx, text: ref u8) ref u8 = {
     for arg in args {
         val arg_trimmed: ref u8 = trim_raw(arg)
         if !first {
-            trust string.StringBuilder.append_cstr(sb, ", ")
+            trust string.StringBuilder.append_cstr(sb, c", ")
         }
         if is_ident_text(arg_trimmed) && list_contains(ctx.defined_names, arg_trimmed) {
             trust string.StringBuilder.append_cstr(sb, tfmt("@addr({s})", {arg_trimmed}))
@@ -3624,10 +3624,10 @@ fn transform_call_expr(ctx: ref TranslationCtx, text: ref u8) ref u8 = {
     val args_built: ref void = trust string.StringBuilder.build(sb)
     trust string.StringBuilder.free(sb)
     val args_text: ref u8 = trust take_cstr(args_built)
-    if string.raw_cmp(call_name, "sizeof") == 0 {
+    if string.raw_cmp(call_name, c"sizeof") == 0 {
         return trust tfmt("@sizeof({s})", {args_text})
     }
-    if string.raw_cmp(call_name, "malloc") == 0 {
+    if string.raw_cmp(call_name, c"malloc") == 0 {
         return trust tfmt("@alloc({s})", {args_text})
     }
     if list_contains(ctx.fnptr_names, call_name) {
@@ -3772,7 +3772,7 @@ fn collect_brace_block(lines: list[ref u8], start: i64) ref BlockResult = {
                 } elif c == 125 && brace_depth > 0 {
                     brace_depth--
                     if seen_open && brace_depth == 0 {
-                        return make_block_result(i + 1, STOP_EOF, "")
+                        return make_block_result(i + 1, STOP_EOF, c"")
                     }
                 }
                 j++
@@ -3780,7 +3780,7 @@ fn collect_brace_block(lines: list[ref u8], start: i64) ref BlockResult = {
         }
         i++
     }
-    return make_block_result(i, STOP_EOF, "")
+    return make_block_result(i, STOP_EOF, c"")
 }
 
 fn translate_for_loop(
@@ -3794,7 +3794,7 @@ fn translate_for_loop(
     val line_opt = @get(lines, start as usize)
     match line_opt {
         none => {
-            return make_block_result(start + 1, STOP_EOF, "")
+            return make_block_result(start + 1, STOP_EOF, c"")
         }
         some line_val => {
             val line: ref u8 = trim_raw(line_val as ref u8)
@@ -3802,7 +3802,7 @@ fn translate_for_loop(
             val close_i: i64 = find_matching_delim(line, open_i, 40 as u8, 41 as u8)
             if open_i < 0 || close_i <= open_i {
                 append_comment_line(out, indent, line)
-                return make_block_result(start + 1, STOP_EOF, "")
+                return make_block_result(start + 1, STOP_EOF, c"")
             }
             val inside: ref u8 = trim_raw(trust tsubstr(
                     line,
@@ -3815,9 +3815,9 @@ fn translate_for_loop(
                     string.len_raw(line) - close_i - 1
                 ))
             val parts = split_top_level(inside, 59 as u8)
-            val init: mut ref u8 = ""
-            val cond: mut ref u8 = ""
-            val postc: mut ref u8 = ""
+            val init: mut ref u8 = c""
+            val cond: mut ref u8 = c""
+            val postc: mut ref u8 = c""
             val p0 = @get(parts, 0)
             if p0 is some v {
                 init = trim_raw(v as ref u8)
@@ -3830,21 +3830,21 @@ fn translate_for_loop(
             if p2 is some v {
                 postc = trim_raw(v as ref u8)
             }
-            if string.raw_cmp(init, "") != 0 {
+            if string.raw_cmp(init, c"") != 0 {
                 translate_inline_statement(ctx, init, indent, out)
             }
-            append_line(out, indent, "for {")
+            append_line(out, indent, c"for {")
             val body_indent: mut i64 = indent + 1
             val next_i: mut i64 = start + 1
-            if string.raw_cmp(cond, "") != 0 {
+            if string.raw_cmp(cond, c"") != 0 {
                 val cond_out: ref void = string.StringBuilder.new()
                 val cond_text: ref u8 = translate_condition_text(ctx, cond, indent + 1, cond_out)
                 append_builder(out, cond_out)
                 append_line(out, indent + 1, trust tfmt("if ({s}) {", {cond_text}))
                 body_indent = indent + 2
             }
-            if string.raw_cmp(tail, "") != 0 {
-                if string.raw_starts_with(tail, "{") {
+            if string.raw_cmp(tail, c"") != 0 {
+                if string.raw_starts_with(tail, c"{") {
                     val body_span: ref BlockResult = translate_brace_block(
                         lines,
                         start,
@@ -3862,7 +3862,7 @@ fn translate_for_loop(
                     val next_opt = @get(lines, next_body_i as usize)
                     if next_opt is some next_line {
                         val next_trimmed: ref u8 = trim_raw(next_line as ref u8)
-                        if string.raw_starts_with(next_trimmed, "{") {
+                        if string.raw_starts_with(next_trimmed, c"{") {
                             val body_span2: ref BlockResult = translate_brace_block(
                                 lines,
                                 next_body_i,
@@ -3885,16 +3885,16 @@ fn translate_for_loop(
                     }
                 }
             }
-            if string.raw_cmp(postc, "") != 0 {
+            if string.raw_cmp(postc, c"") != 0 {
                 translate_inline_statement(ctx, postc, body_indent, out)
             }
-            if string.raw_cmp(cond, "") != 0 {
-                append_line(out, indent + 1, "} else {")
-                append_line(out, indent + 2, "break")
-                append_line(out, indent + 1, "}")
+            if string.raw_cmp(cond, c"") != 0 {
+                append_line(out, indent + 1, c"} else {")
+                append_line(out, indent + 2, c"break")
+                append_line(out, indent + 1, c"}")
             }
-            append_line(out, indent, "}")
-            return make_block_result(next_i, STOP_EOF, "")
+            append_line(out, indent, c"}")
+            return make_block_result(next_i, STOP_EOF, c"")
         }
     }
 }
@@ -3910,7 +3910,7 @@ fn translate_while_loop(
     val line_opt = @get(lines, start as usize)
     match line_opt {
         none => {
-            return make_block_result(start + 1, STOP_EOF, "")
+            return make_block_result(start + 1, STOP_EOF, c"")
         }
         some line_val => {
             val line: ref u8 = trim_raw(line_val as ref u8)
@@ -3918,7 +3918,7 @@ fn translate_while_loop(
             val close_i: i64 = find_matching_delim(line, open_i, 40 as u8, 41 as u8)
             if open_i < 0 || close_i <= open_i {
                 append_comment_line(out, indent, line)
-                return make_block_result(start + 1, STOP_EOF, "")
+                return make_block_result(start + 1, STOP_EOF, c"")
             }
             val cond_src: ref u8 = trim_raw(trust tsubstr(
                     line,
@@ -3932,12 +3932,12 @@ fn translate_while_loop(
                 ))
             val cond_out: ref void = string.StringBuilder.new()
             val cond_text: ref u8 = translate_condition_text(ctx, cond_src, indent + 1, cond_out)
-            append_line(out, indent, "for {")
+            append_line(out, indent, c"for {")
             append_builder(out, cond_out)
             append_line(out, indent + 1, trust tfmt("if ({s}) {", {cond_text}))
             val next_i: mut i64 = start + 1
-            if string.raw_cmp(tail, "") != 0 {
-                if string.raw_starts_with(tail, "{") {
+            if string.raw_cmp(tail, c"") != 0 {
+                if string.raw_starts_with(tail, c"{") {
                     val body_span: ref BlockResult = translate_brace_block(
                         lines,
                         start,
@@ -3955,7 +3955,7 @@ fn translate_while_loop(
                     val next_opt = @get(lines, next_body_i as usize)
                     if next_opt is some next_line {
                         val next_trimmed: ref u8 = trim_raw(next_line as ref u8)
-                        if string.raw_starts_with(next_trimmed, "{") {
+                        if string.raw_starts_with(next_trimmed, c"{") {
                             val body_span2: ref BlockResult = translate_brace_block(
                                 lines,
                                 next_body_i,
@@ -3978,11 +3978,11 @@ fn translate_while_loop(
                     }
                 }
             }
-            append_line(out, indent + 1, "} else {")
-            append_line(out, indent + 2, "break")
-            append_line(out, indent + 1, "}")
-            append_line(out, indent, "}")
-            return make_block_result(next_i, STOP_EOF, "")
+            append_line(out, indent + 1, c"} else {")
+            append_line(out, indent + 2, c"break")
+            append_line(out, indent + 1, c"}")
+            append_line(out, indent, c"}")
+            return make_block_result(next_i, STOP_EOF, c"")
         }
     }
 }
@@ -4004,7 +4004,7 @@ fn translate_brace_block(
     }
     val body_text: ref u8 = trust tsubstr(full_text, open_i + 1, close_i - open_i - 1)
     val body_lines = split_lines(body_text)
-    translate_body_lines(body_lines, "", 0, indent, out, ctx)
+    translate_body_lines(body_lines, c"", 0, indent, out, ctx)
     return span
 }
 
@@ -4015,7 +4015,7 @@ fn translate_inline_statement(
     out: ref void
 ) void = {
     val trimmed: ref u8 = strip_trailing_semicolon(trim_raw(text))
-    if string.raw_cmp(trimmed, "") == 0 {
+    if string.raw_cmp(trimmed, c"") == 0 {
         return
     }
     if translate_body_statement(ctx, trimmed, indent, out) {
@@ -4038,7 +4038,7 @@ fn translate_if_text(
     val close_i: i64 = find_matching_delim(trimmed, open_i, 40 as u8, 41 as u8)
     if open_i < 0 || close_i <= open_i {
         append_comment_line(out, indent, trimmed)
-        return make_block_result(line_index + 1, STOP_EOF, "")
+        return make_block_result(line_index + 1, STOP_EOF, c"")
     }
     val cond_src: ref u8 = trim_raw(trust tsubstr(trimmed, open_i + 1, close_i - open_i - 1))
     val cond_text: ref u8 = translate_condition_text(ctx, cond_src, indent, out)
@@ -4049,8 +4049,8 @@ fn translate_if_text(
         ))
     append_line(out, indent, trust tfmt("if ({s}) {", {cond_text}))
     val next_i: mut i64 = line_index + 1
-    if string.raw_cmp(tail, "") != 0 {
-        if string.raw_starts_with(tail, "{") {
+    if string.raw_cmp(tail, c"") != 0 {
+        if string.raw_starts_with(tail, c"{") {
             val then_span: ref BlockResult = translate_brace_block(
                 lines,
                 line_index,
@@ -4068,7 +4068,7 @@ fn translate_if_text(
             val next_opt = @get(lines, next_body_i as usize)
             if next_opt is some next_line {
                 val next_trimmed: ref u8 = trim_raw(next_line as ref u8)
-                if string.raw_starts_with(next_trimmed, "{") {
+                if string.raw_starts_with(next_trimmed, c"{") {
                     val then_span2: ref BlockResult = translate_brace_block(
                         lines,
                         next_body_i,
@@ -4096,14 +4096,14 @@ fn translate_if_text(
         val else_opt = @get(lines, else_i as usize)
         if else_opt is some else_line {
             val else_trimmed: ref u8 = trim_raw(else_line as ref u8)
-            if string.raw_starts_with(else_trimmed, "else") {
+            if string.raw_starts_with(else_trimmed, c"else") {
                 val else_tail: ref u8 = trim_raw(trust tsubstr(
                         else_trimmed,
                         4,
                         string.len_raw(else_trimmed) - 4
                     ))
-                append_line(out, indent, "} else {")
-                if starts_keyword_paren(else_tail, "if") {
+                append_line(out, indent, c"} else {")
+                if starts_keyword_paren(else_tail, c"if") {
                     val nested_result: ref BlockResult = translate_if_text(
                         lines,
                         current_dir,
@@ -4113,11 +4113,11 @@ fn translate_if_text(
                         out,
                         ctx
                     )
-                    append_line(out, indent, "}")
-                    return make_block_result(nested_result.next_index, STOP_EOF, "")
+                    append_line(out, indent, c"}")
+                    return make_block_result(nested_result.next_index, STOP_EOF, c"")
                 }
-                if string.raw_cmp(else_tail, "") != 0 {
-                    if string.raw_starts_with(else_tail, "{") {
+                if string.raw_cmp(else_tail, c"") != 0 {
+                    if string.raw_starts_with(else_tail, c"{") {
                         val else_span: ref BlockResult = translate_brace_block(
                             lines,
                             else_i,
@@ -4125,19 +4125,19 @@ fn translate_if_text(
                             out,
                             ctx
                         )
-                        append_line(out, indent, "}")
-                        return make_block_result(else_span.next_index, STOP_EOF, "")
+                        append_line(out, indent, c"}")
+                        return make_block_result(else_span.next_index, STOP_EOF, c"")
                     }
                     translate_inline_statement(ctx, else_tail, indent + 1, out)
-                    append_line(out, indent, "}")
-                    return make_block_result(else_i + 1, STOP_EOF, "")
+                    append_line(out, indent, c"}")
+                    return make_block_result(else_i + 1, STOP_EOF, c"")
                 }
                 val else_body_i: i64 = next_significant_line(lines, else_i + 1)
                 if else_body_i >= 0 {
                     val else_body_opt = @get(lines, else_body_i as usize)
                     if else_body_opt is some else_body_line {
                         val else_body_trimmed: ref u8 = trim_raw(else_body_line as ref u8)
-                        if string.raw_starts_with(else_body_trimmed, "{") {
+                        if string.raw_starts_with(else_body_trimmed, c"{") {
                             val else_span2: ref BlockResult = translate_brace_block(
                                 lines,
                                 else_body_i,
@@ -4145,8 +4145,8 @@ fn translate_if_text(
                                 out,
                                 ctx
                             )
-                            append_line(out, indent, "}")
-                            return make_block_result(else_span2.next_index, STOP_EOF, "")
+                            append_line(out, indent, c"}")
+                            return make_block_result(else_span2.next_index, STOP_EOF, c"")
                         }
                         val else_stmt_result: ref BlockResult = translate_statement_at(
                             lines,
@@ -4156,17 +4156,17 @@ fn translate_if_text(
                             out,
                             ctx
                         )
-                        append_line(out, indent, "}")
-                        return make_block_result(else_stmt_result.next_index, STOP_EOF, "")
+                        append_line(out, indent, c"}")
+                        return make_block_result(else_stmt_result.next_index, STOP_EOF, c"")
                     }
                 }
-                append_line(out, indent, "}")
-                return make_block_result(else_i + 1, STOP_EOF, "")
+                append_line(out, indent, c"}")
+                return make_block_result(else_i + 1, STOP_EOF, c"")
             }
         }
     }
-    append_line(out, indent, "}")
-    return make_block_result(next_i, STOP_EOF, "")
+    append_line(out, indent, c"}")
+    return make_block_result(next_i, STOP_EOF, c"")
 }
 
 fn translate_if_statement(
@@ -4189,13 +4189,13 @@ fn translate_if_statement(
             ctx
         )
     } else {
-        return make_block_result(start + 1, STOP_EOF, "")
+        return make_block_result(start + 1, STOP_EOF, c"")
     }
 }
 
 fn is_switch_break_line(text: ref u8) bool = {
     val trimmed: ref u8 = strip_trailing_semicolon(trim_raw(text))
-    return string.raw_cmp(trimmed, "break") == 0
+    return string.raw_cmp(trimmed, c"break") == 0
 }
 
 fn render_switch_case_condition(
@@ -4207,7 +4207,7 @@ fn render_switch_case_condition(
     val first: mut bool = true
     for label in labels {
         if !first {
-            trust string.StringBuilder.append_cstr(sb, " || ")
+            trust string.StringBuilder.append_cstr(sb, c" || ")
         }
         trust string.StringBuilder.append_cstr(
             sb,
@@ -4230,7 +4230,7 @@ fn translate_switch_statement(
     val line_opt = @get(lines, start as usize)
     match line_opt {
         none => {
-            return make_block_result(start + 1, STOP_EOF, "")
+            return make_block_result(start + 1, STOP_EOF, c"")
         }
         some line_val => {
             val line: ref u8 = trim_raw(line_val as ref u8)
@@ -4238,7 +4238,7 @@ fn translate_switch_statement(
             val close_i: i64 = find_matching_delim(line, open_i, 40 as u8, 41 as u8)
             if open_i < 0 || close_i <= open_i {
                 append_comment_line(out, indent, line)
-                return make_block_result(start + 1, STOP_EOF, "")
+                return make_block_result(start + 1, STOP_EOF, c"")
             }
             val switch_expr: ref u8 = lower_incdec_expr(
                 ctx,
@@ -4252,12 +4252,12 @@ fn translate_switch_statement(
                     close_i + 1,
                     string.len_raw(line) - close_i - 1
                 ))
-            if !string.raw_starts_with(tail, "{") {
+            if !string.raw_starts_with(tail, c"{") {
                 body_start = next_significant_line(lines, start + 1)
             }
             if body_start < 0 {
                 append_comment_line(out, indent, line)
-                return make_block_result(start + 1, STOP_EOF, "")
+                return make_block_result(start + 1, STOP_EOF, c"")
             }
             val span: ref BlockResult = collect_brace_block(lines, body_start)
             val full_text: ref u8 = join_lines(lines, body_start, span.next_index)
@@ -4277,7 +4277,7 @@ fn translate_switch_statement(
             val current: mut ref SwitchCase = none
             for raw_line in body_lines {
                 val trimmed: ref u8 = trim_raw(raw_line)
-                if string.raw_cmp(trimmed, "") == 0 {
+                if string.raw_cmp(trimmed, c"") == 0 {
                     if (current != none) {
                         if ((@len(current.body_lines) as i64) > 0) {
                             @append(current.body_lines, raw_line)
@@ -4285,7 +4285,7 @@ fn translate_switch_statement(
                     }
                     continue
                 }
-                if string.raw_starts_with(trimmed, "case ") {
+                if string.raw_starts_with(trimmed, c"case ") {
                     val colon_i: i64 = find_char(trimmed, 58 as u8)
                     if colon_i > 5 {
                         val label: ref u8 = trim_raw(trust tsubstr(trimmed, 5, colon_i - 5))
@@ -4297,7 +4297,7 @@ fn translate_switch_statement(
                         if current != none {
                             if !current.is_default && (@len(current.body_lines) as i64) == 0 {
                                 @append(current.labels, label)
-                                if string.raw_cmp(tail2, "") != 0 && !is_switch_break_line(tail2) {
+                                if string.raw_cmp(tail2, c"") != 0 && !is_switch_break_line(tail2) {
                                     @append(current.body_lines, tail2)
                                 }
                                 continue
@@ -4308,13 +4308,13 @@ fn translate_switch_statement(
                         }
                         current = make_switch_case()
                         @append(current.labels, label)
-                        if string.raw_cmp(tail2, "") != 0 && !is_switch_break_line(tail2) {
+                        if string.raw_cmp(tail2, c"") != 0 && !is_switch_break_line(tail2) {
                             @append(current.body_lines, tail2)
                         }
                         continue
                     }
                 }
-                if string.raw_starts_with(trimmed, "default:") {
+                if string.raw_starts_with(trimmed, c"default:") {
                     val tail3: ref u8 = trim_raw(trust tsubstr(
                             trimmed,
                             8,
@@ -4325,7 +4325,7 @@ fn translate_switch_statement(
                     }
                     current = make_switch_case()
                     current.is_default = true
-                    if string.raw_cmp(tail3, "") != 0 && !is_switch_break_line(tail3) {
+                    if string.raw_cmp(tail3, c"") != 0 && !is_switch_break_line(tail3) {
                         @append(current.body_lines, tail3)
                     }
                     continue
@@ -4344,9 +4344,9 @@ fn translate_switch_statement(
             for case_item in cases {
                 if case_item.is_default {
                     if emitted_any {
-                        append_line(out, indent, "} else {")
+                        append_line(out, indent, c"} else {")
                     } else {
-                        append_line(out, indent, "if (true) {")
+                        append_line(out, indent, c"if (true) {")
                     }
                 } else {
                     val cond_text: ref u8 = render_switch_case_condition(
@@ -4360,11 +4360,11 @@ fn translate_switch_statement(
                         append_line(out, indent, trust tfmt("if ({s}) {", {cond_text}))
                     }
                 }
-                translate_body_lines(case_item.body_lines, "", 0, indent + 1, out, ctx)
+                translate_body_lines(case_item.body_lines, c"", 0, indent + 1, out, ctx)
                 emitted_any = true
             }
             if emitted_any {
-                append_line(out, indent, "}")
+                append_line(out, indent, c"}")
             } else {
                 append_comment_line(out, indent, line)
             }
@@ -4383,7 +4383,7 @@ fn translate_do_while_loop(
     val line_opt = @get(lines, start as usize)
     match line_opt {
         none => {
-            return make_block_result(start + 1, STOP_EOF, "")
+            return make_block_result(start + 1, STOP_EOF, c"")
         }
         some line_val => {
             val line: ref u8 = trim_raw(line_val as ref u8)
@@ -4393,12 +4393,12 @@ fn translate_do_while_loop(
                     2,
                     string.len_raw(line) - 2
                 ))
-            if !string.raw_starts_with(tail_after_do, "{") {
+            if !string.raw_starts_with(tail_after_do, c"{") {
                 body_start = next_significant_line(lines, start + 1)
             }
             if body_start < 0 {
                 append_comment_line(out, indent, line)
-                return make_block_result(start + 1, STOP_EOF, "")
+                return make_block_result(start + 1, STOP_EOF, c"")
             }
             val body_span: ref BlockResult = collect_brace_block(lines, body_start)
             val body_full: ref u8 = join_lines(lines, body_start, body_span.next_index)
@@ -4414,7 +4414,7 @@ fn translate_do_while_loop(
                     string.len_raw(body_full) - close_b - 1
                 ))
             val next_i: mut i64 = body_span.next_index
-            if !starts_keyword_paren(while_line, "while") {
+            if !starts_keyword_paren(while_line, c"while") {
                 val while_i: i64 = next_significant_line(lines, body_span.next_index)
                 if while_i < 0 {
                     append_comment_line(out, indent, line)
@@ -4430,7 +4430,7 @@ fn translate_do_while_loop(
             val close_i: i64 = find_matching_delim(while_line, open_i, 40 as u8, 41 as u8)
             if open_i < 0 || close_i <= open_i {
                 append_comment_line(out, indent, line)
-                return make_block_result(next_i, STOP_EOF, "")
+                return make_block_result(next_i, STOP_EOF, c"")
             }
             val cond_out: ref void = string.StringBuilder.new()
             val cond_text: ref u8 = translate_condition_text(
@@ -4445,15 +4445,15 @@ fn translate_do_while_loop(
                 close_b - brace_i - 1
             )
             val body_lines = split_lines(body_text)
-            append_line(out, indent, "for {")
-            translate_body_lines(body_lines, "", 0, indent + 1, out, ctx)
+            append_line(out, indent, c"for {")
+            translate_body_lines(body_lines, c"", 0, indent + 1, out, ctx)
             append_builder(out, cond_out)
             append_line(out, indent + 1, trust tfmt("if ({s}) {", {cond_text}))
-            append_line(out, indent + 1, "} else {")
-            append_line(out, indent + 2, "break")
-            append_line(out, indent + 1, "}")
-            append_line(out, indent, "}")
-            return make_block_result(next_i, STOP_EOF, "")
+            append_line(out, indent + 1, c"} else {")
+            append_line(out, indent + 2, c"break")
+            append_line(out, indent + 1, c"}")
+            append_line(out, indent, c"}")
+            return make_block_result(next_i, STOP_EOF, c"")
         }
     }
 }
@@ -4469,30 +4469,30 @@ fn translate_statement_at(
     val line_opt = @get(lines, start as usize)
     match line_opt {
         none => {
-            return make_block_result(start + 1, STOP_EOF, "")
+            return make_block_result(start + 1, STOP_EOF, c"")
         }
         some line_val => {
             val trimmed: ref u8 = trim_raw(line_val as ref u8)
-            if starts_keyword_paren(trimmed, "for") {
+            if starts_keyword_paren(trimmed, c"for") {
                 return translate_for_loop(lines, current_dir, start, indent, out, ctx)
             }
-            if starts_keyword_paren(trimmed, "while") {
+            if starts_keyword_paren(trimmed, c"while") {
                 return translate_while_loop(lines, current_dir, start, indent, out, ctx)
             }
-            if starts_keyword_paren(trimmed, "if") {
+            if starts_keyword_paren(trimmed, c"if") {
                 return translate_if_statement(lines, current_dir, start, indent, out, ctx)
             }
-            if starts_keyword_paren(trimmed, "switch") {
+            if starts_keyword_paren(trimmed, c"switch") {
                 return translate_switch_statement(lines, start, indent, out, ctx)
             }
             if starts_do_statement(trimmed) {
                 return translate_do_while_loop(lines, start, indent, out, ctx)
             }
             if translate_body_statement(ctx, trimmed, indent, out) {
-                return make_block_result(start + 1, STOP_EOF, "")
+                return make_block_result(start + 1, STOP_EOF, c"")
             }
             append_comment_line(out, indent, trimmed)
-            return make_block_result(start + 1, STOP_EOF, "")
+            return make_block_result(start + 1, STOP_EOF, c"")
         }
     }
 }
@@ -4627,10 +4627,10 @@ fn find_top_level_compound_assign(text: ref u8) i64 = {
 
 fn translate_designated_initializer(text: ref u8) ref u8 = {
     val trimmed: ref u8 = trim_raw(text)
-    if !string.raw_starts_with(trimmed, "{") {
+    if !string.raw_starts_with(trimmed, c"{") {
         return trimmed
     }
-    if !str_contains(trimmed, ".") {
+    if !str_contains(trimmed, c".") {
         return trimmed
     }
     val sb: ref void = string.StringBuilder.new()
@@ -4671,7 +4671,7 @@ fn translate_designated_initializer(text: ref u8) ref u8 = {
                 if i < len {
                     val eq: u8 = trust @load8(@ptradd(trimmed, i)) as u8
                     if eq == 61 {
-                        trust string.StringBuilder.append_cstr(sb, ": ")
+                        trust string.StringBuilder.append_cstr(sb, c": ")
                         i++
                         continue
                     }
@@ -4698,7 +4698,7 @@ fn translate_sizeof_expr(ctx: ref TranslationCtx, text: ref u8) ref u8 = {
         }
         if i + 7 <= len {
             val maybe_kw: ref u8 = trust tsubstr(trimmed, i, 6)
-            if string.raw_cmp(maybe_kw, "sizeof") == 0 {
+            if string.raw_cmp(maybe_kw, c"sizeof") == 0 {
                 val after_kw: mut i64 = i + 6
                 for {
                     if after_kw >= len {
@@ -4745,9 +4745,9 @@ fn translate_sizeof_expr(ctx: ref TranslationCtx, text: ref u8) ref u8 = {
                             }
                         }
                         val index_target: ref u8 = parse_index_target(inner)
-                        if string.raw_cmp(index_target, "") != 0 {
+                        if string.raw_cmp(index_target, c"") != 0 {
                             val elem_type: ref u8 = lookup_index_element_type(ctx, index_target)
-                            if string.raw_cmp(elem_type, "") != 0 {
+                            if string.raw_cmp(elem_type, c"") != 0 {
                                 trust string.StringBuilder.append_cstr(
                                     sb,
                                     tfmt("@sizeof({s})", {elem_type})
@@ -4756,7 +4756,7 @@ fn translate_sizeof_expr(ctx: ref TranslationCtx, text: ref u8) ref u8 = {
                                 continue
                             }
                         }
-                        val mapped: ref u8 = translate_c_type_ctx(ctx, inner, "")
+                        val mapped: ref u8 = translate_c_type_ctx(ctx, inner, c"")
                         trust string.StringBuilder.append_cstr(
                             sb,
                             tfmt("@sizeof({s})", {mapped})
@@ -4914,12 +4914,12 @@ fn translate_c_casts_in_expr(ctx: ref TranslationCtx, text: ref u8) ref u8 = {
                                         op_start,
                                         op_end - op_start
                                     ))
-                                val mapped: ref u8 = translate_c_type_ctx(ctx, inner, "")
+                                val mapped: ref u8 = translate_c_type_ctx(ctx, inner, c"")
                                 val translated_op: ref u8 = translate_expr_text(ctx, operand)
-                                if (string.raw_starts_with(mapped, "ref ")
-                                    || string.raw_starts_with(mapped, "mut ref "))
-                                && string.raw_cmp(trim_raw(operand), "0") == 0 {
-                                    trust string.StringBuilder.append_cstr(sb, "none")
+                                if (string.raw_starts_with(mapped, c"ref ")
+                                    || string.raw_starts_with(mapped, c"mut ref "))
+                                && string.raw_cmp(trim_raw(operand), c"0") == 0 {
+                                    trust string.StringBuilder.append_cstr(sb, c"none")
                                 } else {
                                     trust string.StringBuilder.append_cstr(sb, translated_op)
                                     trust string.StringBuilder.append_cstr(
@@ -4979,8 +4979,8 @@ fn find_top_level_equality(text: ref u8) i64 = {
 fn is_null_pointer_text(text: ref u8) bool = {
     val current: ref u8 = trim_raw(unwrap_outer_parens(text))
     val flat: ref u8 = flatten_ws(current)
-    if string.raw_cmp(flat, "NULL") == 0
-    || string.raw_cmp(flat, "nullptr") == 0 {
+    if string.raw_cmp(flat, c"NULL") == 0
+    || string.raw_cmp(flat, c"nullptr") == 0 {
         return true
     }
     val sb: ref void = string.StringBuilder.new()
@@ -4999,7 +4999,7 @@ fn is_null_pointer_text(text: ref u8) bool = {
     val built: ref void = trust string.StringBuilder.build(sb)
     trust string.StringBuilder.free(sb)
     val compact: ref u8 = trust take_cstr(built)
-    return string.raw_cmp(compact, "(void*)0") == 0
+    return string.raw_cmp(compact, c"(void*)0") == 0
 }
 
 fn rewrite_null_comparison(ctx: ref TranslationCtx, text: ref u8) option[ref u8] = {
@@ -5014,7 +5014,7 @@ fn rewrite_null_comparison(ctx: ref TranslationCtx, text: ref u8) option[ref u8]
             cmp_i + 2,
             string.len_raw(trimmed) - cmp_i - 2
         ))
-    val expr_side: mut ref u8 = ""
+    val expr_side: mut ref u8 = c""
     if is_null_pointer_text(lhs_raw) {
         expr_side = rhs_raw
     } elif is_null_pointer_text(rhs_raw) {
@@ -5043,10 +5043,10 @@ fn emit_condition_assignment(
     val rhs_expr0: ref u8 = lowered_rhs.expr
     val rhs_expr: mut ref u8 = rhs_expr0
     if is_null_pointer_text(rhs) {
-        rhs_expr = "none"
+        rhs_expr = c"none"
     }
     val index_target: ref u8 = parse_index_target(lhs_rewritten)
-    if string.raw_cmp(index_target, "") != 0 {
+    if string.raw_cmp(index_target, c"") != 0 {
         val index_expr: ref u8 = parse_index_expr(lhs_rewritten)
         val index_ptr: ref u8 = render_index_ptr_expr(ctx, index_target, index_expr)
         track_called_expr(ctx, rhs_expr)
@@ -5087,7 +5087,7 @@ fn rewrite_condition_assignments(
                 assign_i + 1,
                 string.len_raw(inner) - assign_i - 1
             ))
-        if !str_contains(lhs_assign, " ") {
+        if !str_contains(lhs_assign, c" ") {
             return emit_condition_assignment(ctx, lhs_assign, rhs_assign, indent, out)
         }
     }
@@ -5106,7 +5106,7 @@ fn translate_expr_text(ctx: ref TranslationCtx, text: ref u8) ref u8 = {
     val with_indexing2: ref u8 = replace_pointer_indexing(ctx, with_casts)
     val with_intrinsics: ref u8 = ensure_intrinsic_prefixes(with_indexing2)
     val normalized_intrinsics: ref u8 = normalize_intrinsic_prefixes(with_intrinsics)
-    if str_contains(normalized_intrinsics, "(") {
+    if str_contains(normalized_intrinsics, c"(") {
         return transform_call_expr(ctx, normalized_intrinsics)
     }
     return normalized_intrinsics
@@ -5137,7 +5137,7 @@ fn translate_body_statement(
     out: ref void
 ) bool = {
     val stripped: ref u8 = strip_trailing_semicolon(line)
-    if string.raw_cmp(stripped, "") == 0 {
+    if string.raw_cmp(stripped, c"") == 0 {
         append_blank_line(out)
         return true
     }
@@ -5148,10 +5148,10 @@ fn translate_body_statement(
         }
         return true
     }
-    if string.raw_starts_with(stripped, "return") {
+    if string.raw_starts_with(stripped, c"return") {
         val tail: ref u8 = trim_raw(trust tsubstr(stripped, 6, string.len_raw(stripped) - 6))
-        if string.raw_cmp(tail, "") == 0 {
-            append_line(out, indent, "return")
+        if string.raw_cmp(tail, c"") == 0 {
+            append_line(out, indent, c"return")
         } else {
             if contains_incdec_ops(tail) {
                 append_blank_line(out)
@@ -5165,12 +5165,12 @@ fn translate_body_statement(
         return true
     }
     val simple_incdec_stmt: ref u8 = normalize_simple_incdec_stmt(stripped)
-    if string.raw_cmp(simple_incdec_stmt, "") != 0 {
+    if string.raw_cmp(simple_incdec_stmt, c"") != 0 {
         append_line(out, indent, simple_incdec_stmt)
         return true
     }
     val deref_incdec_stmt: ref u8 = normalize_deref_incdec_stmt(stripped)
-    if string.raw_cmp(deref_incdec_stmt, "") != 0 {
+    if string.raw_cmp(deref_incdec_stmt, c"") != 0 {
         append_line(out, indent, deref_incdec_stmt)
         return true
     }
@@ -5199,14 +5199,14 @@ fn translate_body_statement(
                 assign_i + 1,
                 string.len_raw(stripped) - assign_i - 1
             ))
-        val can_be_decl: bool = str_contains(lhs, " ")
-        || string.raw_starts_with(lhs, "struct ") || string.raw_starts_with(lhs, "enum ")
+        val can_be_decl: bool = str_contains(lhs, c" ")
+        || string.raw_starts_with(lhs, c"struct ") || string.raw_starts_with(lhs, c"enum ")
         if can_be_decl {
-            val decl: ref DeclInfo = parse_named_decl(ctx, lhs, "")
+            val decl: ref DeclInfo = parse_named_decl(ctx, lhs, c"")
             if decl.its_ok && string.raw_cmp(
                 decl.name,
-                ""
-            ) != 0 && string.raw_cmp(trim_raw(decl.type_src), "") != 0 {
+                c""
+            ) != 0 && string.raw_cmp(trim_raw(decl.type_src), c"") != 0 {
                 if is_array_type_name(decl.type_name) {
                     if is_unsized_char_array(decl.type_name) && is_string_literal_text(rhs) {
                         val decayed_type0: ref u8 = decay_array_type(decl.type_name)
@@ -5233,7 +5233,7 @@ fn translate_body_statement(
                     val alloc_expr: mut ref u8 = array_alloc_expr(decl.type_name)
                     if string.raw_cmp(
                         array_type_len_expr(decl.type_name),
-                        ""
+                        c""
                     ) == 0 && (@len(array_init_items) as i64) > 0 {
                         alloc_expr = trust tfmt(
                             "{d} * @sizeof({s})",
@@ -5243,7 +5243,7 @@ fn translate_body_statement(
                     val decayed_type: ref u8 = decay_array_type(decl.type_name)
                     val is_char_array_literal: bool = string.raw_cmp(
                         array_type_elem(decl.type_name),
-                        "u8"
+                        c"u8"
                     ) == 0 && is_string_literal_text(rhs)
                     remember_local_type(ctx, decl.name, decayed_type)
                     remember_local_array_type(ctx, decl.name, alloc_expr)
@@ -5294,7 +5294,7 @@ fn translate_body_statement(
                 if is_address_taken_name(
                     ctx,
                     decl.name
-                ) && !string.raw_starts_with(decl.type_name, "ref ") {
+                ) && !string.raw_starts_with(decl.type_name, c"ref ") {
                     val ref_type: ref u8 = trust tfmt("ref {s}", {decl.type_name})
                     remember_local_type(ctx, decl.name, ref_type)
                     append_line(
@@ -5312,7 +5312,7 @@ fn translate_body_statement(
                     val lowered_rhs_addr: ref LoweredExpr = lower_incdec_expr(ctx, rhs, indent, out)
                     val rhs_expr_addr: mut ref u8 = lowered_rhs_addr.expr
                     if is_null_pointer_text(rhs) {
-                        rhs_expr_addr = "none"
+                        rhs_expr_addr = c"none"
                     }
                     track_called_expr(ctx, rhs_expr_addr)
                     append_line(
@@ -5331,7 +5331,7 @@ fn translate_body_statement(
                 val rhs_expr0: ref u8 = lowered_rhs.expr
                 val rhs_expr: mut ref u8 = rhs_expr0
                 if is_null_pointer_text(rhs) {
-                    rhs_expr = "none"
+                    rhs_expr = c"none"
                 }
                 remember_local_type(ctx, decl.name, decl.type_name)
                 val rendered_type: ref u8 = render_binding_type(ctx, decl.name, decl.type_name)
@@ -5365,10 +5365,10 @@ fn translate_body_statement(
                             )
                         )
                         val if_line1: ref u8 = trust tfmt("if ({s}) ", {cond})
-                        val if_line2: ref u8 = trust tconcat(if_line1, "{ ")
+                        val if_line2: ref u8 = trust tconcat(if_line1, c"{ ")
                         val if_line3: ref u8 = trust tfmt("{s} = {s}", {decl.name, if_true})
                         val if_line4: ref u8 = trust tconcat(if_line2, if_line3)
-                        val if_line5: ref u8 = trust tconcat(if_line4, " }")
+                        val if_line5: ref u8 = trust tconcat(if_line4, c" }")
                         append_line(out, indent, if_line5)
                         return true
                     }
@@ -5379,8 +5379,8 @@ fn translate_body_statement(
                     indent,
                     trust tfmt("val {s}: {s} = {s}", {decl.name, rendered_type, rhs_expr})
                 )
-                if string.raw_starts_with(decl.type_name, "ref ")
-                && string.raw_starts_with(rhs_expr, "@alloc(") {
+                if string.raw_starts_with(decl.type_name, c"ref ")
+                && string.raw_starts_with(rhs_expr, c"@alloc(") {
                     val struct_name: ref u8 = trust @ptradd(decl.type_name, 4)
                     if lookup_flex_field_name(ctx, struct_name) is some flex_field {
                         if lookup_flex_field_type(ctx, struct_name) is some flex_type {
@@ -5405,7 +5405,7 @@ fn translate_body_statement(
         val lhs_arrow: ref u8 = replace_arrow_access(lhs)
         val lhs_rewritten: ref u8 = rewrite_identifiers(translate_addr_deref_expr(ctx, lhs_arrow))
         val index_target: ref u8 = parse_index_target(lhs_rewritten)
-        if string.raw_cmp(index_target, "") != 0 {
+        if string.raw_cmp(index_target, c"") != 0 {
             val index_expr: ref u8 = parse_index_expr(lhs_rewritten)
             val index_ptr: ref u8 = render_index_ptr_expr(ctx, index_target, index_expr)
             val has_incdec_rhs2: bool = contains_incdec_ops(rhs)
@@ -5431,7 +5431,7 @@ fn translate_body_statement(
         val rhs_expr3_0: ref u8 = lowered_rhs3.expr
         val rhs_expr3: mut ref u8 = rhs_expr3_0
         if is_null_pointer_text(rhs) {
-            rhs_expr3 = "none"
+            rhs_expr3 = c"none"
         }
         track_called_expr(ctx, rhs_expr3)
         append_line(out, indent, trust tfmt("{s} = {s}", {lhs_rewritten, rhs_expr3}))
@@ -5440,12 +5440,12 @@ fn translate_body_statement(
         }
         return true
     }
-    val can_be_bare_decl: bool = (str_contains(stripped, " ") || str_contains(stripped, "*")
-        || string.raw_starts_with(stripped, "struct ") || string.raw_starts_with(stripped, "enum "))
-    && !str_contains(stripped, "(")
+    val can_be_bare_decl: bool = (str_contains(stripped, c" ") || str_contains(stripped, c"*")
+        || string.raw_starts_with(stripped, c"struct ") || string.raw_starts_with(stripped, c"enum "))
+    && !str_contains(stripped, c"(")
     if can_be_bare_decl {
-        val decl2: ref DeclInfo = parse_named_decl(ctx, stripped, "")
-        if decl2.its_ok && string.raw_cmp(decl2.name, "") != 0 {
+        val decl2: ref DeclInfo = parse_named_decl(ctx, stripped, c"")
+        if decl2.its_ok && string.raw_cmp(decl2.name, c"") != 0 {
             if is_array_type_name(decl2.type_name) {
                 val alloc_expr2: ref u8 = array_alloc_expr(decl2.type_name)
                 val decayed_type2: ref u8 = decay_array_type(decl2.type_name)
@@ -5468,7 +5468,7 @@ fn translate_body_statement(
             if is_address_taken_name(
                 ctx,
                 decl2.name
-            ) && !string.raw_starts_with(decl2.type_name, "ref ") {
+            ) && !string.raw_starts_with(decl2.type_name, c"ref ") {
                 val ref_type2: ref u8 = trust tfmt("ref {s}", {decl2.type_name})
                 remember_local_type(ctx, decl2.name, ref_type2)
                 append_line(
@@ -5497,10 +5497,10 @@ fn translate_body_statement(
             return true
         }
     }
-    if starts_keyword_paren(stripped, "for") {
+    if starts_keyword_paren(stripped, c"for") {
         return false
     }
-    if starts_keyword_paren(stripped, "assert") {
+    if starts_keyword_paren(stripped, c"assert") {
         val open_i: i64 = find_char(stripped, 40 as u8)
         val close_i: i64 = find_matching_delim(stripped, open_i, 40 as u8, 41 as u8)
         if open_i >= 0 && close_i > open_i {
@@ -5518,11 +5518,11 @@ fn translate_body_statement(
         append_line(out, indent, translate_expr_text(ctx, stripped))
         return true
     }
-    if str_contains(stripped, "(")
-    && !string.raw_starts_with(stripped, "if")
-    && !string.raw_starts_with(stripped, "for")
-    && !string.raw_starts_with(stripped, "while")
-    && !string.raw_starts_with(stripped, "switch") {
+    if str_contains(stripped, c"(")
+    && !string.raw_starts_with(stripped, c"if")
+    && !string.raw_starts_with(stripped, c"for")
+    && !string.raw_starts_with(stripped, c"while")
+    && !string.raw_starts_with(stripped, c"switch") {
         val lowered_expr: ref LoweredExpr = lower_incdec_expr(ctx, stripped, indent, out)
         val expr: ref u8 = lowered_expr.expr
         track_called_expr(ctx, expr)
@@ -5533,61 +5533,61 @@ fn translate_body_statement(
 }
 
 fn append_open_block_line(sb: ref void, indent: i64, prefix: ref u8) void = {
-    val line: ref u8 = trust tconcat(prefix, "{")
+    val line: ref u8 = trust tconcat(prefix, c"{")
     append_line(sb, indent, line)
 }
 
 fn emit_known_extern(name: ref u8, out: ref void) bool = {
-    if string.raw_cmp(name, "assert") == 0 {
+    if string.raw_cmp(name, c"assert") == 0 {
         return true
     }
-    if string.raw_cmp(name, "assert_value") == 0 {
+    if string.raw_cmp(name, c"assert_value") == 0 {
         return true
     }
-    if string.raw_cmp(name, "fprintf") == 0 {
+    if string.raw_cmp(name, c"fprintf") == 0 {
         return true
     }
-    if string.raw_cmp(name, "sprintf") == 0 {
+    if string.raw_cmp(name, c"sprintf") == 0 {
         append_line(
             out,
             0,
-            "extern (C, header) fn sprintf(dst: ref u8, fmt: ref u8, ...) i32 = \"sprintf\""
+            c"extern (C, header) fn sprintf(dst: ref u8, fmt: ref u8, ...) i32 = \"sprintf\""
         )
         return true
     }
-    if string.raw_cmp(name, "puts") == 0 {
-        append_line(out, 0, "extern (C, header) fn puts(s: ref u8) i32 = \"puts\"")
+    if string.raw_cmp(name, c"puts") == 0 {
+        append_line(out, 0, c"extern (C, header) fn puts(s: ref u8) i32 = \"puts\"")
         return true
     }
-    if string.raw_cmp(name, "putchar") == 0 {
-        append_line(out, 0, "extern (C, header) fn putchar(c: i32) i32 = \"putchar\"")
+    if string.raw_cmp(name, c"putchar") == 0 {
+        append_line(out, 0, c"extern (C, header) fn putchar(c: i32) i32 = \"putchar\"")
         return true
     }
-    if string.raw_cmp(name, "strlen") == 0 {
-        append_line(out, 0, "extern (C, header) fn strlen(s: ref u8) i64 = \"strlen\"")
+    if string.raw_cmp(name, c"strlen") == 0 {
+        append_line(out, 0, c"extern (C, header) fn strlen(s: ref u8) i64 = \"strlen\"")
         return true
     }
-    if string.raw_cmp(name, "fgets") == 0 {
+    if string.raw_cmp(name, c"fgets") == 0 {
         append_line(
             out,
             0,
-            "extern (C, header) fn fgets(dst: ref u8, n: i32, stream: ref void) ref u8 = \"fgets\""
+            c"extern (C, header) fn fgets(dst: ref u8, n: i32, stream: ref void) ref u8 = \"fgets\""
         )
         return true
     }
-    if string.raw_cmp(name, "malloc") == 0 {
-        append_line(out, 0, "extern (C, header) fn malloc(size: usize) ref void = \"malloc\"")
+    if string.raw_cmp(name, c"malloc") == 0 {
+        append_line(out, 0, c"extern (C, header) fn malloc(size: usize) ref void = \"malloc\"")
         return true
     }
-    if string.raw_cmp(name, "free") == 0 {
-        append_line(out, 0, "extern (C, header) fn free(ptr: ref void) void = \"free\"")
+    if string.raw_cmp(name, c"free") == 0 {
+        append_line(out, 0, c"extern (C, header) fn free(ptr: ref void) void = \"free\"")
         return true
     }
     return false
 }
 
 fn emit_generic_extern(ctx: ref TranslationCtx, name: ref u8, out: ref void) bool = {
-    val params_text: mut ref u8 = ""
+    val params_text: mut ref u8 = c""
     if lookup_called_signature(ctx, name) is some params_val {
         params_text = params_val as ref u8
     }
@@ -5619,7 +5619,7 @@ fn append_synthesized_externs(ctx: mut ref TranslationCtx, out: ref void) void =
 }
 
 fn file_exists(path: ref u8) bool = {
-    val file_opt = trust fs.open(path, "r")
+    val file_opt = trust fs.open(path, c"r")
     if file_opt is some f {
         trust fs.close(f)
         return true
@@ -5629,7 +5629,7 @@ fn file_exists(path: ref u8) bool = {
 }
 
 fn resolve_include_path(name: ref u8, current_dir: ref u8) option[ref u8] = {
-    if string.raw_starts_with(name, "/") {
+    if string.raw_starts_with(name, c"/") {
         if file_exists(name) {
             return some name
         }
@@ -5639,15 +5639,15 @@ fn resolve_include_path(name: ref u8, current_dir: ref u8) option[ref u8] = {
     if file_exists(local) {
         return some local
     }
-    val cwd_candidate = trust tjoin(".", name)
+    val cwd_candidate = trust tjoin(c".", name)
     if file_exists(cwd_candidate) {
         return some cwd_candidate
     }
-    val usr_local = trust tjoin("/usr/local/include", name)
+    val usr_local = trust tjoin(c"/usr/local/include", name)
     if file_exists(usr_local) {
         return some usr_local
     }
-    val usr = trust tjoin("/usr/include", name)
+    val usr = trust tjoin(c"/usr/include", name)
     if file_exists(usr) {
         return some usr
     }
@@ -5655,58 +5655,58 @@ fn resolve_include_path(name: ref u8, current_dir: ref u8) option[ref u8] = {
 }
 
 fn keyword_ignored(word: ref u8) bool = {
-    if string.raw_cmp(word, "const") == 0 {
+    if string.raw_cmp(word, c"const") == 0 {
         return true
     }
-    if string.raw_cmp(word, "__const") == 0 {
+    if string.raw_cmp(word, c"__const") == 0 {
         return true
     }
-    if string.raw_cmp(word, "__const__") == 0 {
+    if string.raw_cmp(word, c"__const__") == 0 {
         return true
     }
-    if string.raw_cmp(word, "volatile") == 0 {
+    if string.raw_cmp(word, c"volatile") == 0 {
         return true
     }
-    if string.raw_cmp(word, "__volatile__") == 0 {
+    if string.raw_cmp(word, c"__volatile__") == 0 {
         return true
     }
-    if string.raw_cmp(word, "restrict") == 0 {
+    if string.raw_cmp(word, c"restrict") == 0 {
         return true
     }
-    if string.raw_cmp(word, "__restrict") == 0 {
+    if string.raw_cmp(word, c"__restrict") == 0 {
         return true
     }
-    if string.raw_cmp(word, "__restrict__") == 0 {
+    if string.raw_cmp(word, c"__restrict__") == 0 {
         return true
     }
-    if string.raw_cmp(word, "register") == 0 {
+    if string.raw_cmp(word, c"register") == 0 {
         return true
     }
-    if string.raw_cmp(word, "static") == 0 {
+    if string.raw_cmp(word, c"static") == 0 {
         return true
     }
-    if string.raw_cmp(word, "extern") == 0 {
+    if string.raw_cmp(word, c"extern") == 0 {
         return true
     }
-    if string.raw_cmp(word, "inline") == 0 {
+    if string.raw_cmp(word, c"inline") == 0 {
         return true
     }
-    if string.raw_cmp(word, "__inline") == 0 {
+    if string.raw_cmp(word, c"__inline") == 0 {
         return true
     }
-    if string.raw_cmp(word, "__inline__") == 0 {
+    if string.raw_cmp(word, c"__inline__") == 0 {
         return true
     }
-    if string.raw_cmp(word, "typedef") == 0 {
+    if string.raw_cmp(word, c"typedef") == 0 {
         return true
     }
-    if string.raw_cmp(word, "signed") == 0 {
+    if string.raw_cmp(word, c"signed") == 0 {
         return true
     }
-    if string.raw_cmp(word, "__signed__") == 0 {
+    if string.raw_cmp(word, c"__signed__") == 0 {
         return true
     }
-    if string.raw_cmp(word, "__extension__") == 0 {
+    if string.raw_cmp(word, c"__extension__") == 0 {
         return true
     }
     return false
@@ -5771,160 +5771,160 @@ fn normalize_type_phrase(text: ref u8) ref u8 = {
 }
 
 fn map_base_type(base: ref u8) ref u8 = {
-    if string.raw_cmp(base, "") == 0 {
-        return "void"
+    if string.raw_cmp(base, c"") == 0 {
+        return c"void"
     }
-    if string.raw_cmp(base, "void") == 0 {
-        return "void"
+    if string.raw_cmp(base, c"void") == 0 {
+        return c"void"
     }
-    if string.raw_cmp(base, "u8") == 0 {
-        return "u8"
+    if string.raw_cmp(base, c"u8") == 0 {
+        return c"u8"
     }
-    if string.raw_cmp(base, "short") == 0 {
-        return "i16"
+    if string.raw_cmp(base, c"short") == 0 {
+        return c"i16"
     }
-    if string.raw_cmp(base, "int") == 0 {
-        return "i32"
+    if string.raw_cmp(base, c"int") == 0 {
+        return c"i32"
     }
-    if string.raw_cmp(base, "long") == 0 {
-        return "i64"
+    if string.raw_cmp(base, c"long") == 0 {
+        return c"i64"
     }
-    if string.raw_cmp(base, "long long") == 0 {
-        return "i64"
+    if string.raw_cmp(base, c"long long") == 0 {
+        return c"i64"
     }
-    if string.raw_cmp(base, "unsigned u8") == 0 {
-        return "u8"
+    if string.raw_cmp(base, c"unsigned u8") == 0 {
+        return c"u8"
     }
-    if string.raw_cmp(base, "unsigned short") == 0 {
-        return "u16"
+    if string.raw_cmp(base, c"unsigned short") == 0 {
+        return c"u16"
     }
-    if string.raw_cmp(base, "unsigned") == 0 {
-        return "u32"
+    if string.raw_cmp(base, c"unsigned") == 0 {
+        return c"u32"
     }
-    if string.raw_cmp(base, "unsigned int") == 0 {
-        return "u32"
+    if string.raw_cmp(base, c"unsigned int") == 0 {
+        return c"u32"
     }
-    if string.raw_cmp(base, "unsigned long") == 0 {
-        return "u64"
+    if string.raw_cmp(base, c"unsigned long") == 0 {
+        return c"u64"
     }
-    if string.raw_cmp(base, "unsigned long long") == 0 {
-        return "u64"
+    if string.raw_cmp(base, c"unsigned long long") == 0 {
+        return c"u64"
     }
-    if string.raw_cmp(base, "long unsigned") == 0 {
-        return "u64"
+    if string.raw_cmp(base, c"long unsigned") == 0 {
+        return c"u64"
     }
-    if string.raw_cmp(base, "long unsigned int") == 0 {
-        return "u64"
+    if string.raw_cmp(base, c"long unsigned int") == 0 {
+        return c"u64"
     }
-    if string.raw_cmp(base, "unsigned long int") == 0 {
-        return "u64"
+    if string.raw_cmp(base, c"unsigned long int") == 0 {
+        return c"u64"
     }
-    if string.raw_cmp(base, "long long unsigned") == 0 {
-        return "u64"
+    if string.raw_cmp(base, c"long long unsigned") == 0 {
+        return c"u64"
     }
-    if string.raw_cmp(base, "long long unsigned int") == 0 {
-        return "u64"
+    if string.raw_cmp(base, c"long long unsigned int") == 0 {
+        return c"u64"
     }
-    if string.raw_cmp(base, "unsigned long long int") == 0 {
-        return "u64"
+    if string.raw_cmp(base, c"unsigned long long int") == 0 {
+        return c"u64"
     }
-    if string.raw_cmp(base, "long int") == 0 {
-        return "i64"
+    if string.raw_cmp(base, c"long int") == 0 {
+        return c"i64"
     }
-    if string.raw_cmp(base, "long long int") == 0 {
-        return "i64"
+    if string.raw_cmp(base, c"long long int") == 0 {
+        return c"i64"
     }
-    if string.raw_cmp(base, "signed long") == 0 {
-        return "i64"
+    if string.raw_cmp(base, c"signed long") == 0 {
+        return c"i64"
     }
-    if string.raw_cmp(base, "signed long int") == 0 {
-        return "i64"
+    if string.raw_cmp(base, c"signed long int") == 0 {
+        return c"i64"
     }
-    if string.raw_cmp(base, "signed long long") == 0 {
-        return "i64"
+    if string.raw_cmp(base, c"signed long long") == 0 {
+        return c"i64"
     }
-    if string.raw_cmp(base, "signed long long int") == 0 {
-        return "i64"
+    if string.raw_cmp(base, c"signed long long int") == 0 {
+        return c"i64"
     }
-    if string.raw_cmp(base, "short int") == 0 {
-        return "i16"
+    if string.raw_cmp(base, c"short int") == 0 {
+        return c"i16"
     }
-    if string.raw_cmp(base, "signed short") == 0 {
-        return "i16"
+    if string.raw_cmp(base, c"signed short") == 0 {
+        return c"i16"
     }
-    if string.raw_cmp(base, "signed short int") == 0 {
-        return "i16"
+    if string.raw_cmp(base, c"signed short int") == 0 {
+        return c"i16"
     }
-    if string.raw_cmp(base, "short unsigned int") == 0 {
-        return "u16"
+    if string.raw_cmp(base, c"short unsigned int") == 0 {
+        return c"u16"
     }
-    if string.raw_cmp(base, "unsigned short int") == 0 {
-        return "u16"
+    if string.raw_cmp(base, c"unsigned short int") == 0 {
+        return c"u16"
     }
-    if string.raw_cmp(base, "signed int") == 0 {
-        return "i32"
+    if string.raw_cmp(base, c"signed int") == 0 {
+        return c"i32"
     }
-    if string.raw_cmp(base, "signed") == 0 {
-        return "i32"
+    if string.raw_cmp(base, c"signed") == 0 {
+        return c"i32"
     }
-    if string.raw_cmp(base, "signed u8") == 0 {
-        return "i8"
+    if string.raw_cmp(base, c"signed u8") == 0 {
+        return c"i8"
     }
-    if string.raw_cmp(base, "float") == 0 {
-        return "f32"
+    if string.raw_cmp(base, c"float") == 0 {
+        return c"f32"
     }
-    if string.raw_cmp(base, "double") == 0 {
-        return "f64"
+    if string.raw_cmp(base, c"double") == 0 {
+        return c"f64"
     }
-    if string.raw_cmp(base, "_Bool") == 0 {
-        return "bool"
+    if string.raw_cmp(base, c"_Bool") == 0 {
+        return c"bool"
     }
-    if string.raw_cmp(base, "bool") == 0 {
-        return "bool"
+    if string.raw_cmp(base, c"bool") == 0 {
+        return c"bool"
     }
-    if string.raw_cmp(base, "size_t") == 0 {
-        return "usize"
+    if string.raw_cmp(base, c"size_t") == 0 {
+        return c"usize"
     }
-    if string.raw_cmp(base, "ssize_t") == 0 {
-        return "i64"
+    if string.raw_cmp(base, c"ssize_t") == 0 {
+        return c"i64"
     }
-    if string.raw_cmp(base, "int8_t") == 0 {
-        return "i8"
+    if string.raw_cmp(base, c"int8_t") == 0 {
+        return c"i8"
     }
-    if string.raw_cmp(base, "uint8_t") == 0 {
-        return "u8"
+    if string.raw_cmp(base, c"uint8_t") == 0 {
+        return c"u8"
     }
-    if string.raw_cmp(base, "int16_t") == 0 {
-        return "i16"
+    if string.raw_cmp(base, c"int16_t") == 0 {
+        return c"i16"
     }
-    if string.raw_cmp(base, "uint16_t") == 0 {
-        return "u16"
+    if string.raw_cmp(base, c"uint16_t") == 0 {
+        return c"u16"
     }
-    if string.raw_cmp(base, "int32_t") == 0 {
-        return "i32"
+    if string.raw_cmp(base, c"int32_t") == 0 {
+        return c"i32"
     }
-    if string.raw_cmp(base, "uint32_t") == 0 {
-        return "u32"
+    if string.raw_cmp(base, c"uint32_t") == 0 {
+        return c"u32"
     }
-    if string.raw_cmp(base, "int64_t") == 0 {
-        return "i64"
+    if string.raw_cmp(base, c"int64_t") == 0 {
+        return c"i64"
     }
-    if string.raw_cmp(base, "uint64_t") == 0 {
-        return "u64"
+    if string.raw_cmp(base, c"uint64_t") == 0 {
+        return c"u64"
     }
-    if string.raw_cmp(base, "intptr_t") == 0 {
-        return "i64"
+    if string.raw_cmp(base, c"intptr_t") == 0 {
+        return c"i64"
     }
-    if string.raw_cmp(base, "uintptr_t") == 0 {
-        return "usize"
+    if string.raw_cmp(base, c"uintptr_t") == 0 {
+        return c"usize"
     }
-    if string.raw_starts_with(base, "struct ") {
+    if string.raw_starts_with(base, c"struct ") {
         return sanitize_identifier(trim_raw(trust tsubstr(base, 7, string.len_raw(base) - 7)))
     }
-    if string.raw_starts_with(base, "enum ") {
+    if string.raw_starts_with(base, c"enum ") {
         return sanitize_identifier(trim_raw(trust tsubstr(base, 5, string.len_raw(base) - 5)))
     }
-    if string.raw_starts_with(base, "union ") {
+    if string.raw_starts_with(base, c"union ") {
         return sanitize_identifier(trim_raw(trust tsubstr(base, 6, string.len_raw(base) - 6)))
     }
     return sanitize_identifier(base)
@@ -5961,7 +5961,7 @@ fn translate_c_type(type_src: ref u8, array_prefix: ref u8) ref u8 = {
         mapped = trust tfmt("ref {s}", {mapped})
         j++
     }
-    if string.raw_cmp(array_prefix, "") != 0 {
+    if string.raw_cmp(array_prefix, c"") != 0 {
         mapped = trust tfmt("{s}{s}", {array_prefix, mapped})
     }
     return mapped
@@ -5971,7 +5971,7 @@ fn translate_c_type_ctx(ctx: ref TranslationCtx, type_src: ref u8, array_prefix:
     val normalized: ref u8 = normalize_type_phrase(type_src)
     if is_ident_text(normalized) {
         if lookup_typedef_alias(ctx, normalized) is some mapped {
-            if string.raw_cmp(array_prefix, "") != 0 {
+            if string.raw_cmp(array_prefix, c"") != 0 {
                 return trust tfmt("{s}{s}", {array_prefix, mapped as ref u8})
             }
             return mapped as ref u8
@@ -6010,14 +6010,14 @@ fn parse_named_decl(ctx: ref TranslationCtx, text: ref u8, fallback_name: ref u8
     val info: mut ref DeclInfo = trust talloc(@sizeof(DeclInfo) as usize) as ref DeclInfo
     info.its_ok = false
     info.name = fallback_name
-    info.type_name = ""
-    info.type_src = ""
+    info.type_name = c""
+    info.type_src = c""
     val trimmed0: ref u8 = trim_raw(strip_initializer(text))
     val len0: i64 = string.len_raw(trimmed0)
     if len0 == 0 {
         return info
     }
-    val array_prefix: mut ref u8 = ""
+    val array_prefix: mut ref u8 = c""
     val i: mut i64 = len0 - 1
     for {
         if i < 0 {
@@ -6053,7 +6053,7 @@ fn parse_named_decl(ctx: ref TranslationCtx, text: ref u8, fallback_name: ref u8
             ))
         val effective_len: mut ref u8 = array_len_txt
         if !is_integer_literal_text(array_len_txt) && !is_ident_text(array_len_txt) {
-            effective_len = "32"
+            effective_len = c"32"
         }
         array_prefix = trust tfmt("[{s}]{s}", {effective_len, array_prefix})
         i = open_i - 1
@@ -6092,13 +6092,13 @@ fn parse_named_decl(ctx: ref TranslationCtx, text: ref u8, fallback_name: ref u8
         info.type_src = trimmed0
     }
     info.type_name = translate_c_type_ctx(ctx, info.type_src, array_prefix)
-    info.its_ok = string.raw_cmp(info.type_name, "") != 0
+    info.its_ok = string.raw_cmp(info.type_name, c"") != 0
     return info
 }
 
 fn split_multi_decl(ctx: ref TranslationCtx, text: ref u8) list[ref u8] = {
     val trimmed: ref u8 = strip_trailing_semicolon(trim_raw(text))
-    if str_contains(trimmed, "(") {
+    if str_contains(trimmed, c"(") {
         return mem.new[ref u8]()
     }
     val parts = split_top_level(trimmed, 44 as u8)
@@ -6108,9 +6108,9 @@ fn split_multi_decl(ctx: ref TranslationCtx, text: ref u8) list[ref u8] = {
     val first_opt = @get(parts, 0)
     if first_opt is some first_part {
         val first_trimmed: ref u8 = trim_raw(first_part as ref u8)
-        val first_decl: ref DeclInfo = parse_named_decl(ctx, first_trimmed, "")
+        val first_decl: ref DeclInfo = parse_named_decl(ctx, first_trimmed, c"")
         val first_type_src: ref u8 = trim_raw(first_decl.type_src)
-        if !first_decl.its_ok || string.raw_cmp(first_type_src, "") == 0 {
+        if !first_decl.its_ok || string.raw_cmp(first_type_src, c"") == 0 {
             return mem.new[ref u8]()
         }
         val items: mut list[ref u8] = mem.new[ref u8]()
@@ -6124,7 +6124,7 @@ fn split_multi_decl(ctx: ref TranslationCtx, text: ref u8) list[ref u8] = {
             val part_opt = @get(parts, i as usize)
             if part_opt is some part_val {
                 val part_trimmed: ref u8 = trim_raw(part_val as ref u8)
-                if string.raw_cmp(part_trimmed, "") != 0 {
+                if string.raw_cmp(part_trimmed, c"") != 0 {
                     @append(items, trust tfmt("{s} {s}", {first_type_src, part_trimmed}))
                 }
             }
@@ -6224,7 +6224,7 @@ fn extract_identifier_before(text: ref u8, end_exclusive: i64) ref u8 = {
         i--
     }
     if end_i < i + 1 {
-        return ""
+        return c""
     }
     return trust tsubstr(text, i + 1, end_i - i)
 }
@@ -6239,7 +6239,7 @@ fn next_significant_line(lines: list[ref u8], start: i64) i64 = {
         val opt = @get(lines, i as usize)
         if opt is some line_val {
             val trimmed: ref u8 = trim_raw(line_val as ref u8)
-            if string.raw_cmp(trimmed, "") != 0 {
+            if string.raw_cmp(trimmed, c"") != 0 {
                 return i
             }
         }
@@ -6285,14 +6285,14 @@ fn parse_include_name(line: ref u8) ref u8 = {
             return trust tsubstr(line, a1 + 1, a2 - a1 - 1)
         }
     }
-    return ""
+    return c""
 }
 
 fn parse_macro_name(line: ref u8, keyword: ref u8) ref u8 = {
     val flat: ref u8 = flatten_ws(line)
     val prefix: ref u8 = trust tfmt("{s} ", {keyword})
     if !string.raw_starts_with(flat, prefix) {
-        return ""
+        return c""
     }
     return trim_raw(trust tsubstr(
             flat,
@@ -6303,29 +6303,29 @@ fn parse_macro_name(line: ref u8, keyword: ref u8) ref u8 = {
 
 fn detect_condition(line: ref u8) i64 = {
     val flat: ref u8 = flatten_ws(line)
-    if string.raw_cmp(flat, "#ifdef _WIN32") == 0 {
+    if string.raw_cmp(flat, c"#ifdef _WIN32") == 0 {
         return COND_WIN_TRUE
     }
-    if string.raw_cmp(flat, "#if defined(_WIN32)") == 0 {
+    if string.raw_cmp(flat, c"#if defined(_WIN32)") == 0 {
         return COND_WIN_TRUE
     }
-    if string.raw_cmp(flat, "#if defined( _WIN32 )") == 0 {
+    if string.raw_cmp(flat, c"#if defined( _WIN32 )") == 0 {
         return COND_WIN_TRUE
     }
-    if string.raw_cmp(flat, "#ifndef _WIN32") == 0 {
+    if string.raw_cmp(flat, c"#ifndef _WIN32") == 0 {
         return COND_WIN_FALSE
     }
-    if string.raw_cmp(flat, "#if !defined(_WIN32)") == 0 {
+    if string.raw_cmp(flat, c"#if !defined(_WIN32)") == 0 {
         return COND_WIN_FALSE
     }
-    if string.raw_cmp(flat, "#if ! defined(_WIN32)") == 0 {
+    if string.raw_cmp(flat, c"#if ! defined(_WIN32)") == 0 {
         return COND_WIN_FALSE
     }
     return COND_NONE
 }
 
 fn is_header_guard(lines: list[ref u8], line_index: i64, macro_name: ref u8) bool = {
-    if string.raw_cmp(macro_name, "") == 0 {
+    if string.raw_cmp(macro_name, c"") == 0 {
         return false
     }
     val next_i: i64 = next_significant_line(lines, line_index + 1)
@@ -6334,7 +6334,7 @@ fn is_header_guard(lines: list[ref u8], line_index: i64, macro_name: ref u8) boo
     }
     val opt = @get(lines, next_i as usize)
     if opt is some next_line {
-        val def_name: ref u8 = parse_macro_name(next_line as ref u8, "#define")
+        val def_name: ref u8 = parse_macro_name(next_line as ref u8, c"#define")
         return string.raw_cmp(def_name, macro_name) == 0
     } else {
         return false
@@ -6365,25 +6365,25 @@ fn translate_body_lines(
         if line_opt is some line_val {
             val line: ref u8 = line_val as ref u8
             val trimmed: ref u8 = trim_raw(line)
-            if string.raw_cmp(trimmed, "") == 0 {
+            if string.raw_cmp(trimmed, c"") == 0 {
                 append_blank_line(out)
                 i++
                 continue
             }
-            if string.raw_starts_with(trimmed, "#else") {
+            if string.raw_starts_with(trimmed, c"#else") {
                 return make_block_result(i + 1, STOP_ELSE, trimmed)
             }
-            if string.raw_starts_with(trimmed, "#endif") {
+            if string.raw_starts_with(trimmed, c"#endif") {
                 return make_block_result(i + 1, STOP_ENDIF, trimmed)
             }
-            if string.raw_starts_with(trimmed, "#elif") {
+            if string.raw_starts_with(trimmed, c"#elif") {
                 return make_block_result(i + 1, STOP_ELIF, trimmed)
             }
-            if string.raw_starts_with(trimmed, "#include") {
+            if string.raw_starts_with(trimmed, c"#include") {
                 i++
                 continue
             }
-            val ifndef_name: ref u8 = parse_macro_name(trimmed, "#ifndef")
+            val ifndef_name: ref u8 = parse_macro_name(trimmed, c"#ifndef")
             if is_header_guard(lines, i, ifndef_name) {
                 val define_i: i64 = next_significant_line(lines, i + 1)
                 val inner = translate_body_lines(lines, current_dir, define_i + 1, indent, out, ctx)
@@ -6392,7 +6392,7 @@ fn translate_body_lines(
             }
             val cond: i64 = detect_condition(trimmed)
             if cond == COND_WIN_TRUE {
-                append_line(out, indent, "when windows {")
+                append_line(out, indent, c"when windows {")
                 val then_result = translate_body_lines(
                     lines,
                     current_dir,
@@ -6402,7 +6402,7 @@ fn translate_body_lines(
                     ctx
                 )
                 if then_result.stop_kind == STOP_ELSE {
-                    append_line(out, indent, "} otherwise {")
+                    append_line(out, indent, c"} otherwise {")
                     val else_result = translate_body_lines(
                         lines,
                         current_dir,
@@ -6411,10 +6411,10 @@ fn translate_body_lines(
                         out,
                         ctx
                     )
-                    append_line(out, indent, "}")
+                    append_line(out, indent, c"}")
                     i = else_result.next_index
                 } elif then_result.stop_kind == STOP_ELIF {
-                    append_line(out, indent, "} otherwise {")
+                    append_line(out, indent, c"} otherwise {")
                     append_comment_line(out, indent + 1, then_result.stop_line)
                     val elif_result = translate_body_lines(
                         lines,
@@ -6424,10 +6424,10 @@ fn translate_body_lines(
                         out,
                         ctx
                     )
-                    append_line(out, indent, "}")
+                    append_line(out, indent, c"}")
                     i = elif_result.next_index
                 } else {
-                    append_line(out, indent, "}")
+                    append_line(out, indent, c"}")
                     i = then_result.next_index
                 }
                 continue
@@ -6442,7 +6442,7 @@ fn translate_body_lines(
                     non_windows,
                     ctx
                 )
-                append_line(out, indent, "when windows {")
+                append_line(out, indent, c"when windows {")
                 if then_result.stop_kind == STOP_ELSE {
                     val else_result = translate_body_lines(
                         lines,
@@ -6452,9 +6452,9 @@ fn translate_body_lines(
                         out,
                         ctx
                     )
-                    append_line(out, indent, "} otherwise {")
+                    append_line(out, indent, c"} otherwise {")
                     append_builder(out, non_windows)
-                    append_line(out, indent, "}")
+                    append_line(out, indent, c"}")
                     i = else_result.next_index
                 } elif then_result.stop_kind == STOP_ELIF {
                     append_comment_line(out, indent + 1, then_result.stop_line)
@@ -6466,14 +6466,14 @@ fn translate_body_lines(
                         out,
                         ctx
                     )
-                    append_line(out, indent, "} otherwise {")
+                    append_line(out, indent, c"} otherwise {")
                     append_builder(out, non_windows)
-                    append_line(out, indent, "}")
+                    append_line(out, indent, c"}")
                     i = elif_result.next_index
                 } else {
-                    append_line(out, indent, "} otherwise {")
+                    append_line(out, indent, c"} otherwise {")
                     append_builder(out, non_windows)
-                    append_line(out, indent, "}")
+                    append_line(out, indent, c"}")
                     i = then_result.next_index
                 }
                 continue
@@ -6491,7 +6491,7 @@ fn translate_body_lines(
             i++
         }
     }
-    return make_block_result(i, STOP_EOF, "")
+    return make_block_result(i, STOP_EOF, c"")
 }
 
 fn collect_struct(lines: list[ref u8], start: i64) ref BlockResult = {
@@ -6519,14 +6519,14 @@ fn collect_struct(lines: list[ref u8], start: i64) ref BlockResult = {
                 } elif c == 125 && brace_depth > 0 {
                     brace_depth--
                 } elif c == 59 && started && brace_depth == 0 {
-                    return make_block_result(i + 1, STOP_EOF, "")
+                    return make_block_result(i + 1, STOP_EOF, c"")
                 }
                 j++
             }
         }
         i++
     }
-    return make_block_result(i, STOP_EOF, "")
+    return make_block_result(i, STOP_EOF, c"")
 }
 
 fn collect_function(lines: list[ref u8], start: i64) ref BlockResult = {
@@ -6559,17 +6559,17 @@ fn collect_function(lines: list[ref u8], start: i64) ref BlockResult = {
                 } elif c == 125 && brace_depth > 0 {
                     brace_depth--
                     if seen_body && brace_depth == 0 {
-                        return make_block_result(i + 1, STOP_EOF, "")
+                        return make_block_result(i + 1, STOP_EOF, c"")
                     }
                 } elif c == 59 && paren_depth == 0 && !seen_body {
-                    return make_block_result(i + 1, STOP_EOF, "")
+                    return make_block_result(i + 1, STOP_EOF, c"")
                 }
                 j++
             }
         }
         i++
     }
-    return make_block_result(i, STOP_EOF, "")
+    return make_block_result(i, STOP_EOF, c"")
 }
 
 fn translate_struct_decl(
@@ -6590,13 +6590,13 @@ fn translate_struct_decl(
                 close_i + 1,
                 string.len_raw(flat) - close_i - 1
             )))
-    val before_body_name: mut ref u8 = ""
-    if string.raw_starts_with(header, "typedef struct") {
+    val before_body_name: mut ref u8 = c""
+    if string.raw_starts_with(header, c"typedef struct") {
         val tail_len: i64 = string.len_raw(header) - 14
         if tail_len > 0 {
             before_body_name = trim_raw(trust tsubstr(header, 14, tail_len))
         }
-    } elif string.raw_starts_with(header, "struct") {
+    } elif string.raw_starts_with(header, c"struct") {
         val tail_len: i64 = string.len_raw(header) - 6
         if tail_len > 0 {
             before_body_name = trim_raw(trust tsubstr(header, 6, tail_len))
@@ -6606,10 +6606,10 @@ fn translate_struct_decl(
     }
     val alias0: ref u8 = extract_identifier_before(after, string.len_raw(after))
     val alias: mut ref u8 = alias0
-    if string.raw_cmp(alias, "") == 0 {
+    if string.raw_cmp(alias, c"") == 0 {
         alias = before_body_name
     }
-    if string.raw_cmp(alias, "") == 0 {
+    if string.raw_cmp(alias, c"") == 0 {
         return false
     }
     if list_contains(ctx.translated_type_names, alias) {
@@ -6622,7 +6622,7 @@ fn translate_struct_decl(
     val fields = split_top_level(body, 59 as u8)
     for field in fields {
         val trimmed: ref u8 = trim_raw(field)
-        if string.raw_cmp(trimmed, "") == 0 {
+        if string.raw_cmp(trimmed, c"") == 0 {
             continue
         }
         if translate_anonymous_union_field(trimmed, indent, prelude_out, ctx) is some field_line {
@@ -6637,8 +6637,8 @@ fn translate_struct_decl(
             @append(decl_items, trimmed)
         }
         for decl_text in decl_items {
-            val decl: ref DeclInfo = parse_named_decl(ctx, decl_text, "")
-            if !decl.its_ok || string.raw_cmp(decl.name, "") == 0 {
+            val decl: ref DeclInfo = parse_named_decl(ctx, decl_text, c"")
+            if !decl.its_ok || string.raw_cmp(decl.name, c"") == 0 {
                 append_comment_line(
                     fields_out,
                     indent + 1,
@@ -6647,7 +6647,7 @@ fn translate_struct_decl(
                 continue
             }
             val field_type: mut ref u8 = decl.type_name
-            if string.raw_starts_with(field_type, "[]") {
+            if string.raw_starts_with(field_type, c"[]") {
                 field_type = trust tfmt("ref {s}", {@ptradd(field_type, 2)})
                 remember_flex_field(ctx, alias, decl.name, field_type)
             }
@@ -6661,7 +6661,7 @@ fn translate_struct_decl(
     append_builder(out, prelude_out)
     append_open_block_line(out, indent, trust tfmt("extern type {s} = ", {alias}))
     append_builder(out, fields_out)
-    append_line(out, indent, "}")
+    append_line(out, indent, c"}")
     append_blank_line(out)
     return true
 }
@@ -6684,13 +6684,13 @@ fn translate_enum_decl(
                 close_i + 1,
                 string.len_raw(flat) - close_i - 1
             )))
-    val before_body_name: mut ref u8 = ""
-    if string.raw_starts_with(header, "typedef enum") {
+    val before_body_name: mut ref u8 = c""
+    if string.raw_starts_with(header, c"typedef enum") {
         val tail_len: i64 = string.len_raw(header) - 12
         if tail_len > 0 {
             before_body_name = trim_raw(trust tsubstr(header, 12, tail_len))
         }
-    } elif string.raw_starts_with(header, "enum") {
+    } elif string.raw_starts_with(header, c"enum") {
         val tail_len: i64 = string.len_raw(header) - 4
         if tail_len > 0 {
             before_body_name = trim_raw(trust tsubstr(header, 4, tail_len))
@@ -6700,17 +6700,17 @@ fn translate_enum_decl(
     }
     val alias0: ref u8 = extract_identifier_before(after, string.len_raw(after))
     val alias: mut ref u8 = alias0
-    if string.raw_cmp(alias, "") == 0 {
+    if string.raw_cmp(alias, c"") == 0 {
         alias = before_body_name
     }
     alias = sanitize_identifier(alias)
     val body: ref u8 = trust tsubstr(flat, open_i + 1, close_i - open_i - 1)
     val items = split_top_level(body, 44 as u8)
-    if string.raw_cmp(alias, "") == 0 {
-        val next_value: mut ref u8 = "0"
+    if string.raw_cmp(alias, c"") == 0 {
+        val next_value: mut ref u8 = c"0"
         for item in items {
             val trimmed: ref u8 = trim_raw(item)
-            if string.raw_cmp(trimmed, "") == 0 {
+            if string.raw_cmp(trimmed, c"") == 0 {
                 continue
             }
             val assign_i: i64 = find_top_level_assign(trimmed)
@@ -6728,7 +6728,7 @@ fn translate_enum_decl(
                 )
             }
             val member: ref u8 = sanitize_identifier(trim_raw(name_src))
-            if string.raw_cmp(member, "") == 0 {
+            if string.raw_cmp(member, c"") == 0 {
                 continue
             }
             append_line(out, indent, trust tfmt("val {s}: i32 = {s}", {member, value_expr}))
@@ -6744,11 +6744,11 @@ fn translate_enum_decl(
     val members: mut list[ref u8] = mem.new[ref u8]()
     for item in items {
         val trimmed: ref u8 = trim_raw(item)
-        if string.raw_cmp(trimmed, "") == 0 {
+        if string.raw_cmp(trimmed, c"") == 0 {
             continue
         }
         val member: ref u8 = sanitize_identifier(trim_raw(strip_initializer(trimmed)))
-        if string.raw_cmp(member, "") == 0 {
+        if string.raw_cmp(member, c"") == 0 {
             continue
         }
         @append(members, member)
@@ -6772,7 +6772,7 @@ fn translate_enum_decl(
         }
         member_i++
     }
-    append_line(out, indent, "}")
+    append_line(out, indent, c"}")
     append_blank_line(out)
     return true
 }
@@ -6789,7 +6789,7 @@ fn emit_union_type(
     val first_variant: mut bool = true
     for field in fields {
         val trimmed: ref u8 = trim_raw(field)
-        if string.raw_cmp(trimmed, "") == 0 {
+        if string.raw_cmp(trimmed, c"") == 0 {
             continue
         }
         val field_items = split_multi_decl(ctx, trimmed)
@@ -6800,8 +6800,8 @@ fn emit_union_type(
             @append(decl_items, trimmed)
         }
         for decl_text in decl_items {
-            val decl: ref DeclInfo = parse_named_decl(ctx, decl_text, "")
-            if !decl.its_ok || string.raw_cmp(decl.name, "") == 0 {
+            val decl: ref DeclInfo = parse_named_decl(ctx, decl_text, c"")
+            if !decl.its_ok || string.raw_cmp(decl.name, c"") == 0 {
                 continue
             }
             val variant_name: ref u8 = sanitize_identifier(decl.name)
@@ -6810,8 +6810,8 @@ fn emit_union_type(
             if is_array_type_name(payload_type0) {
                 payload_type = decay_array_type(payload_type0)
             }
-            val line_text: mut ref u8 = ""
-            if string.raw_cmp(payload_type, "void") == 0 {
+            val line_text: mut ref u8 = c""
+            if string.raw_cmp(payload_type, c"void") == 0 {
                 line_text = trust tfmt("{s}()", {variant_name})
             } else {
                 line_text = trust tfmt("{s}({s})", {variant_name, payload_type})
@@ -6824,7 +6824,7 @@ fn emit_union_type(
             }
         }
     }
-    append_line(out, indent, "}")
+    append_line(out, indent, c"}")
     append_blank_line(out)
 }
 
@@ -6835,7 +6835,7 @@ fn translate_anonymous_union_field(
     ctx: mut ref TranslationCtx
 ) option[ref u8] = {
     val trimmed: ref u8 = trim_raw(field_text)
-    if !string.raw_starts_with(trimmed, "union") {
+    if !string.raw_starts_with(trimmed, c"union") {
         return none
     }
     val open_i: i64 = find_char(trimmed, 123 as u8)
@@ -6850,14 +6850,14 @@ fn translate_anonymous_union_field(
             string.len_raw(trimmed) - close_i - 1
         ))
     val header_tail: ref u8 = trim_raw(trust tsubstr(header, 5, string.len_raw(header) - 5))
-    if string.raw_cmp(header_tail, "") != 0 {
+    if string.raw_cmp(header_tail, c"") != 0 {
         return none
     }
     val field_name: ref u8 = sanitize_identifier(extract_identifier_before(
             after,
             string.len_raw(after)
         ))
-    if string.raw_cmp(field_name, "") == 0 {
+    if string.raw_cmp(field_name, c"") == 0 {
         return none
     }
     val union_name: ref u8 = fresh_union_name(ctx)
@@ -6885,13 +6885,13 @@ fn translate_union_decl(
                 close_i + 1,
                 string.len_raw(flat) - close_i - 1
             )))
-    val before_body_name: mut ref u8 = ""
-    if string.raw_starts_with(header, "typedef union") {
+    val before_body_name: mut ref u8 = c""
+    if string.raw_starts_with(header, c"typedef union") {
         val tail_len: i64 = string.len_raw(header) - 13
         if tail_len > 0 {
             before_body_name = trim_raw(trust tsubstr(header, 13, tail_len))
         }
-    } elif string.raw_starts_with(header, "union") {
+    } elif string.raw_starts_with(header, c"union") {
         val tail_len: i64 = string.len_raw(header) - 5
         if tail_len > 0 {
             before_body_name = trim_raw(trust tsubstr(header, 5, tail_len))
@@ -6901,11 +6901,11 @@ fn translate_union_decl(
     }
     val alias0: ref u8 = extract_identifier_before(after, string.len_raw(after))
     val alias: mut ref u8 = alias0
-    if string.raw_cmp(alias, "") == 0 {
+    if string.raw_cmp(alias, c"") == 0 {
         alias = before_body_name
     }
     alias = sanitize_identifier(alias)
-    if string.raw_cmp(alias, "") == 0 {
+    if string.raw_cmp(alias, c"") == 0 {
         return false
     }
     if list_contains(ctx.translated_type_names, alias) {
@@ -6919,11 +6919,11 @@ fn translate_union_decl(
 
 fn translate_params(ctx: mut ref TranslationCtx, params_text: ref u8) ref u8 = {
     val trimmed: ref u8 = trim_raw(params_text)
-    if string.raw_cmp(trimmed, "") == 0 {
-        return ""
+    if string.raw_cmp(trimmed, c"") == 0 {
+        return c""
     }
-    if string.raw_cmp(trimmed, "void") == 0 {
-        return ""
+    if string.raw_cmp(trimmed, c"void") == 0 {
+        return c""
     }
     val params = split_top_level(trimmed, 44 as u8)
     val sb: ref void = string.StringBuilder.new()
@@ -6931,23 +6931,23 @@ fn translate_params(ctx: mut ref TranslationCtx, params_text: ref u8) ref u8 = {
     val first: mut bool = true
     for param in params {
         val p: ref u8 = trim_raw(param)
-        if string.raw_cmp(p, "") == 0 {
+        if string.raw_cmp(p, c"") == 0 {
             continue
         }
-        if string.raw_cmp(p, "...") == 0 {
+        if string.raw_cmp(p, c"...") == 0 {
             if !first {
-                trust string.StringBuilder.append_cstr(sb, ", ")
+                trust string.StringBuilder.append_cstr(sb, c", ")
             }
-            trust string.StringBuilder.append_cstr(sb, "...")
+            trust string.StringBuilder.append_cstr(sb, c"...")
             first = false
             continue
         }
         val fallback: ref u8 = trust tfmt("arg{d}", {arg_index})
-        if str_contains(p, "(*") {
+        if str_contains(p, c"(*") {
             val pname: ref u8 = parse_function_pointer_param_name(p, fallback)
             push_unique(ctx.fnptr_names, pname)
             if !first {
-                trust string.StringBuilder.append_cstr(sb, ", ")
+                trust string.StringBuilder.append_cstr(sb, c", ")
             }
             trust string.StringBuilder.append_cstr(sb, tfmt("{s}: ref void", {pname}))
             first = false
@@ -6957,7 +6957,7 @@ fn translate_params(ctx: mut ref TranslationCtx, params_text: ref u8) ref u8 = {
         val decl: ref DeclInfo = parse_named_decl(ctx, p, fallback)
         if !decl.its_ok {
             if !first {
-                trust string.StringBuilder.append_cstr(sb, ", ")
+                trust string.StringBuilder.append_cstr(sb, c", ")
             }
             trust string.StringBuilder.append_cstr(sb, tfmt("{s}: void", {fallback}))
             first = false
@@ -6971,7 +6971,7 @@ fn translate_params(ctx: mut ref TranslationCtx, params_text: ref u8) ref u8 = {
         remember_local_type(ctx, decl.name, param_type)
         val rendered_type: ref u8 = render_parameter_type(ctx, decl.name, param_type)
         if !first {
-            trust string.StringBuilder.append_cstr(sb, ", ")
+            trust string.StringBuilder.append_cstr(sb, c", ")
         }
         trust string.StringBuilder.append_cstr(
             sb,
@@ -6987,8 +6987,8 @@ fn translate_params(ctx: mut ref TranslationCtx, params_text: ref u8) ref u8 = {
 
 fn extract_main_param_name(ctx: ref TranslationCtx, params_text: ref u8, index: i64) ref u8 = {
     val trimmed: ref u8 = trim_raw(params_text)
-    if string.raw_cmp(trimmed, "") == 0 || string.raw_cmp(trimmed, "void") == 0 {
-        return ""
+    if string.raw_cmp(trimmed, c"") == 0 || string.raw_cmp(trimmed, c"void") == 0 {
+        return c""
     }
     val params = split_top_level(trimmed, 44 as u8)
     val param_opt = @get(params, index as usize)
@@ -7000,12 +7000,12 @@ fn extract_main_param_name(ctx: ref TranslationCtx, params_text: ref u8, index: 
         }
         return sanitize_identifier(fallback)
     } else {
-        return ""
+        return c""
     }
 }
 
 fn text_uses_ident(text: ref u8, name: ref u8) bool = {
-    if string.raw_cmp(name, "") == 0 {
+    if string.raw_cmp(name, c"") == 0 {
         return false
     }
     val len: i64 = string.len_raw(text)
@@ -7118,33 +7118,33 @@ fn emit_main_args_prelude(
     val argv_name: ref u8 = extract_main_param_name(ctx, params_text, 1)
     val needs_argc: bool = text_uses_ident(
         body_text,
-        "argc"
+        c"argc"
     ) || text_uses_ident(body_text, argc_name)
     val needs_argv: bool = text_uses_ident(
         body_text,
-        "args"
+        c"args"
     ) || text_uses_ident(body_text, argv_name)
     if !needs_argc && !needs_argv {
         return false
     }
-    remember_local_type(ctx, "args", "list[ref u8]")
-    append_line(out, indent, "val args: list[ref u8] = @args()")
+    remember_local_type(ctx, c"args", c"list[ref u8]")
+    append_line(out, indent, c"val args: list[ref u8] = @args()")
     if needs_argc {
-        remember_local_type(ctx, "argc", "usize")
-        append_line(out, indent, "val argc: usize = @len(args)")
+        remember_local_type(ctx, c"argc", c"usize")
+        append_line(out, indent, c"val argc: usize = @len(args)")
     }
     if string.raw_cmp(
         argc_name,
-        ""
-    ) != 0 && string.raw_cmp(argc_name, "argc") != 0 && text_uses_ident(body_text, argc_name) {
-        remember_local_type(ctx, argc_name, "usize")
+        c""
+    ) != 0 && string.raw_cmp(argc_name, c"argc") != 0 && text_uses_ident(body_text, argc_name) {
+        remember_local_type(ctx, argc_name, c"usize")
         append_line(out, indent, trust tfmt("val {s}: usize = @len(args)", {argc_name}))
     }
     if string.raw_cmp(
         argv_name,
-        ""
-    ) != 0 && string.raw_cmp(argv_name, "args") != 0 && text_uses_ident(body_text, argv_name) {
-        remember_local_type(ctx, argv_name, "list[ref u8]")
+        c""
+    ) != 0 && string.raw_cmp(argv_name, c"args") != 0 && text_uses_ident(body_text, argv_name) {
+        remember_local_type(ctx, argv_name, c"list[ref u8]")
         append_line(out, indent, trust tfmt("val {s}: list[ref u8] = args", {argv_name}))
     }
     return true
@@ -7160,7 +7160,7 @@ fn strip_gnu_attributes(text: ref u8) ref u8 = {
         }
         if i + 13 <= len {
             val frag: ref u8 = trust tsubstr(text, i, 13)
-            if string.raw_cmp(frag, "__attribute__") == 0 {
+            if string.raw_cmp(frag, c"__attribute__") == 0 {
                 val prev_ok: bool = i == 0 || !is_ident_part(trust @load8(@ptradd(
                             text,
                             i - 1
@@ -7210,8 +7210,8 @@ fn translate_function_decl(
     ctx: mut ref TranslationCtx
 ) bool = {
     val has_body: bool = find_char(text, 123 as u8) >= 0
-    val signature_src: mut ref u8 = ""
-    val body_src: mut ref u8 = ""
+    val signature_src: mut ref u8 = c""
+    val body_src: mut ref u8 = c""
     if has_body {
         val open_i: i64 = find_char(text, 123 as u8)
         val close_i: i64 = find_last_char(text, 125 as u8)
@@ -7226,7 +7226,7 @@ fn translate_function_decl(
             return false
         }
         signature_src = trim_raw(trust tsubstr(text, 0, semi_i))
-        body_src = ""
+        body_src = c""
     }
     val signature: ref u8 = flatten_ws(strip_gnu_attributes(signature_src))
     val open_paren: i64 = find_char(signature, 40 as u8)
@@ -7241,7 +7241,7 @@ fn translate_function_decl(
             close_paren - open_paren - 1
         ))
     val name: ref u8 = sanitize_identifier(extract_identifier_before(head, string.len_raw(head)))
-    if string.raw_cmp(name, "") == 0 {
+    if string.raw_cmp(name, c"") == 0 {
         return false
     }
     val head_len: i64 = string.len_raw(head)
@@ -7253,25 +7253,25 @@ fn translate_function_decl(
         return false
     }
     val return_src: ref u8 = trim_raw(trust tsubstr(head, 0, head_len - name_len))
-    val return_type: ref u8 = translate_c_type_ctx(ctx, return_src, "")
+    val return_type: ref u8 = translate_c_type_ctx(ctx, return_src, c"")
     clear_local_types(ctx)
     if has_body {
         val body_lines0 = split_lines(body_src)
         analyze_mutable_names(ctx, body_lines0, 0)
         analyze_address_taken_names(ctx, body_lines0, 0)
     }
-    val is_main: bool = string.raw_cmp(name, "main") == 0
-    val params_text: mut ref u8 = ""
+    val is_main: bool = string.raw_cmp(name, c"main") == 0
+    val params_text: mut ref u8 = c""
     if !is_main {
         params_text = translate_params(ctx, params_raw)
     }
-    val is_static: bool = str_contains(signature, "static ")
-    val line: mut ref u8 = ""
+    val is_static: bool = str_contains(signature, c"static ")
+    val line: mut ref u8 = c""
     if has_body {
         push_unique(ctx.defined_names, name)
-        val fn_kw: mut ref u8 = "pub fn"
+        val fn_kw: mut ref u8 = c"pub fn"
         if is_static {
-            fn_kw = "fn"
+            fn_kw = c"fn"
         }
         line = trust tfmt("{s} {s}({s}) {s} = trust ", {fn_kw, name, params_text, return_type})
         append_open_block_line(out, indent, line)
@@ -7288,16 +7288,16 @@ fn translate_function_decl(
                 append_blank_line(out)
             }
             translate_body_lines(body_lines, current_dir, 0, indent + 1, out, ctx)
-            if string.raw_cmp(return_type, "i32") == 0
+            if string.raw_cmp(return_type, c"i32") == 0
             && !body_has_explicit_return(body_lines) {
                 append_blank_line(out)
-                append_line(out, indent + 1, "return 0")
+                append_line(out, indent + 1, c"return 0")
             }
         } else {
             val body_lines = split_lines(body_src)
             translate_body_lines(body_lines, current_dir, 0, indent + 1, out, ctx)
         }
-        append_line(out, indent, "}")
+        append_line(out, indent, c"}")
         append_blank_line(out)
         return true
     }
@@ -7328,7 +7328,7 @@ fn translate_top_level_decl(
     ctx: mut ref TranslationCtx
 ) bool = {
     val stripped: ref u8 = strip_trailing_semicolon(trim_raw(text))
-    if string.raw_cmp(stripped, "") == 0 {
+    if string.raw_cmp(stripped, c"") == 0 {
         return false
     }
     val multi_decls = split_multi_decl(ctx, stripped)
@@ -7341,18 +7341,18 @@ fn translate_top_level_decl(
         }
         return any_ok
     }
-    if string.raw_starts_with(stripped, "typedef ")
-    && !string.raw_starts_with(stripped, "typedef struct")
-    && !string.raw_starts_with(stripped, "typedef enum")
-    && !string.raw_starts_with(stripped, "typedef union")
-    && !str_contains(stripped, "(") {
+    if string.raw_starts_with(stripped, c"typedef ")
+    && !string.raw_starts_with(stripped, c"typedef struct")
+    && !string.raw_starts_with(stripped, c"typedef enum")
+    && !string.raw_starts_with(stripped, c"typedef union")
+    && !str_contains(stripped, c"(") {
         val after_typedef: ref u8 = trim_raw(trust tsubstr(
                 stripped,
                 8,
                 string.len_raw(stripped) - 8
             ))
-        val alias_decl: ref DeclInfo = parse_named_decl(ctx, after_typedef, "")
-        if alias_decl.its_ok && string.raw_cmp(alias_decl.name, "") != 0
+        val alias_decl: ref DeclInfo = parse_named_decl(ctx, after_typedef, c"")
+        if alias_decl.its_ok && string.raw_cmp(alias_decl.name, c"") != 0
         && string.raw_cmp(alias_decl.type_name, alias_decl.name) != 0 {
             register_typedef_alias(ctx, alias_decl.name, alias_decl.type_name)
         }
@@ -7366,18 +7366,18 @@ fn translate_top_level_decl(
                 assign_i + 1,
                 string.len_raw(stripped) - assign_i - 1
             ))
-        val can_be_decl: bool = str_contains(lhs, " ")
-        || string.raw_starts_with(lhs, "struct ")
-        || string.raw_starts_with(lhs, "enum ")
-        || string.raw_starts_with(lhs, "union ")
+        val can_be_decl: bool = str_contains(lhs, c" ")
+        || string.raw_starts_with(lhs, c"struct ")
+        || string.raw_starts_with(lhs, c"enum ")
+        || string.raw_starts_with(lhs, c"union ")
         if !can_be_decl {
             return false
         }
-        val decl: ref DeclInfo = parse_named_decl(ctx, lhs, "")
+        val decl: ref DeclInfo = parse_named_decl(ctx, lhs, c"")
         if !decl.its_ok || string.raw_cmp(
             decl.name,
-            ""
-        ) == 0 || string.raw_cmp(trim_raw(decl.type_src), "") == 0 {
+            c""
+        ) == 0 || string.raw_cmp(trim_raw(decl.type_src), c"") == 0 {
             return false
         }
         if is_array_type_name(decl.type_name) {
@@ -7386,7 +7386,7 @@ fn translate_top_level_decl(
             val alloc_expr: mut ref u8 = array_alloc_expr(decl.type_name)
             if string.raw_cmp(
                 array_type_len_expr(decl.type_name),
-                ""
+                c""
             ) == 0 && (@len(array_init_items) as i64) > 0 {
                 alloc_expr = trust tfmt(
                     "{d} * @sizeof({s})",
@@ -7396,7 +7396,7 @@ fn translate_top_level_decl(
             val decayed_type: ref u8 = decay_array_type(decl.type_name)
             val is_char_array_literal: bool = string.raw_cmp(
                 elem_type,
-                "u8"
+                c"u8"
             ) == 0 && is_string_literal_text(rhs)
             remember_global_type(ctx, decl.name, decayed_type)
             remember_global_array_type(ctx, decl.name, alloc_expr)
@@ -7440,7 +7440,7 @@ fn translate_top_level_decl(
         val lowered_rhs: ref LoweredExpr = lower_incdec_expr(ctx, rhs, indent, out)
         val rhs_expr: mut ref u8 = lowered_rhs.expr
         if is_null_pointer_text(rhs) {
-            rhs_expr = "none"
+            rhs_expr = c"none"
         }
         track_called_expr(ctx, rhs_expr)
         append_line(
@@ -7453,13 +7453,13 @@ fn translate_top_level_decl(
         )
         return true
     }
-    val can_be_bare_decl: bool = (str_contains(stripped, " ") || str_contains(stripped, "*")
-        || string.raw_starts_with(stripped, "struct ") || string.raw_starts_with(stripped, "enum ")
-        || string.raw_starts_with(stripped, "union "))
-    && !str_contains(stripped, "(")
+    val can_be_bare_decl: bool = (str_contains(stripped, c" ") || str_contains(stripped, c"*")
+        || string.raw_starts_with(stripped, c"struct ") || string.raw_starts_with(stripped, c"enum ")
+        || string.raw_starts_with(stripped, c"union "))
+    && !str_contains(stripped, c"(")
     if can_be_bare_decl {
-        val decl2: ref DeclInfo = parse_named_decl(ctx, stripped, "")
-        if decl2.its_ok && string.raw_cmp(decl2.name, "") != 0 {
+        val decl2: ref DeclInfo = parse_named_decl(ctx, stripped, c"")
+        if decl2.its_ok && string.raw_cmp(decl2.name, c"") != 0 {
             if is_array_type_name(decl2.type_name) {
                 val alloc_expr2: ref u8 = array_alloc_expr(decl2.type_name)
                 val decayed_type2: ref u8 = decay_array_type(decl2.type_name)
@@ -7546,26 +7546,26 @@ pub fn translate_top_level(
         if line_opt is some line_val {
             val line: ref u8 = line_val as ref u8
             val trimmed: ref u8 = trim_raw(line)
-            if string.raw_cmp(trimmed, "") == 0 {
+            if string.raw_cmp(trimmed, c"") == 0 {
                 i++
                 continue
             }
-            if string.raw_starts_with(trimmed, "#else") {
+            if string.raw_starts_with(trimmed, c"#else") {
                 return make_block_result(i + 1, STOP_ELSE, trimmed)
             }
-            if string.raw_starts_with(trimmed, "#endif") {
+            if string.raw_starts_with(trimmed, c"#endif") {
                 return make_block_result(i + 1, STOP_ENDIF, trimmed)
             }
-            if string.raw_starts_with(trimmed, "#elif") {
+            if string.raw_starts_with(trimmed, c"#elif") {
                 return make_block_result(i + 1, STOP_ELIF, trimmed)
             }
-            if string.raw_starts_with(trimmed, "#pragma once") {
+            if string.raw_starts_with(trimmed, c"#pragma once") {
                 i++
                 continue
             }
-            if string.raw_starts_with(trimmed, "#include") {
+            if string.raw_starts_with(trimmed, c"#include") {
                 val include_name: ref u8 = parse_include_name(trimmed)
-                if string.raw_cmp(include_name, "") == 0 {
+                if string.raw_cmp(include_name, c"") == 0 {
                     append_comment_line(out, indent, trimmed)
                 } elif is_system_include(trimmed) {
                     i++
@@ -7585,7 +7585,7 @@ pub fn translate_top_level(
                 i++
                 continue
             }
-            val ifndef_name: ref u8 = parse_macro_name(trimmed, "#ifndef")
+            val ifndef_name: ref u8 = parse_macro_name(trimmed, c"#ifndef")
             if is_header_guard(lines, i, ifndef_name) {
                 val define_i: i64 = next_significant_line(lines, i + 1)
                 val inner = translate_top_level(
@@ -7602,7 +7602,7 @@ pub fn translate_top_level(
             }
             val cond: i64 = detect_condition(trimmed)
             if cond == COND_WIN_TRUE {
-                append_line(out, indent, "when windows {")
+                append_line(out, indent, c"when windows {")
                 val then_result = translate_top_level(
                     lines,
                     current_dir,
@@ -7613,7 +7613,7 @@ pub fn translate_top_level(
                     ctx
                 )
                 if then_result.stop_kind == STOP_ELSE {
-                    append_line(out, indent, "} otherwise {")
+                    append_line(out, indent, c"} otherwise {")
                     val else_result = translate_top_level(
                         lines,
                         current_dir,
@@ -7623,10 +7623,10 @@ pub fn translate_top_level(
                         seen,
                         ctx
                     )
-                    append_line(out, indent, "}")
+                    append_line(out, indent, c"}")
                     i = else_result.next_index
                 } elif then_result.stop_kind == STOP_ELIF {
-                    append_line(out, indent, "} otherwise {")
+                    append_line(out, indent, c"} otherwise {")
                     append_comment_line(out, indent + 1, then_result.stop_line)
                     val elif_result = translate_top_level(
                         lines,
@@ -7637,10 +7637,10 @@ pub fn translate_top_level(
                         seen,
                         ctx
                     )
-                    append_line(out, indent, "}")
+                    append_line(out, indent, c"}")
                     i = elif_result.next_index
                 } else {
-                    append_line(out, indent, "}")
+                    append_line(out, indent, c"}")
                     i = then_result.next_index
                 }
                 continue
@@ -7656,7 +7656,7 @@ pub fn translate_top_level(
                     seen,
                     ctx
                 )
-                append_line(out, indent, "when windows {")
+                append_line(out, indent, c"when windows {")
                 if then_result.stop_kind == STOP_ELSE {
                     val else_result = translate_top_level(
                         lines,
@@ -7667,9 +7667,9 @@ pub fn translate_top_level(
                         seen,
                         ctx
                     )
-                    append_line(out, indent, "} otherwise {")
+                    append_line(out, indent, c"} otherwise {")
                     append_builder(out, non_windows)
-                    append_line(out, indent, "}")
+                    append_line(out, indent, c"}")
                     i = else_result.next_index
                 } elif then_result.stop_kind == STOP_ELIF {
                     append_comment_line(out, indent + 1, then_result.stop_line)
@@ -7682,43 +7682,43 @@ pub fn translate_top_level(
                         seen,
                         ctx
                     )
-                    append_line(out, indent, "} otherwise {")
+                    append_line(out, indent, c"} otherwise {")
                     append_builder(out, non_windows)
-                    append_line(out, indent, "}")
+                    append_line(out, indent, c"}")
                     i = elif_result.next_index
                 } else {
-                    append_line(out, indent, "} otherwise {")
+                    append_line(out, indent, c"} otherwise {")
                     append_builder(out, non_windows)
-                    append_line(out, indent, "}")
+                    append_line(out, indent, c"}")
                     i = then_result.next_index
                 }
                 continue
             }
-            if string.raw_starts_with(trimmed, "#define")
-            || string.raw_starts_with(trimmed, "#undef")
-            || string.raw_starts_with(trimmed, "#pragma")
-            || string.raw_starts_with(trimmed, "#error")
-            || string.raw_starts_with(trimmed, "#if")
-            || string.raw_starts_with(trimmed, "#ifndef")
-            || string.raw_starts_with(trimmed, "#ifdef") {
+            if string.raw_starts_with(trimmed, c"#define")
+            || string.raw_starts_with(trimmed, c"#undef")
+            || string.raw_starts_with(trimmed, c"#pragma")
+            || string.raw_starts_with(trimmed, c"#error")
+            || string.raw_starts_with(trimmed, c"#if")
+            || string.raw_starts_with(trimmed, c"#ifndef")
+            || string.raw_starts_with(trimmed, c"#ifdef") {
                 append_comment_line(out, indent, trimmed)
                 i++
                 continue
             }
-            val starts_struct_decl: bool = string.raw_starts_with(trimmed, "typedef struct")
-            || string.raw_starts_with(trimmed, "struct ")
-            val starts_enum_decl: bool = string.raw_starts_with(trimmed, "typedef enum")
-            || string.raw_starts_with(trimmed, "enum ")
-            val starts_union_decl: bool = string.raw_starts_with(trimmed, "typedef union")
-            || string.raw_starts_with(trimmed, "union ")
-            val type_decl_has_brace: mut bool = str_contains(trimmed, "{")
+            val starts_struct_decl: bool = string.raw_starts_with(trimmed, c"typedef struct")
+            || string.raw_starts_with(trimmed, c"struct ")
+            val starts_enum_decl: bool = string.raw_starts_with(trimmed, c"typedef enum")
+            || string.raw_starts_with(trimmed, c"enum ")
+            val starts_union_decl: bool = string.raw_starts_with(trimmed, c"typedef union")
+            || string.raw_starts_with(trimmed, c"union ")
+            val type_decl_has_brace: mut bool = str_contains(trimmed, c"{")
             if ((starts_struct_decl || starts_enum_decl || starts_union_decl) && !type_decl_has_brace) {
                 val next_i_struct: i64 = next_significant_line(lines, i + 1)
                 if next_i_struct >= 0 {
                     val next_struct_opt = @get(lines, next_i_struct as usize)
                     if next_struct_opt is some next_struct_line {
                         val next_struct_trimmed: ref u8 = trim_raw(next_struct_line as ref u8)
-                        if string.raw_cmp(next_struct_trimmed, "{") == 0 {
+                        if string.raw_cmp(next_struct_trimmed, c"{") == 0 {
                             type_decl_has_brace = true
                         }
                     }
@@ -7763,12 +7763,12 @@ pub fn translate_top_level(
                 i = span_union.next_index
                 continue
             }
-            if str_contains(trimmed, "(")
-            && !string.raw_starts_with(trimmed, "if")
-            && !string.raw_starts_with(trimmed, "for")
-            && !string.raw_starts_with(trimmed, "while")
-            && !string.raw_starts_with(trimmed, "switch")
-            && !string.raw_starts_with(trimmed, "return") {
+            if str_contains(trimmed, c"(")
+            && !string.raw_starts_with(trimmed, c"if")
+            && !string.raw_starts_with(trimmed, c"for")
+            && !string.raw_starts_with(trimmed, c"while")
+            && !string.raw_starts_with(trimmed, c"switch")
+            && !string.raw_starts_with(trimmed, c"return") {
                 val span2 = collect_function(lines, i)
                 val full_text2: ref u8 = join_lines(lines, i, span2.next_index)
                 if translate_function_decl(full_text2, current_dir, indent, out, ctx) {
@@ -7786,7 +7786,7 @@ pub fn translate_top_level(
             i++
         }
     }
-    return make_block_result(i, STOP_EOF, "")
+    return make_block_result(i, STOP_EOF, c"")
 }
 
 pub fn translate_c(input_path: ref u8, output_path: ref u8) i32 = {
@@ -7815,7 +7815,7 @@ pub fn translate_c(input_path: ref u8, output_path: ref u8) i32 = {
     append_builder(out, body)
     val built: ref void = trust string.StringBuilder.build(out)
     val out_dir: ref u8 = trust tdir(output_path)
-    if string.raw_cmp(out_dir, "") != 0 && string.raw_cmp(out_dir, ".") != 0 {
+    if string.raw_cmp(out_dir, c"") != 0 && string.raw_cmp(out_dir, c".") != 0 {
         match trust os.exec(tfmt("mkdir -p {s}", {out_dir})) {
             ok s => {
                 trust take_cstr(s)

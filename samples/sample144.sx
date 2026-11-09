@@ -4,13 +4,13 @@ val helper     = use("./sample144_helper.sx")
 val os         = use("std/os")
 
 pub fn main() void = trust {
-    if !os.exists("sx.mod") {
+    if !os.exists(c"sx.mod") {
         stdio.puts("missing sx.mod")
         return
     }
 
     val arena: allocators.Arena = allocators.Arena.new(256 as usize)?
-    val rc = helper.probe_with[allocators.Arena](arena, "sx.mod")
+    val rc = helper.probe_with[allocators.Arena](arena, c"sx.mod")
     stdio.print("probe_rc={d}\n", {rc})
     allocators.Arena.free(arena)
 }

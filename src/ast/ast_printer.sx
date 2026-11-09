@@ -3,223 +3,223 @@ val parser = use("parser.sx")
 
 fn kind_to_name(kind: i64) ref u8 = {
     if kind == parser.NK_FN {
-        return "FN"
+        return c"FN"
     } elif kind == parser.NK_USE {
-        return "USE"
+        return c"USE"
     } elif kind == parser.NK_TYPEDEF {
-        return "TYPEDEF"
+        return c"TYPEDEF"
     } elif kind == parser.NK_ENUMDEF {
-        return "ENUMDEF"
+        return c"ENUMDEF"
     } elif kind == parser.NK_UNIONDEF {
-        return "UNIONDEF"
+        return c"UNIONDEF"
     } elif kind == parser.NK_CONST {
-        return "CONST"
+        return c"CONST"
     } elif kind == parser.NK_EXTERN_FN {
-        return "EXTERN_FN"
+        return c"EXTERN_FN"
     } elif kind == parser.NK_EXTERN_TYPE {
-        return "EXTERN_TYPE"
+        return c"EXTERN_TYPE"
     } elif kind == parser.NK_LINK {
-        return "LINK"
+        return c"LINK"
     } elif kind == parser.NK_LIB {
-        return "LIB"
+        return c"LIB"
     } elif kind == parser.NK_EXTERN_HEADER {
-        return "EXTERN_HEADER"
+        return c"EXTERN_HEADER"
     } elif kind == parser.NK_WHEN_ITEMS {
-        return "WHEN_ITEMS"
+        return c"WHEN_ITEMS"
     } elif kind == parser.NK_TAGGED_UNIONDEF {
-        return "TAGGED_UNIONDEF"
+        return c"TAGGED_UNIONDEF"
     } elif kind == parser.NK_VAL {
-        return "VAL"
+        return c"VAL"
     } elif kind == parser.NK_ASSIGN {
-        return "ASSIGN"
+        return c"ASSIGN"
     } elif kind == parser.NK_RETURN {
-        return "RETURN"
+        return c"RETURN"
     } elif kind == parser.NK_IF {
-        return "IF"
+        return c"IF"
     } elif kind == parser.NK_FOR {
-        return "FOR"
+        return c"FOR"
     } elif kind == parser.NK_FORIN {
-        return "FORIN"
+        return c"FORIN"
     } elif kind == parser.NK_BREAK {
-        return "BREAK"
+        return c"BREAK"
     } elif kind == parser.NK_CONTINUE {
-        return "CONTINUE"
+        return c"CONTINUE"
     } elif kind == parser.NK_DEFER {
-        return "DEFER"
+        return c"DEFER"
     } elif kind == parser.NK_ASSERT {
-        return "ASSERT"
+        return c"ASSERT"
     } elif kind == parser.NK_PRE {
-        return "PRE"
+        return c"PRE"
     } elif kind == parser.NK_POST {
-        return "POST"
+        return c"POST"
     } elif kind == parser.NK_GUARDED_PRE {
-        return "GUARDED_PRE"
+        return c"GUARDED_PRE"
     } elif kind == parser.NK_GUARDED_POST {
-        return "GUARDED_POST"
+        return c"GUARDED_POST"
     } elif kind == parser.NK_EXPR_STMT {
-        return "EXPR_STMT"
+        return c"EXPR_STMT"
     } elif kind == parser.NK_MATCH_OPT {
-        return "MATCH_OPT"
+        return c"MATCH_OPT"
     } elif kind == parser.NK_MATCH_RES {
-        return "MATCH_RES"
+        return c"MATCH_RES"
     } elif kind == parser.NK_MATCH_ENUM {
-        return "MATCH_ENUM"
+        return c"MATCH_ENUM"
     } elif kind == parser.NK_MATCH_VALUE {
-        return "MATCH_VALUE"
+        return c"MATCH_VALUE"
     } elif kind == parser.NK_MATCH_UNION {
-        return "MATCH_UNION"
+        return c"MATCH_UNION"
     } elif kind == parser.NK_MATCH_STR {
-        return "MATCH_STR"
+        return c"MATCH_STR"
     } elif kind == parser.NK_WHEN_STMT {
-        return "WHEN_STMT"
+        return c"WHEN_STMT"
     } elif kind == parser.NK_INCREMENT {
-        return "INCREMENT"
+        return c"INCREMENT"
     } elif kind == parser.NK_DECREMENT {
-        return "DECREMENT"
+        return c"DECREMENT"
     } elif kind == parser.NK_ADD_ASSIGN {
-        return "ADD_ASSIGN"
+        return c"ADD_ASSIGN"
     } elif kind == parser.NK_SUB_ASSIGN {
-        return "SUB_ASSIGN"
+        return c"SUB_ASSIGN"
     } elif kind == parser.NK_TEST {
-        return "TEST"
+        return c"TEST"
     } elif kind == parser.NK_MATCH_TAGGED_UNION {
-        return "MATCH_TAGGED_UNION"
+        return c"MATCH_TAGGED_UNION"
     } elif kind == parser.NK_GUARD {
-        return "GUARD"
+        return c"GUARD"
     } elif kind == parser.NK_INT_LIT {
-        return "INT_LIT"
+        return c"INT_LIT"
     } elif kind == parser.NK_FLOAT_LIT {
-        return "FLOAT_LIT"
+        return c"FLOAT_LIT"
     } elif kind == parser.NK_STR_LIT {
-        return "STR_LIT"
+        return c"STR_LIT"
     } elif kind == parser.NK_IDENT {
-        return "IDENT"
+        return c"IDENT"
     } elif kind == parser.NK_BOOL {
-        return "BOOL"
+        return c"BOOL"
     } elif kind == parser.NK_SOME {
-        return "SOME"
+        return c"SOME"
     } elif kind == parser.NK_NONE {
-        return "NONE"
+        return c"NONE"
     } elif kind == parser.NK_OK_VAL {
-        return "OK_VAL"
+        return c"OK_VAL"
     } elif kind == parser.NK_ERR_VAL {
-        return "ERR_VAL"
+        return c"ERR_VAL"
     } elif kind == parser.NK_CHAR_LIT {
-        return "CHAR_LIT"
+        return c"CHAR_LIT"
     } elif kind == parser.NK_FIELD {
-        return "FIELD"
+        return c"FIELD"
     } elif kind == parser.NK_CALL {
-        return "CALL"
+        return c"CALL"
     } elif kind == parser.NK_BUILTIN {
-        return "BUILTIN"
+        return c"BUILTIN"
     } elif kind == parser.NK_TRUST {
-        return "TRUST"
+        return c"TRUST"
     } elif kind == parser.NK_TRUST_BLOCK {
-        return "TRUST_BLOCK"
+        return c"TRUST_BLOCK"
     } elif kind == parser.NK_BINOP {
-        return "BINOP"
+        return c"BINOP"
     } elif kind == parser.NK_UNOP {
-        return "UNOP"
+        return c"UNOP"
     } elif kind == parser.NK_STRUCT_LIT {
-        return "STRUCT_LIT"
+        return c"STRUCT_LIT"
     } elif kind == parser.NK_LIST_LIT {
-        return "LIST_LIT"
+        return c"LIST_LIT"
     } elif kind == parser.NK_ARGS_PACK {
-        return "ARGS_PACK"
+        return c"ARGS_PACK"
     } elif kind == parser.NK_ZERO_INIT {
-        return "ZERO_INIT"
+        return c"ZERO_INIT"
     } elif kind == parser.NK_CAST {
-        return "CAST"
+        return c"CAST"
     } elif kind == parser.NK_ADDR {
-        return "ADDR"
+        return c"ADDR"
     } elif kind == parser.NK_DEREF {
-        return "DEREF"
+        return c"DEREF"
     } elif kind == parser.NK_TRY {
-        return "TRY"
+        return c"TRY"
     } elif kind == parser.TY_NAMED {
-        return "TY_NAMED"
+        return c"TY_NAMED"
     } elif kind == parser.TY_REF {
-        return "TY_REF"
+        return c"TY_REF"
     } elif kind == parser.TY_MUT {
-        return "TY_MUT"
+        return c"TY_MUT"
     } elif kind == parser.TY_OPTION {
-        return "TY_OPTION"
+        return c"TY_OPTION"
     } elif kind == parser.TY_LIST {
-        return "TY_LIST"
+        return c"TY_LIST"
     } elif kind == parser.TY_RESULT {
-        return "TY_RESULT"
+        return c"TY_RESULT"
     } elif kind == parser.TY_SLICE {
-        return "TY_SLICE"
+        return c"TY_SLICE"
     } elif kind == parser.TY_FIXED_ARR {
-        return "TY_FIXED_ARR"
+        return c"TY_FIXED_ARR"
     } elif kind == parser.TY_FNPTR {
-        return "TY_FNPTR"
+        return c"TY_FNPTR"
     } elif kind == parser.TY_VOID {
-        return "TY_VOID"
+        return c"TY_VOID"
     } elif kind == parser.TY_ARGSPACK {
-        return "TY_ARGSPACK"
+        return c"TY_ARGSPACK"
     } else {
-        return "UNKNOWN"
+        return c"UNKNOWN"
     }
 }
 
 fn op_to_name(op: i64, is_binop: bool) ref u8 = {
     if is_binop {
         if op == parser.OP_ADD {
-            return "+"
+            return c"+"
         } elif op == parser.OP_SUB {
-            return "-"
+            return c"-"
         } elif op == parser.OP_MUL {
-            return "*"
+            return c"*"
         } elif op == parser.OP_DIV {
-            return "/"
+            return c"/"
         } elif op == parser.OP_REM {
-            return "%"
+            return c"%"
         } elif op == parser.OP_EQ {
-            return "=="
+            return c"=="
         } elif op == parser.OP_NE {
-            return "!="
+            return c"!="
         } elif op == parser.OP_LT {
-            return "<"
+            return c"<"
         } elif op == parser.OP_GT {
-            return ">"
+            return c">"
         } elif op == parser.OP_LE {
-            return "<="
+            return c"<="
         } elif op == parser.OP_GE {
-            return ">="
+            return c">="
         } elif op == parser.OP_AND {
-            return "and"
+            return c"and"
         } elif op == parser.OP_OR {
-            return "or"
+            return c"or"
         } elif op == parser.OP_BAND {
-            return "&"
+            return c"&"
         } elif op == parser.OP_BOR {
-            return "|"
+            return c"|"
         } elif op == parser.OP_BXOR {
-            return "^"
+            return c"^"
         } elif op == parser.OP_SHL {
-            return "<<"
+            return c"<<"
         } elif op == parser.OP_SHR {
-            return ">>"
+            return c">>"
         } else {
-            return "?"
+            return c"?"
         }
     } else {
         if op == parser.UOP_NOT {
-            return "!"
+            return c"!"
         } elif op == parser.UOP_NEG {
-            return "-"
+            return c"-"
         } elif op == parser.UOP_BNOT {
-            return "~"
+            return c"~"
         } else {
-            return "?"
+            return c"?"
         }
     }
 }
 
 fn build_prefix(indent: i64, is_last: bool) ref u8 = trust {
     if indent == 0 {
-        return ""
+        return c""
     }
     val buf: mut ref u8 = @alloc((indent * 6 + 15) as usize) as ref u8
 
@@ -852,7 +852,7 @@ fn print_node_recursive(node: ref parser.Node, indent: i64, is_last: bool) void 
             }
         }
         if invariants != none {
-            print_named_node_list("invariants", invariants, indent + 1, true)
+            print_named_node_list(c"invariants", invariants, indent + 1, true)
         }
     } elif kind == parser.NK_ENUMDEF {
         val name: ref u8 = parser.node_str_raw(node.d1)
@@ -1112,9 +1112,9 @@ fn print_node_recursive(node: ref parser.Node, indent: i64, is_last: bool) void 
         print_type_nodes(node, indent, prefix, kind_name, kind)
     } elif kind == parser.NK_BOOL {
         val val_: i64 = node.d0
-        val str_val: mut ref u8 = "false"
+        val str_val: mut ref u8 = c"false"
         if val_ != 0 {
-            str_val = "true"
+            str_val = c"true"
         }
         stdio.print("{s}{s} : {s}\n", {prefix, kind_name, str_val})
     } elif kind == parser.NK_CHAR_LIT {

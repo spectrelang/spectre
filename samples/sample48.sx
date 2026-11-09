@@ -1,7 +1,7 @@
 val str = use("std/string")
 
 pub fn some_function() void = {
-    val x: ref u8 = "hello, this is a string"
+    val x: ref u8 = c"hello, this is a string"
     if str.byte_at(x, 1) is some v {
         trust @print("{c}", {v})
         trust @print("{c}", {'a'})

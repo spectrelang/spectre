@@ -105,31 +105,31 @@ pub fn get_current_platform[T: allocators.Allocator](ac: T) Platform = trust {
         val r = uname(@addr(buf))
         if r == 0 {
             val sysname: ref u8 = @addr(buf.sysname) as ref u8
-            if string.raw_cmp(sysname, "Linux") == 0 {
+            if string.raw_cmp(sysname, c"Linux") == 0 {
                 return Platform.Linux
             }
-            if string.raw_cmp(sysname, "Darwin") == 0 {
+            if string.raw_cmp(sysname, c"Darwin") == 0 {
                 return Platform.Darwin
             }
-            if string.raw_cmp(sysname, "FreeBSD") == 0 {
+            if string.raw_cmp(sysname, c"FreeBSD") == 0 {
                 return Platform.FreeBSD
             }
-            if string.raw_cmp(sysname, "OpenBSD") == 0 {
+            if string.raw_cmp(sysname, c"OpenBSD") == 0 {
                 return Platform.OpenBSD
             }
-            if string.raw_cmp(sysname, "NetBSD") == 0 {
+            if string.raw_cmp(sysname, c"NetBSD") == 0 {
                 return Platform.NetBSD
             }
-            if string.raw_cmp(sysname, "DragonFly") == 0 {
+            if string.raw_cmp(sysname, c"DragonFly") == 0 {
                 return Platform.DragonflyBSD
             }
-            if string.raw_cmp(sysname, "Haiku") == 0 {
+            if string.raw_cmp(sysname, c"Haiku") == 0 {
                 return Platform.Haiku
             }
-            if string.raw_cmp(sysname, "Redox") == 0 {
+            if string.raw_cmp(sysname, c"Redox") == 0 {
                 return Platform.Redox
             }
-            if string.raw_cmp(sysname, "Plan9") == 0 || string.raw_cmp(sysname, "Plan 9") == 0 {
+            if string.raw_cmp(sysname, c"Plan9") == 0 || string.raw_cmp(sysname, c"Plan 9") == 0 {
                 return Platform.Plan9
             }
         }
@@ -143,40 +143,40 @@ pub fn current_platform_name[T: allocators.Allocator](ac: T) ref u8 = trust {
     val p = get_current_platform[T](ac)
     match p {
         Platform.Linux => {
-            return "linux"
+            return c"linux"
         }
         Platform.Darwin => {
-            return "darwin"
+            return c"darwin"
         }
         Platform.FreeBSD => {
-            return "freebsd"
+            return c"freebsd"
         }
         Platform.OpenBSD => {
-            return "openbsd"
+            return c"openbsd"
         }
         Platform.NetBSD => {
-            return "netbsd"
+            return c"netbsd"
         }
         Platform.DragonflyBSD => {
-            return "dragonflybsd"
+            return c"dragonflybsd"
         }
         Platform.Windows => {
-            return "windows"
+            return c"windows"
         }
         Platform.Android => {
-            return "android"
+            return c"android"
         }
         Platform.Haiku => {
-            return "haiku"
+            return c"haiku"
         }
         Platform.Redox => {
-            return "redox"
+            return c"redox"
         }
         Platform.Plan9 => {
-            return "plan9"
+            return c"plan9"
         }
     }
-    return "unknown"
+    return c"unknown"
 }
 
 /// Returns the current process architecture as a lowercase string
@@ -185,13 +185,13 @@ pub fn current_arch_name[T: allocators.Allocator](ac: T) ref u8 = trust {
     when windows {
         val raw: ref u8 = env.get("PROCESSOR_ARCHITECTURE")
         if string.raw_cmp(raw, "AMD64") == 0 || string.raw_cmp(raw, "amd64") == 0 {
-            return "x86_64"
+            return c"x86_64"
         }
         if string.raw_cmp(raw, "ARM64") == 0 || string.raw_cmp(raw, "arm64") == 0 {
-            return "aarch64"
+            return c"aarch64"
         }
         if string.raw_cmp(raw, "x86") == 0 || string.raw_cmp(raw, "X86") == 0 {
-            return "x86"
+            return c"x86"
         }
         return raw
     }
@@ -207,25 +207,25 @@ pub fn current_arch_name[T: allocators.Allocator](ac: T) ref u8 = trust {
         val r = uname(@addr(buf))
         if r == 0 {
             val machine: ref u8 = @addr(buf.machine) as ref u8
-            if string.raw_cmp(machine, "x86_64") == 0 || string.raw_cmp(machine, "amd64") == 0 {
-                return "x86_64"
+            if string.raw_cmp(machine, c"x86_64") == 0 || string.raw_cmp(machine, c"amd64") == 0 {
+                return c"x86_64"
             }
-            if string.raw_cmp(machine, "aarch64") == 0 || string.raw_cmp(machine, "arm64") == 0 {
-                return "aarch64"
+            if string.raw_cmp(machine, c"aarch64") == 0 || string.raw_cmp(machine, c"arm64") == 0 {
+                return c"aarch64"
             }
-            if string.raw_cmp(machine, "riscv64") == 0 {
-                return "riscv64"
+            if string.raw_cmp(machine, c"riscv64") == 0 {
+                return c"riscv64"
             }
             if string.raw_cmp(
                 machine,
-                "i386"
-            ) == 0 || string.raw_cmp(machine, "i686") == 0 || string.raw_cmp(machine, "x86") == 0 {
-                return "x86"
+                c"i386"
+            ) == 0 || string.raw_cmp(machine, c"i686") == 0 || string.raw_cmp(machine, c"x86") == 0 {
+                return c"x86"
             }
         }
     }
 
-    return "unknown"
+    return c"unknown"
 }
 
 when posix {

@@ -13,7 +13,7 @@ pub fn combine[T, U](left: T, right: U) T = {
 }
 
 pub fn main() void = {
-    val text = combine[ref u8, ref u8]("generic ", "strings")
+    val text = combine[ref u8, ref u8](c"generic ", c"strings")
     val total = combine[i64, i64](30, 12)
     trust @print("{s}\n", {text})
     trust @print("{d}\n", {total})

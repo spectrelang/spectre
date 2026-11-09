@@ -1,7 +1,7 @@
 val stdio = use("std/stdio")
 
 fn get_platform_name() ref u8 = {
-    return "Linux"
+    return c"Linux"
 }
 
 pub fn main() void = {

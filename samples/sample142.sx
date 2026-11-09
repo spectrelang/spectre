@@ -7,7 +7,7 @@ extern (C, header) fn fclose(stream: ref void) i32 = "fclose"
 extern (C, header) fn fseek(stream: ref void, offset: i64, whence: i32) i32 = "fseek"
 
 fn baseline_raw(path: ref u8) i32 = trust {
-    val file: ref void = fopen(path, "rb")
+    val file: ref void = fopen(path, c"rb")
     if file == none {
         return -1
     }
@@ -17,7 +17,7 @@ fn baseline_raw(path: ref u8) i32 = trust {
 }
 
 fn generic_raw[A: allocators.GeneralAllocator](_: A, path: ref u8) i32 = trust {
-    val file: ref void = fopen(path, "rb")
+    val file: ref void = fopen(path, c"rb")
     if file == none {
         return -1
     }
@@ -28,7 +28,7 @@ fn generic_raw[A: allocators.GeneralAllocator](_: A, path: ref u8) i32 = trust {
 
 fn generic_raw_with_alloc[A: allocators.GeneralAllocator](ac: A, path: ref u8) i32 = trust {
     val tmp_opt = A.alloc(ac, 8 as usize)
-    val file: ref void = fopen(path, "rb")
+    val file: ref void = fopen(path, c"rb")
     if file == none {
         if tmp_opt is some tmp {
             A.free(ac, tmp as ref void)
@@ -44,7 +44,7 @@ fn generic_raw_with_alloc[A: allocators.GeneralAllocator](ac: A, path: ref u8) i
 }
 
 fn generic_fs_like[A: allocators.GeneralAllocator](ac: A, path: ref u8) i32 = trust {
-    val handle = fs.open(path, "rb")
+    val handle = fs.open(path, c"rb")
     match handle {
         none => {
             return -1
@@ -64,14 +64,14 @@ fn generic_fs_like[A: allocators.GeneralAllocator](ac: A, path: ref u8) i32 = tr
 
 pub fn main() void = trust {
     val heap: allocators.HeapAllocator = @zeroed
-    stdio.print("baseline_raw={d}\n", {baseline_raw("sx.mod")})
-    stdio.print("generic_raw={d}\n", {generic_raw[allocators.HeapAllocator](heap, "sx.mod")})
+    stdio.print("baseline_raw={d}\n", {baseline_raw(c"sx.mod")})
+    stdio.print("generic_raw={d}\n", {generic_raw[allocators.HeapAllocator](heap, c"sx.mod")})
     stdio.print(
         "generic_raw_with_alloc={d}\n",
-        {generic_raw_with_alloc[allocators.HeapAllocator](heap, "sx.mod")}
+        {generic_raw_with_alloc[allocators.HeapAllocator](heap, c"sx.mod")}
     )
     stdio.print(
         "generic_fs_like={d}\n",
-        {generic_fs_like[allocators.HeapAllocator](heap, "sx.mod")}
+        {generic_fs_like[allocators.HeapAllocator](heap, c"sx.mod")}
     )
 }

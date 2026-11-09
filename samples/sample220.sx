@@ -1,5 +1,6 @@
 val allocators = use("std/allocators")
 val stdio      = use("std/stdio")
+val str        = use("std/string")
 
 // Result values can be passed to ordinary helper parameters.
 fn unwrap(r: result[ref u8, allocators.AllocError]) ref u8 = trust {
@@ -28,12 +29,12 @@ fn forward(args: argspack) ref u8 = trust {
 pub fn main() void = trust {
     val h: allocators.HeapAllocator = @zeroed
     val msg = unwrap(@fmtalloc[allocators.HeapAllocator](h, "result {d}", {7}))
-    stdio.puts(msg)
+    stdio.puts(str.view_cstr(msg))
     stdio.puts("\n")
     allocators.HeapAllocator.free(h, msg as ref void)
 
     val packed: mut ref u8 = forward({"pack", "forwarded"})
-    stdio.puts(packed)
+    stdio.puts(str.view_cstr(packed))
     stdio.puts("\n")
     @free(packed as ref void)
 }

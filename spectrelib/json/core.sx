@@ -136,9 +136,8 @@ fn copy_json_string[T: allocators.Allocator](ac: T, src: ref u8, len: usize) ref
 /// Parses a JSON string into a document.
 ///
 /// Returns `some` containing the parsed document on success, or `none` if parsing fails.
-pub fn parse(input: ref u8) option[JsonDoc] = trust {
-    val len: usize = str.len_raw(input)
-    val doc: ref void = yyjson_read_opts(input, len, 0 as u32, none, none)
+pub fn parse(input: str.StringView) option[JsonDoc] = trust {
+    val doc: ref void = yyjson_read_opts(input.ptr, input.len as usize, 0 as u32, none, none)
     if doc == none {
         return none
     }
@@ -451,7 +450,7 @@ pub fn builder_set_root(handle: JsonBuilder, value: ref void) void = trust {
 }
 
 test "json parses and builds objects and arrays" {
-    val input: ref u8 = \\{"name":"Alice","age":30,"active":true,"score":9.5}
+    val input = \\{"name":"Alice","age":30,"active":true,"score":9.5}
     val arena: allocators.Arena = trust allocators.Arena.new(4096 as usize)?
     val doc_opt = trust parse(input)
     match doc_opt {
@@ -463,15 +462,15 @@ test "json parses and builds objects and arrays" {
             val root: ref void = doc_root(handle)
             assert val_is_object(root)
 
-            match trust obj_get_str(root, "name") {
+            match trust obj_get_str(root, c"name") {
                 some s => {
-                    assert str.raw_cmp(s, "Alice") == 0
+                    assert str.raw_cmp(s, c"Alice") == 0
                 }
                 none => {
                     assert false
                 }
             }
-            match trust obj_get_int(root, "age") {
+            match trust obj_get_int(root, c"age") {
                 some n => {
                     assert n == 30
                 }
@@ -479,7 +478,7 @@ test "json parses and builds objects and arrays" {
                     assert false
                 }
             }
-            match trust obj_get_bool(root, "active") {
+            match trust obj_get_bool(root, c"active") {
                 some b => {
                     assert b == true
                 }
@@ -492,7 +491,7 @@ test "json parses and builds objects and arrays" {
         }
     }
 
-    val arr_input: ref u8 = \\[1,2,3]
+    val arr_input = \\[1,2,3]
     val arr_opt = trust parse(arr_input)
     match arr_opt {
         none => {
@@ -517,10 +516,10 @@ test "json parses and builds objects and arrays" {
 
     val b: JsonBuilder = trust builder_new()
     val obj: ref void = trust build_object(b)
-    val k1: ref void = trust build_str(b, "hello")
-    val v1: ref void = trust build_str(b, "world")
+    val k1: ref void = trust build_str(b, c"hello")
+    val v1: ref void = trust build_str(b, c"world")
     trust object_add(obj, k1, v1)
-    val k2: ref void = trust build_str(b, "n")
+    val k2: ref void = trust build_str(b, c"n")
     val v2: ref void = trust build_int(b, 42)
     trust object_add(obj, k2, v2)
     trust builder_set_root(b, obj)

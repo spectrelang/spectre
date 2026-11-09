@@ -135,7 +135,7 @@ pub fn exists(path: ref u8) bool = {
 /// Open a file in the given mode ("r", "w", "a", etc.). Returns the file handle or none.
 pub fn open(path: ref u8, mode: ref u8) option[ref void] = {
     guarded pre {
-        mode != ""
+        mode != c""
     }
     val f: ref void = trust fopen(path, mode)
     if f == none {
@@ -208,13 +208,13 @@ fn ensure_dir(path: ref u8) bool = trust {
 
 /// Copy one file to another path.
 pub fn copy_file(src_path: ref u8, dst_path: ref u8) bool = trust {
-    val src_opt = open(src_path, "rb")
+    val src_opt = open(src_path, c"rb")
     match src_opt {
         none => {
             return false
         }
         some src_file => {
-            val dst_opt = open(dst_path, "wb")
+            val dst_opt = open(dst_path, c"wb")
             match dst_opt {
                 none => {
                     close(src_file)
@@ -315,15 +315,15 @@ pub fn copy_dir_recursive(src_dir: ref u8, dst_dir: ref u8) bool = trust {
                 continue
             }
 
-            if str.raw_cmp(src_dir, "") == 0 {
+            if str.raw_cmp(src_dir, c"") == 0 {
                 break
             }
 
-            if str.raw_cmp(dst_dir, "") == 0 {
+            if str.raw_cmp(dst_dir, c"") == 0 {
                 break
             }
 
-            if str.raw_cmp(name, "") == 0 {
+            if str.raw_cmp(name, c"") == 0 {
                 break
             }
 
@@ -377,7 +377,7 @@ pub fn run(cmd: ref u8) i32 = trust {
 
 /// Execute some subprocess, capturing its output.
 pub fn exec(cmd: ref u8) result[String, ProcessError] = trust {
-    val pipe: ref void = popen(cmd, "r")
+    val pipe: ref void = popen(cmd, c"r")
     if (pipe == none) {
         return err ProcessError.FailedToStart
     }
@@ -428,7 +428,7 @@ fn path_separator() u8 = trust {
 
 /// Check if a binary is available in PATH.
 pub fn in_path(binary: ref u8) bool = trust {
-    val path_env = env("PATH")
+    val path_env = env(c"PATH")
     match path_env {
         none => {
             return false
@@ -482,18 +482,18 @@ val string = use("../string")
 val stdio  = use("../stdio")
 
 test "file, exec and recursive copy operations" {
-    val path = "test_file.txt"
-    val content = "Hello World"
+    val path = c"test_file.txt"
+    val content = c"Hello World"
     trust delete(path)
     assert exists(path) == false
-    val f_opt = open(path, "w")
+    val f_opt = open(path, c"w")
     assert f_opt != none
     if f_opt is some f {
         trust write(f, content, 11)
         trust close(f)
     }
     assert exists(path) == true
-    val new_path = "test_file_renamed.txt"
+    val new_path = c"test_file_renamed.txt"
     trust rename_file(path, new_path)
     stdio.puts("hi8")
     assert exists(path) == false
@@ -501,7 +501,7 @@ test "file, exec and recursive copy operations" {
     trust delete(new_path)
     assert exists(new_path) == false
 
-    val res = trust exec("echo hello")
+    val res = trust exec(c"echo hello")
     match res {
         ok s => {
             trust stdio.print("{s}", {string.cstr(s)})
@@ -511,21 +511,21 @@ test "file, exec and recursive copy operations" {
         }
     }
 
-    trust delete("test_copy_src.txt")
-    trust delete("test_copy_dst.txt")
-    trust delete("test_copy_tree_src/nested/value.txt")
-    trust rmdir("test_copy_tree_src/nested")
-    trust rmdir("test_copy_tree_src")
-    trust delete("test_copy_tree_dst/nested/value.txt")
-    trust rmdir("test_copy_tree_dst/nested")
-    trust rmdir("test_copy_tree_dst")
+    trust delete(c"test_copy_src.txt")
+    trust delete(c"test_copy_dst.txt")
+    trust delete(c"test_copy_tree_src/nested/value.txt")
+    trust rmdir(c"test_copy_tree_src/nested")
+    trust rmdir(c"test_copy_tree_src")
+    trust delete(c"test_copy_tree_dst/nested/value.txt")
+    trust rmdir(c"test_copy_tree_dst/nested")
+    trust rmdir(c"test_copy_tree_dst")
 
-    assert (trust copy_file("test_copy_src.txt", "test_copy_dst.txt")) == false
+    assert (trust copy_file(c"test_copy_src.txt", c"test_copy_dst.txt")) == false
 
-    val src_copy_opt = open("test_copy_src.txt", "w")
+    val src_copy_opt = open(c"test_copy_src.txt", c"w")
     match src_copy_opt {
         some f => {
-            trust write(f, "copy me", 7)
+            trust write(f, c"copy me", 7)
             trust close(f)
         }
         none => {
@@ -533,13 +533,13 @@ test "file, exec and recursive copy operations" {
         }
     }
 
-    assert trust copy_file("test_copy_src.txt", "test_copy_dst.txt")
-    val copied_file_opt = open("test_copy_dst.txt", "rb")
+    assert trust copy_file(c"test_copy_src.txt", c"test_copy_dst.txt")
+    val copied_file_opt = open(c"test_copy_dst.txt", c"rb")
     match copied_file_opt {
         some f => {
             val text: mut ref u8 = trust read(f, 7)
             trust close(f)
-            assert bytes_equal(text, "copy me", 7)
+            assert bytes_equal(text, c"copy me", 7)
             trust @free(text)
         }
         none => {
@@ -547,12 +547,12 @@ test "file, exec and recursive copy operations" {
         }
     }
 
-    assert trust mkdir("test_copy_tree_src", 493 as u32) == 0
-    assert trust mkdir("test_copy_tree_src/nested", 493 as u32) == 0
-    val nested_opt = open("test_copy_tree_src/nested/value.txt", "w")
+    assert trust mkdir(c"test_copy_tree_src", 493 as u32) == 0
+    assert trust mkdir(c"test_copy_tree_src/nested", 493 as u32) == 0
+    val nested_opt = open(c"test_copy_tree_src/nested/value.txt", c"w")
     match nested_opt {
         some f => {
-            trust write(f, "nested", 6)
+            trust write(f, c"nested", 6)
             trust close(f)
         }
         none => {
@@ -560,13 +560,13 @@ test "file, exec and recursive copy operations" {
         }
     }
 
-    assert trust copy_dir_recursive("test_copy_tree_src", "test_copy_tree_dst")
-    val nested_file_opt = open("test_copy_tree_dst/nested/value.txt", "rb")
+    assert trust copy_dir_recursive(c"test_copy_tree_src", c"test_copy_tree_dst")
+    val nested_file_opt = open(c"test_copy_tree_dst/nested/value.txt", c"rb")
     match nested_file_opt {
         some f => {
             val text: mut ref u8 = trust read(f, 6)
             trust close(f)
-            assert bytes_equal(text, "nested", 6)
+            assert bytes_equal(text, c"nested", 6)
             trust @free(text)
         }
         none => {
@@ -574,14 +574,14 @@ test "file, exec and recursive copy operations" {
         }
     }
 
-    assert trust delete("test_copy_src.txt") == 0
-    assert trust delete("test_copy_dst.txt") == 0
-    assert trust delete("test_copy_tree_src/nested/value.txt") == 0
-    assert trust rmdir("test_copy_tree_src/nested") == 0
-    assert trust rmdir("test_copy_tree_src") == 0
-    assert trust delete("test_copy_tree_dst/nested/value.txt") == 0
-    assert trust rmdir("test_copy_tree_dst/nested") == 0
-    assert trust rmdir("test_copy_tree_dst") == 0
+    assert trust delete(c"test_copy_src.txt") == 0
+    assert trust delete(c"test_copy_dst.txt") == 0
+    assert trust delete(c"test_copy_tree_src/nested/value.txt") == 0
+    assert trust rmdir(c"test_copy_tree_src/nested") == 0
+    assert trust rmdir(c"test_copy_tree_src") == 0
+    assert trust delete(c"test_copy_tree_dst/nested/value.txt") == 0
+    assert trust rmdir(c"test_copy_tree_dst/nested") == 0
+    assert trust rmdir(c"test_copy_tree_dst") == 0
 
     trust exit(0)
 }

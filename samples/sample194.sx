@@ -5,7 +5,7 @@ val time  = use("std/time")
 val iterations = 1000000
 
 pub fn main() void = trust {
-    val input: ref u8 = \\{
+    val input = \\{
     \\ "name":"Spectre",
     \\ "version":12,
     \\ "active":true,
@@ -18,8 +18,8 @@ pub fn main() void = trust {
         val doc = json.parse(input)
         if doc is some v {
             val root = json.doc_root(v)
-            json.obj_get_int(root, "version")
-            json.obj_get_bool(root, "active")
+            json.obj_get_int(root, c"version")
+            json.obj_get_bool(root, c"active")
             json.doc_free(v)
         }
     }

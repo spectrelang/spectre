@@ -64,7 +64,7 @@ pub fn add_two_strings(a: ref u8, b: ref u8) result[i64, ParseError] = trust {
 val stdio = use("std/stdio")
 
 pub fn main() result[void, ParseError] = trust {
-    val r = add_two_strings("123", "456")
+    val r = add_two_strings(c"123", c"456")
 
     match r {
         ok v => {

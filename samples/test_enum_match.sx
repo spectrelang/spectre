@@ -7,16 +7,16 @@ pub enum Color = {
 pub fn color_name(c: Color) ref u8 = {
     match c {
         Color.Red => {
-            return "red"
+            return c"red"
         }
         Color.Green => {
-            return "green"
+            return c"green"
         }
         Color.Blue => {
-            return "blue"
+            return c"blue"
         }
     }
-    return "unknown"
+    return c"unknown"
 }
 
 val stdio = use("std/stdio")

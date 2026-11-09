@@ -21,7 +21,7 @@ pub fn close(f: ref void) void = trust {
 }
 
 pub fn probe_with[A: allocators.Allocator](_: A, path: ref u8) i32 = trust {
-    val handle = open(path, "rb")
+    val handle = open(path, c"rb")
     match handle {
         none => {
             return -1

@@ -6,7 +6,7 @@ pub fn main() void = trust {
     val ac: allocators.HeapAllocator = @zeroed
 
     http.Http.init()
-    val response = http.Http.get[allocators.HeapAllocator](ac, "https://example.com")
+    val response = http.Http.get[allocators.HeapAllocator](ac, c"https://example.com")
     if response != none {
         stdio.print("{d}\n", {http.Http.status(response)})
         stdio.print("{s}\n", {http.Http.body(response)})

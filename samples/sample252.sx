@@ -4,17 +4,17 @@ val os    = use("std/os")
 
 pub fn main() void = trust {
     val verbose: mut bool = false
-    val name: mut ref u8 = "world"
+    val name: mut ref u8 = c"world"
     val times: mut i64 = 1
 
-    val fs: mut flags.FlagSet = flags.new("greet", "Say hello to someone, a few times.")?
+    val fs: mut flags.FlagSet = flags.new(c"greet", c"Say hello to someone, a few times.")?
 
     // Double-dash spellings are disabled by default.
     // flags.allow_double_dash(fs, true)
 
-    flags.bool_var(fs, "verbose", "v", @addr(verbose), "print extra information")
-    flags.string_var(fs, "name", "n", @addr(name), "who to greet")
-    flags.int_var(fs, "times", "t", @addr(times), "how many greetings")
+    flags.bool_var(fs, c"verbose", c"v", @addr(verbose), c"print extra information")
+    flags.string_var(fs, c"name", c"n", @addr(name), c"who to greet")
+    flags.int_var(fs, c"times", c"t", @addr(times), c"how many greetings")
 
     val argv = os.get_args()
     match flags.parse(fs, argv) {

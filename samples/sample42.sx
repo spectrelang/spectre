@@ -21,8 +21,8 @@ pub fn main() void = trust {
         la,
         Int32(42 as i32),
         Int64(1234567890123),
-        ChrPtr("hello"),
-        Str({ cstr: "world", len: 5 }),
+        ChrPtr(c"hello"),
+        Str({ cstr: c"world", len: 5 }),
         Pair(5 as i32, 10 as i32)
     )?
 

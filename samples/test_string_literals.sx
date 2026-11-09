@@ -1,10 +1,11 @@
 val stdio = use("std/stdio")
+val str = use("std/string")
 
 pub fn test_platform_name() ref u8 = {
-    return "linux"
+    return c"linux"
 }
 
 pub fn main() void = {
     val name: ref u8 = test_platform_name()
-    stdio.puts(name)
+    stdio.puts(str.view_cstr(name))
 }

@@ -48,6 +48,7 @@ pub union TokenKind = {
     | Invariant()
     | Ident(ref u8)
     | Str(ref u8)
+    | CStr(ref u8)
     | Int(ref u8)
     | Float(ref u8)
     | CharLit(i64)
@@ -218,127 +219,127 @@ fn substr_view(
 }
 
 fn keyword_kind(s: string.StringView) TokenKind = trust {
-    if string.view_eql_cstr(s, "fn") {
+    if string.view_eql_cstr(s, c"fn") {
         return Fn()
     }
-    if string.view_eql_cstr(s, "spec") {
+    if string.view_eql_cstr(s, c"spec") {
         return Spec()
     }
-    if string.view_eql_cstr(s, "val") {
+    if string.view_eql_cstr(s, c"val") {
         return Val()
     }
-    if string.view_eql_cstr(s, "mut") {
+    if string.view_eql_cstr(s, c"mut") {
         return Mut()
     }
-    if string.view_eql_cstr(s, "pub") {
+    if string.view_eql_cstr(s, c"pub") {
         return Pub()
     }
-    if string.view_eql_cstr(s, "type") {
+    if string.view_eql_cstr(s, c"type") {
         return Type()
     }
-    if string.view_eql_cstr(s, "pre") {
+    if string.view_eql_cstr(s, c"pre") {
         return Pre()
     }
-    if string.view_eql_cstr(s, "post") {
+    if string.view_eql_cstr(s, c"post") {
         return Post()
     }
-    if string.view_eql_cstr(s, "return") {
+    if string.view_eql_cstr(s, c"return") {
         return Return()
     }
-    if string.view_eql_cstr(s, "if") {
+    if string.view_eql_cstr(s, c"if") {
         return If()
     }
-    if string.view_eql_cstr(s, "else") {
+    if string.view_eql_cstr(s, c"else") {
         return Else()
     }
-    if string.view_eql_cstr(s, "elif") {
+    if string.view_eql_cstr(s, c"elif") {
         return Elif()
     }
-    if string.view_eql_cstr(s, "trust") {
+    if string.view_eql_cstr(s, c"trust") {
         return Trust()
     }
-    if string.view_eql_cstr(s, "inline") {
+    if string.view_eql_cstr(s, c"inline") {
         return Inline()
     }
-    if string.view_eql_cstr(s, "use") {
+    if string.view_eql_cstr(s, c"use") {
         return Use()
     }
-    if string.view_eql_cstr(s, "ref") {
+    if string.view_eql_cstr(s, c"ref") {
         return Ref()
     }
-    if string.view_eql_cstr(s, "for") {
+    if string.view_eql_cstr(s, c"for") {
         return For()
     }
-    if string.view_eql_cstr(s, "in") {
+    if string.view_eql_cstr(s, c"in") {
         return In()
     }
-    if string.view_eql_cstr(s, "some") {
+    if string.view_eql_cstr(s, c"some") {
         return Some()
     }
-    if string.view_eql_cstr(s, "none") {
+    if string.view_eql_cstr(s, c"none") {
         return None()
     }
-    if string.view_eql_cstr(s, "ok") {
+    if string.view_eql_cstr(s, c"ok") {
         return Ok()
     }
-    if string.view_eql_cstr(s, "err") {
+    if string.view_eql_cstr(s, c"err") {
         return Err()
     }
-    if string.view_eql_cstr(s, "match") {
+    if string.view_eql_cstr(s, c"match") {
         return Match()
     }
-    if string.view_eql_cstr(s, "true") {
+    if string.view_eql_cstr(s, c"true") {
         return True()
     }
-    if string.view_eql_cstr(s, "false") {
+    if string.view_eql_cstr(s, c"false") {
         return False()
     }
-    if string.view_eql_cstr(s, "defer") {
+    if string.view_eql_cstr(s, c"defer") {
         return Defer()
     }
-    if string.view_eql_cstr(s, "break") {
+    if string.view_eql_cstr(s, c"break") {
         return Break()
     }
-    if string.view_eql_cstr(s, "continue") {
+    if string.view_eql_cstr(s, c"continue") {
         return Continue()
     }
-    if string.view_eql_cstr(s, "as") {
+    if string.view_eql_cstr(s, c"as") {
         return As()
     }
-    if string.view_eql_cstr(s, "assert") {
+    if string.view_eql_cstr(s, c"assert") {
         return Assert()
     }
-    if string.view_eql_cstr(s, "when") {
+    if string.view_eql_cstr(s, c"when") {
         return When()
     }
-    if string.view_eql_cstr(s, "union") {
+    if string.view_eql_cstr(s, c"union") {
         return Union()
     }
-    if string.view_eql_cstr(s, "enum") {
+    if string.view_eql_cstr(s, c"enum") {
         return Enum()
     }
-    if string.view_eql_cstr(s, "extern") {
+    if string.view_eql_cstr(s, c"extern") {
         return Extern()
     }
-    if string.view_eql_cstr(s, "link") {
+    if string.view_eql_cstr(s, c"link") {
         return Link()
     }
-    if string.view_eql_cstr(s, "lib") {
+    if string.view_eql_cstr(s, c"lib") {
         return Lib()
     }
-    if string.view_eql_cstr(s, "guarded") {
+    if string.view_eql_cstr(s, c"guarded") {
         return Guarded()
     }
-    if string.view_eql_cstr(s, "not") {
+    if string.view_eql_cstr(s, c"not") {
         return Not()
     }
-    if string.view_eql_cstr(s, "test") {
+    if string.view_eql_cstr(s, c"test") {
         return Test()
     }
-    if string.view_eql_cstr(s, "guard") {
+    if string.view_eql_cstr(s, c"guard") {
         return Guard()
     }
-    if string.view_eql_cstr(s, "invariant") {
+    if string.view_eql_cstr(s, c"invariant") {
         return Invariant()
     }
     return Ident(s.ptr)
@@ -497,7 +498,7 @@ fn lx_match_text(l: ref Lexer, start: i64, end: i64, text: ref u8) bool = trust 
 /// Recognize `//!suppress "unused-function"` in the comment spanning
 /// `start` (inclusive) to `end` (exclusive).
 fn comment_suppresses_unused(l: ref Lexer, start: i64, end: i64) bool = trust {
-    val prefix: ref u8 = "//!suppress"
+    val prefix: ref u8 = c"//!suppress"
     if !lx_match_text(l, start, end, prefix) {
         return false
     }
@@ -527,7 +528,7 @@ fn comment_suppresses_unused(l: ref Lexer, start: i64, end: i64) bool = trust {
         return false
     }
     p++
-    val feature: ref u8 = "unused-function"
+    val feature: ref u8 = c"unused-function"
     if !lx_match_text(l, p, end, feature) {
         return false
     }
@@ -882,6 +883,14 @@ fn tokenize_in(
             @append(tokens, lex_raw_string(l, line, col))
             continue
         }
+        if c == 99 && lx_peek(l) == 34 {
+            lx_advance(l)
+            val cstr_view: string.StringView = lex_string(l)
+            val cstr_tok: mut ref Token = make_tok(l, CStr(cstr_view.ptr), line, col)
+            cstr_tok.text = cstr_view
+            @append(tokens, cstr_tok)
+            continue
+        }
         if c == 34 {
             val str_view: string.StringView = lex_string(l)
             val str_tok: mut ref Token = make_tok(l, Str(str_view.ptr), line, col)
@@ -1109,6 +1118,16 @@ pub fn kind_is_ident(k: TokenKind) bool = {
 pub fn kind_is_str(k: TokenKind) bool = {
     match k {
         Str _ => {
+            return true
+        } else => {
+            return false
+        }
+    }
+}
+
+pub fn kind_is_cstr(k: TokenKind) bool = {
+    match k {
+        CStr _ => {
             return true
         } else => {
             return false
@@ -1407,7 +1426,7 @@ pub fn kind_is_invariant(k: TokenKind) bool = {
 }
 
 test "lexer tokenizes keywords, literals, operators and comments" {
-    val r1 = trust tokenize("fn val mut pub return if else for")
+    val r1 = trust tokenize(c"fn val mut pub return if else for")
     match r1 {
         err _ => {
             assert false
@@ -1427,7 +1446,7 @@ test "lexer tokenizes keywords, literals, operators and comments" {
         }
     }
 
-    val r2 = trust tokenize("foobar hello_world _x")
+    val r2 = trust tokenize(c"foobar hello_world _x")
     match r2 {
         err _ => {
             assert false
@@ -1436,13 +1455,13 @@ test "lexer tokenizes keywords, literals, operators and comments" {
             assert kind_is_ident(tok_kind(toks, 0))
             assert kind_is_ident(tok_kind(toks, 1))
             assert kind_is_ident(tok_kind(toks, 2))
-            assert string.raw_cmp(tok_text_raw(toks, 0), "foobar") == 0
-            assert string.raw_cmp(tok_text_raw(toks, 1), "hello_world") == 0
+            assert string.raw_cmp(tok_text_raw(toks, 0), c"foobar") == 0
+            assert string.raw_cmp(tok_text_raw(toks, 1), c"hello_world") == 0
         }
     }
 
 
-    val r3 = trust tokenize("42 3.14 0xff")
+    val r3 = trust tokenize(c"42 3.14 0xff")
     match r3 {
         err _ => {
             assert false
@@ -1451,26 +1470,26 @@ test "lexer tokenizes keywords, literals, operators and comments" {
             assert kind_is_int(tok_kind(toks, 0))
             assert kind_is_float(tok_kind(toks, 1))
             assert kind_is_int(tok_kind(toks, 2))
-            assert string.raw_cmp(tok_text_raw(toks, 0), "42") == 0
-            assert string.raw_cmp(tok_text_raw(toks, 2), "0xff") == 0
+            assert string.raw_cmp(tok_text_raw(toks, 0), c"42") == 0
+            assert string.raw_cmp(tok_text_raw(toks, 2), c"0xff") == 0
         }
     }
 
 
-    val r4 = trust tokenize("\"hello\"")
+    val r4 = trust tokenize(c"\"hello\"")
     match r4 {
         err _ => {
             assert false
         }
         ok toks => {
             assert kind_is_str(tok_kind(toks, 0))
-            assert string.raw_cmp(tok_text_raw(toks, 0), "hello") == 0
+            assert string.raw_cmp(tok_text_raw(toks, 0), c"hello") == 0
         }
     }
 
 
     val the_string = "\"line1\\nline2\""
-    val r5 = trust tokenize(the_string)
+    val r5 = trust tokenize_view(the_string)
     match r5 {
         err _ => {
             assert false
@@ -1483,7 +1502,7 @@ test "lexer tokenizes keywords, literals, operators and comments" {
     }
 
     val carriage_return_string = "\"a\\rb\""
-    val r5a = trust tokenize(carriage_return_string)
+    val r5a = trust tokenize_view(carriage_return_string)
     match r5a {
         err _ => {
             assert false
@@ -1496,7 +1515,7 @@ test "lexer tokenizes keywords, literals, operators and comments" {
         }
     }
 
-    val r6 = trust tokenize("== != <= >= && || ++ -- -> => << >>")
+    val r6 = trust tokenize(c"== != <= >= && || ++ -- -> => << >>")
     match r6 {
         err _ => {
             assert false
@@ -1517,7 +1536,7 @@ test "lexer tokenizes keywords, literals, operators and comments" {
         }
     }
 
-    val r7 = trust tokenize("( ) { } [ ] : , . @ ~ ?")
+    val r7 = trust tokenize(c"( ) { } [ ] : , . @ ~ ?")
     match r7 {
         err _ => {
             assert false
@@ -1537,7 +1556,7 @@ test "lexer tokenizes keywords, literals, operators and comments" {
         }
     }
 
-    val r8 = trust tokenize("...")
+    val r8 = trust tokenize(c"...")
     match r8 {
         err _ => {
             assert false
@@ -1548,7 +1567,7 @@ test "lexer tokenizes keywords, literals, operators and comments" {
         }
     }
 
-    val r9 = trust tokenize("fn // this is a comment\nval")
+    val r9 = trust tokenize(c"fn // this is a comment\nval")
     match r9 {
         err _ => {
             assert false
@@ -1560,7 +1579,7 @@ test "lexer tokenizes keywords, literals, operators and comments" {
         }
     }
 
-    val r9b = trust tokenize("//!suppress \"unused-function\"\nfn unused() i32")
+    val r9b = trust tokenize(c"//!suppress \"unused-function\"\nfn unused() i32")
     match r9b {
         err _ => {
             assert false
@@ -1572,7 +1591,7 @@ test "lexer tokenizes keywords, literals, operators and comments" {
         }
     }
 
-    val r10 = trust tokenize("fn\nval")
+    val r10 = trust tokenize(c"fn\nval")
     match r10 {
         err _ => {
             assert false
@@ -1596,7 +1615,7 @@ test "lexer tokenizes keywords, literals, operators and comments" {
         }
     }
 
-    val r11 = trust tokenize("")
+    val r11 = trust tokenize(c"")
     match r11 {
         err _ => {
             assert false
@@ -1607,7 +1626,7 @@ test "lexer tokenizes keywords, literals, operators and comments" {
         }
     }
 
-    val r12 = trust tokenize("#")
+    val r12 = trust tokenize(c"#")
     match r12 {
         ok _ => {
             assert false

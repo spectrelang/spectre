@@ -153,7 +153,7 @@ pub fn string_var(
     } else {
         default_text = @fmtalloc("(default: {s})", {current})
     }
-    add(fs, name, alias, help, "string", default_text, Str(target))
+    add(fs, name, alias, help, c"string", default_text, Str(target))
 }
 
 /// Register a signed integer flag.
@@ -165,7 +165,7 @@ pub fn int_var(
     help: ref u8
 ) void = trust {
     val default_text: ref u8 = @fmtalloc("(default: {d})", {@deref(target)})
-    add(fs, name, alias, help, "int", default_text, Int(target))
+    add(fs, name, alias, help, c"int", default_text, Int(target))
 }
 
 /// Register a floating-point flag.
@@ -177,7 +177,7 @@ pub fn float_var(
     help: ref u8
 ) void = trust {
     val default_text: ref u8 = @fmtalloc("(default: {f})", {@deref(target)})
-    add(fs, name, alias, help, "float", default_text, Float(target))
+    add(fs, name, alias, help, c"float", default_text, Float(target))
 }
 
 /// Parse command-line arguments. The first entry is treated as the program
@@ -251,7 +251,7 @@ pub fn parse(
             return err ParseError.UnknownFlag(arg)
         }
 
-        if span_equals(body, name_len, "h") || span_equals(body, name_len, "help") {
+        if span_equals(body, name_len, c"h") || span_equals(body, name_len, c"help") {
             return err ParseError.HelpRequested()
         }
 
@@ -365,7 +365,7 @@ pub fn is_help(e: ParseError) bool = {
 pub fn message(e: ParseError) ref u8 = trust {
     match e {
         HelpRequested() => {
-            return ""
+            return c""
         }
         UnknownFlag flag => {
             return @fmtalloc("unknown flag '{s}'", {flag})
@@ -406,7 +406,7 @@ fn write_usage(fs: FlagSet, to_stderr: bool) void = trust {
         emit(to_stderr, @fmtalloc("\n{s}\n", {fs.description}))
     }
 
-    emit(to_stderr, "\nOptions:\n")
+    emit(to_stderr, c"\nOptions:\n")
 
     val current: mut ref Flag = fs.head
     for {
@@ -414,7 +414,7 @@ fn write_usage(fs: FlagSet, to_stderr: bool) void = trust {
             break
         }
 
-        val names: mut ref u8 = ""
+        val names: mut ref u8 = c""
         if current.alias != none && strlen(current.alias) > 0 {
             names = @fmtalloc("-{s}, -{s}", {current.alias, current.name})
         } else {
@@ -524,16 +524,16 @@ fn value_of(
 }
 
 fn parse_bool(value: ref u8) option[bool] = {
-    if str.raw_cmp(value, "true") == 0 || str.raw_cmp(value, "1") == 0 {
+    if str.raw_cmp(value, c"true") == 0 || str.raw_cmp(value, c"1") == 0 {
         return some true
     }
-    if str.raw_cmp(value, "yes") == 0 || str.raw_cmp(value, "on") == 0 {
+    if str.raw_cmp(value, c"yes") == 0 || str.raw_cmp(value, c"on") == 0 {
         return some true
     }
-    if str.raw_cmp(value, "false") == 0 || str.raw_cmp(value, "0") == 0 {
+    if str.raw_cmp(value, c"false") == 0 || str.raw_cmp(value, c"0") == 0 {
         return some false
     }
-    if str.raw_cmp(value, "no") == 0 || str.raw_cmp(value, "off") == 0 {
+    if str.raw_cmp(value, c"no") == 0 || str.raw_cmp(value, c"off") == 0 {
         return some false
     }
     return none
@@ -605,30 +605,30 @@ test "flags parse colon, equals and separate values with aliases" {
     val la: allocators.ListArena = {arena: arena}
 
     val verbose: mut bool = false
-    val name: mut ref u8 = "none"
+    val name: mut ref u8 = c"none"
     val count: mut i64 = 0
-    val kv: mut ref u8 = ""
+    val kv: mut ref u8 = c""
 
-    val fs: mut FlagSet = trust new("test", "flags test")?
-    trust bool_var(fs, "verbose", "v", @addr(verbose), "verbose")
-    trust string_var(fs, "name", "n", @addr(name), "name")
-    trust int_var(fs, "count", "c", @addr(count), "count")
-    trust string_var(fs, "kv", "", @addr(kv), "key/value")
+    val fs: mut FlagSet = trust new(c"test", c"flags test")?
+    trust bool_var(fs, c"verbose", c"v", @addr(verbose), c"verbose")
+    trust string_var(fs, c"name", c"n", @addr(name), c"name")
+    trust int_var(fs, c"count", c"c", @addr(count), c"count")
+    trust string_var(fs, c"kv", c"", @addr(kv), c"key/value")
 
     val argv: list[ref u8] = @list(
         la,
-        "test",
-        "-name:Ada",
-        "-count=7",
-        "-v",
-        "-kv:key=value"
+        c"test",
+        c"-name:Ada",
+        c"-count=7",
+        c"-v",
+        c"-kv:key=value"
     )?
     assert_ok(trust parse(fs, argv))
 
     assert verbose
-    assert str.raw_cmp(name, "Ada") == 0
+    assert str.raw_cmp(name, c"Ada") == 0
     assert count == 7
-    assert str.raw_cmp(kv, "key=value") == 0
+    assert str.raw_cmp(kv, c"key=value") == 0
     assert @len(trust args(fs)) == 0
 
     trust destroy(fs)
@@ -642,42 +642,42 @@ test "flags accept separate values, explicit bools and positionals" {
     val la: allocators.ListArena = {arena: arena}
 
     val verbose: mut bool = true
-    val name: mut ref u8 = "none"
+    val name: mut ref u8 = c"none"
     val count: mut i64 = 0
 
-    val fs: mut FlagSet = trust new("test", "")?
-    trust bool_var(fs, "verbose", "v", @addr(verbose), "verbose")
-    trust string_var(fs, "name", "n", @addr(name), "name")
-    trust int_var(fs, "count", "c", @addr(count), "count")
+    val fs: mut FlagSet = trust new(c"test", c"")?
+    trust bool_var(fs, c"verbose", c"v", @addr(verbose), c"verbose")
+    trust string_var(fs, c"name", c"n", @addr(name), c"name")
+    trust int_var(fs, c"count", c"c", @addr(count), c"count")
 
     val argv: list[ref u8] = @list(
         la,
-        "test",
-        "first",
-        "-n",
-        "Grace",
-        "-verbose:false",
-        "second",
-        "-c",
-        "-3"
+        c"test",
+        c"first",
+        c"-n",
+        c"Grace",
+        c"-verbose:false",
+        c"second",
+        c"-c",
+        c"-3"
     )?
     assert_ok(trust parse(fs, argv))
 
     assert !verbose
-    assert str.raw_cmp(name, "Grace") == 0
+    assert str.raw_cmp(name, c"Grace") == 0
     assert count == -3
 
     val rest = trust args(fs)
     assert @len(rest) == 2
     val first = @get(rest, 0 as usize)
     if first is some value {
-        assert str.raw_cmp(value as ref u8, "first") == 0
+        assert str.raw_cmp(value as ref u8, c"first") == 0
     } else {
         assert false
     }
     val second = @get(rest, 1 as usize)
     if second is some value {
-        assert str.raw_cmp(value as ref u8, "second") == 0
+        assert str.raw_cmp(value as ref u8, c"second") == 0
     } else {
         assert false
     }
@@ -693,15 +693,15 @@ test "flags report unknown, missing and invalid values" {
     val la: allocators.ListArena = {arena: arena}
 
     val verbose: mut bool = false
-    val name: mut ref u8 = "none"
+    val name: mut ref u8 = c"none"
     val count: mut i64 = 0
 
-    val fs: mut FlagSet = trust new("test", "")?
-    trust bool_var(fs, "verbose", "v", @addr(verbose), "verbose")
-    trust string_var(fs, "name", "n", @addr(name), "name")
-    trust int_var(fs, "count", "c", @addr(count), "count")
+    val fs: mut FlagSet = trust new(c"test", c"")?
+    trust bool_var(fs, c"verbose", c"v", @addr(verbose), c"verbose")
+    trust string_var(fs, c"name", c"n", @addr(name), c"name")
+    trust int_var(fs, c"count", c"c", @addr(count), c"count")
 
-    val unknown: list[ref u8] = @list(la, "test", "-bogus")?
+    val unknown: list[ref u8] = @list(la, c"test", c"-bogus")?
     match trust parse(fs, unknown) {
         ok _ => {
             assert false
@@ -709,7 +709,7 @@ test "flags report unknown, missing and invalid values" {
         err e => {
             match e {
                 UnknownFlag flag => {
-                    assert str.raw_cmp(flag, "-bogus") == 0
+                    assert str.raw_cmp(flag, c"-bogus") == 0
                 }
                 _ => {
                     assert false
@@ -718,7 +718,7 @@ test "flags report unknown, missing and invalid values" {
         }
     }
 
-    val missing: list[ref u8] = @list(la, "test", "-name")?
+    val missing: list[ref u8] = @list(la, c"test", c"-name")?
     match trust parse(fs, missing) {
         ok _ => {
             assert false
@@ -726,7 +726,7 @@ test "flags report unknown, missing and invalid values" {
         err e => {
             match e {
                 MissingValue flag => {
-                    assert str.raw_cmp(flag, "name") == 0
+                    assert str.raw_cmp(flag, c"name") == 0
                 }
                 _ => {
                     assert false
@@ -735,7 +735,7 @@ test "flags report unknown, missing and invalid values" {
         }
     }
 
-    val bad_int: list[ref u8] = @list(la, "test", "-count:twelve")?
+    val bad_int: list[ref u8] = @list(la, c"test", c"-count:twelve")?
     match trust parse(fs, bad_int) {
         ok _ => {
             assert false
@@ -743,8 +743,8 @@ test "flags report unknown, missing and invalid values" {
         err e => {
             match e {
                 InvalidValue flag, value => {
-                    assert str.raw_cmp(flag, "count") == 0
-                    assert str.raw_cmp(value, "twelve") == 0
+                    assert str.raw_cmp(flag, c"count") == 0
+                    assert str.raw_cmp(value, c"twelve") == 0
                 }
                 _ => {
                     assert false
@@ -753,7 +753,7 @@ test "flags report unknown, missing and invalid values" {
         }
     }
 
-    val bad_bool: list[ref u8] = @list(la, "test", "-verbose:maybe")?
+    val bad_bool: list[ref u8] = @list(la, c"test", c"-verbose:maybe")?
     match trust parse(fs, bad_bool) {
         ok _ => {
             assert false
@@ -761,7 +761,7 @@ test "flags report unknown, missing and invalid values" {
         err e => {
             match e {
                 InvalidValue flag, _ => {
-                    assert str.raw_cmp(flag, "verbose") == 0
+                    assert str.raw_cmp(flag, c"verbose") == 0
                 }
                 _ => {
                     assert false
@@ -781,13 +781,13 @@ test "flags enable double dash and the bare -- terminator" {
     val la: allocators.ListArena = {arena: arena}
 
     val verbose: mut bool = false
-    val name: mut ref u8 = "none"
+    val name: mut ref u8 = c"none"
 
-    val fs: mut FlagSet = trust new("test", "")?
-    trust bool_var(fs, "verbose", "v", @addr(verbose), "verbose")
-    trust string_var(fs, "name", "n", @addr(name), "name")
+    val fs: mut FlagSet = trust new(c"test", c"")?
+    trust bool_var(fs, c"verbose", c"v", @addr(verbose), c"verbose")
+    trust string_var(fs, c"name", c"n", @addr(name), c"name")
 
-    val disabled: list[ref u8] = @list(la, "test", "--verbose")?
+    val disabled: list[ref u8] = @list(la, c"test", c"--verbose")?
     match trust parse(fs, disabled) {
         ok _ => {
             assert false
@@ -805,29 +805,29 @@ test "flags enable double dash and the bare -- terminator" {
     allow_double_dash(fs, true)
     val argv: list[ref u8] = @list(
         la,
-        "test",
-        "--verbose",
-        "--name:Grace",
-        "--",
-        "--name:ignored",
-        "-v"
+        c"test",
+        c"--verbose",
+        c"--name:Grace",
+        c"--",
+        c"--name:ignored",
+        c"-v"
     )?
     assert_ok(trust parse(fs, argv))
 
     assert verbose
-    assert str.raw_cmp(name, "Grace") == 0
+    assert str.raw_cmp(name, c"Grace") == 0
 
     val rest = trust args(fs)
     assert @len(rest) == 2
     val first = @get(rest, 0 as usize)
     if first is some value {
-        assert str.raw_cmp(value as ref u8, "--name:ignored") == 0
+        assert str.raw_cmp(value as ref u8, c"--name:ignored") == 0
     } else {
         assert false
     }
     val second = @get(rest, 1 as usize)
     if second is some value {
-        assert str.raw_cmp(value as ref u8, "-v") == 0
+        assert str.raw_cmp(value as ref u8, c"-v") == 0
     } else {
         assert false
     }
@@ -842,9 +842,9 @@ test "flags recognise help requests" {
     )?
     val la: allocators.ListArena = {arena: arena}
 
-    val fs: FlagSet = trust new("test", "")?
+    val fs: FlagSet = trust new(c"test", c"")?
 
-    val short_help: list[ref u8] = @list(la, "test", "-h")?
+    val short_help: list[ref u8] = @list(la, c"test", c"-h")?
     match trust parse(fs, short_help) {
         ok _ => {
             assert false
@@ -854,7 +854,7 @@ test "flags recognise help requests" {
         }
     }
 
-    val long_help: list[ref u8] = @list(la, "test", "-help")?
+    val long_help: list[ref u8] = @list(la, c"test", c"-help")?
     match trust parse(fs, long_help) {
         ok _ => {
             assert false
@@ -875,10 +875,10 @@ test "flags parse float values" {
     val la: allocators.ListArena = {arena: arena}
 
     val scale: mut f64 = 0.0
-    val fs: mut FlagSet = trust new("test", "")?
-    trust float_var(fs, "scale", "s", @addr(scale), "scale")
+    val fs: mut FlagSet = trust new(c"test", c"")?
+    trust float_var(fs, c"scale", c"s", @addr(scale), c"scale")
 
-    val argv: list[ref u8] = @list(la, "test", "-scale:2.5")?
+    val argv: list[ref u8] = @list(la, c"test", c"-scale:2.5")?
     assert_ok(trust parse(fs, argv))
     assert scale == 2.5
 

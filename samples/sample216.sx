@@ -1,5 +1,6 @@
 val allocators = use("std/allocators")
 val stdio      = use("std/stdio")
+val str        = use("std/string")
 
 pub fn main() void = trust {
     val ac: allocators.HeapAllocator = @zeroed
@@ -9,7 +10,7 @@ pub fn main() void = trust {
         "allocatorized stage {d}: {s}",
         {3, "fmtalloc"}
     )?
-    stdio.puts(msg)
+    stdio.puts(str.view_cstr(msg))
     stdio.puts("\n")
     allocators.HeapAllocator.free(ac, msg as ref void)
 

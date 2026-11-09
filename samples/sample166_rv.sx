@@ -7,7 +7,7 @@ extern (C) fn strtol(
 pub fn main() i32 = trust {
     val end: mut ref u8 = none
 
-    val value = strtol("123abc", @addr(end), 10 as i32)
+    val value = strtol(c"123abc", @addr(end), 10 as i32)
 
     if end != none {
         return value as i32

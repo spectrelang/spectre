@@ -10,5 +10,5 @@ pub fn main() void = trust {
     if (ptr != none) {
         my_free(ptr)
     }
-    puts("wow")
+    puts(c"wow")
 }

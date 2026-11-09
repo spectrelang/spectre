@@ -19,5 +19,5 @@ fn some_function(x: SomeUnion) void = trust {
 }
 
 pub fn main() void = {
-    trust some_function(Str("hello"))
+    trust some_function(Str(c"hello"))
 }

@@ -110,31 +110,31 @@ fn split_path_list(raw: string.StringView, out: mut list[ref u8]) void = trust {
 
 fn library_basename(name: string.StringView) string.StringView = trust {
     val n0: mut string.StringView = name
-    if n0.len > 2 && string.view_starts_with(n0, string.view_cstr("-l")) {
+    if n0.len > 2 && string.view_starts_with(n0, "-l") {
         n0 = string.view_slice(n0, 2, n0.len)
     }
 
     val n1: mut string.StringView = n0
-    if n1.len > 3 && string.view_starts_with(n1, string.view_cstr("lib")) {
+    if n1.len > 3 && string.view_starts_with(n1, "lib") {
         n1 = string.view_slice(n1, 3, n1.len)
     }
 
-    if n1.len > 3 && string.view_ends_with(n1, string.view_cstr(".so")) {
+    if n1.len > 3 && string.view_ends_with(n1, ".so") {
         return string.view_slice(n1, 0, n1.len - 3)
     }
-    if n1.len > 6 && string.view_ends_with(n1, string.view_cstr(".dylib")) {
+    if n1.len > 6 && string.view_ends_with(n1, ".dylib") {
         return string.view_slice(n1, 0, n1.len - 6)
     }
-    if n1.len > 2 && string.view_ends_with(n1, string.view_cstr(".a")) {
+    if n1.len > 2 && string.view_ends_with(n1, ".a") {
         return string.view_slice(n1, 0, n1.len - 2)
     }
     return n1
 }
 
 fn pkg_config_libs(module_name: string.StringView, static_link: bool) option[list[ref u8]] = trust {
-    val static_arg: mut string.StringView = string.view_cstr("")
+    val static_arg: mut string.StringView = ""
     if static_link {
-        static_arg = string.view_cstr(" --static")
+        static_arg = c" --static"
     }
     val cmd: ref u8 = @fmtalloc(
         "pkg-config --exists {s} && pkg-config --libs{s} {s} 2>/dev/null",
@@ -181,7 +181,7 @@ fn try_pkg_config(name: string.StringView, static_link: bool) option[list[ref u8
 }
 
 fn compiler_library_path(base: string.StringView, suffix: string.StringView) ref u8 = trust {
-    val compilers: list[ref u8] = mem.from2[ref u8]("cc", "clang")
+    val compilers: list[ref u8] = mem.from2[ref u8](c"cc", c"clang")
     val missing: ref u8 = @fmtalloc("lib{s}{s}", {base, suffix})
     for compiler in compilers {
         if os.in_path(compiler) {
@@ -207,50 +207,50 @@ fn compiler_library_path(base: string.StringView, suffix: string.StringView) ref
             }
         }
     }
-    return ""
+    return c""
 }
 
 fn library_suffixes(platform: string.StringView) list[ref u8] = trust {
-    if string.view_eql_cstr(platform, "windows") {
-        val suffixes: list[ref u8] = mem.from3[ref u8](".lib", ".dll.a", ".a")
+    if string.view_eql_cstr(platform, c"windows") {
+        val suffixes: list[ref u8] = mem.from3[ref u8](c".lib", c".dll.a", c".a")
         return suffixes
     }
-    if string.view_eql_cstr(platform, "darwin") {
-        val suffixes: list[ref u8] = mem.from2[ref u8](".dylib", ".a")
+    if string.view_eql_cstr(platform, c"darwin") {
+        val suffixes: list[ref u8] = mem.from2[ref u8](c".dylib", c".a")
         return suffixes
     }
-    val suffixes: list[ref u8] = mem.from2[ref u8](".so", ".a")
+    val suffixes: list[ref u8] = mem.from2[ref u8](c".so", c".a")
     return suffixes
 }
 
 fn native_search_dirs(platform: string.StringView) list[ref u8] = trust {
     val dirs: mut list[ref u8] = mem.new[ref u8]()
 
-    val library_path = os.getenv("LIBRARY_PATH")
+    val library_path = os.getenv(c"LIBRARY_PATH")
     if library_path is some lib_path {
         split_path_list(string.view_cstr(lib_path as ref u8), dirs)
     }
 
-    @append(dirs, "/usr/local/lib")
-    @append(dirs, "/usr/lib")
-    @append(dirs, "/usr/lib64")
-    @append(dirs, "/lib")
-    @append(dirs, "/lib64")
+    @append(dirs, c"/usr/local/lib")
+    @append(dirs, c"/usr/lib")
+    @append(dirs, c"/usr/lib64")
+    @append(dirs, c"/lib")
+    @append(dirs, c"/lib64")
 
-    if string.view_eql_cstr(platform, "linux") {
-        @append(dirs, "/usr/lib/x86_64-linux-gnu")
-        @append(dirs, "/lib/x86_64-linux-gnu")
-        @append(dirs, "/usr/lib/aarch64-linux-gnu")
-        @append(dirs, "/lib/aarch64-linux-gnu")
-        @append(dirs, "/usr/lib/arm-linux-gnueabihf")
-        @append(dirs, "/usr/lib/i386-linux-gnu")
-        @append(dirs, "/usr/lib/riscv64-linux-gnu")
-        @append(dirs, "/usr/lib/powerpc64le-linux-gnu")
+    if string.view_eql_cstr(platform, c"linux") {
+        @append(dirs, c"/usr/lib/x86_64-linux-gnu")
+        @append(dirs, c"/lib/x86_64-linux-gnu")
+        @append(dirs, c"/usr/lib/aarch64-linux-gnu")
+        @append(dirs, c"/lib/aarch64-linux-gnu")
+        @append(dirs, c"/usr/lib/arm-linux-gnueabihf")
+        @append(dirs, c"/usr/lib/i386-linux-gnu")
+        @append(dirs, c"/usr/lib/riscv64-linux-gnu")
+        @append(dirs, c"/usr/lib/powerpc64le-linux-gnu")
     }
 
-    if string.view_eql_cstr(platform, "darwin") {
-        @append(dirs, "/opt/homebrew/lib")
-        @append(dirs, "/opt/local/lib")
+    if string.view_eql_cstr(platform, c"darwin") {
+        @append(dirs, c"/opt/homebrew/lib")
+        @append(dirs, c"/opt/local/lib")
     }
 
     return dirs
@@ -274,23 +274,23 @@ fn find_native(base: string.StringView, platform: string.StringView) ref u8 = tr
             }
         }
     }
-    return ""
+    return c""
 }
 
 fn requires_pkg_config(platform: string.StringView) bool = trust {
-    if string.view_eql_cstr(platform, "linux") {
+    if string.view_eql_cstr(platform, c"linux") {
         return false
     }
-    if string.view_eql_cstr(platform, "freebsd") {
+    if string.view_eql_cstr(platform, c"freebsd") {
         return false
     }
-    if string.view_eql_cstr(platform, "openbsd") {
+    if string.view_eql_cstr(platform, c"openbsd") {
         return false
     }
-    if string.view_eql_cstr(platform, "netbsd") {
+    if string.view_eql_cstr(platform, c"netbsd") {
         return false
     }
-    if string.view_eql_cstr(platform, "dragonflybsd") {
+    if string.view_eql_cstr(platform, c"dragonflybsd") {
         return false
     }
     return true
@@ -304,10 +304,10 @@ pub fn resolve(
 ) result[list[ref u8], ref u8] = trust {
     val trimmed: string.StringView = trim_raw(name)
     if trimmed.len == 0 {
-        return err "library name cannot be empty"
+        return err c"library name cannot be empty"
     }
 
-    val has_pkg_config: bool = os.in_path("pkg-config")
+    val has_pkg_config: bool = os.in_path(c"pkg-config")
     if has_pkg_config {
         val pkg_flags = try_pkg_config(trimmed, static_link)
         if pkg_flags is some flags {
@@ -326,7 +326,7 @@ pub fn resolve(
 
     if requires_pkg_config(platform) {
         if !has_pkg_config {
-            return err "lib syntax for linking is not supported on this platform. install pkg-config to resolve."
+            return err c"lib syntax for linking is not supported on this platform. install pkg-config to resolve."
         }
         return err @fmtalloc("could not resolve library '{s}' with pkg-config", {trimmed})
     }

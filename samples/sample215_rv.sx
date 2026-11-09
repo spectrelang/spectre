@@ -8,10 +8,10 @@ pub fn main() void = trust {
 
     val formatted = fmt.format[allocators.Arena](
         arena,
-        "{s} {d} {d} {d}",
-        {"many", 11, 22, 33}
+        c"{s} {d} {d} {d}",
+        {c"many", 11, 22, 33}
     )
-    assert string.raw_cmp(string.cstr(formatted), "many 11 22 33") == 0
+    assert string.raw_cmp(string.cstr(formatted), c"many 11 22 33") == 0
 
     allocators.Arena.free(arena)
     stdio.puts("generic argspack pack values ok")

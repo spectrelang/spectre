@@ -493,7 +493,7 @@ fn test_f64_roundtrip(x: f64) void = trust {
 
 test "integer, float and format string helpers roundtrip" {
     val arena: allocators.Arena = trust allocators.Arena.new(4096 as usize)?
-    val s: mut ref u8 = ""
+    val s: mut ref u8 = c""
 
     s = trust i64_to_string[allocators.Arena](arena, 0)
 
@@ -524,10 +524,10 @@ test "integer, float and format string helpers roundtrip" {
     s = trust i64_to_string[allocators.Arena](arena, -9876)
     assert string_to_i64(s) == ok -9876
 
-    assert string_to_i64("0") == ok 0
-    assert string_to_i64("42") == ok 42
-    assert string_to_i64("-42") == ok -42
-    assert string_to_i64("-") == err ParseIntError.InvalidDigit
+    assert string_to_i64(c"0") == ok 0
+    assert string_to_i64(c"42") == ok 42
+    assert string_to_i64(c"-42") == ok -42
+    assert string_to_i64(c"-") == err ParseIntError.InvalidDigit
 
     trust test_i64_roundtrip(0)
     trust test_i64_roundtrip(1)
@@ -544,14 +544,14 @@ test "integer, float and format string helpers roundtrip" {
     s = trust f64_to_string[allocators.Arena](arena, -3.14)
     assert string_to_f64(s) == ok -3.14
 
-    assert string_to_f64("0") == ok 0.0
-    assert string_to_f64("10.5") == ok 10.5
-    assert string_to_f64("-0.25") == ok -0.25
+    assert string_to_f64(c"0") == ok 0.0
+    assert string_to_f64(c"10.5") == ok 10.5
+    assert string_to_f64(c"-0.25") == ok -0.25
 
-    assert string_to_f64("") == err ParseFloatError.Empty
-    assert string_to_f64("-") == err ParseFloatError.Invalid
-    assert string_to_f64("1.2.3") == err ParseFloatError.Invalid
-    assert string_to_f64("abc") == err ParseFloatError.Invalid
+    assert string_to_f64(c"") == err ParseFloatError.Empty
+    assert string_to_f64(c"-") == err ParseFloatError.Invalid
+    assert string_to_f64(c"1.2.3") == err ParseFloatError.Invalid
+    assert string_to_f64(c"abc") == err ParseFloatError.Invalid
 
     trust test_f64_roundtrip(0.0)
     trust test_f64_roundtrip(1.5)
@@ -559,47 +559,47 @@ test "integer, float and format string helpers roundtrip" {
     trust test_f64_roundtrip(123.000001)
 
     val fmt_arena: allocators.Arena = trust allocators.Arena.new(16384 as usize)?
-    val basic = trust format[allocators.Arena](fmt_arena, "hello {d}", {1})
-    assert string.raw_cmp(trust string.cstr(basic), "hello 1") == 0
+    val basic = trust format[allocators.Arena](fmt_arena, c"hello {d}", {1})
+    assert string.raw_cmp(trust string.cstr(basic), c"hello 1") == 0
 
-    val empty = trust format[allocators.Arena](fmt_arena, "", {})
+    val empty = trust format[allocators.Arena](fmt_arena, c"", {})
     assert string.len(empty) == 0
 
-    val plain = trust format[allocators.Arena](fmt_arena, "no specifiers", {})
-    assert string.raw_cmp(trust string.cstr(plain), "no specifiers") == 0
+    val plain = trust format[allocators.Arena](fmt_arena, c"no specifiers", {})
+    assert string.raw_cmp(trust string.cstr(plain), c"no specifiers") == 0
 
-    val percent = trust format[allocators.Arena](fmt_arena, "100% done", {})
-    assert string.raw_cmp(trust string.cstr(percent), "100% done") == 0
+    val percent = trust format[allocators.Arena](fmt_arena, c"100% done", {})
+    assert string.raw_cmp(trust string.cstr(percent), c"100% done") == 0
 
-    val percent_spec = trust format[allocators.Arena](fmt_arena, "100% {d}", {7})
-    assert string.raw_cmp(trust string.cstr(percent_spec), "100% 7") == 0
+    val percent_spec = trust format[allocators.Arena](fmt_arena, c"100% {d}", {7})
+    assert string.raw_cmp(trust string.cstr(percent_spec), c"100% 7") == 0
 
-    val escaped = trust format[allocators.Arena](fmt_arena, "\\{literal\\}", {})
-    assert string.raw_cmp(trust string.cstr(escaped), "{literal}") == 0
+    val escaped = trust format[allocators.Arena](fmt_arena, c"\\{literal\\}", {})
+    assert string.raw_cmp(trust string.cstr(escaped), c"{literal}") == 0
 
-    val escaped_spec = trust format[allocators.Arena](fmt_arena, "\\{x\\} {d}", {7})
-    assert string.raw_cmp(trust string.cstr(escaped_spec), "{x} 7") == 0
+    val escaped_spec = trust format[allocators.Arena](fmt_arena, c"\\{x\\} {d}", {7})
+    assert string.raw_cmp(trust string.cstr(escaped_spec), c"{x} 7") == 0
 
-    val unmatched = trust format[allocators.Arena](fmt_arena, "a { b", {})
-    assert string.raw_cmp(trust string.cstr(unmatched), "a { b") == 0
+    val unmatched = trust format[allocators.Arena](fmt_arena, c"a { b", {})
+    assert string.raw_cmp(trust string.cstr(unmatched), c"a { b") == 0
 
     val multi = trust format[allocators.Arena](
         fmt_arena,
-        "{s}:{d}:{x}",
-        {"ok", 42, 255}
+        c"{s}:{d}:{x}",
+        {c"ok", 42, 255}
     )
-    assert string.raw_cmp(trust string.cstr(multi), "ok:42:ff") == 0
+    assert string.raw_cmp(trust string.cstr(multi), c"ok:42:ff") == 0
 
-    val long = trust format[allocators.Arena](fmt_arena, "{5000d}", {7})
+    val long = trust format[allocators.Arena](fmt_arena, c"{5000d}", {7})
     assert string.len(long) == 5000
     assert trust @load8(@ptradd(string.cstr(long), 4999)) == 55
 
     val tiny: allocators.Arena = trust allocators.Arena.new(1 as usize)?
-    val failed = trust format[allocators.Arena](tiny, "{d}", {1})
+    val failed = trust format[allocators.Arena](tiny, c"{d}", {1})
     assert failed == none
     trust allocators.Arena.free(tiny)
 
-    trust stdio.print("{s}", {string.cstr(format[allocators.Arena](arena, "hello {d}", {1}))})
+    trust stdio.print("{s}", {string.cstr(format[allocators.Arena](arena, c"hello {d}", {1}))})
     trust allocators.Arena.free(fmt_arena)
     trust allocators.Arena.free(arena)
 }

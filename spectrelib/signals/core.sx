@@ -337,100 +337,100 @@ pub fn number(sig: Signal) i32 = {
 pub fn name(sig: Signal) ref u8 = {
     match sig {
         Signal.Hangup => {
-            return "SIGHUP"
+            return c"SIGHUP"
         }
         Signal.Interrupt => {
-            return "SIGINT"
+            return c"SIGINT"
         }
         Signal.Quit => {
-            return "SIGQUIT"
+            return c"SIGQUIT"
         }
         Signal.IllegalInstruction => {
-            return "SIGILL"
+            return c"SIGILL"
         }
         Signal.Trap => {
-            return "SIGTRAP"
+            return c"SIGTRAP"
         }
         Signal.Abort => {
-            return "SIGABRT"
+            return c"SIGABRT"
         }
         Signal.Break => {
-            return "SIGBREAK"
+            return c"SIGBREAK"
         }
         Signal.BusError => {
-            return "SIGBUS"
+            return c"SIGBUS"
         }
         Signal.FloatingPointException => {
-            return "SIGFPE"
+            return c"SIGFPE"
         }
         Signal.Kill => {
-            return "SIGKILL"
+            return c"SIGKILL"
         }
         Signal.User1 => {
-            return "SIGUSR1"
+            return c"SIGUSR1"
         }
         Signal.SegmentationViolation => {
-            return "SIGSEGV"
+            return c"SIGSEGV"
         }
         Signal.User2 => {
-            return "SIGUSR2"
+            return c"SIGUSR2"
         }
         Signal.Pipe => {
-            return "SIGPIPE"
+            return c"SIGPIPE"
         }
         Signal.Alarm => {
-            return "SIGALRM"
+            return c"SIGALRM"
         }
         Signal.Terminate => {
-            return "SIGTERM"
+            return c"SIGTERM"
         }
         Signal.Child => {
-            return "SIGCHLD"
+            return c"SIGCHLD"
         }
         Signal.Continue => {
-            return "SIGCONT"
+            return c"SIGCONT"
         }
         Signal.Stop => {
-            return "SIGSTOP"
+            return c"SIGSTOP"
         }
         Signal.StopTerminal => {
-            return "SIGTSTP"
+            return c"SIGTSTP"
         }
         Signal.BackgroundRead => {
-            return "SIGTTIN"
+            return c"SIGTTIN"
         }
         Signal.BackgroundWrite => {
-            return "SIGTTOU"
+            return c"SIGTTOU"
         }
         Signal.Urgent => {
-            return "SIGURG"
+            return c"SIGURG"
         }
         Signal.CpuTimeExceeded => {
-            return "SIGXCPU"
+            return c"SIGXCPU"
         }
         Signal.FileSizeExceeded => {
-            return "SIGXFSZ"
+            return c"SIGXFSZ"
         }
         Signal.VirtualTimer => {
-            return "SIGVTALRM"
+            return c"SIGVTALRM"
         }
         Signal.ProfilingTimer => {
-            return "SIGPROF"
+            return c"SIGPROF"
         }
         Signal.WindowChange => {
-            return "SIGWINCH"
+            return c"SIGWINCH"
         }
         Signal.Io => {
-            return "SIGIO"
+            return c"SIGIO"
         }
         Signal.Power => {
-            return "SIGPWR"
+            return c"SIGPWR"
         }
         Signal.System => {
-            return "SIGSYS"
+            return c"SIGSYS"
         }
     }
-    return "SIGUNKNOWN"
+    return c"SIGUNKNOWN"
 }
 
 fn dispatch(signum: i32) void = trust {

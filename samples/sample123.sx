@@ -24,13 +24,13 @@ fn area(s: Shape) f64 = {
 fn label(s: Shape) ref u8 = {
     match s {
         Circle _ => {
-            return "Circle"
+            return c"Circle"
         }
         Rect _, _ => {
-            return "Rect"
+            return c"Rect"
         }
         Triangle _, _, _ => {
-            return "Triangle"
+            return c"Triangle"
         }
     }
 }

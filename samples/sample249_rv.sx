@@ -3,5 +3,5 @@ pub fn strlen(str: ref u8) usize = {
 }
 
 pub fn main() void = {
-    trust @print("{x}", {strlen("hi")})
+    trust @print(c"{x}", {strlen(c"hi")})
 }

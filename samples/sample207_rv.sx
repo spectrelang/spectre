@@ -8,7 +8,7 @@ fn normalize_path[A: alloc.Allocator](ac: A, raw: ref u8) str.String = {
         str.trim(path)
         str.to_lower(path)
     }
-    val result = trust str.trim_prefix(path, str.from[A](ac, "/api/"))
+    val result = trust str.trim_prefix(path, str.from[A](ac, c"/api/"))
     post {
         result.len > 0
     }
@@ -17,6 +17,6 @@ fn normalize_path[A: alloc.Allocator](ac: A, raw: ref u8) str.String = {
 
 pub fn main() void = trust {
     val arena: alloc.Arena = alloc.Arena.new(1024 as usize)?
-    val route = normalize_path[alloc.Arena](arena, "  /API/Users/42  ")
+    val route = normalize_path[alloc.Arena](arena, c"  /API/Users/42  ")
     stdio.print("route: {s}\n", {str.cstr(route)})
 }

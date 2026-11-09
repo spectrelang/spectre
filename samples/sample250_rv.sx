@@ -3,11 +3,11 @@ pub fn strcmp(a: ref u8, b: ref u8) i64 = {
 }
 
 pub fn main() void = trust {
-    assert strcmp("", "") == 0
-    assert strcmp("abc", "abc") == 0
-    assert strcmp("abc", "abd") < 0
-    assert strcmp("abd", "abc") > 0
-    assert strcmp("a", "") > 0
-    assert strcmp("", "a") < 0
+    assert strcmp(c"", c"") == 0
+    assert strcmp(c"abc", c"abc") == 0
+    assert strcmp(c"abc", c"abd") < 0
+    assert strcmp(c"abd", c"abc") > 0
+    assert strcmp(c"a", c"") > 0
+    assert strcmp(c"", c"a") < 0
     @puts("strcmp ok\n")
 }

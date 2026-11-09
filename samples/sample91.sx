@@ -30,7 +30,7 @@ pub fn main() void = {
     val sa: allocators.ScopedArenaAllocator = trust allocators.ScopedArena.new(4096 as usize)?
     val la: allocators.ListArena = {arena: sa}
     val nums = @list(la, 1, 2, 3, 4)?
-    val words = @list(la, "hello ", "world")?
+    val words = @list(la, c"hello ", c"world")?
     val points: list[Vec2] = @list(
         la,
         {x: 1.0, y: 2.0},

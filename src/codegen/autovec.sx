@@ -71,11 +71,11 @@ fn builtin_is(node: ref parser.Node, name: str.StringView) bool = {
 
 /// Return the lane width encoded by a load/store intrinsic, or 0.
 fn node_width(node: ref parser.Node) i64 = {
-    if builtin_is(node, str.view_cstr("load32")) || builtin_is(node, str.view_cstr("store32")) {
+    if builtin_is(node, "load32") || builtin_is(node, "store32") {
         return 4
     }
-    if builtin_is(node, str.view_cstr("load")) || builtin_is(node, str.view_cstr("load64"))
-    || builtin_is(node, str.view_cstr("store")) || builtin_is(node, str.view_cstr("store64")) {
+    if builtin_is(node, "load") || builtin_is(node, "load64")
+    || builtin_is(node, "store") || builtin_is(node, "store64") {
         return 8
     }
     return 0
@@ -92,28 +92,28 @@ fn has_binding(bindings: list[str.StringView], name: str.StringView) bool = {
 
 fn size_text(size: i64) str.StringView = {
     if size == 4 {
-        return str.view_cstr("4")
+        return "4"
     }
     if size == 8 {
-        return str.view_cstr("8")
+        return "8"
     }
     if size == 2 {
-        return str.view_cstr("2")
+        return "2"
     }
-    return str.view_cstr("1")
+    return "1"
 }
 
 fn shift_text(size: i64) str.StringView = {
     if size == 4 {
-        return str.view_cstr("2")
+        return "2"
     }
     if size == 8 {
         return "3"
     }
     if size == 2 {
-        return str.view_cstr("1")
+        return "1"
     }
-    return str.view_cstr("0")
+    return "0"
 }
 
 fn offset_is_lane(off: ref parser.Node, index: str.StringView, elem_size: i64) bool = {
@@ -143,7 +143,7 @@ fn offset_is_lane(off: ref parser.Node, index: str.StringView, elem_size: i64) b
 /// Extract the base pointer of `@ptradd(base, index * size)` when it is a
 /// simple identifier.  Simple identifiers keep aliasing predictable.
 fn ptr_base(node: ref parser.Node, index: str.StringView, elem_size: i64) ref parser.Node = {
-    if !builtin_is(node, str.view_cstr("ptradd")) {
+    if !builtin_is(node, "ptradd") {
         return none
     }
     val n: ref parser.Node = unwrap(node)
@@ -171,8 +171,8 @@ fn is_load_node(node: ref parser.Node, index: str.StringView, elem_size: i64) bo
     if node_width(node) != elem_size {
         return false
     }
-    if !builtin_is(node, str.view_cstr("load")) && !builtin_is(node, str.view_cstr("load64"))
-    && !builtin_is(node, str.view_cstr("load32")) {
+    if !builtin_is(node, "load") && !builtin_is(node, "load64")
+    && !builtin_is(node, "load32") {
         return false
     }
     val n: ref parser.Node = unwrap(node)
@@ -191,8 +191,8 @@ fn is_store_node(node: ref parser.Node, index: str.StringView, elem_size: i64) b
     if node_width(node) != elem_size {
         return false
     }
-    if !builtin_is(node, str.view_cstr("store")) && !builtin_is(node, str.view_cstr("store64"))
-    && !builtin_is(node, str.view_cstr("store32")) {
+    if !builtin_is(node, "store") && !builtin_is(node, "store64")
+    && !builtin_is(node, "store32") {
         return false
     }
     val n: ref parser.Node = unwrap(node)
@@ -426,16 +426,16 @@ fn infer_elem_size(body: list[ref parser.Node]) i64 = {
 
 fn vec_type_for(size: i64) str.StringView = {
     if size == 4 {
-        return str.view_cstr("sx__vi32")
+        return "sx__vi32"
     }
-    return str.view_cstr("sx__vi64")
+    return "sx__vi64"
 }
 
 fn elem_ctype_for(size: i64) str.StringView = {
     if size == 4 {
-        return str.view_cstr("int32_t")
+        return "int32_t"
     }
-    return str.view_cstr("int64_t")
+    return "int64_t"
 }
 
 fn lanes_for(size: i64) i64 = {

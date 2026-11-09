@@ -1,9 +1,10 @@
 val reflection = use("std/reflection")
 val stdio      = use("std/stdio")
 val allocators = use("std/allocators")
+val str = use("std/string")
 
 pub fn main() void = {
     val alc = trust allocators.Arena.new(1024 as usize)?
     val name: ref u8 = trust reflection.current_platform_name[allocators.Arena](alc)
-    stdio.puts(name)
+    stdio.puts(str.view_cstr(name))
 }

@@ -567,7 +567,7 @@ pub fn sort_alpha[A: allocators.GeneralAllocator](
 test "sort_by_num orders numeric prefixes" {
     val sa: allocators.ScopedArenaAllocator = trust allocators.ScopedArena.new(65536 as usize)?
     val la: allocators.ListArena = {arena: sa}
-    val all: list[ref u8] = @list(la, "1 - hi", "2 - hello", "0 hey", "5 :)", "3 :D")?
+    val all: list[ref u8] = @list(la, c"1 - hi", c"2 - hello", c"0 hey", c"5 :)", c"3 :D")?
     val sorted: list[ref u8] = sort_by_num[allocators.ListArena](la, all)
 
     for s in sorted {
@@ -585,7 +585,7 @@ test "sort_by_num orders numeric prefixes" {
         trust @print("{d}\n", {il})
     }
 
-    val alpha_all = @list(la, "asdsad", "bosdfo", "asda", "pogkdsf", "pog pog pogu", "asdf")?
+    val alpha_all = @list(la, c"asdsad", c"bosdfo", c"asda", c"pogkdsf", c"pog pog pogu", c"asdf")?
     val alpha_sorted = sort_alpha[allocators.ListArena](la, alpha_all)
 
     for a in alpha_sorted {

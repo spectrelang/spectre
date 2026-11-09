@@ -42,7 +42,7 @@ pub fn main() void = trust {
     val sa: allocators.ScopedArenaAllocator = allocators.ScopedArena.new(4096 as usize)?
     val la: allocators.ListArena = {arena: sa}
     @puts("Simple test 1")
-    val toks = tokenize_simple[allocators.ListArena](la, "dummy")
+    val toks = tokenize_simple[allocators.ListArena](la, c"dummy")
     @puts("Simple test 2")
 
     val opt0 = @get(toks, 0 as usize)
