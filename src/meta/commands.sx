@@ -441,7 +441,7 @@ fn validate_spectre_version(m: ref SxMod) bool = trust {
         stdio.print("  installed compiler:      {s}\n", {installed})
         stdio.print("  project spectre_version: {s}\n", {m.spectre_version})
         stdio.print(
-            "Install the required compiler with: ./fw/install.sh -v {s}\n",
+            "Install the required compiler ({s})\n",
             {m.spectre_version}
         )
         stdio.puts("Or update 'spectre_version' in sx.mod to match the installed compiler")
