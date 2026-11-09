@@ -735,15 +735,15 @@ pub fn temp_dir[A: allocators.Allocator](ac: A) ref u8 = trust {
         return copy_cstr[A](ac, c"/tmp")
     }
     when windows {
-        val t: ref u8 = getenv("TEMP")
+        val t: ref u8 = getenv(c"TEMP")
         if (t != none) {
             return copy_cstr[A](ac, t)
         }
-        val t2: ref u8 = getenv("TMP")
+        val t2: ref u8 = getenv(c"TMP")
         if (t2 != none) {
             return copy_cstr[A](ac, t2)
         }
-        return copy_cstr[A](ac, "C:\\Windows\\Temp")
+        return copy_cstr[A](ac, c"C:\\Windows\\Temp")
     }
     return copy_cstr[A](ac, c"/tmp")
 }
@@ -757,11 +757,11 @@ pub fn temp_dir_raw() ref u8 = trust {
         return c"/tmp"
     }
     when windows {
-        val t: ref u8 = getenv("TEMP")
+        val t: ref u8 = getenv(c"TEMP")
         if t != none {
             return t
         }
-        val t2: ref u8 = getenv("TMP")
+        val t2: ref u8 = getenv(c"TMP")
         if t2 != none {
             return t2
         }
@@ -781,11 +781,11 @@ pub fn home_dir[A: allocators.Allocator](ac: A) option[ref u8] = trust {
         return none
     }
     when windows {
-        val h: ref u8 = getenv("USERPROFILE")
+        val h: ref u8 = getenv(c"USERPROFILE")
         if (h != none) {
             return some copy_cstr[A](ac, h)
         }
-        val h2: ref u8 = getenv("HOMEDRIVE")
+        val h2: ref u8 = getenv(c"HOMEDRIVE")
         if (h2 != none) {
             return some copy_cstr[A](ac, h2)
         }
@@ -803,11 +803,11 @@ pub fn home_dir_raw() option[ref u8] = trust {
         return none
     }
     when windows {
-        val h: ref u8 = getenv("USERPROFILE")
+        val h: ref u8 = getenv(c"USERPROFILE")
         if h != none {
             return some h
         }
-        val h2: ref u8 = getenv("HOMEDRIVE")
+        val h2: ref u8 = getenv(c"HOMEDRIVE")
         if h2 != none {
             return some h2
         }
@@ -842,7 +842,7 @@ pub fn config_dir[A: allocators.Allocator](ac: A) option[ref u8] = trust {
         return some buf
     }
     when windows {
-        val appdata: ref u8 = getenv("APPDATA")
+        val appdata: ref u8 = getenv(c"APPDATA")
         if (appdata != none) {
             return some copy_cstr[A](ac, appdata)
         }
@@ -873,7 +873,7 @@ pub fn config_dir_raw() option[ref u8] = trust {
         return some buf
     }
     when windows {
-        val appdata: ref u8 = getenv("APPDATA")
+        val appdata: ref u8 = getenv(c"APPDATA")
         if appdata != none {
             return some appdata
         }

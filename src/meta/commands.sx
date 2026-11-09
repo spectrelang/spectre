@@ -1454,7 +1454,7 @@ pub fn cmd_restore() i32 = trust {
 
     if os.exists(c"lib") {
         when windows {
-            os.run("rmdir /s /q lib")
+            os.run(c"rmdir /s /q lib")
         }
         when posix {
             os.run(c"rm -rf lib")
@@ -1715,7 +1715,7 @@ pub fn cmd_test_all(
 pub fn cmd_clean() i32 = {
     if os.exists(c"s-out") {
         when windows {
-            trust os.run("rmdir /s /q s-out")
+            trust os.run(c"rmdir /s /q s-out")
         }
         when posix {
             trust os.run(c"rm -rf s-out")

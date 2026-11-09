@@ -183,14 +183,14 @@ pub fn current_platform_name[T: allocators.Allocator](ac: T) ref u8 = trust {
 /// (e.g. "x86_64", "aarch64", "riscv64", "x86").
 pub fn current_arch_name[T: allocators.Allocator](ac: T) ref u8 = trust {
     when windows {
-        val raw: ref u8 = env.get("PROCESSOR_ARCHITECTURE")
-        if string.raw_cmp(raw, "AMD64") == 0 || string.raw_cmp(raw, "amd64") == 0 {
+        val raw: ref u8 = env.get(c"PROCESSOR_ARCHITECTURE")
+        if string.raw_cmp(raw, c"AMD64") == 0 || string.raw_cmp(raw, c"amd64") == 0 {
             return c"x86_64"
         }
-        if string.raw_cmp(raw, "ARM64") == 0 || string.raw_cmp(raw, "arm64") == 0 {
+        if string.raw_cmp(raw, c"ARM64") == 0 || string.raw_cmp(raw, c"arm64") == 0 {
             return c"aarch64"
         }
-        if string.raw_cmp(raw, "x86") == 0 || string.raw_cmp(raw, "X86") == 0 {
+        if string.raw_cmp(raw, c"x86") == 0 || string.raw_cmp(raw, c"X86") == 0 {
             return c"x86"
         }
         return raw
@@ -264,21 +264,21 @@ pub fn get_exe_path[T: allocators.Allocator](ac: T) ref u8 = trust {
             }
         }
         when linux {
-            val n = readlink("/proc/self/exe", buf, 1024)
+            val n = readlink(c"/proc/self/exe", buf, 1024)
             if n > 0 {
                 @store8(@ptradd(buf, n), 0)
                 return buf
             }
         }
         when freebsd {
-            val n = readlink("/proc/curproc/file", buf, 1024)
+            val n = readlink(c"/proc/curproc/file", buf, 1024)
             if n > 0 {
                 @store8(@ptradd(buf, n), 0)
                 return buf
             }
         }
         when netbsd {
-            val n = readlink("/proc/curproc/exe", buf, 1024)
+            val n = readlink(c"/proc/curproc/exe", buf, 1024)
             if n > 0 {
                 @store8(@ptradd(buf, n), 0)
                 return buf
@@ -290,7 +290,7 @@ pub fn get_exe_path[T: allocators.Allocator](ac: T) ref u8 = trust {
             }
         }
     }
-    return "."
+    return c"."
 }
 
 test "reflection returns platform and executable path" {

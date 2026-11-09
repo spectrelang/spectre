@@ -252,7 +252,7 @@ pub fn copy_dir_recursive(src_dir: ref u8, dst_dir: ref u8) bool = trust {
             return false
         }
 
-        val sep: ref u8 = "\\"
+        val sep: ref u8 = c"\\"
         val pattern: ref u8 = @fmtalloc("{s}{s}*", {src_dir, sep})
         val data: mut ref WinFindDataA = @alloc(@sizeof(WinFindDataA)) as ref WinFindDataA
         val handle: ref void = FindFirstFileA(pattern, data)
@@ -267,7 +267,7 @@ pub fn copy_dir_recursive(src_dir: ref u8, dst_dir: ref u8) bool = trust {
         val its_ok: mut bool = true
         for {
             val name: ref u8 = @addr(data.cFileName) as ref u8
-            if !(str.raw_cmp(name, ".") == 0 || str.raw_cmp(name, "..") == 0) {
+            if !(str.raw_cmp(name, c".") == 0 || str.raw_cmp(name, c"..") == 0) {
                 val src_child: ref u8 = @fmtalloc("{s}{s}{s}", {src_dir, sep, name})
                 val dst_child: ref u8 = @fmtalloc("{s}{s}{s}", {dst_dir, sep, name})
                 val attrs: u32 = GetFileAttributesA(src_child)

@@ -46,7 +46,7 @@ fn tool_available(name: ref u8) bool = trust {
         return true
     }
     when windows {
-        if !str.raw_ends_with(name, ".exe") {
+        if !str.raw_ends_with(name, c".exe") {
             return os.in_path(@fmtalloc("{s}.exe", {name}))
         }
     }
@@ -85,15 +85,15 @@ pub fn default_bin_dir() ref u8 = trust {
     }
 
     when windows {
-        val local = os.env("LOCALAPPDATA")
+        val local = os.env(c"LOCALAPPDATA")
         if local is some v {
-            return path.join_raw(v as ref u8, "Spectre/bin")
+            return path.join_raw(v as ref u8, c"Spectre/bin")
         }
         val home: ref u8 = home_dir()
         if str.len_raw(home) == 0 {
             return c"Spectre/bin"
         }
-        return path.join_raw(home, "AppData/Local/Spectre/bin")
+        return path.join_raw(home, c"AppData/Local/Spectre/bin")
     }
 
     val data = os.env(c"XDG_DATA_HOME")
@@ -160,7 +160,7 @@ fn strip_extension(name: ref u8) ref u8 = trust {
 
 fn installed_name(repo: ref u8) ref u8 = trust {
     when windows {
-        if str.raw_ends_with(repo, ".exe") {
+        if str.raw_ends_with(repo, c".exe") {
             return repo
         }
         return @fmtalloc("{s}.exe", {repo})
@@ -418,7 +418,7 @@ fn windows_add_user_path(_bin_dir: ref u8) bool = trust {
     when windows {
         val bin_dir: ref u8 = _bin_dir
         val escaped: ref u8 = ps_escape(bin_dir)
-        val check_cmd: ref u8 = "powershell -NoProfile -Command \"[Environment]::GetEnvironmentVariable('Path','User')\""
+        val check_cmd: ref u8 = c"powershell -NoProfile -Command \"[Environment]::GetEnvironmentVariable('Path','User')\""
         val check_res = os.exec(check_cmd)
         match check_res {
             ok value => {
@@ -457,7 +457,7 @@ fn print_manual_path_instructions(bin_dir: ref u8) void = trust {
             {bin_dir}
         )
         stdio.puts("Command Prompt:")
-        val pth: ref u8 = \\%PATH%
+        val pth: ref u8 = c"%PATH%"
         stdio.print("  setx PATH \"{s};{s}\"\n", {bin_dir, pth})
     }
     when posix {

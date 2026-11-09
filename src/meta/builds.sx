@@ -22,15 +22,15 @@ fn tmp_join(dir: ref u8, name: ref u8) ref u8 = trust {
 /// Returns a platform-appropriate path for a temp file.
 pub fn get_tmp_path(name: ref u8) ref u8 = trust {
     when windows {
-        val tmp_dir: ref u8 = os.getenv("TEMP")
+        val tmp_dir: ref u8 = os.getenv(c"TEMP")
         if tmp_dir != none {
             return tmp_join(tmp_dir, name)
         }
-        val tmp2: ref u8 = os.getenv("TMP")
+        val tmp2: ref u8 = os.getenv(c"TMP")
         if tmp2 != none {
             return tmp_join(tmp2, name)
         }
-        return tmp_join("C:/Windows/Temp", name)
+        return tmp_join(c"C:/Windows/Temp", name)
     }
     return tmp_join(c"/tmp", name)
 }
@@ -94,7 +94,7 @@ pub fn is_compiler_available(compiler: ref u8) bool = {
         return true
     }
     when windows {
-        if !string.raw_ends_with(compiler, ".exe") {
+        if !string.raw_ends_with(compiler, c".exe") {
             val exe_name: ref u8 = trust @fmtalloc("{s}.exe", {compiler})
             val found: bool = trust os.in_path(exe_name)
             trust @free(exe_name)
@@ -112,10 +112,10 @@ pub fn select_alt_compiler(requested: ref u8) ref u8 = {
         return c"clang"
     }
     when windows {
-        if is_compiler_available("clang-cl") {
+        if is_compiler_available(c"clang-cl") {
             return c"clang-cl"
         }
-        if is_compiler_available("cl") {
+        if is_compiler_available(c"cl") {
             return c"cl"
         }
     }
@@ -461,10 +461,10 @@ pub fn pick_alt_backend(
         return c"clang"
     }
     when windows {
-        if is_compiler_available("clang-cl") {
+        if is_compiler_available(c"clang-cl") {
             return c"clang-cl"
         }
-        if is_compiler_available("cl") {
+        if is_compiler_available(c"cl") {
             return c"cl"
         }
     }
