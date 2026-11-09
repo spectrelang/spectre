@@ -426,14 +426,14 @@ fn validate_sxmod(m: ref SxMod) bool = {
 }
 
 fn validate_spectre_version(m: ref SxMod) bool = trust {
-    val installed: ref u8 = meta.get_spectre_version()
+    val installed: str.StringView = meta.get_spectre_version()
     if str.raw_cmp(m.spectre_version, "") == 0 {
         stdio.puts("error: sx.mod is missing the required 'spectre_version' field")
         stdio.print("-> installed compiler: {s}\n", {installed})
         stdio.print("-> add this line to sx.mod: spectre_version \"{s}\"\n", {installed})
         return false
     }
-    if str.raw_cmp(m.spectre_version, installed) != 0 {
+    if !str.view_eql_cstr(installed, m.spectre_version) {
         stdio.puts("error: Spectre version mismatch")
         stdio.print("  installed compiler:      {s}\n", {installed})
         stdio.print("  project spectre_version: {s}\n", {m.spectre_version})

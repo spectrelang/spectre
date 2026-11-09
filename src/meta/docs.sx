@@ -24,7 +24,7 @@ fn doc_alloc(size: usize) ref void = trust {
 }
 
 fn dfmt(format: ref u8, args: argspack) ref u8 = trust {
-    return arenafmt.format(doc_arena_state.arena, format, args)
+    return arenafmt.format(doc_arena_state.arena, str.view_cstr(format), args).ptr
 }
 
 fn build_cstr(sb: ref void) ref u8 = trust {

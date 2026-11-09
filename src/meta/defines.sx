@@ -131,13 +131,10 @@ pub fn add_spec(definition: str.StringView) bool = trust {
     if eq <= 0 {
         return false
     }
-    val name: ref u8 = str.substr(definition.ptr, 0, eq)
-    val value: ref u8 = str.substr(definition.ptr, eq + 1, len - eq - 1)
-    set(str.view_cstr(name), str.view_cstr(value))
+    val name_text = str.view_to_cstr_raw(str.view_slice(definition, 0, eq))
+    val value_text = str.view_to_cstr_raw(
+        str.view_slice(definition, eq + 1, len)
+    )
+    set(str.view(name_text, eq), str.view(value_text, len - eq - 1))
     return true
-}
-
-/// Raw-pointer compatibility wrapper for add_spec.
-pub fn add_spec_raw(definition: ref u8) bool = trust {
-    return add_spec(str.view_cstr(definition))
 }

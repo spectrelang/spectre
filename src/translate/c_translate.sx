@@ -12,7 +12,7 @@ fn talloc(size: usize) ref void = trust {
 }
 
 fn tfmt(format: ref u8, args: argspack) ref u8 = trust {
-    return arenafmt.format(mem.allocator().arena, format, args)
+    return arenafmt.format(mem.allocator().arena, string.view_cstr(format), args).ptr
 }
 
 fn tsubstr(src: ref u8, start: i64, len: i64) ref u8 = trust {

@@ -1,24 +1,28 @@
 /// Compiler-local phase-scoped formatting for codegen and parser internals.
 
 val allocators = use("std/allocators")
+val str        = use("std/string")
 
-extern (C, header) fn strlen(s: ref u8) i64 = "strlen"
-
-fn rewrite_fmt(arena: allocators.ScopedArenaAllocator, fmt: ref u8) ref void = trust {
-    val fmtlen: i64 = strlen(fmt)
-    val buf: ref void = allocators.ScopedArena.alloc_or_none(arena, (fmtlen * 2 + 1) as usize)
+fn rewrite_fmt(
+    arena: allocators.ScopedArenaAllocator,
+    fmt: str.StringView
+) str.StringView = trust {
+    val buf: ref void = allocators.ScopedArena.alloc_or_none(
+        arena,
+        (fmt.len * 2 + 1) as usize
+    )
     if buf == none {
-        return none
+        return str.view(none, 0)
     }
     val out_i: mut i64 = 0
     val i: mut i64 = 0
     for {
-        if i >= fmtlen {
+        if i >= fmt.len {
             break
         }
-        val c: u8 = @load8(@ptradd(fmt, i)) as u8
-        if c == 92 && i + 1 < fmtlen {
-            val next: u8 = @load8(@ptradd(fmt, i + 1)) as u8
+        val c: u8 = @load8(@ptradd(fmt.ptr, i)) as u8
+        if c == 92 && i + 1 < fmt.len {
+            val next: u8 = @load8(@ptradd(fmt.ptr, i + 1)) as u8
             if next == 123 || next == 125 {
                 @store8(@ptradd(buf, out_i), next)
                 out_i++
@@ -38,10 +42,10 @@ fn rewrite_fmt(arena: allocators.ScopedArenaAllocator, fmt: ref u8) ref void = t
             val j: mut i64 = i + 1
             val found: mut i64 = 0
             for {
-                if j >= fmtlen {
+                if j >= fmt.len {
                     break
                 }
-                val inner: u8 = @load8(@ptradd(fmt, j)) as u8
+                val inner: u8 = @load8(@ptradd(fmt.ptr, j)) as u8
                 if inner == 125 {
                     found = 1
                     break
@@ -56,7 +60,7 @@ fn rewrite_fmt(arena: allocators.ScopedArenaAllocator, fmt: ref u8) ref void = t
                     if k >= j {
                         break
                     }
-                    val sc: u8 = @load8(@ptradd(fmt, k)) as u8
+                    val sc: u8 = @load8(@ptradd(fmt.ptr, k)) as u8
                     @store8(@ptradd(buf, out_i), sc)
                     out_i++
                     k++
@@ -74,26 +78,26 @@ fn rewrite_fmt(arena: allocators.ScopedArenaAllocator, fmt: ref u8) ref void = t
         }
     }
     @store8(@ptradd(buf, out_i), 0)
-    return buf
+    return str.view(buf as ref u8, out_i)
 }
 
 pub fn format(
     arena: allocators.ScopedArenaAllocator,
-    fmt_string: ref u8,
+    fmt: str.StringView,
     args: argspack
-) ref u8 = trust {
-    val rfmt: ref void = rewrite_fmt(arena, fmt_string)
-    if rfmt == none {
-        return none
+) str.StringView = trust {
+    val rfmt: str.StringView = rewrite_fmt(arena, fmt)
+    if rfmt.ptr == none {
+        return str.view(none, 0)
     }
     val cap: i64 = 4096
     val out: ref void = allocators.ScopedArena.alloc_or_none(arena, cap as usize)
     if out == none {
-        return none
+        return str.view(none, 0)
     }
-    val written: i64 = @snprintf(out, cap, rfmt, args) as i64
+    val written: i64 = @snprintf(out, cap, rfmt.ptr, args) as i64
     if written < 0 || written >= cap {
-        return none
+        return str.view(none, 0)
     }
-    return out as ref u8
+    return str.view(out as ref u8, written)
 }

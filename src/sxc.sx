@@ -227,7 +227,7 @@ pub fn main() i32 = trust {
         if topic_opt is some t {
             topic = t as ref u8
         }
-        val code: i32 = meta.print_help(topic)
+        val code: i32 = meta.print_help(string.view_cstr(topic))
         allocators.Arena.free(arena)
         return code
     }
@@ -264,7 +264,7 @@ pub fn main() i32 = trust {
             if fmt_arg_opt is some fv {
                 val arg: ref u8 = fv as ref u8
                 if string.raw_cmp(arg, "-h") == 0 || string.raw_cmp(arg, "-help") == 0 {
-                    val code: i32 = meta.print_help("fmt")
+                    val code: i32 = meta.print_help(string.view_cstr("fmt"))
                     allocators.Arena.free(arena)
                     return code
                 } elif string.raw_cmp(arg, "-stdio") == 0 {
@@ -291,7 +291,7 @@ pub fn main() i32 = trust {
             if critic_arg_opt is some cv {
                 val arg: ref u8 = cv as ref u8
                 if string.raw_cmp(arg, "-h") == 0 || string.raw_cmp(arg, "-help") == 0 {
-                    val code: i32 = meta.print_help("critic")
+                    val code: i32 = meta.print_help(string.view_cstr("critic"))
                     allocators.Arena.free(arena)
                     return code
                 } elif string.raw_cmp(arg, "-fix") == 0 {
@@ -331,7 +331,7 @@ pub fn main() i32 = trust {
             if install_arg_opt is some iv {
                 val arg: ref u8 = iv as ref u8
                 if string.raw_cmp(arg, "-h") == 0 || string.raw_cmp(arg, "-help") == 0 {
-                    val code: i32 = meta.print_help("install")
+                    val code: i32 = meta.print_help(string.view_cstr("install"))
                     allocators.Arena.free(arena)
                     return code
                 } elif string.raw_cmp(arg, "-config") == 0
@@ -424,7 +424,7 @@ pub fn main() i32 = trust {
                 if string.raw_cmp(arg, "-md") == 0 {
                     md_mode = true
                 } elif string.raw_cmp(arg, "-h") == 0 || string.raw_cmp(arg, "-help") == 0 {
-                    val code: i32 = meta.print_help("doc")
+                    val code: i32 = meta.print_help(string.view_cstr("doc"))
                     allocators.Arena.free(arena)
                     return code
                 } elif string.raw_cmp(arg, "-o") == 0 || string.raw_cmp(arg, "-output") == 0 {

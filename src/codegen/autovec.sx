@@ -17,13 +17,17 @@ val str    = use("std/string")
 /// `<` condition, and `trailing_increment` records whether the loop uses the
 /// condition-only form with `i++` as its last body statement.
 pub type Plan = {
-    index: mut ref u8
+    index: mut str.StringView
     end_expr: mut ref parser.Node
     trailing_increment: mut bool
     elem_size: mut i64
-    vec_type: mut ref u8
-    elem_ctype: mut ref u8
+    vec_type: mut str.StringView
+    elem_ctype: mut str.StringView
     lanes: mut i64
+}
+
+fn text_eq(a: str.StringView, b: str.StringView) bool = {
+    return trust str.view_eql(a, b)
 }
 
 fn unwrap(node: ref parser.Node) ref parser.Node = {
@@ -41,78 +45,78 @@ fn unwrap(node: ref parser.Node) ref parser.Node = {
     return n
 }
 
-fn ident_is(node: ref parser.Node, name: ref u8) bool = {
+fn ident_is(node: ref parser.Node, name: str.StringView) bool = {
     val n: ref parser.Node = unwrap(node)
     if n == none || n.kind != parser.NK_IDENT {
         return false
     }
-    return str.raw_cmp(parser.node_str_raw(n.d0), name) == 0
+    return text_eq(parser.node_str(n.d0), name)
 }
 
-fn int_is(node: ref parser.Node, text: ref u8) bool = {
+fn int_is(node: ref parser.Node, text: str.StringView) bool = {
     val n: ref parser.Node = unwrap(node)
     if n == none || n.kind != parser.NK_INT_LIT {
         return false
     }
-    return str.raw_cmp(parser.int_lit_text_raw(n), text) == 0
+    return text_eq(parser.int_lit_text(n), text)
 }
 
-fn builtin_is(node: ref parser.Node, name: ref u8) bool = {
+fn builtin_is(node: ref parser.Node, name: str.StringView) bool = {
     val n: ref parser.Node = unwrap(node)
     if n == none || n.kind != parser.NK_BUILTIN {
         return false
     }
-    return str.raw_cmp(parser.builtin_name_raw(n), name) == 0
+    return text_eq(parser.builtin_name(n), name)
 }
 
 /// Return the lane width encoded by a load/store intrinsic, or 0.
 fn node_width(node: ref parser.Node) i64 = {
-    if builtin_is(node, "load32") || builtin_is(node, "store32") {
+    if builtin_is(node, str.view_cstr("load32")) || builtin_is(node, str.view_cstr("store32")) {
         return 4
     }
-    if builtin_is(node, "load") || builtin_is(node, "load64")
-    || builtin_is(node, "store") || builtin_is(node, "store64") {
+    if builtin_is(node, str.view_cstr("load")) || builtin_is(node, str.view_cstr("load64"))
+    || builtin_is(node, str.view_cstr("store")) || builtin_is(node, str.view_cstr("store64")) {
         return 8
     }
     return 0
 }
 
-fn has_binding(bindings: list[ref u8], name: ref u8) bool = {
+fn has_binding(bindings: list[str.StringView], name: str.StringView) bool = {
     for b in bindings {
-        if str.raw_cmp(b, name) == 0 {
+        if text_eq(b, name) {
             return true
         }
     }
     return false
 }
 
-fn size_text(size: i64) ref u8 = {
+fn size_text(size: i64) str.StringView = {
     if size == 4 {
-        return "4"
+        return str.view_cstr("4")
     }
     if size == 8 {
-        return "8"
+        return str.view_cstr("8")
     }
     if size == 2 {
-        return "2"
+        return str.view_cstr("2")
     }
-    return "1"
+    return str.view_cstr("1")
 }
 
-fn shift_text(size: i64) ref u8 = {
+fn shift_text(size: i64) str.StringView = {
     if size == 4 {
-        return "2"
+        return str.view_cstr("2")
     }
     if size == 8 {
         return "3"
     }
     if size == 2 {
-        return "1"
+        return str.view_cstr("1")
     }
-    return "0"
+    return str.view_cstr("0")
 }
 
-fn offset_is_lane(off: ref parser.Node, index: ref u8, elem_size: i64) bool = {
+fn offset_is_lane(off: ref parser.Node, index: str.StringView, elem_size: i64) bool = {
     val n: ref parser.Node = unwrap(off)
     if n == none || n.kind != parser.NK_BINOP {
         return false
@@ -138,8 +142,8 @@ fn offset_is_lane(off: ref parser.Node, index: ref u8, elem_size: i64) bool = {
 
 /// Extract the base pointer of `@ptradd(base, index * size)` when it is a
 /// simple identifier.  Simple identifiers keep aliasing predictable.
-fn ptr_base(node: ref parser.Node, index: ref u8, elem_size: i64) ref parser.Node = {
-    if !builtin_is(node, "ptradd") {
+fn ptr_base(node: ref parser.Node, index: str.StringView, elem_size: i64) ref parser.Node = {
+    if !builtin_is(node, str.view_cstr("ptradd")) {
         return none
     }
     val n: ref parser.Node = unwrap(node)
@@ -163,12 +167,12 @@ fn ptr_base(node: ref parser.Node, index: ref u8, elem_size: i64) ref parser.Nod
     return none
 }
 
-fn is_load_node(node: ref parser.Node, index: ref u8, elem_size: i64) bool = {
+fn is_load_node(node: ref parser.Node, index: str.StringView, elem_size: i64) bool = {
     if node_width(node) != elem_size {
         return false
     }
-    if !builtin_is(node, "load") && !builtin_is(node, "load64")
-    && !builtin_is(node, "load32") {
+    if !builtin_is(node, str.view_cstr("load")) && !builtin_is(node, str.view_cstr("load64"))
+    && !builtin_is(node, str.view_cstr("load32")) {
         return false
     }
     val n: ref parser.Node = unwrap(node)
@@ -183,12 +187,12 @@ fn is_load_node(node: ref parser.Node, index: ref u8, elem_size: i64) bool = {
     return false
 }
 
-fn is_store_node(node: ref parser.Node, index: ref u8, elem_size: i64) bool = {
+fn is_store_node(node: ref parser.Node, index: str.StringView, elem_size: i64) bool = {
     if node_width(node) != elem_size {
         return false
     }
-    if !builtin_is(node, "store") && !builtin_is(node, "store64")
-    && !builtin_is(node, "store32") {
+    if !builtin_is(node, str.view_cstr("store")) && !builtin_is(node, str.view_cstr("store64"))
+    && !builtin_is(node, str.view_cstr("store32")) {
         return false
     }
     val n: ref parser.Node = unwrap(node)
@@ -203,7 +207,7 @@ fn is_store_node(node: ref parser.Node, index: ref u8, elem_size: i64) bool = {
     return false
 }
 
-fn vec_expr(node: ref parser.Node, bindings: list[ref u8], index: ref u8) bool = {
+fn vec_expr(node: ref parser.Node, bindings: list[str.StringView], index: str.StringView) bool = {
     if node == none {
         return false
     }
@@ -212,8 +216,8 @@ fn vec_expr(node: ref parser.Node, bindings: list[ref u8], index: ref u8) bool =
         return vec_expr(n.d0 as ref parser.Node, bindings, index)
     }
     if n.kind == parser.NK_IDENT {
-        val name: ref u8 = parser.node_str_raw(n.d0)
-        if str.raw_cmp(name, index) == 0 {
+        val name: str.StringView = parser.node_str(n.d0)
+        if text_eq(name, index) {
             return false
         }
         return has_binding(bindings, name)
@@ -266,7 +270,7 @@ fn store_value_of(node: ref parser.Node) ref parser.Node = {
 
 fn list_single_store(
     list_ptr: ref void,
-    index: ref u8,
+    index: str.StringView,
     elem_size: i64
 ) ref parser.Node = {
     if list_ptr == none {
@@ -285,18 +289,18 @@ fn list_single_store(
     return none
 }
 
-fn base_name(node: ref parser.Node, index: ref u8, elem_size: i64) ref u8 = {
+fn base_name(node: ref parser.Node, index: str.StringView, elem_size: i64) str.StringView = {
     val base: ref parser.Node = ptr_base(node, index, elem_size)
     if base == none {
         return none
     }
-    return parser.node_str_raw(base.d0)
+    return parser.node_str(base.d0)
 }
 
 fn is_select_node(
     stmt: ref parser.Node,
-    index: ref u8,
-    bindings: list[ref u8],
+    index: str.StringView,
+    bindings: list[str.StringView],
     elem_size: i64
 ) bool = {
     if stmt == none || stmt.kind != parser.NK_IF {
@@ -342,12 +346,12 @@ fn is_select_node(
         if else_ptr_opt is some ep {
             if then_val_opt is some tv {
                 if else_val_opt is some ev {
-                    val then_base: ref u8 = base_name(tp as ref parser.Node, index, elem_size)
-                    val else_base: ref u8 = base_name(ep as ref parser.Node, index, elem_size)
+                    val then_base: str.StringView = base_name(tp as ref parser.Node, index, elem_size)
+                    val else_base: str.StringView = base_name(ep as ref parser.Node, index, elem_size)
                     if then_base == none || else_base == none {
                         return false
                     }
-                    if str.raw_cmp(then_base, else_base) != 0 {
+                    if !text_eq(then_base, else_base) {
                         return false
                     }
                     return vec_expr(tv as ref parser.Node, bindings, index)
@@ -412,18 +416,18 @@ fn infer_elem_size(body: list[ref parser.Node]) i64 = {
     return size
 }
 
-fn vec_type_for(size: i64) ref u8 = {
+fn vec_type_for(size: i64) str.StringView = {
     if size == 4 {
-        return "sx__vi32"
+        return str.view_cstr("sx__vi32")
     }
-    return "sx__vi64"
+    return str.view_cstr("sx__vi64")
 }
 
-fn elem_ctype_for(size: i64) ref u8 = {
+fn elem_ctype_for(size: i64) str.StringView = {
     if size == 4 {
-        return "int32_t"
+        return str.view_cstr("int32_t")
     }
-    return "int64_t"
+    return str.view_cstr("int64_t")
 }
 
 fn lanes_for(size: i64) i64 = {
@@ -446,7 +450,7 @@ pub fn detect(stmt: ref parser.Node, out: mut ref Plan) bool = trust {
     }
     val raw_list: list[ref parser.Node] = raw_body as list[ref parser.Node]
     val raw_len: i64 = @len(raw_list) as i64
-    val index: mut ref u8 = none
+    val index: mut str.StringView = str.view(none, 0)
     val vec_list: mut list[ref parser.Node] = mem.new[ref parser.Node]()
     val trailing_increment: mut bool = false
     val post_node: ref parser.Node = stmt.d3 as ref parser.Node
@@ -458,7 +462,7 @@ pub fn detect(stmt: ref parser.Node, out: mut ref Plan) bool = trust {
         if post_target == none || post_target.kind != parser.NK_IDENT {
             return false
         }
-        index = parser.node_str_raw(post_target.d0)
+        index = parser.node_str(post_target.d0)
         vec_list = raw_list
     } else {
         trailing_increment = true
@@ -475,7 +479,7 @@ pub fn detect(stmt: ref parser.Node, out: mut ref Plan) bool = trust {
             if last_target == none || last_target.kind != parser.NK_IDENT {
                 return false
             }
-            index = parser.node_str_raw(last_target.d0)
+            index = parser.node_str(last_target.d0)
             val bi: mut i64 = 0
             for {
                 if bi >= raw_len - 1 {
@@ -491,12 +495,12 @@ pub fn detect(stmt: ref parser.Node, out: mut ref Plan) bool = trust {
             return false
         }
     }
-    if index == none {
+    if index.ptr == none {
         return false
     }
     if stmt.d0 != 0 {
-        val init_name: ref u8 = parser.node_str_raw(stmt.d0)
-        if str.raw_cmp(init_name, index) != 0 {
+        val init_name: str.StringView = parser.node_str(stmt.d0)
+        if !text_eq(init_name, index) {
             return false
         }
     }
@@ -513,7 +517,7 @@ pub fn detect(stmt: ref parser.Node, out: mut ref Plan) bool = trust {
         return false
     }
 
-    val bindings: mut list[ref u8] = mem.new[ref u8]()
+    val bindings: mut list[str.StringView] = mem.new[str.StringView]()
     val has_work: mut bool = false
     for s_opt in vec_list {
         if s_opt == none {
@@ -521,7 +525,7 @@ pub fn detect(stmt: ref parser.Node, out: mut ref Plan) bool = trust {
         }
         val s: ref parser.Node = s_opt
         if s.kind == parser.NK_VAL {
-            val name: ref u8 = parser.node_str_raw(s.d0)
+            val name: str.StringView = parser.node_str(s.d0)
             val init: ref parser.Node = s.d3 as ref parser.Node
             if name == none || init == none {
                 return false

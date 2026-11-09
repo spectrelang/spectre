@@ -3902,9 +3902,9 @@ fn parse_extern_fn_item(p: mut ref Parser, public: i64) result[ref Node, ref u8]
             use_header_decl = 1
         } else {
             return err arenafmt.format(p.arena,
-                "{s}:{lld}: unknown extern modifier '{s}'",
+                string.view_cstr("{s}:{lld}: unknown extern modifier '{s}'"),
                 {p.filename, p_line(p), modifier}
-            )
+            ).ptr
         }
     }
     p_expect_rparen(p)?

@@ -5001,7 +5001,7 @@ fn cc_embed_data(ctx: mut ref CCtx, path: ref u8, size: i64) ref u8 = trust {
         i = i + (1 as i64)
     }
 
-    val label: ref u8 = arenafmt.format(ctx.arena, "sx__embed_{lld}", {ctx.embed_count})
+    val label: ref u8 = arenafmt.format(ctx.arena, str.view_cstr("sx__embed_{lld}"), {ctx.embed_count}).ptr
     ctx.embed_count = ctx.embed_count + (1 as i64)
     @append(ctx.embed_paths, path)
     @append(ctx.embed_labels, label)
@@ -9401,9 +9401,9 @@ fn preregister_items(
                                 os.exit(1)
                             }
                             val label: ref u8 = cc_embed_data(ctx, epath, ce.d3)
-                            cv = arenafmt.format(ctx.arena, "(int64_t)(intptr_t){s}", {label})
+                            cv = arenafmt.format(ctx.arena, str.view_cstr("(int64_t)(intptr_t){s}"), {label}).ptr
                         } elif str.raw_cmp(bname, "embedlen") == 0 {
-                            cv = arenafmt.format(ctx.arena, "{lld}", {ce.d3})
+                            cv = arenafmt.format(ctx.arena, str.view_cstr("{lld}"), {ce.d3}).ptr
                         }
                     }
                 }

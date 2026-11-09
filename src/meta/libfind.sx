@@ -12,75 +12,72 @@ fn is_trim_char(c: u8) bool = {
     return c == 32 || c == 9 || c == 10 || c == 13
 }
 
-fn trim_raw(s: ref u8) ref u8 = trust {
-    val len: i64 = string.len_raw(s)
+fn trim_raw(s: string.StringView) string.StringView = trust {
     val start: mut i64 = 0
     for {
-        if start >= len {
+        if start >= s.len {
             break
         }
-        val c: u8 = @load8(@ptradd(s, start)) as u8
+        val c: u8 = @load8(@ptradd(s.ptr, start)) as u8
         if !is_trim_char(c) {
             break
         }
         start++
     }
-    val end: mut i64 = len
+    val end: mut i64 = s.len
     for {
         if end <= start {
             break
         }
-        val c: u8 = @load8(@ptradd(s, end - 1)) as u8
+        val c: u8 = @load8(@ptradd(s.ptr, end - 1)) as u8
         if !is_trim_char(c) {
             break
         }
         end--
     }
-    return string.substr(s, start, end - start)
+    return string.view_slice(s, start, end)
 }
 
-fn split_flags(s: ref u8) list[ref u8] = trust {
+fn split_flags(s: string.StringView) list[ref u8] = trust {
     val out: mut list[ref u8] = mem.new[ref u8]()
-    val len: i64 = string.len_raw(s)
     val i: mut i64 = 0
     for {
-        if i >= len {
+        if i >= s.len {
             break
         }
-        val c: u8 = @load8(@ptradd(s, i)) as u8
+        val c: u8 = @load8(@ptradd(s.ptr, i)) as u8
         if is_trim_char(c) {
             i++
             continue
         }
         val start: i64 = i
         for {
-            if i >= len {
+            if i >= s.len {
                 break
             }
-            val c2: u8 = @load8(@ptradd(s, i)) as u8
+            val c2: u8 = @load8(@ptradd(s.ptr, i)) as u8
             if is_trim_char(c2) {
                 break
             }
             i++
         }
-        @append(out, string.substr(s, start, i - start))
+        @append(out, string.view_to_cstr_raw(string.view_slice(s, start, i)))
     }
     return out
 }
 
-fn split_path_list(raw: ref u8, out: mut list[ref u8]) void = trust {
-    val len: i64 = string.len_raw(raw)
+fn split_path_list(raw: string.StringView, out: mut list[ref u8]) void = trust {
     val start: mut i64 = 0
     val i: mut i64 = 0
     for {
-        val at_end: bool = i == len
+        val at_end: bool = i == raw.len
         val c: mut u8 = 0
         if !at_end {
-            c = @load8(@ptradd(raw, i)) as u8
+            c = @load8(@ptradd(raw.ptr, i)) as u8
         }
         if at_end || c == 58 || c == 59 {
             if i > start {
-                @append(out, string.substr(raw, start, i - start))
+                @append(out, string.view_to_cstr_raw(string.view_slice(raw, start, i)))
             }
             start = i + 1
         }
@@ -91,36 +88,33 @@ fn split_path_list(raw: ref u8, out: mut list[ref u8]) void = trust {
     }
 }
 
-fn library_basename(name: ref u8) ref u8 = trust {
-    val len0: i64 = string.len_raw(name)
-    val n0: mut ref u8 = name
-    if len0 > 2 && string.raw_starts_with(n0, "-l") {
-        n0 = string.substr(n0, 2, len0 - 2)
+fn library_basename(name: string.StringView) string.StringView = trust {
+    val n0: mut string.StringView = name
+    if n0.len > 2 && string.view_starts_with(n0, string.view_cstr("-l")) {
+        n0 = string.view_slice(n0, 2, n0.len)
     }
 
-    val len1: i64 = string.len_raw(n0)
-    val n1: mut ref u8 = n0
-    if len1 > 3 && string.raw_starts_with(n1, "lib") {
-        n1 = string.substr(n1, 3, len1 - 3)
+    val n1: mut string.StringView = n0
+    if n1.len > 3 && string.view_starts_with(n1, string.view_cstr("lib")) {
+        n1 = string.view_slice(n1, 3, n1.len)
     }
 
-    val len2: i64 = string.len_raw(n1)
-    if len2 > 3 && string.raw_ends_with(n1, ".so") {
-        return string.substr(n1, 0, len2 - 3)
+    if n1.len > 3 && string.view_ends_with(n1, string.view_cstr(".so")) {
+        return string.view_slice(n1, 0, n1.len - 3)
     }
-    if len2 > 6 && string.raw_ends_with(n1, ".dylib") {
-        return string.substr(n1, 0, len2 - 6)
+    if n1.len > 6 && string.view_ends_with(n1, string.view_cstr(".dylib")) {
+        return string.view_slice(n1, 0, n1.len - 6)
     }
-    if len2 > 2 && string.raw_ends_with(n1, ".a") {
-        return string.substr(n1, 0, len2 - 2)
+    if n1.len > 2 && string.view_ends_with(n1, string.view_cstr(".a")) {
+        return string.view_slice(n1, 0, n1.len - 2)
     }
     return n1
 }
 
-fn pkg_config_libs(module_name: ref u8, static_link: bool) option[list[ref u8]] = trust {
-    val static_arg: mut ref u8 = ""
+fn pkg_config_libs(module_name: string.StringView, static_link: bool) option[list[ref u8]] = trust {
+    val static_arg: mut string.StringView = string.view_cstr("")
     if static_link {
-        static_arg = " --static"
+        static_arg = string.view_cstr(" --static")
     }
     val cmd: ref u8 = @fmtalloc(
         "pkg-config --exists {s} && pkg-config --libs{s} {s} 2>/dev/null",
@@ -129,11 +123,14 @@ fn pkg_config_libs(module_name: ref u8, static_link: bool) option[list[ref u8]] 
     val res = os.exec(cmd)
     match res {
         ok out => {
-            val text: ref u8 = trim_raw(string.cstr(out))
-            if string.len_raw(text) == 0 {
+            val text: string.StringView = trim_raw(string.view(out.ptr, string.len(out)))
+            if text.len == 0 {
+                string.string_free(out)
                 return none
             }
-            return some split_flags(text)
+            val flags: list[ref u8] = split_flags(text)
+            string.string_free(out)
+            return some flags
         }
         err _ => {
             return none
@@ -141,21 +138,21 @@ fn pkg_config_libs(module_name: ref u8, static_link: bool) option[list[ref u8]] 
     }
 }
 
-fn try_pkg_config(name: ref u8, static_link: bool) option[list[ref u8]] = trust {
+fn try_pkg_config(name: string.StringView, static_link: bool) option[list[ref u8]] = trust {
     val direct = pkg_config_libs(name, static_link)
     if direct is some flags {
         return some flags
     }
 
-    val base: ref u8 = library_basename(name)
-    if string.raw_cmp(base, name) != 0 {
+    val base: string.StringView = library_basename(name)
+    if !string.view_eql(base, name) {
         val base_flags = pkg_config_libs(base, static_link)
         if base_flags is some bf {
             return some bf
         }
     } else {
         val prefixed: ref u8 = @fmtalloc("lib{s}", {name})
-        val prefixed_flags = pkg_config_libs(prefixed, static_link)
+        val prefixed_flags = pkg_config_libs(string.view_cstr(prefixed), static_link)
         if prefixed_flags is some pf {
             return some pf
         }
@@ -163,7 +160,7 @@ fn try_pkg_config(name: ref u8, static_link: bool) option[list[ref u8]] = trust 
     return none
 }
 
-fn compiler_library_path(base: ref u8, suffix: ref u8) ref u8 = trust {
+fn compiler_library_path(base: string.StringView, suffix: string.StringView) ref u8 = trust {
     val compilers: list[ref u8] = mem.from2[ref u8]("cc", "clang")
     val missing: ref u8 = @fmtalloc("lib{s}{s}", {base, suffix})
     for compiler in compilers {
@@ -175,10 +172,13 @@ fn compiler_library_path(base: ref u8, suffix: ref u8) ref u8 = trust {
             val res = os.exec(cmd)
             match res {
                 ok out => {
-                    val found: ref u8 = trim_raw(string.cstr(out))
-                    if string.len_raw(found) > 0 && string.raw_cmp(found, missing) != 0 {
-                        return found
+                    val found: string.StringView = trim_raw(string.view(out.ptr, string.len(out)))
+                    if found.len > 0 && !string.view_eql_cstr(found, missing) {
+                        val copied: ref u8 = string.view_to_cstr_raw(found)
+                        string.string_free(out)
+                        return copied
                     }
+                    string.string_free(out)
                 }
                 err _ => {}
             }
@@ -187,12 +187,12 @@ fn compiler_library_path(base: ref u8, suffix: ref u8) ref u8 = trust {
     return ""
 }
 
-fn library_suffixes(platform: ref u8) list[ref u8] = {
-    if string.raw_cmp(platform, "windows") == 0 {
+fn library_suffixes(platform: string.StringView) list[ref u8] = trust {
+    if string.view_eql_cstr(platform, "windows") {
         val suffixes: list[ref u8] = mem.from3[ref u8](".lib", ".dll.a", ".a")
         return suffixes
     }
-    if string.raw_cmp(platform, "darwin") == 0 {
+    if string.view_eql_cstr(platform, "darwin") {
         val suffixes: list[ref u8] = mem.from2[ref u8](".dylib", ".a")
         return suffixes
     }
@@ -200,12 +200,12 @@ fn library_suffixes(platform: ref u8) list[ref u8] = {
     return suffixes
 }
 
-fn native_search_dirs(platform: ref u8) list[ref u8] = trust {
+fn native_search_dirs(platform: string.StringView) list[ref u8] = trust {
     val dirs: mut list[ref u8] = mem.new[ref u8]()
 
-    val library_path: ref u8 = os.getenv("LIBRARY_PATH")
-    if library_path != none {
-        split_path_list(library_path, dirs)
+    val library_path = os.getenv("LIBRARY_PATH")
+    if library_path is some lib_path {
+        split_path_list(string.view_cstr(lib_path as ref u8), dirs)
     }
 
     @append(dirs, "/usr/local/lib")
@@ -214,7 +214,7 @@ fn native_search_dirs(platform: ref u8) list[ref u8] = trust {
     @append(dirs, "/lib")
     @append(dirs, "/lib64")
 
-    if string.raw_cmp(platform, "linux") == 0 {
+    if string.view_eql_cstr(platform, "linux") {
         @append(dirs, "/usr/lib/x86_64-linux-gnu")
         @append(dirs, "/lib/x86_64-linux-gnu")
         @append(dirs, "/usr/lib/aarch64-linux-gnu")
@@ -225,7 +225,7 @@ fn native_search_dirs(platform: ref u8) list[ref u8] = trust {
         @append(dirs, "/usr/lib/powerpc64le-linux-gnu")
     }
 
-    if string.raw_cmp(platform, "darwin") == 0 {
+    if string.view_eql_cstr(platform, "darwin") {
         @append(dirs, "/opt/homebrew/lib")
         @append(dirs, "/opt/local/lib")
     }
@@ -233,10 +233,10 @@ fn native_search_dirs(platform: ref u8) list[ref u8] = trust {
     return dirs
 }
 
-fn find_native(base: ref u8, platform: ref u8) ref u8 = trust {
+fn find_native(base: string.StringView, platform: string.StringView) ref u8 = trust {
     val suffixes: list[ref u8] = library_suffixes(platform)
     for suffix in suffixes {
-        val compiler_path: ref u8 = compiler_library_path(base, suffix)
+        val compiler_path: ref u8 = compiler_library_path(base, string.view_cstr(suffix))
         if string.len_raw(compiler_path) > 0 {
             return path.dir(compiler_path)
         }
@@ -254,20 +254,20 @@ fn find_native(base: ref u8, platform: ref u8) ref u8 = trust {
     return ""
 }
 
-fn requires_pkg_config(platform: ref u8) bool = {
-    if string.raw_cmp(platform, "linux") == 0 {
+fn requires_pkg_config(platform: string.StringView) bool = trust {
+    if string.view_eql_cstr(platform, "linux") {
         return false
     }
-    if string.raw_cmp(platform, "freebsd") == 0 {
+    if string.view_eql_cstr(platform, "freebsd") {
         return false
     }
-    if string.raw_cmp(platform, "openbsd") == 0 {
+    if string.view_eql_cstr(platform, "openbsd") {
         return false
     }
-    if string.raw_cmp(platform, "netbsd") == 0 {
+    if string.view_eql_cstr(platform, "netbsd") {
         return false
     }
-    if string.raw_cmp(platform, "dragonflybsd") == 0 {
+    if string.view_eql_cstr(platform, "dragonflybsd") {
         return false
     }
     return true
@@ -275,12 +275,12 @@ fn requires_pkg_config(platform: ref u8) bool = {
 
 /// Resolve a library name to linker flags for the current platform.
 pub fn resolve(
-    name: ref u8,
-    platform: ref u8,
+    name: string.StringView,
+    platform: string.StringView,
     static_link: bool
 ) result[list[ref u8], ref u8] = trust {
-    val trimmed: ref u8 = trim_raw(name)
-    if string.len_raw(trimmed) == 0 {
+    val trimmed: string.StringView = trim_raw(name)
+    if trimmed.len == 0 {
         return err "library name cannot be empty"
     }
 
@@ -292,7 +292,7 @@ pub fn resolve(
         }
     }
 
-    val base: ref u8 = library_basename(trimmed)
+    val base: string.StringView = library_basename(trimmed)
     val dir: ref u8 = find_native(base, platform)
     if string.len_raw(dir) > 0 {
         val flags: mut list[ref u8] = mem.new[ref u8]()

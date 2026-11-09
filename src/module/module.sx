@@ -1761,7 +1761,7 @@ fn resolve_link_directive(
     if item.kind == parser.NK_LINK {
         @append(flags, parser.node_str_raw(item.d0))
     } elif item.kind == parser.NK_LIB {
-        return libfind.resolve(parser.node_str_raw(item.d0), platform, static_link)
+        return libfind.resolve(parser.node_str(item.d0), str.view_cstr(platform), static_link)
     }
     return ok flags
 }
