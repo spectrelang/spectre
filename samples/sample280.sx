@@ -1,0 +1,61 @@
+val stdio = use("std/stdio")
+val allocators = use("std/allocators")
+
+type Node = {
+    value: mut i32,
+    left: mut ref Node,
+    right: mut ref Node,
+}
+
+pub fn create_node[A: allocators.Allocator](ac: A, value: i32) ref Node = {
+    val mem_res = A.alloc(ac, @sizeof(Node))
+    if mem_res is some mem_ptr {
+        val node_ref: mut ref Node = mem_ptr as ref Node
+        node_ref.value = value
+        node_ref.left = @zeroed
+        node_ref.right = @zeroed
+        return node_ref
+    }
+    val zero_node: ref Node = @zeroed
+    return zero_node
+}
+
+pub fn insert[A: allocators.Allocator](ac: A, root: mut ref Node, value: i32) void = {
+    if value < root.value {
+        if root.left == none {
+            root.left = create_node[A](ac, value)
+        } else {
+            insert[A](ac, root.left, value)
+        }
+    } else {
+        if root.right == none {
+            root.right = create_node[A](ac, value)
+        } else {
+            insert[A](ac, root.right, value)
+        }
+    }
+}
+
+pub fn in_order_traverse(root: ref Node) void = {
+    if root != none {
+        in_order_traverse(root.left)
+        trust stdio.print("Node value: {d}\n", {root.value})
+        in_order_traverse(root.right)
+    }
+}
+
+pub fn main() void = trust {
+    val ac = allocators.Arena.new(4096)?
+
+    val root: mut ref Node = create_node[_](ac, 50)
+
+    insert[_](ac, root, 30)
+    insert[_](ac, root, 70)
+    insert[_](ac, root, 20)
+    insert[_](ac, root, 40)
+    insert[_](ac, root, 60)
+    insert[_](ac, root, 80)
+
+    stdio.print("BST In-Order Traversal Contents:\n", {})
+    in_order_traverse(root)
+}

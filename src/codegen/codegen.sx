@@ -8138,21 +8138,47 @@ fn gen_expr(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
     }
 
     if k == parser.NK_ZERO_INIT {
-        val tmp9: i64 = fresh_tmp(ctx)
-        val buf14: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 64 as usize) as ref u8
-        @snprintf(
-            buf14,
-            64,
-            "    %%t{lld} =l alloc8 64\n    call $memset(l %%t{lld}, w 0, l 64)\n",
-            {tmp9, tmp9}
-        )
-        emit(
+        val expected_zero: ref parser.Node = cg_concrete_ty(
             ctx,
-            buf14
+            ctx.expected_ty as ref parser.Node
         )
-        val res12: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 16 as usize) as ref u8
-        @snprintf(res12, 16, "%%t{lld}", {tmp9})
-        return res12
+        if expected_zero != none && cg_type_needs_aggregate_copy(ctx, expected_zero) {
+            val zsize: i64 = cg_alloc_size_for_type(ctx, expected_zero)
+            val total: mut i64 = zsize
+            if total <= 0 {
+                total = 8
+            }
+            val tmp9: i64 = fresh_tmp(ctx)
+            cg_alloc_aggregate_temp(ctx, tmp9, total)
+            val buf14: ref u8 = allocators.ScopedArena.alloc_or_none(
+                ctx.arena,
+                64 as usize
+            ) as ref u8
+            @snprintf(
+                buf14,
+                64,
+                "    call $memset(l %%t{lld}, w 0, l {lld})\n",
+                {tmp9, total}
+            )
+            emit(ctx, buf14)
+            val res12: ref u8 = allocators.ScopedArena.alloc_or_none(
+                ctx.arena,
+                16 as usize
+            ) as ref u8
+            @snprintf(res12, 16, "%%t{lld}", {tmp9})
+            return res12
+        }
+        // For references, pointers, scalars, lists, options, and any other
+        // non-aggregate type, the zero value is the scalar zero itself. In
+        // particular a `ref T` field initialized with @zeroed must be null,
+        // not the address of a zeroed scratch buffer.
+        val tmpz: i64 = fresh_tmp(ctx)
+        val bufz: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 64 as usize) as ref u8
+        @snprintf(bufz, 64, "    %%t{lld} =l copy 0\n", {tmpz})
+        emit(ctx, bufz)
+        val resz: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 16 as usize) as ref u8
+        @snprintf(resz, 16, "%%t{lld}", {tmpz})
+        return resz
     }
 
     if k == parser.NK_TRY {
@@ -10103,6 +10129,39 @@ fn cg_list_arg_ensured(
         return res_ens
     }
     return get_list_arg(ctx, args, idx)
+}
+
+/// Look up the declared type node of a field assignment target.
+fn cg_field_type_node(ctx: mut ref CgCtx, target: ref parser.Node) ref parser.Node = trust {
+    if target == none || target.kind != parser.NK_FIELD {
+        return none
+    }
+    val ftarget: ref parser.Node = parser.field_base(target)
+    val fname: ref u8 = parser.field_name_raw(target)
+    if ftarget == none || fname == none {
+        return none
+    }
+    val owner_lookup: mut ref u8 = c""
+    if ftarget.kind == parser.NK_IDENT {
+        val bname: ref u8 = parser.node_str_raw(ftarget.d0)
+        owner_lookup = cg_ann_deref(cg_local_type(ctx, bname))
+    } elif ftarget.kind == parser.NK_FIELD {
+        owner_lookup = cg_ann_deref(infer_type_annotation(ctx, ftarget))
+    }
+    if cstr.cmp(owner_lookup, c"") == 0 {
+        return none
+    }
+    val flds: ref void = cg_lookup_struct(ctx, owner_lookup)
+    if flds == none {
+        return none
+    }
+    for sf in flds as list[ref parser.Node] {
+        val sfn: ref parser.Node = sf as ref parser.Node
+        if cstr.cmp(parser.node_str_raw(sfn.d0), fname) == 0 {
+            return sfn.d2 as ref parser.Node
+        }
+    }
+    return none
 }
 
 fn gen_store_field_value(
@@ -15922,7 +15981,8 @@ fn gen_stmt(ctx: mut ref CgCtx, stmt: ref parser.Node) void = trust {
             }
             emit(ctx, buf2)
         } elif tk == parser.NK_FIELD {
-            val val_tmp2_raw: ref u8 = gen_expr(ctx, value)
+            val field_ty: ref parser.Node = cg_field_type_node(ctx, target)
+            val val_tmp2_raw: ref u8 = gen_expr_expected(ctx, value, field_ty)
             val val_qtype2: ref u8 = expr_qbe_type(ctx, value)
             gen_store_field_value(ctx, target, val_tmp2_raw, val_qtype2)
         } elif tk == parser.NK_DEREF {
