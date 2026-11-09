@@ -1,0 +1,14 @@
+pub fn some_other_function() void = {
+    @print("{d}", {
+        (1 + 1 + 1 + 1 + 11
+        + 12+ 14)
+    })
+}
+
+//!fmt-ignore
+pub fn main() void = {
+    @print("{d}", {
+        (1 + 1 + 1 + 1 + 11
+        + 12+ 14)
+    })
+}

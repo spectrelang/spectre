@@ -36,6 +36,15 @@ type Nesting = {
     brackets: mut i64
 }
 
+type IgnoreRegion = {
+    start: mut i64
+    end: mut i64
+    marker: mut ref u8
+    marker_len: mut i64
+    end_marker: mut ref u8
+    filler: mut ref u8
+}
+
 type ImportRec = {
     line_start: mut i64
     line_end: mut i64
@@ -228,6 +237,14 @@ fn collect_line_starts(src: ref u8, len: i64) list[i64] = trust {
     return starts
 }
 
+fn i64_at(items: list[i64], idx: i64) i64 = trust {
+    val opt = @get(items, idx as usize)
+    if opt is some value {
+        return value as i64
+    }
+    return -1
+}
+
 fn token_start(tokens: list[ref lexer.Token], starts: list[i64], idx: i64) i64 = trust {
     val tok_opt = @get(tokens, idx as usize)
     if tok_opt is some tok_val {
@@ -301,6 +318,36 @@ fn kind_is_assert(k: lexer.TokenKind) bool = {
 
 fn kind_is_operator_spacing(k: lexer.TokenKind) bool = {
     match k {
+        Plus() => {
+            return true
+        }
+        Minus() => {
+            return true
+        }
+        Star() => {
+            return true
+        }
+        Slash() => {
+            return true
+        }
+        Percent() => {
+            return true
+        }
+        BitAnd() => {
+            return true
+        }
+        BitOr() => {
+            return true
+        }
+        BitXor() => {
+            return true
+        }
+        Shl() => {
+            return true
+        }
+        Shr() => {
+            return true
+        }
         EqEq() => {
             return true
         }
@@ -331,8 +378,76 @@ fn kind_is_operator_spacing(k: lexer.TokenKind) bool = {
     }
 }
 
+fn kind_ends_expression(k: lexer.TokenKind) bool = {
+    match k {
+        Ident _ => {
+            return true
+        }
+        Str _ => {
+            return true
+        }
+        Int _ => {
+            return true
+        }
+        Float _ => {
+            return true
+        }
+        CharLit _ => {
+            return true
+        }
+        True() => {
+            return true
+        }
+        False() => {
+            return true
+        }
+        None() => {
+            return true
+        }
+        RParen() => {
+            return true
+        }
+        RBracket() => {
+            return true
+        }
+        RBrace() => {
+            return true
+        }
+        Question() => {
+            return true
+        }
+        else => {
+            return false
+        }
+    }
+}
+
+fn kind_is_minus_op(k: lexer.TokenKind) bool = {
+    match k {
+        Minus() => {
+            return true
+        }
+        else => {
+            return false
+        }
+    }
+}
+
+fn minus_is_unary(tokens: list[ref lexer.Token], idx: i64) bool = trust {
+    if idx <= 0 {
+        return true
+    }
+    return !kind_ends_expression(lexer.tok_kind(tokens, idx - 1))
+}
+
 fn operator_len(k: lexer.TokenKind) i64 = {
     match k {
+        Shl() => {
+            return 2
+        }
+        Shr() => {
+            return 2
+        }
         EqEq() => {
             return 2
         }
@@ -2272,7 +2387,8 @@ fn format_operator_spacing(src: ref u8) ref u8 = trust {
         }
         val k: lexer.TokenKind = lexer.tok_kind(tokens, i)
 
-        if kind_is_operator_spacing(k) {
+        val unary_minus: bool = kind_is_minus_op(k) && minus_is_unary(tokens, i)
+        if kind_is_operator_spacing(k) && !unary_minus {
             val op_pos: i64 = token_start(tokens, starts, i)
             val op_len: i64 = operator_len(k)
             val ws_before: mut i64 = op_pos
@@ -3815,7 +3931,458 @@ fn trim_leading_newlines(src: ref u8) ref u8 = trust {
     return buf_build(out)
 }
 
-fn format_source(src: ref u8) ref u8 = trust {
+fn free_ignore_regions(items: list[ref IgnoreRegion]) void = trust {
+    val n: i64 = @len(items) as i64
+    val i: mut i64 = 0
+    for {
+        if i >= n {
+            break
+        }
+        val opt = @get(items, i as usize)
+        if opt is some item_val {
+            val rec: ref IgnoreRegion = item_val as ref IgnoreRegion
+            if rec.marker != none {
+                @free(rec.marker)
+            }
+            if rec.end_marker != none {
+                @free(rec.end_marker)
+            }
+            if rec.filler != none {
+                @free(rec.filler)
+            }
+            @free(rec)
+        }
+        i++
+    }
+    @listfree(items)
+}
+
+fn line_end_at(src: ref u8, start: i64, len: i64) i64 = trust {
+    val i: mut i64 = start
+    for {
+        if i >= len {
+            break
+        }
+        if byte_at(src, i) == 10 {
+            break
+        }
+        i++
+    }
+    return i
+}
+
+fn skip_horizontal_space(src: ref u8, start: i64, end: i64) i64 = trust {
+    val i: mut i64 = start
+    for {
+        if i >= end {
+            break
+        }
+        val c: i64 = byte_at(src, i)
+        if c != 32 && c != 9 {
+            break
+        }
+        i++
+    }
+    return i
+}
+
+fn trim_horizontal_space(src: ref u8, start: i64, end: i64) i64 = trust {
+    val i: mut i64 = end
+    for {
+        if i <= start {
+            break
+        }
+        val c: i64 = byte_at(src, i - 1)
+        if c != 32 && c != 9 && c != 13 {
+            break
+        }
+        i--
+    }
+    return i
+}
+
+fn segment_equals(src: ref u8, start: i64, end: i64, text: ref u8) bool = trust {
+    val text_len: i64 = str.len_raw(text)
+    if end - start != text_len {
+        return false
+    }
+    val i: mut i64 = 0
+    for {
+        if i >= text_len {
+            break
+        }
+        if byte_at(src, start + i) != byte_at(text, i) {
+            return false
+        }
+        i++
+    }
+    return true
+}
+
+fn append_i64(buf: mut ref Buf, value: i64) void = trust {
+    val digits: mut ref u8 = @alloc(32) as ref u8
+    val n: mut i64 = 0
+    val v: mut i64 = value
+    if v == 0 {
+        buf_append_char(buf, 48 as u8)
+        @free(digits)
+        return
+    }
+    for {
+        if v <= 0 {
+            break
+        }
+        @store8(@ptradd(digits, n), (48 + (v % 10)) as u8)
+        v = v / 10
+        n++
+    }
+    val i: mut i64 = n - 1
+    for {
+        if i < 0 {
+            break
+        }
+        buf_append_char(buf, @load8(@ptradd(digits, i)))
+        i--
+    }
+    @free(digits)
+}
+
+fn make_ignore_marker(seed: i64, closing: bool) ref u8 = trust {
+    val out: mut ref Buf = buf_new(64)
+    if closing {
+        buf_append_cstr(out, "__spectre_fmt_ignore_end_")
+    } else {
+        buf_append_cstr(out, "__spectre_fmt_ignore_start_")
+    }
+    append_i64(out, seed)
+    buf_append_cstr(out, "__")
+    return buf_build(out)
+}
+
+fn ignore_region_filler(
+    tokens: list[ref lexer.Token],
+    starts: list[i64],
+    start: i64,
+    end: i64
+) ref u8 = trust {
+    val braces: mut i64 = 0
+    val parens: mut i64 = 0
+    val brackets: mut i64 = 0
+    val ntokens: i64 = @len(tokens) as i64
+    val i: mut i64 = 0
+    for {
+        if i >= ntokens {
+            break
+        }
+        val pos: i64 = token_start(tokens, starts, i)
+        if pos >= start && pos < end {
+            val k: lexer.TokenKind = lexer.tok_kind(tokens, i)
+            if lexer.kind_is_lbrace(k) {
+                braces++
+            } elif lexer.kind_is_rbrace(k) {
+                braces--
+            } elif lexer.kind_is_lparen(k) {
+                parens++
+            } elif lexer.kind_is_rparen(k) {
+                parens--
+            } elif lexer.kind_is_lbracket(k) {
+                brackets++
+            } elif lexer.kind_is_rbracket(k) {
+                brackets--
+            }
+        }
+        i++
+    }
+
+    val out: mut ref Buf = buf_new(32)
+    append_repeated_char(out, 123 as u8, braces)
+    append_repeated_char(out, 40 as u8, parens)
+    append_repeated_char(out, 91 as u8, brackets)
+    append_repeated_char(out, 125 as u8, -braces)
+    append_repeated_char(out, 41 as u8, -parens)
+    append_repeated_char(out, 93 as u8, -brackets)
+    return buf_build(out)
+}
+
+fn append_repeated_char(buf: mut ref Buf, c: u8, count: i64) void = trust {
+    val i: mut i64 = 0
+    for {
+        if i >= count {
+            break
+        }
+        buf_append_char(buf, c)
+        i++
+    }
+}
+
+fn find_segment(haystack: ref u8, start: i64, end: i64, needle: ref u8) i64 = trust {
+    val needle_len: i64 = str.len_raw(needle)
+    if needle_len <= 0 || end - start < needle_len {
+        return -1
+    }
+    val last: i64 = end - needle_len
+    val i: mut i64 = start
+    for {
+        if i > last {
+            break
+        }
+        if segment_equals(haystack, i, i + needle_len, needle) {
+            return i
+        }
+        i++
+    }
+    return -1
+}
+
+fn function_close_line(tokens: list[ref lexer.Token], target_line: i64) i64 = trust {
+    val n: i64 = @len(tokens) as i64
+    val i: mut i64 = 0
+    for {
+        if i >= n {
+            break
+        }
+        if token_line(tokens, i) >= target_line {
+            break
+        }
+        i++
+    }
+
+    if i >= n {
+        return -1
+    }
+
+    val first: lexer.TokenKind = lexer.tok_kind(tokens, i)
+    if lexer.kind_is_pub(first) {
+        i++
+        if i >= n {
+            return -1
+        }
+        if !lexer.kind_is_fn(lexer.tok_kind(tokens, i)) {
+            return -1
+        }
+    } elif !lexer.kind_is_fn(first) {
+        return -1
+    }
+
+    val open: mut i64 = -1
+    for {
+        if i >= n {
+            break
+        }
+        val k: lexer.TokenKind = lexer.tok_kind(tokens, i)
+        if lexer.kind_is_eof(k) {
+            break
+        }
+        if lexer.kind_is_lbrace(k) {
+            open = i
+            break
+        }
+        i++
+    }
+
+    if open < 0 {
+        return -1
+    }
+
+    val close: i64 = find_matching_brace(tokens, open)
+    if close < 0 {
+        return -1
+    }
+    return token_line(tokens, close)
+}
+
+fn collect_ignore_regions(src: ref u8) list[ref IgnoreRegion] = trust {
+    val regions: mut list[ref IgnoreRegion] = mem.new[ref IgnoreRegion]()
+    val len: i64 = str.len_raw(src)
+    val starts: mut list[i64] = collect_line_starts(src, len)
+    defer {
+        free_i64_list(starts)
+    }
+    val nlines: i64 = @len(starts) as i64
+
+    val tok_res = lexer.tokenize(src)
+    val tokens: mut list[ref lexer.Token] = mem.new[ref lexer.Token]()
+    match tok_res {
+        ok toks => {
+            tokens = toks
+        }
+        err _ => {}
+    }
+    defer {
+        lexer.free_tokens(tokens)
+    }
+
+    val covered_until: mut i64 = -1
+    val i: mut i64 = 0
+    for {
+        if i >= nlines {
+            break
+        }
+        if i <= covered_until {
+            i++
+            continue
+        }
+
+        val line_start: i64 = i64_at(starts, i)
+        if line_start < 0 {
+            i++
+            continue
+        }
+        val line_end: i64 = line_end_at(src, line_start, len)
+        val content_start: i64 = skip_horizontal_space(src, line_start, line_end)
+        val content_end: i64 = trim_horizontal_space(src, content_start, line_end)
+
+        if segment_equals(src, content_start, content_end, "//!fmt-ignore") &&
+        i + 1 < nlines {
+            val target_start: i64 = i64_at(starts, i + 1)
+            if target_start >= 0 {
+                val target_end: i64 = line_end_at(src, target_start, len)
+                val target_content: i64 = skip_horizontal_space(src, target_start, target_end)
+                if target_content < target_end {
+                    val target_line: i64 = i + 2
+                    val close_line: i64 = function_close_line(tokens, target_line)
+                    val region_end: mut i64 = target_end
+                    val last_line: mut i64 = i + 1
+
+                    if close_line > 0 && close_line <= nlines {
+                        val close_start: i64 = i64_at(starts, close_line - 1)
+                        if close_start >= 0 {
+                            region_end = line_end_at(src, close_start, len)
+                            last_line = close_line - 1
+                        }
+                    }
+
+                    val marker: ref u8 = make_ignore_marker(target_start, false)
+                    val end_marker: ref u8 = make_ignore_marker(target_start, true)
+                    val filler: ref u8 =
+                    ignore_region_filler(tokens, starts, target_start, region_end)
+                    val rec: mut ref IgnoreRegion =
+                    @alloc(@sizeof(IgnoreRegion)) as ref IgnoreRegion
+                    rec.start = target_start
+                    rec.end = region_end
+                    rec.marker = marker
+                    rec.marker_len = str.len_raw(marker)
+                    rec.end_marker = end_marker
+                    rec.filler = filler
+                    @append(regions, rec)
+                    covered_until = last_line
+                }
+            }
+        }
+
+        i++
+    }
+
+    return regions
+}
+
+fn mask_ignore_regions(src: ref u8, regions: list[ref IgnoreRegion]) ref u8 = trust {
+    val len: i64 = str.len_raw(src)
+    val out: mut ref Buf = buf_new(len + 64)
+    val pos: mut i64 = 0
+
+    for rec in regions {
+        if rec.start > pos {
+            buf_append_bytes(out, src, pos, rec.start - pos)
+        }
+        buf_append_cstr(out, rec.marker)
+        buf_append_cstr(out, rec.filler)
+        buf_append_cstr(out, rec.end_marker)
+        pos = rec.end
+    }
+
+    if pos < len {
+        buf_append_bytes(out, src, pos, len - pos)
+    }
+
+    return buf_build(out)
+}
+
+fn unmask_ignore_regions(
+    original: ref u8,
+    formatted: ref u8,
+    regions: list[ref IgnoreRegion]
+) ref u8 = trust {
+    val len: i64 = str.len_raw(formatted)
+    val out: mut ref Buf = buf_new(len + 64)
+    val pos: mut i64 = 0
+
+    for rec in regions {
+        val marker_pos: i64 = find_segment(formatted, pos, len, rec.marker)
+        if marker_pos < 0 {
+            continue
+        }
+        val end_marker_pos: i64 =
+        find_segment(formatted, marker_pos + rec.marker_len, len, rec.end_marker)
+        if end_marker_pos < 0 {
+            continue
+        }
+
+        val replace_start: mut i64 = marker_pos
+        for {
+            if replace_start <= 0 {
+                break
+            }
+            if byte_at(formatted, replace_start - 1) == 10 {
+                break
+            }
+            replace_start--
+        }
+        val prefix_start: i64 = replace_start
+        val prefix_ok: mut bool = true
+        for {
+            if replace_start >= marker_pos {
+                break
+            }
+            val c: i64 = byte_at(formatted, replace_start)
+            if c != 32 && c != 9 {
+                prefix_ok = false
+                break
+            }
+            replace_start++
+        }
+        if !prefix_ok {
+            replace_start = marker_pos
+        } else {
+            replace_start = prefix_start
+        }
+
+        val marker_end: i64 = end_marker_pos + str.len_raw(rec.end_marker)
+        val line_end: i64 = line_end_at(formatted, marker_end, len)
+        val replace_end: mut i64 = marker_end
+        val suffix_ok: mut bool = true
+        for {
+            if replace_end >= line_end {
+                break
+            }
+            val c: i64 = byte_at(formatted, replace_end)
+            if c != 32 && c != 9 && c != 13 {
+                suffix_ok = false
+                break
+            }
+            replace_end++
+        }
+        if suffix_ok {
+            replace_end = line_end
+        }
+
+        if replace_start > pos {
+            buf_append_bytes(out, formatted, pos, replace_start - pos)
+        }
+        if rec.end > rec.start {
+            buf_append_bytes(out, original, rec.start, rec.end - rec.start)
+        }
+        pos = replace_end
+    }
+
+    if pos < len {
+        buf_append_bytes(out, formatted, pos, len - pos)
+    }
+
+    return buf_build(out)
+}
+
+fn format_pipeline(src: ref u8) ref u8 = trust {
     val current: mut ref u8 = rewrite_matches(src)
     val pass: mut ref u8 = format_for_headers(current)
     release_if_owned(current, pass, src)
@@ -3896,6 +4463,25 @@ fn format_source(src: ref u8) ref u8 = trust {
     val result: ref u8 = trim_leading_newlines(current)
     release_if_owned(current, result, src)
     return result
+}
+
+fn format_source(src: ref u8) ref u8 = trust {
+    val regions: list[ref IgnoreRegion] = collect_ignore_regions(src)
+    if @len(regions) == 0 {
+        free_ignore_regions(regions)
+        return format_pipeline(src)
+    }
+
+    val masked: ref u8 = mask_ignore_regions(src, regions)
+    val formatted: ref u8 = format_pipeline(masked)
+    val restored: ref u8 = unmask_ignore_regions(src, formatted, regions)
+
+    if formatted != masked {
+        @free(formatted)
+    }
+    @free(masked)
+    free_ignore_regions(regions)
+    return restored
 }
 
 fn has_sx_suffix(file: ref u8) bool = {
