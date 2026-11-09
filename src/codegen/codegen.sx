@@ -1643,13 +1643,25 @@ fn monomorphize_generic_fn(ctx: mut ref CgCtx, gfn_node: ref parser.Node, gfn_pr
     }
     @store8(@ptradd(suffix, spos), 0)
 
-    val mono_base: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 1024 as usize) as ref u8
+    val leaf_base: ref u8 = generic_fn_qualified_name(ctx, gfn_node, c"")
+    val mono_leaf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 1024 as usize) as ref u8
     @snprintf(
-        mono_base,
+        mono_leaf,
         1024,
         "{s}__GENMONO{s}",
-        {fn_name, suffix}
+        {leaf_base, suffix}
     )
+    val mono_base: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 1024 as usize) as ref u8
+    if cstr.cmp(gfn_prefix, c"") == 0 {
+        @snprintf(mono_base, 1024, "sx__{s}", {mono_leaf})
+    } else {
+        @snprintf(
+            mono_base,
+            1024,
+            "{s}__GENMONO{s}",
+            {fn_name, suffix}
+        )
+    }
     val old_gsubst_names: mut list[ref u8] = mem.new[ref u8]()
     for n in ctx.gsubst_names {
         @append(old_gsubst_names, n)
@@ -1704,7 +1716,7 @@ fn monomorphize_generic_fn(ctx: mut ref CgCtx, gfn_node: ref parser.Node, gfn_pr
         val syn: mut ref parser.Node = parser.make_node(ctx.arena, parser.NK_FN, gfn_node.line)
         syn.d0 = 0
         syn.d1 = 0 as i64
-        parser.node_store_string_slot(@addr(syn.d2), mono_base)
+        parser.node_store_string_slot(@addr(syn.d2), mono_leaf)
         val pl: list[ref parser.Node] = new_params
         parser.node_store_slot[list[ref parser.Node]](@addr(syn.d3), pl)
         parser.node_store_slot[ref parser.Node](@addr(syn.d4), new_ret)
@@ -1746,7 +1758,7 @@ fn monomorphize_generic_fn(ctx: mut ref CgCtx, gfn_node: ref parser.Node, gfn_pr
         val temp_mono_sb: ref void = builder.StringBuilder.new()
         ctx.sb = temp_mono_sb
         ctx.current_module_prefix = gfn_prefix
-        gen_fn_prefixed(ctx, syn, c"")
+        gen_fn_prefixed(ctx, syn, gfn_prefix)
 
         ctx.sb = saved_sb
         ctx.tmp = saved_tmp
@@ -6663,7 +6675,7 @@ fn emit_global_val(ctx: mut ref CgCtx, mod_prefix: ref u8, node: ref parser.Node
 
     val glabel: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 512 as usize) as ref u8
     if cstr.cmp(mod_prefix, c"") == 0 {
-        @snprintf(glabel, 512, "{s}", {gname})
+        @snprintf(glabel, 512, "sx__{s}", {gname})
     } else {
         @snprintf(glabel, 512, "{s}__{s}", {mod_prefix, gname})
     }
@@ -18305,7 +18317,11 @@ fn gen_fn_prefixed(ctx: mut ref CgCtx, fn_node: ref parser.Node, mod_prefix: ref
     val is_std_child: bool = is_std_child_name(mod_prefix)
 
     if cstr.cmp(mod_prefix, c"") == 0 {
-        @snprintf(mangled, 512, "{s}", {base})
+        if cstr.cmp(base, c"main") == 0 {
+            @snprintf(mangled, 512, "{s}", {base})
+        } else {
+            @snprintf(mangled, 512, "sx__{s}", {base})
+        }
     } elif is_std_child {
         @snprintf(mangled, 512, "std__{s}__{s}", {mod_prefix, base})
     } else {
@@ -19029,7 +19045,11 @@ fn preregister_items(
                     512 as usize
                 ) as ref u8
                 if cstr.cmp(mod_prefix, c"") == 0 {
-                    @snprintf(mangled, 512, "{s}", {base})
+                    if cstr.cmp(base, c"main") == 0 {
+                        @snprintf(mangled, 512, "{s}", {base})
+                    } else {
+                        @snprintf(mangled, 512, "sx__{s}", {base})
+                    }
                 } elif is_std_child {
                     @snprintf(mangled, 512, "std__{s}__{s}", {mod_prefix, base})
                 } else {
