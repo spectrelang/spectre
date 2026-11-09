@@ -42,7 +42,7 @@ pub type CgCtx = {
     ltypes: mut list[ref u8]
     unames: mut list[ref u8]
     uvariants: mut list[ref void]
-    fn_nodes: mut list[ref void]
+    fn_nodes: mut list[ref parser.Node]
     fn_names: mut list[ref u8]
     fn_params: mut list[ref void]
     fn_rets: mut list[ref void]
@@ -88,7 +88,7 @@ pub type CgCtx = {
     inv_cur_pnames: mut list[ref u8]
     inv_cur_ptypes: mut list[ref u8]
     gfn_names: mut list[ref u8]
-    gfn_nodes: mut list[ref void]
+    gfn_nodes: mut list[ref parser.Node]
     gfn_prefixes: mut list[ref u8]
     gsubst_names: mut list[ref u8]
     gsubst_tnodes: mut list[ref void]
@@ -171,7 +171,7 @@ fn cg_new() ref CgCtx = trust {
     ctx.ltypes = mem.new[ref u8]()
     ctx.unames = mem.new[ref u8]()
     ctx.uvariants = mem.new[ref void]()
-    ctx.fn_nodes = mem.new[ref void]()
+    ctx.fn_nodes = mem.new[ref parser.Node]()
     ctx.fn_names = mem.new[ref u8]()
     ctx.fn_params = mem.new[ref void]()
     ctx.fn_rets = mem.new[ref void]()
@@ -217,7 +217,7 @@ fn cg_new() ref CgCtx = trust {
     ctx.inv_cur_pnames = mem.new[ref u8]()
     ctx.inv_cur_ptypes = mem.new[ref u8]()
     ctx.gfn_names = mem.new[ref u8]()
-    ctx.gfn_nodes = mem.new[ref void]()
+    ctx.gfn_nodes = mem.new[ref parser.Node]()
     ctx.gfn_prefixes = mem.new[ref u8]()
     ctx.gsubst_names = mem.new[ref u8]()
     ctx.gsubst_tnodes = mem.new[ref void]()
@@ -402,7 +402,7 @@ fn register_generic_fn(
     prefix: ref u8
 ) void = trust {
     @append(ctx.gfn_names, name)
-    @append(ctx.gfn_nodes as list[ref void], node)
+    @append(ctx.gfn_nodes, node)
     @append(ctx.gfn_prefixes, prefix)
 }
 
@@ -427,7 +427,7 @@ fn lookup_generic_fn(ctx: ref CgCtx, name: ref u8) ref parser.Node = trust {
         if n_opt is some n {
             val candidate: ref u8 = n as ref u8
             if str.raw_cmp(candidate, name) == 0 {
-                val nd_opt = @get(ctx.gfn_nodes as list[ref void], ni as usize)
+                val nd_opt = @get(ctx.gfn_nodes, ni as usize)
                 if nd_opt is some nd {
                     return nd as ref parser.Node
                 } else {
@@ -446,7 +446,7 @@ fn lookup_generic_fn(ctx: ref CgCtx, name: ref u8) ref parser.Node = trust {
         ni++
     }
     if found_idx >= 0 {
-        val nd_opt = @get(ctx.gfn_nodes as list[ref void], found_idx as usize)
+        val nd_opt = @get(ctx.gfn_nodes, found_idx as usize)
         if nd_opt is some nd {
             return nd as ref parser.Node
         } else {
@@ -508,13 +508,13 @@ fn lookup_generic_fn_prefix_by_node(ctx: ref CgCtx, node: ref parser.Node) ref u
     if node == none {
         return c""
     }
-    val nlen: i64 = @len(ctx.gfn_nodes as list[ref void]) as i64
+    val nlen: i64 = @len(ctx.gfn_nodes) as i64
     val ni: mut i64 = 0
     for {
         if ni >= nlen {
             break
         }
-        val nd_opt = @get(ctx.gfn_nodes as list[ref void], ni as usize)
+        val nd_opt = @get(ctx.gfn_nodes, ni as usize)
         if nd_opt is some nd {
             if nd as ref parser.Node == node {
                 val p_opt = @get(ctx.gfn_prefixes, ni as usize)
@@ -2799,14 +2799,145 @@ fn cg_is_fn(ctx: mut ref CgCtx, name: ref u8) bool = trust {
 /// Tries exact match first, then the current module's prefix, then suffix
 /// match (e.g. "hash_string" -> "collections__hash_string"). The function
 /// index makes all three lookups O(1) instead of scanning every function.
+/// Return the registered spelling for `name` when it is an exact/alias entry,
+/// or `none` when the name has not been registered.
+fn cg_lookup_canonical_name(ctx: ref CgCtx, name: ref u8) ref u8 = trust {
+    match collections.RawIndexMap.get(ctx.fn_name_index, name) {
+        some raw_index => {
+            val index: usize = raw_index as usize
+            val found_opt = @get(ctx.fn_names, index)
+            if found_opt is some found {
+                return found as ref u8
+            }
+        }
+        none => {}
+    }
+    return none
+}
+
+/// Find a registered function by bare-name suffix, but only when all matching
+/// registrations agree on the same full name. Ambiguous suffixes are left for
+/// the caller's module-prefix logic instead of being resolved arbitrarily.
+fn cg_find_unique_fn_by_suffix(ctx: ref CgCtx, suffix: ref u8) ref u8 = trust {
+    val nlen: i64 = @len(ctx.fn_names) as i64
+    val slen: i64 = str.len_raw(suffix)
+    val found: mut ref u8 = none
+    val i: mut i64 = 0
+    for {
+        if i >= nlen {
+            break
+        }
+        val n_opt = @get(ctx.fn_names, i as usize)
+        if n_opt is some n {
+            val cand: ref u8 = n as ref u8
+            val clen: i64 = str.len_raw(cand)
+            val matches: mut bool = false
+            if clen == slen {
+                if str.raw_cmp(cand, suffix) == 0 {
+                    matches = true
+                }
+            } elif clen > slen + 2 {
+                val tail: ref u8 = @ptradd(cand, clen - slen) as ref u8
+                if str.raw_cmp(tail, suffix) == 0 {
+                    if @load8(@ptradd(cand, clen - slen - 1)) == 95
+                    && @load8(@ptradd(cand, clen - slen - 2)) == 95 {
+                        matches = true
+                    }
+                }
+            }
+            if matches {
+                if found == none {
+                    found = cand
+                } elif str.raw_cmp(found, cand) != 0 {
+                    return none
+                }
+            }
+        }
+        i++
+    }
+    return found
+}
+
 fn cg_resolve_fn_name(ctx: mut ref CgCtx, name: ref u8) ref u8 = trust {
     if name == none {
         return none
     }
 
-    if collections.RawIndexMap.contains(ctx.fn_name_index, name) {
-        cg_mark_prefix_used(ctx, c"")
-        return name
+    if !str.raw_contains(name, c"__") {
+        val exact: ref u8 = cg_lookup_canonical_name(ctx, name)
+        if exact != none {
+            cg_mark_prefix_used(ctx, c"")
+            return exact
+        }
+    }
+
+    // Qualified call names arrive here as `alias__name` (or
+    // `alias__Type__method`). Resolve them against the registered canonical
+    // spelling so an import alias can never emit a call to a name that was
+    // never defined. Fall back to suffix matching when the alias is not the
+    // prefix used during registration (for example `string` vs `std__str`).
+    val qlen: i64 = str.len_raw(name)
+    val sep: mut i64 = -1
+    val qi: mut i64 = 0
+    for {
+        if qi + 1 >= qlen {
+            break
+        }
+        if @load8(@ptradd(name, qi)) == 95 && @load8(@ptradd(name, qi + 1)) == 95 {
+            sep = qi
+            break
+        }
+        qi++
+    }
+    if sep > 0 {
+        val alias: ref u8 = allocators.ScopedArena.alloc_or_none(
+            ctx.arena,
+            (sep + 1) as usize
+        ) as ref u8
+        @memcpy(alias, name, sep as usize)
+        @store8(@ptradd(alias, sep), 0)
+        val rest: ref u8 = @ptradd(name, sep + 2) as ref u8
+        val alen: i64 = str.len_raw(alias)
+        val rlen: i64 = str.len_raw(rest)
+        val cand1: ref u8 = allocators.ScopedArena.alloc_or_none(
+            ctx.arena,
+            (alen + rlen + 3) as usize
+        ) as ref u8
+        @snprintf(cand1, alen + rlen + 3, "{s}__{s}", {alias, rest})
+        val cand2: ref u8 = allocators.ScopedArena.alloc_or_none(
+            ctx.arena,
+            (alen + rlen + 8) as usize
+        ) as ref u8
+        @snprintf(cand2, alen + rlen + 8, "std__{s}__{s}", {alias, rest})
+        val direct: ref u8 = cg_lookup_canonical_name(ctx, cand1)
+        if direct != none && str.len_raw(direct) != 0 {
+            cg_mark_name_prefix(ctx, name)
+            return direct
+        }
+        val direct_std: ref u8 = cg_lookup_canonical_name(ctx, cand2)
+        if direct_std != none && str.len_raw(direct_std) != 0 {
+            cg_mark_name_prefix(ctx, name)
+            return direct_std
+        }
+        // `string` is the conventional alias for `std/string`, whose canonical
+        // module prefix is `str`.
+        if str.raw_cmp(alias, c"string") == 0 {
+            val cand3: ref u8 = allocators.ScopedArena.alloc_or_none(
+                ctx.arena,
+                (rlen + 11) as usize
+            ) as ref u8
+            @snprintf(cand3, rlen + 11, "std__str__{s}", {rest})
+            val direct_str: ref u8 = cg_lookup_canonical_name(ctx, cand3)
+            if direct_str != none && str.len_raw(direct_str) != 0 {
+                cg_mark_name_prefix(ctx, name)
+                return direct_str
+            }
+        }
+        val found: ref u8 = cg_find_unique_fn_by_suffix(ctx, rest)
+        if found != none && str.len_raw(found) != 0 {
+            cg_mark_name_prefix(ctx, name)
+            return found
+        }
     }
 
     val prefix: ref u8 = ctx.current_module_prefix
@@ -2830,9 +2961,16 @@ fn cg_resolve_fn_name(ctx: mut ref CgCtx, name: ref u8) ref u8 = trust {
             ) as ref u8
             @snprintf(cur_name, cap, "{s}__{s}", {prefix, name})
         }
-        if collections.RawIndexMap.contains(ctx.fn_name_index, cur_name) {
-            cg_mark_prefix_used(ctx, prefix)
-            return cur_name
+        match collections.RawIndexMap.get(ctx.fn_name_index, cur_name) {
+            some raw_index => {
+                val index: usize = raw_index as usize
+                val found_opt = @get(ctx.fn_names, index)
+                if found_opt is some found {
+                    cg_mark_prefix_used(ctx, prefix)
+                    return found as ref u8
+                }
+            }
+            none => {}
         }
     }
 
@@ -2903,7 +3041,7 @@ fn cg_register_fn(
     params: ref void,
     ret_ty: ref void
 ) void = trust {
-    @append(ctx.fn_nodes as list[ref void], node)
+    @append(ctx.fn_nodes, node)
     @append(ctx.fn_names, mangled)
     @append(ctx.fn_params as list[ref void], params)
     @append(ctx.fn_rets as list[ref void], ret_ty)
@@ -2911,25 +3049,32 @@ fn cg_register_fn(
     cg_index_fn_name(ctx, mangled, index)
 }
 
-fn cg_lookup_fn_name_by_node(ctx: ref CgCtx, node: ref parser.Node) ref u8 = trust {
+fn cg_lookup_fn_name_by_node(ctx: mut ref CgCtx, node: ref parser.Node) ref u8 = trust {
     if node == none {
         return none
     }
     if node.kind == parser.NK_EXTERN_FN {
         return parser.node_str_raw(node.d2)
     }
-    val nlen: i64 = @len(ctx.fn_nodes as list[ref void]) as i64
+    val nlen: i64 = @len(ctx.fn_nodes) as i64
     val ni: mut i64 = 0
     for {
         if ni >= nlen {
             break
         }
-        val nd_opt = @get(ctx.fn_nodes as list[ref void], ni as usize)
+        val nd_opt = @get(ctx.fn_nodes, ni as usize)
         if nd_opt is some nd {
             if nd as ref parser.Node == node {
                 val n_opt = @get(ctx.fn_names, ni as usize)
                 if n_opt is some n {
-                    return n as ref u8
+                    val found: ref u8 = n as ref u8
+                    if str.raw_contains(found, c"__") {
+                        val canonical: ref u8 = cg_resolve_fn_name(ctx, found)
+                        if canonical != none {
+                            return canonical
+                        }
+                    }
+                    return found
                 } else {
                     return none
                 }
@@ -10216,10 +10361,14 @@ fn gen_call(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
         if resolved_fn_node != none && resolved_fn_node.kind == parser.NK_GENERIC_FN {
             gfn_node = resolved_fn_node
             gfn_prefix = lookup_generic_fn_prefix_by_node(ctx, gfn_node)
-        } else {
+        }
+        if gfn_node == none {
             gfn_node = lookup_generic_fn(ctx, base_name)
-            if gfn_node != none {
-                gfn_prefix = lookup_generic_fn_prefix(ctx, base_name)
+        }
+        if gfn_node != none && str.len_raw(gfn_prefix) == 0 {
+            val by_name_prefix: ref u8 = lookup_generic_fn_prefix(ctx, base_name)
+            if str.len_raw(by_name_prefix) != 0 {
+                gfn_prefix = by_name_prefix
             }
         }
         val gsrc_params: mut ref void = none
