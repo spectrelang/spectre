@@ -10431,12 +10431,19 @@ fn gen_call(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
                         val key: str.StringView = parser.str_lit_text(key_node)
                         val value: str.StringView = defines.get(key)
                         if value.ptr != none {
-                            val idx: i64 = intern_string(ctx, value)
+                            val ret_ann: ref u8 = infer_type_annotation(ctx, expr)
                             val sbuf: ref u8 = allocators.ScopedArena.alloc_or_none(
                                 ctx.arena,
                                 64 as usize
                             ) as ref u8
-                            @snprintf(sbuf, 64, "$__str{lld}", {idx})
+                            if ann_is_string_type(ret_ann, c"StringView")
+                            || ann_is_string_type(ret_ann, c"String") {
+                                val idx: i64 = intern_string_view(ctx, value)
+                                @snprintf(sbuf, 64, "$__sv{lld}", {idx})
+                            } else {
+                                val idx: i64 = intern_string(ctx, value)
+                                @snprintf(sbuf, 64, "$__str{lld}", {idx})
+                            }
                             return sbuf
                         }
                     }

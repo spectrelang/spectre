@@ -58,6 +58,12 @@ if command -v git >/dev/null 2>&1; then
 	GIT_HASH="$(git rev-parse --short HEAD 2>/dev/null || echo unknown)"
 fi
 
+PROJECT_VERSION="$(sed -n 's/^[[:space:]]*version[[:space:]]*"\([^"]*\)".*/\1/p' sx.mod | head -n 1)"
+DEFINES=(-d:GIT_HASH="$GIT_HASH")
+if [ -n "$PROJECT_VERSION" ]; then
+	DEFINES+=(-d:SPECTRE_MOD_VERSION="$PROJECT_VERSION")
+fi
+
 STAGE0="${SPECTRE_STAGE0:-}"
 if [ -z "$STAGE0" ]; then
 	if [ -x ./spectre-dev ]; then
@@ -74,12 +80,12 @@ echo "Building spectre stage 1..."
 "$STAGE0" ./src/sxc.sx $BACKEND_FLAG -o ./spectre-stage1 || exit 1
 
 echo "Building spectre-dev..."
-./spectre-stage1 -d:GIT_HASH="$GIT_HASH" ./src/sxc.sx $BACKEND_FLAG -o spectre-dev || exit 1
+./spectre-stage1 "${DEFINES[@]}" ./src/sxc.sx $BACKEND_FLAG -o spectre-dev || exit 1
 rm -f ./spectre-stage1
 
 if [ $DO_BOOTSTRAP -eq 1 ]; then
 	echo "Emitting bootstrap SSA..."
-	./spectre-dev -d:GIT_HASH="$GIT_HASH" ./src/sxc.sx -emit-ssa >./bootstrap/sxc.ssa || exit 1
+	./spectre-dev "${DEFINES[@]}" ./src/sxc.sx -emit-ssa >./bootstrap/sxc.ssa || exit 1
 	echo "Bootstrap SSA written to ./bootstrap/sxc.ssa"
 fi
 

@@ -3,7 +3,11 @@ val str   = use("std/string")
 val menv  = use("env.sx")
 
 pub fn get_spectre_version() str.StringView = {
-    return menv.get("SPECTRE_MOD_VERSION")
+    val version: str.StringView = menv.get("SPECTRE_MOD_VERSION")
+    if version.len != 0 {
+        return version
+    }
+    return menv.get("VERSION")
 }
 
 pub fn get_commit_hash() str.StringView = {

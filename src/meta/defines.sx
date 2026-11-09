@@ -11,18 +11,30 @@ fn cstr_heap() allocators.HeapAllocator = {
 }
 
 pub type Define = {
-    name: mut str.CString
-    value: mut str.CString
+    name: mut ref u8
+    value: mut ref u8
     next: mut ref Define
 }
 
 pub type EnvAlias = {
-    name: mut str.CString
+    name: mut ref u8
     next: mut ref EnvAlias
 }
 
 val defs: mut ref Define = none
 val env_aliases: mut ref EnvAlias = none
+
+/// Duplicate a view into an owned NUL-terminated C string.
+fn dup_cstr(value: str.StringView) ref u8 = trust {
+    val cs: str.CString = str.cstring_from[allocators.HeapAllocator](cstr_heap(), value)
+    return str.cstring_ptr(cs)
+}
+
+fn free_cstr(value: ref u8) void = trust {
+    if value != none {
+        allocators.HeapAllocator.free(cstr_heap(), value as ref void)
+    }
+}
 
 /// Return true when a resolved module path is the standard or compiler-local
 /// environment module.
@@ -43,13 +55,13 @@ pub fn register_env_alias(name: str.StringView) void = trust {
         if cur == none {
             break
         }
-        if str.view_eql(str.cstring(cur.name), name) {
+        if str.view_eql(str.view_cstr(cur.name), name) {
             return
         }
         cur = cur.next
     }
     val alias: mut ref EnvAlias = @alloc(@sizeof(EnvAlias)) as ref EnvAlias
-    alias.name = str.cstring_from[allocators.HeapAllocator](cstr_heap(), name)
+    alias.name = dup_cstr(name)
     alias.next = env_aliases
     env_aliases = alias
 }
@@ -61,7 +73,7 @@ pub fn is_env_alias(name: str.StringView) bool = {
         if cur == none {
             break
         }
-        if trust str.view_eql(str.cstring(cur.name), name) {
+        if trust str.view_eql(str.view_cstr(cur.name), name) {
             return true
         }
         cur = cur.next
@@ -75,16 +87,16 @@ pub fn set(name: str.StringView, value: str.StringView) void = trust {
         if cur == none {
             break
         }
-        if str.view_eql(str.cstring(cur.name), name) {
-            str.cstring_free[allocators.HeapAllocator](cstr_heap(), cur.value)
-            cur.value = str.cstring_from[allocators.HeapAllocator](cstr_heap(), value)
+        if str.view_eql(str.view_cstr(cur.name), name) {
+            free_cstr(cur.value)
+            cur.value = dup_cstr(value)
             return
         }
         cur = cur.next
     }
     val d: mut ref Define = @alloc(@sizeof(Define)) as ref Define
-    d.name = str.cstring_from[allocators.HeapAllocator](cstr_heap(), name)
-    d.value = str.cstring_from[allocators.HeapAllocator](cstr_heap(), value)
+    d.name = dup_cstr(name)
+    d.value = dup_cstr(value)
     d.next = defs
     defs = d
 }
@@ -96,8 +108,8 @@ pub fn get(name: str.StringView) str.StringView = {
         if cur == none {
             break
         }
-        if trust str.view_eql(str.cstring(cur.name), name) {
-            return str.cstring(cur.value)
+        if trust str.view_eql(str.view_cstr(cur.name), name) {
+            return str.view_cstr(cur.value)
         }
         cur = cur.next
     }
