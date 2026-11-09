@@ -8,8 +8,6 @@ val cstr       = use("std/string/cstr")
 
 extern (C, header) fn strlen(s: ref u8) i64 = "strlen"
 
-extern (C, header) fn strcmp(a: ref u8, b: ref u8) i64 = "strcmp"
-
 /// This is the classic string type.
 ///
 /// An owned heap string: ptr, len, cap - each 8 bytes.
