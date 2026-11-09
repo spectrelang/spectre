@@ -3774,6 +3774,9 @@ fn type_node_category(ty: ref parser.Node) ref u8 = trust {
         return "unknown"
     }
     val name: ref u8 = unqualified_type_name(ty.d0 as ref u8)
+    if string.str_eql(name, "String") || string.str_eql(name, "StringView") {
+        return "str"
+    }
     if string.str_eql(name, "u8") {
         return "u8"
     }
@@ -3853,6 +3856,10 @@ fn get_expr_type_category(ctx: ref SemaCtx, node: ref parser.Node) ref u8 = trus
         val iref: i64 = scope_lookup_is_ref(ctx, vname)
         if tname == none {
             return "unknown"
+        }
+        val uname: ref u8 = unqualified_type_name(tname)
+        if string.str_eql(uname, "String") || string.str_eql(uname, "StringView") {
+            return "str"
         }
         if iref == 1 {
             if string.str_eql(tname, "u8") {

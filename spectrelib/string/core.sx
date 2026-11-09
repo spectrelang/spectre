@@ -1,5 +1,4 @@
 val collections = use("../collections")
-val stdio       = use("../stdio")
 val allocators  = use("../allocators")
 
 extern (C, header) fn strlen(s: ref u8) i64 = "strlen"
@@ -12,6 +11,15 @@ pub type String = {
     ptr: ref u8
     len: i64
     cap: i64
+}
+
+/// A borrowed, non-owning view over a byte range.
+///
+/// A view does not own `ptr` and is not required to be null-terminated.
+/// The caller must ensure the underlying bytes outlive the view.
+pub type StringView = {
+    ptr: ref u8
+    len: i64
 }
 
 fn alloc_in[T: allocators.Allocator](ac: T, size: i64) ref void = {
@@ -117,9 +125,253 @@ pub fn as_raw[T](x: T) ref u8 = trust {
     when T is String {
         return x.ptr
     }
-    when T !in (ref u8, String) {
+    when T is StringView {
+        return x.ptr
+    }
+    when T !in (ref u8, String, StringView) {
         @staticerror("unsupported type for string comparison")
     }
+}
+
+/// Build a borrowed view over `len` bytes starting at `ptr`.
+pub fn view(ptr: ref u8, len: i64) StringView = {
+    val safe_len: mut i64 = len
+    if safe_len < 0 {
+        safe_len = 0
+    }
+    if ptr == none {
+        safe_len = 0
+    }
+    return StringView{ptr: ptr, len: safe_len}
+}
+
+/// Build a view over an existing null-terminated C string.
+pub fn view_cstr(s: ref u8) StringView = {
+    if s == none {
+        return view(none, 0)
+    }
+    return view(s, len_raw(s))
+}
+
+/// Extract a borrowed view from a String, StringView, or raw C string.
+pub fn as_view[T](x: T) StringView = trust {
+    when T is StringView {
+        return x
+    }
+    when T is String {
+        val l: i64 = @load(@ptradd(x as ref void, 8)) as i64
+        val p: ref u8 = @load(x as ref void) as ref u8
+        return view(p, l)
+    }
+    when T is ref u8 {
+        return view_cstr(x)
+    }
+    when T !in (StringView, String, ref u8) {
+        @staticerror("unsupported type for string view")
+    }
+}
+
+pub fn view_len(v: StringView) i64 = {
+    return v.len
+}
+
+pub fn view_ptr(v: StringView) ref u8 = {
+    return v.ptr
+}
+
+pub fn view_is_empty(v: StringView) bool = {
+    return v.len == 0
+}
+
+/// Compare two views byte-for-byte using their lengths.
+pub fn view_cmp(a: StringView, b: StringView) i64 = trust {
+    val shorter: mut i64 = b.len
+    if a.len < b.len {
+        shorter = a.len
+    }
+    val i: mut i64 = 0
+    for {
+        if i >= shorter {
+            break
+        }
+        val ac: u8 = @load8(@ptradd(a.ptr, i))
+        val bc: u8 = @load8(@ptradd(b.ptr, i))
+        if ac != bc {
+            return ac as i64 - bc as i64
+        }
+        i++
+    }
+    if a.len < b.len {
+        return -1
+    }
+    if a.len > b.len {
+        return 1
+    }
+    return 0
+}
+
+pub fn view_eql(a: StringView, b: StringView) bool = trust {
+    return view_cmp(a, b) == 0
+}
+
+/// Return a sub-view clamped to the bounds of `v`.
+pub fn view_slice(v: StringView, start: i64, end: i64) StringView = trust {
+    val real_start: mut i64 = start
+    val real_end: mut i64 = end
+    if real_start < 0 {
+        real_start = 0
+    }
+    if real_end > v.len {
+        real_end = v.len
+    }
+    if real_end < real_start {
+        real_end = real_start
+    }
+    return view(@ptradd(v.ptr, real_start) as ref u8, real_end - real_start)
+}
+
+pub fn view_starts_with(v: StringView, prefix: StringView) bool = trust {
+    if prefix.len > v.len {
+        return false
+    }
+    val i: mut i64 = 0
+    for {
+        if i >= prefix.len {
+            break
+        }
+        if @load8(@ptradd(v.ptr, i)) != @load8(@ptradd(prefix.ptr, i)) {
+            return false
+        }
+        i++
+    }
+    return true
+}
+
+pub fn view_ends_with(v: StringView, suffix: StringView) bool = trust {
+    if suffix.len > v.len {
+        return false
+    }
+    val offset: i64 = v.len - suffix.len
+    val i: mut i64 = 0
+    for {
+        if i >= suffix.len {
+            break
+        }
+        if @load8(@ptradd(v.ptr, offset + i)) != @load8(@ptradd(suffix.ptr, i)) {
+            return false
+        }
+        i++
+    }
+    return true
+}
+
+pub fn view_find(v: StringView, needle: StringView) option[i64] = trust {
+    if needle.len == 0 {
+        return some 0
+    }
+    if needle.len > v.len {
+        return none
+    }
+    val limit: i64 = v.len - needle.len
+    val i: mut i64 = 0
+    for {
+        if i > limit {
+            break
+        }
+        val j: mut i64 = 0
+        val matched: mut bool = true
+        for {
+            if j >= needle.len {
+                break
+            }
+            if @load8(@ptradd(v.ptr, i + j)) != @load8(@ptradd(needle.ptr, j)) {
+                matched = false
+                break
+            }
+            j++
+        }
+        if matched {
+            return some i
+        }
+        i++
+    }
+    return none
+}
+
+pub fn view_contains(v: StringView, needle: StringView) bool = trust {
+    match view_find(v, needle) {
+        some _ => {
+            return true
+        }
+        none => {
+            return false
+        }
+    }
+}
+
+pub fn view_trim_left(v: StringView) StringView = trust {
+    val i: mut i64 = 0
+    for {
+        if i >= v.len {
+            break
+        }
+        val c: u8 = @load8(@ptradd(v.ptr, i))
+        if c != 32 && c != 9 && c != 10 && c != 13 {
+            break
+        }
+        i++
+    }
+    return view_slice(v, i, v.len)
+}
+
+pub fn view_trim_right(v: StringView) StringView = trust {
+    val end: mut i64 = v.len
+    for {
+        if end <= 0 {
+            break
+        }
+        val c: u8 = @load8(@ptradd(v.ptr, end - 1))
+        if c != 32 && c != 9 && c != 10 && c != 13 {
+            break
+        }
+        end--
+    }
+    return view_slice(v, 0, end)
+}
+
+pub fn view_trim(v: StringView) StringView = trust {
+    return view_trim_left(view_trim_right(v))
+}
+
+/// Allocate a null-terminated copy of a view with the provided allocator.
+pub fn view_to_cstr[T: allocators.Allocator](ac: T, v: StringView) ref u8 = trust {
+    return alloc_substr_in[T](ac, v.ptr, 0, v.len)
+}
+
+/// Allocate a null-terminated heap copy of a view.
+pub fn view_to_cstr_raw(v: StringView) ref u8 = trust {
+    val buf: mut ref u8 = @alloc(v.len + 1) as ref u8
+    if buf == none {
+        return none
+    }
+    if v.len > 0 {
+        @memcpy(buf as ref void, v.ptr as ref void, v.len as usize)
+    }
+    @store8(@ptradd(buf, v.len), 0)
+    return buf
+}
+
+/// Copy a view into a newly allocated owning String.
+pub fn view_to_string[T: allocators.Allocator](ac: T, v: StringView) String = trust {
+    val out: String = alloc_string_in[T](ac, v.len)
+    if out == none {
+        return none
+    }
+    if v.len > 0 {
+        val dst: ref void = @load(out as ref void)
+        @memcpy(dst, v.ptr as ref void, v.len as usize)
+    }
+    return out
 }
 
 /// Compare two raw strings.
@@ -146,11 +398,9 @@ pub fn str_eql(a: ref u8, b: ref u8) bool = {
     return trust strcmp(a, b) == 0
 }
 
-/// Compare a string or raw with a string or raw
+/// Compare supported string-like values using their lengths.
 pub fn compare[A, B](a: A, b: B) i64 = trust {
-    val aptr = as_raw[A](a)
-    val bptr = as_raw[B](b)
-    return raw_cmp(aptr, bptr)
+    return view_cmp(as_view[A](a), as_view[B](b))
 }
 
 /// Create from raw C string using the provided allocator.
@@ -1196,6 +1446,55 @@ pub fn copy(dst: ref u8, dst_off: i64, src: ref u8) void = trust {
     @memcpy(@ptradd(dst, dst_off), src, slen)
 }
 
+test "string views borrow without owning" {
+    val base: StringView = view_cstr("hello world")
+    assert view_len(base) == 11
+    assert !view_is_empty(base)
+    assert view_is_empty(view(none, 0))
+    assert trust view_eql(base, view_cstr("hello world"))
+    assert trust view_eql(view_slice(base, 0, 5), view_cstr("hello"))
+    assert trust view_eql(view_slice(base, 6, 11), view_cstr("world"))
+    assert trust view_eql(view_slice(base, 6, 999), view_cstr("world"))
+    assert trust view_eql(view_slice(base, -4, 5), view_cstr("hello"))
+    assert trust view_eql(view_slice(base, 5, 5), view_cstr(""))
+    assert trust view_starts_with(base, view_cstr("hello"))
+    assert !(trust view_starts_with(base, view_cstr("world")))
+    assert trust view_ends_with(base, view_cstr("world"))
+    assert !(trust view_ends_with(base, view_cstr("hello")))
+    assert trust view_contains(base, view_cstr("lo wo"))
+    assert !(trust view_contains(base, view_cstr("nope")))
+    val found = trust view_find(base, view_cstr("world"))
+    match found {
+        some _ => {
+            assert true
+        }
+        none => {
+            assert false
+        }
+    }
+    val missing = trust view_find(base, view_cstr("nope"))
+    match missing {
+        some _ => {
+            assert false
+        }
+        none => {
+            assert true
+        }
+    }
+    assert trust view_eql(view_trim(view_cstr("  hi \n")), view_cstr("hi"))
+    assert trust view_cmp(view_cstr("abc"), view_cstr("abd")) < 0
+    assert trust view_cmp(view_cstr("abd"), view_cstr("abc")) > 0
+    assert trust view_cmp(view_cstr("abc"), view_cstr("abc")) == 0
+    assert trust view_eql(as_view[ref u8]("literal"), view_cstr("literal"))
+
+    val arena: allocators.Arena = trust allocators.Arena.new(32768 as usize)?
+    val owned: String = trust view_to_string[allocators.Arena](arena, view_slice(base, 0, 5))
+    assert equals(owned, trust from[allocators.Arena](arena, "hello"))
+    val cstr_copy: ref u8 = trust view_to_cstr[allocators.Arena](arena, view_slice(base, 6, 11))
+    assert str_eql(cstr_copy, "world")
+    trust allocators.Arena.free(arena)
+}
+
 test "string operations build, search and transform" {
     assert str_eql("abc", "abc")
     assert !str_eql("abc", "abd")
@@ -1207,7 +1506,6 @@ test "string operations build, search and transform" {
     val empty = trust new()
     assert len(empty) == 0
 
-    stdio.puts("hi")
     val s = trust from[allocators.Arena](arena, "hello")
     assert len(s) == 5
     assert equals(s, trust from[allocators.Arena](arena, "hello"))
@@ -1221,13 +1519,11 @@ test "string operations build, search and transform" {
     val c = trust from[allocators.Arena](arena, "bar")
     trust push(b, c)
     assert equals(b, trust from[allocators.Arena](arena, "foobar"))
-    stdio.puts("hi1.3")
 
     val pc = trust new()
     trust push_cstr(pc, "ab")
     trust push_char(pc, 99 as u8) // 'c'
     assert equals(pc, trust from[allocators.Arena](arena, "abc"))
-    stdio.puts("hi1.4")
 
     val orig = trust from[allocators.Arena](arena, "clone me")
     val copy = trust clone(orig)
@@ -1246,7 +1542,6 @@ test "string operations build, search and transform" {
     val g2 = get(g, 2)
     val g3 = get(g, 3)
 
-    stdio.puts("hi2")
     match g0 {
         some v => {
             assert v == 97
@@ -1326,7 +1621,6 @@ test "string operations build, search and transform" {
     trust to_lower(low)
     assert equals(low, trust from[allocators.Arena](arena, "abcxyz"))
 
-    stdio.puts("hi3")
     val tr = trust from[allocators.Arena](arena, "  \t hello \n ")
     trust trim(tr)
     assert equals(tr, trust from[allocators.Arena](arena, "hello"))
@@ -1335,44 +1629,33 @@ test "string operations build, search and transform" {
     trust trim_left(tl)
     assert equals(tl, trust from[allocators.Arena](arena, "hello"))
 
-    stdio.puts("hi3.1")
     val trr = trust from[allocators.Arena](arena, "hello   ")
-    stdio.puts("hi3.1.1")
 
     trust trim_right(trr)
-    stdio.puts("hi3.1.2")
     assert equals(trr, trust from[allocators.Arena](arena, "hello"))
-    stdio.puts("hi3.1.3")
 
     val rep = trust from[allocators.Arena](arena, "foo bar foo")
-    stdio.puts("hi3.1.4" )
 
     val rep2 = trust replace(
         rep,
         from[allocators.Arena](arena, "foo"),
         from[allocators.Arena](arena, "baz")
     )
-    stdio.puts("hi3.1.5")
     assert equals(rep2, trust from[allocators.Arena](arena, "baz bar baz"))
-    stdio.puts("hi3.2")
 
     val rep3 = trust replace(
         rep,
         from[allocators.Arena](arena, "xxx"),
         from[allocators.Arena](arena, "yyy")
     )
-    stdio.puts("hi3.2.1")
     assert equals(rep3, trust from[allocators.Arena](arena, "foo bar foo"))
-    stdio.puts("hi3.2.2")
     val sp = trust from[allocators.Arena](arena, "a,b,c")
-    stdio.puts("hi3.2.3")
     val split_heap: allocators.HeapAllocator = @zeroed
     val parts = trust split[allocators.HeapAllocator](
         split_heap,
         sp,
         from[allocators.Arena](arena, ",")
     )?
-    stdio.puts("hi3.3")
 
     assert collections.PtrList.len(parts) == 3
     match collections.PtrList.get(parts, 0 as usize) {
@@ -1416,7 +1699,6 @@ test "string operations build, search and transform" {
         }
     }
 
-    stdio.puts("hi4")
     val ca = trust from[allocators.Arena](arena, "foo")
     val cb = trust from[allocators.Arena](arena, "bar")
     val cc = trust concat(ca, cb)
@@ -1458,15 +1740,7 @@ test "string operations build, search and transform" {
     val out = trust trim_suffix(s2, from[allocators.Arena](arena, "world"))
     assert equals(out, trust from[allocators.Arena](arena, "Hello "))
 
-    stdio.puts("string tests passed")
 
 
-    trust stdio.print(
-        "comparison: {d}\n",
-        {compare[String, String](
-                from[allocators.Arena](arena, "abc"),
-                from[allocators.Arena](arena, "abc")
-            )}
-    )
     trust allocators.Arena.free(arena)
 }

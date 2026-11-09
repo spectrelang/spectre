@@ -18,7 +18,6 @@ pub enum AllocError = {
     OutOfMemory
 }
 
-val stdio = use("../stdio")
 
 /// Interface for the classic bump allocator.
 pub spec Allocator = {
@@ -147,7 +146,6 @@ pub fn (Arena) reset(arena: self) void = trust {
 test "arena allocates and tracks usage" {
     val arena: Arena = trust Arena.new(64 as usize)?
 
-    stdio.puts("done making new arena")
     assert Arena.cap(arena) == 64
     assert Arena.used(arena) == 0
     assert Arena.remaining(arena) == 64

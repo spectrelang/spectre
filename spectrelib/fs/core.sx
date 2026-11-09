@@ -225,6 +225,224 @@ pub fn open(path: ref u8, mode: ref u8) option[ref void] = trust {
     return some f
 }
 
+/// View-taking variant of `open`.
+pub fn open_view(path: str.StringView, mode: str.StringView) option[ref void] = trust {
+    val p: ref u8 = str.view_to_cstr_raw(path)
+    val m: ref u8 = str.view_to_cstr_raw(mode)
+    if p == none || m == none {
+        if p != none {
+            @free(p as ref void)
+        }
+        if m != none {
+            @free(m as ref void)
+        }
+        return none
+    }
+    val result = open(p, m)
+    @free(p as ref void)
+    @free(m as ref void)
+    return result
+}
+
+/// View-taking variant of `file_size`.
+pub fn file_size_view(path: str.StringView) option[i64] = trust {
+    val p: ref u8 = str.view_to_cstr_raw(path)
+    if p == none {
+        return none
+    }
+    val result = file_size(p)
+    @free(p as ref void)
+    return result
+}
+
+/// View-taking variant of `read_all`.
+pub fn read_all_view[A: allocators.Allocator](
+    ac: A,
+    path: str.StringView
+) option[ref u8] = trust {
+    val p: ref u8 = str.view_to_cstr_raw(path)
+    if p == none {
+        return none
+    }
+    val result = read_all[A](ac, p)
+    @free(p as ref void)
+    return result
+}
+
+/// View-taking variant of `read_all_raw`.
+pub fn read_all_raw_view(path: str.StringView) option[ref u8] = trust {
+    val p: ref u8 = str.view_to_cstr_raw(path)
+    if p == none {
+        return none
+    }
+    val result = read_all_raw(p)
+    @free(p as ref void)
+    return result
+}
+
+/// Write a view to an open file handle.
+pub fn write_view(f: ref void, data: str.StringView) void = trust {
+    if data.len <= 0 {
+        return
+    }
+    val ptr: ref void = @load(f)
+    fwrite(data.ptr as ref void, 1 as usize, data.len as usize, ptr)
+}
+
+/// Write a view followed by a newline to an open file handle.
+pub fn write_line_view(f: ref void, data: str.StringView) void = trust {
+    write_view(f, data)
+    val ptr: ref void = @load(f)
+    val nl: mut u8 = 10
+    fwrite(@addr(nl) as ref void, 1 as usize, 1 as usize, ptr)
+}
+
+/// View-taking variant of `write_all`.
+pub fn write_all_view(path: str.StringView, data: str.StringView) bool = trust {
+    val p: ref u8 = str.view_to_cstr_raw(path)
+    if p == none {
+        return false
+    }
+    val handle = open(p, "w")
+    match handle {
+        none => {
+            @free(p as ref void)
+            return false
+        }
+        some f => {
+            write_view(f, data)
+            close(f)
+        }
+    }
+    @free(p as ref void)
+    return true
+}
+
+/// View-taking variant of `write_all_bytes`.
+pub fn write_all_bytes_view(
+    path: str.StringView,
+    data: ref void,
+    len: i64
+) bool = trust {
+    val p: ref u8 = str.view_to_cstr_raw(path)
+    if p == none {
+        return false
+    }
+    val result = write_all_bytes(p, data, len)
+    @free(p as ref void)
+    return result
+}
+
+/// View-taking variant of `append_all`.
+pub fn append_all_view(path: str.StringView, data: str.StringView) bool = trust {
+    val p: ref u8 = str.view_to_cstr_raw(path)
+    if p == none {
+        return false
+    }
+    val handle = open(p, "a")
+    match handle {
+        none => {
+            @free(p as ref void)
+            return false
+        }
+        some f => {
+            write_view(f, data)
+            close(f)
+        }
+    }
+    @free(p as ref void)
+    return true
+}
+
+/// View-taking variant of `append_all_bytes`.
+pub fn append_all_bytes_view(
+    path: str.StringView,
+    data: ref void,
+    len: i64
+) bool = trust {
+    val p: ref u8 = str.view_to_cstr_raw(path)
+    if p == none {
+        return false
+    }
+    val result = append_all_bytes(p, data, len)
+    @free(p as ref void)
+    return result
+}
+
+/// View-taking variant of `delete`.
+pub fn delete_view(path: str.StringView) bool = trust {
+    val p: ref u8 = str.view_to_cstr_raw(path)
+    if p == none {
+        return false
+    }
+    val result = delete(p)
+    @free(p as ref void)
+    return result
+}
+
+/// View-taking variant of `rename_path`.
+pub fn rename_path_view(old: str.StringView, new: str.StringView) bool = trust {
+    val o: ref u8 = str.view_to_cstr_raw(old)
+    val n: ref u8 = str.view_to_cstr_raw(new)
+    if o == none || n == none {
+        if o != none {
+            @free(o as ref void)
+        }
+        if n != none {
+            @free(n as ref void)
+        }
+        return false
+    }
+    val result = rename_path(o, n)
+    @free(o as ref void)
+    @free(n as ref void)
+    return result
+}
+
+/// View-taking variant of `mkdir_path`.
+pub fn mkdir_path_view(path: str.StringView) bool = trust {
+    val p: ref u8 = str.view_to_cstr_raw(path)
+    if p == none {
+        return false
+    }
+    val result = mkdir_path(p)
+    @free(p as ref void)
+    return result
+}
+
+/// View-taking variant of `rmdir_path`.
+pub fn rmdir_path_view(path: str.StringView) bool = trust {
+    val p: ref u8 = str.view_to_cstr_raw(path)
+    if p == none {
+        return false
+    }
+    val result = rmdir_path(p)
+    @free(p as ref void)
+    return result
+}
+
+/// View-taking variant of `remove_dir_all`.
+pub fn remove_dir_all_view(path: str.StringView) bool = trust {
+    val p: ref u8 = str.view_to_cstr_raw(path)
+    if p == none {
+        return false
+    }
+    val result = remove_dir_all(p)
+    @free(p as ref void)
+    return result
+}
+
+/// View-taking variant of `is_directory`.
+pub fn is_directory_view(path: str.StringView) bool = trust {
+    val p: ref u8 = str.view_to_cstr_raw(path)
+    if p == none {
+        return false
+    }
+    val result = is_directory(p)
+    @free(p as ref void)
+    return result
+}
+
 /// Close a file handle previously returned by open().
 pub fn close(f: ref void) void = trust {
     val ptr: ref void = @load(f)

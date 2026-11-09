@@ -79,6 +79,46 @@ pub fn get_name_without_ext(arena: ref allocators.Arena, path: ref u8) ref u8 = 
     return buf as ref u8
 }
 
+/// View-taking variant of `get_name_without_ext`.
+pub fn get_name_without_ext_view(
+    arena: ref allocators.Arena,
+    path: str.StringView
+) ref u8 = trust {
+    val base: str.StringView = base_name_view(path)
+    val last_dot: mut i64 = -1
+    val i: mut i64 = 0
+    for {
+        if i >= base.len {
+            break
+        }
+        if @load8(@ptradd(base.ptr, i)) == 46 {
+            last_dot = i
+        }
+        i++
+    }
+
+    val name_len: mut i64 = base.len
+    if last_dot >= 0 {
+        name_len = last_dot
+    }
+    val buf_opt = allocators.Arena.alloc(arena, name_len + 1)
+    val buf: mut ref void = none
+    match buf_opt {
+        some b => {
+            buf = b
+        }
+        none => {
+            stdio.puts("error: out of memory")
+            return ""
+        }
+    }
+    if name_len > 0 {
+        @memcpy(buf, base.ptr as ref void, name_len as usize)
+    }
+    @store8(@ptradd(buf, name_len), 0)
+    return buf as ref u8
+}
+
 /// Join dir + "/" + name, returning a heap-allocated string.
 /// Does not add a second separator when `dir` already ends with one.
 pub fn join(dir: ref u8, name: ref u8) ref u8 = trust {
@@ -99,6 +139,57 @@ pub fn join(dir: ref u8, name: ref u8) ref u8 = trust {
     @memcpy(@ptradd(buf, dlen + sep), name, nlen as usize)
     @store8(@ptradd(buf, dlen + sep + nlen), 0)
     return buf
+}
+
+/// Join two views, returning a newly allocated null-terminated string.
+pub fn join_view(dir: str.StringView, name: str.StringView) ref u8 = trust {
+    val dlen: i64 = dir.len
+    val nlen: i64 = name.len
+    val sep: mut i64 = 1
+    if dlen > 0 {
+        val last: u8 = @load8(@ptradd(dir.ptr, dlen - 1))
+        if last == 47 || last == 92 {
+            sep = 0
+        }
+    }
+    val buf: ref u8 = @alloc(dlen + nlen + sep + 1) as ref u8
+    if dlen > 0 {
+        @memcpy(buf as ref void, dir.ptr as ref void, dlen as usize)
+    }
+    if sep == 1 {
+        @store8(@ptradd(buf, dlen), '/')
+    }
+    if nlen > 0 {
+        @memcpy(@ptradd(buf, dlen + sep) as ref void, name.ptr as ref void, nlen as usize)
+    }
+    @store8(@ptradd(buf, dlen + sep + nlen), 0)
+    return buf
+}
+
+/// Return the directory part of a path as a view.
+/// Returns "." if no separator found.
+pub fn dir_view(path: str.StringView) str.StringView = trust {
+    val last_slash: mut i64 = -1
+    val i: mut i64 = 0
+    for {
+        if i >= path.len {
+            break
+        }
+        val c: u8 = @load8(@ptradd(path.ptr, i))
+        if c == 47 {
+            last_slash = i
+        }
+        when windows {
+            if c == 92 {
+                last_slash = i
+            }
+        }
+        i++
+    }
+    if last_slash < 0 {
+        return str.view_cstr(".")
+    }
+    return str.view_slice(path, 0, last_slash + 1)
 }
 
 /// Return the directory part of a path (everything up to and including last separator).
@@ -267,6 +358,19 @@ pub fn canonicalize_path(path: ref u8) ref u8 = trust {
     return out
 }
 
+/// Canonicalize a path held in a view, returning an owned string.
+pub fn canonicalize_path_view(path: str.StringView) ref u8 = trust {
+    val tmp: ref u8 = str.view_to_cstr_raw(path)
+    if tmp == none {
+        return none
+    }
+    val result: ref u8 = canonicalize_path(tmp)
+    if result != tmp {
+        @free(tmp as ref void)
+    }
+    return result
+}
+
 /// Returns true when `c` is a path separator on any supported platform.
 pub fn is_path_sep(c: u8) bool = {
     return c == 47 || c == 92
@@ -320,6 +424,39 @@ pub fn base_name(path: ref u8) ref u8 = trust {
     return str.substr(path, 0, end)
 }
 
+/// Return the final component of a path as a borrowed view.
+pub fn base_name_view(path: str.StringView) str.StringView = trust {
+    if path.len == 0 {
+        return str.view_cstr("")
+    }
+
+    val end: mut i64 = path.len
+    for {
+        if end <= 1 {
+            break
+        }
+        val c: u8 = @load8(@ptradd(path.ptr, end - 1)) as u8
+        if is_path_sep(c) {
+            end--
+        } else {
+            break
+        }
+    }
+
+    val i: mut i64 = end - 1
+    for {
+        if i < 0 {
+            break
+        }
+        val c: u8 = @load8(@ptradd(path.ptr, i)) as u8
+        if is_path_sep(c) {
+            return str.view_slice(path, i + 1, end)
+        }
+        i--
+    }
+    return str.view_slice(path, 0, end)
+}
+
 fn lower_char(c: u8) u8 = {
     if c >= 65 && c <= 90 {
         return (c + 32) as u8
@@ -359,6 +496,35 @@ pub fn normalize_shell(name: ref u8) ref u8 = trust {
             break
         }
         val c: u8 = @load8(@ptradd(trimmed, i)) as u8
+        @store8(@ptradd(lower, i), lower_char(c))
+        i++
+    }
+    @store8(@ptradd(lower, i), 0)
+    return lower
+}
+
+/// Normalize a shell name or shell executable path held in a view.
+pub fn normalize_shell_view(name: str.StringView) ref u8 = trust {
+    val base: str.StringView = base_name_view(name)
+    val len: i64 = base.len
+    val trimmed: mut str.StringView = base
+    if len > 4 {
+        val dot: u8 = @load8(@ptradd(base.ptr, len - 4)) as u8
+        val e1: u8 = lower_char(@load8(@ptradd(base.ptr, len - 3)) as u8)
+        val x: u8 = lower_char(@load8(@ptradd(base.ptr, len - 2)) as u8)
+        val e2: u8 = lower_char(@load8(@ptradd(base.ptr, len - 1)) as u8)
+        if dot == 46 && e1 == 101 && x == 120 && e2 == 101 {
+            trimmed = str.view_slice(base, 0, len - 4)
+        }
+    }
+
+    val lower: ref u8 = @alloc(trimmed.len + 1) as ref u8
+    val i: mut i64 = 0
+    for {
+        if i >= trimmed.len {
+            break
+        }
+        val c: u8 = @load8(@ptradd(trimmed.ptr, i)) as u8
         @store8(@ptradd(lower, i), lower_char(c))
         i++
     }
@@ -417,6 +583,28 @@ pub fn ensure_dir(path: ref u8) bool = trust {
         return true
     }
     return make_directory(path)
+}
+
+/// View-taking variant of `ensure_dir`.
+pub fn ensure_dir_view(path: str.StringView) bool = trust {
+    val tmp: ref u8 = str.view_to_cstr_raw(path)
+    if tmp == none {
+        return false
+    }
+    val result: bool = ensure_dir(tmp)
+    @free(tmp as ref void)
+    return result
+}
+
+/// View-taking variant of `path_contains_dir`.
+pub fn path_contains_dir_view(target: str.StringView) bool = trust {
+    val tmp: ref u8 = str.view_to_cstr_raw(target)
+    if tmp == none {
+        return false
+    }
+    val result: bool = path_contains_dir(tmp)
+    @free(tmp as ref void)
+    return result
 }
 
 /// Returns true when `target` is one of the entries in the PATH environment

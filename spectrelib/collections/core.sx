@@ -7,7 +7,6 @@
 /// Each element is one pointer-sized slot (8 bytes).
 /// Values are stored and retrieved as raw values (ref void / usize).
 
-val stdio      = use("../stdio")
 val allocators = use("../allocators")
 
 val ELEMENT_SIZE: usize = 8
@@ -567,7 +566,6 @@ test "int map stores, updates and deletes keys" {
     trust Map.free[allocators.HeapAllocator](heap, m)
     trust Map.free[allocators.HeapAllocator](heap, big)
 
-    stdio.puts("map tests passed")
 }
 
 test "pointer list appends, gets and resizes" {
@@ -615,7 +613,6 @@ test "pointer list appends, gets and resizes" {
 
     trust PtrList.push[allocators.HeapAllocator](heap, list3, 5 as usize)?
 
-    stdio.puts("list tests passed")
 }
 
 /// A hash map with ref u8 (C string) keys and usize values.
@@ -893,7 +890,6 @@ test "string map stores, updates and deletes keys" {
     @puts("sm: free")
     trust StringMap.free[allocators.HeapAllocator](heap, m)
 
-    stdio.puts("string map tests passed")
 }
 
 /// An insertion-order preserving map with ref u8 keys and usize values.
@@ -1269,7 +1265,6 @@ test "index map preserves insertion order" {
 
     trust IndexMap.free[allocators.HeapAllocator](heap, m)
 
-    stdio.puts("index map tests passed")
 }
 
 test "raw index map stores and retrieves values" {
