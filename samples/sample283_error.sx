@@ -1,0 +1,4 @@
+pub fn main() void = {
+    val xs: [2]u8 = [1, 2, 3, 4, 5] // should error.
+    trust @print("{p}", {xs})
+}
