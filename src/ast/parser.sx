@@ -121,6 +121,10 @@ pub val (
     EXTERN_FLAG_HEADER: i64              = 4
 )
 
+type NodeSlotBox = {
+    value: i64
+}
+
 pub type Node = {
     kind: mut i64
     line: mut i64
@@ -154,8 +158,48 @@ pub fn make_node(
     return n
 }
 
+/// Arena used for StringView payloads stored in AST nodes.
+val node_string_arena: mut allocators.ScopedArenaAllocator = none
+
+pub fn set_node_string_arena(arena: allocators.ScopedArenaAllocator) void = trust {
+    node_string_arena = arena
+}
+
+pub fn node_store_string_slot(slot: ref i64, text: ref u8) void = trust {
+    if node_string_arena == none {
+        return
+    }
+    val v: string.StringView = string.view_cstr(text)
+    val sv: mut ref string.StringView = allocators.ScopedArena.alloc_or_none(
+        node_string_arena,
+        @sizeof(string.StringView) as usize
+    ) as ref string.StringView
+    if sv == none {
+        return
+    }
+    sv.ptr = v.ptr
+    sv.len = v.len
+    @store(slot, sv)
+}
+
 pub fn node_store_slot[T](slot: ref i64, value: T) void = trust {
     @store(slot, value)
+}
+
+/// Read a string slot. The slot stores an arena-owned StringView pointer.
+pub fn node_str(d: i64) string.StringView = {
+    if d == 0 {
+        return string.view(none, 0)
+    }
+    val box: NodeSlotBox = {value: d}
+    val sv: ref string.StringView = box.value as ref string.StringView
+    return string.view(sv.ptr, sv.len)
+}
+
+/// Raw-pointer compatibility view for callers that still need `ref u8`.
+pub fn node_str_raw(d: i64) ref u8 = {
+    val v: string.StringView = node_str(d)
+    return v.ptr
 }
 
 pub fn ptr_to_i64[T](p: T) i64 = trust {
@@ -200,8 +244,12 @@ pub fn generic_fn_type_params(n: ref Node) list[ref Node] = {
     return n.d6 as list[ref Node]
 }
 
-pub fn tparam_name(tp: ref Node) ref u8 = {
-    return tp.d0 as ref u8
+pub fn tparam_name(tp: ref Node) string.StringView = {
+    return node_str(tp.d0)
+}
+
+pub fn tparam_name_raw(tp: ref Node) ref u8 = {
+    return node_str_raw(tp.d0)
 }
 
 pub fn tparam_constraint(tp: ref Node) ref Node = {
@@ -228,8 +276,12 @@ pub fn generic_inst_type_args(n: ref Node) list[ref Node] = {
     return n.d1 as list[ref Node]
 }
 
-pub fn builtin_name(n: ref Node) ref u8 = {
-    return n.d0 as ref u8
+pub fn builtin_name(n: ref Node) string.StringView = {
+    return node_str(n.d0)
+}
+
+pub fn builtin_name_raw(n: ref Node) ref u8 = {
+    return node_str_raw(n.d0)
 }
 
 pub fn builtin_args(n: ref Node) ref void = {
@@ -247,8 +299,12 @@ pub fn builtin_set_type_args(n: ref Node, targs: list[ref Node]) void = trust {
     node_store_slot[list[ref Node]](@addr(n.d4), targs)
 }
 
-pub fn gwhen_cond_tparam(n: ref Node) ref u8 = {
-    return n.d0 as ref u8
+pub fn gwhen_cond_tparam(n: ref Node) string.StringView = {
+    return node_str(n.d0)
+}
+
+pub fn gwhen_cond_tparam_raw(n: ref Node) ref u8 = {
+    return node_str_raw(n.d0)
 }
 
 pub fn gwhen_cond_kind(n: ref Node) i64 = {
@@ -287,8 +343,12 @@ pub fn fixed_arr_inner(n: ref Node) ref Node = {
     return n.d1 as ref Node
 }
 
-pub fn fixed_arr_size_name(n: ref Node) ref u8 = {
-    return n.d2 as ref u8
+pub fn fixed_arr_size_name(n: ref Node) string.StringView = {
+    return node_str(n.d2)
+}
+
+pub fn fixed_arr_size_name_raw(n: ref Node) ref u8 = {
+    return node_str_raw(n.d2)
 }
 
 pub fn fn_is_unsafe(n: ref Node) bool = {
@@ -340,7 +400,7 @@ fn make_field(
 ) result[ref Node, ref u8] = trust {
     val n: mut ref Node = make_node(arena, NK_FIELD, line)
     node_store_slot[ref Node](@addr(n.d0), base)
-    node_store_slot[ref u8](@addr(n.d1), name)
+    node_store_string_slot(@addr(n.d1), name)
     return ok n
 }
 
@@ -348,8 +408,12 @@ pub fn field_base(n: ref Node) ref Node = {
     return n.d0 as ref Node
 }
 
-pub fn field_name(n: ref Node) ref u8 = {
-    return n.d1 as ref u8
+pub fn field_name(n: ref Node) string.StringView = {
+    return node_str(n.d1)
+}
+
+pub fn field_name_raw(n: ref Node) ref u8 = {
+    return node_str_raw(n.d1)
 }
 
 fn make_call(
@@ -387,7 +451,7 @@ fn make_struct_field(
     expr: ref Node
 ) result[ref Node, ref u8] = trust {
     val n: mut ref Node = make_node(arena, NK_FIELD, line)
-    node_store_slot[ref u8](@addr(n.d0), name)
+    node_store_string_slot(@addr(n.d0), name)
     node_store_slot[ref Node](@addr(n.d1), expr)
     return ok n
 }
@@ -396,8 +460,12 @@ pub fn match_opt_expr(n: ref Node) ref Node = {
     return n.d0 as ref Node
 }
 
-pub fn match_opt_some_bind(n: ref Node) ref u8 = {
-    return n.d1 as ref u8
+pub fn match_opt_some_bind(n: ref Node) string.StringView = {
+    return node_str(n.d1)
+}
+
+pub fn match_opt_some_bind_raw(n: ref Node) ref u8 = {
+    return node_str_raw(n.d1)
 }
 
 pub fn match_opt_some_body(n: ref Node) ref Node = {
@@ -431,16 +499,24 @@ pub fn match_res_expr(n: ref Node) ref Node = {
     return n.d0 as ref Node
 }
 
-pub fn match_res_ok_bind(n: ref Node) ref u8 = {
-    return n.d1 as ref u8
+pub fn match_res_ok_bind(n: ref Node) string.StringView = {
+    return node_str(n.d1)
+}
+
+pub fn match_res_ok_bind_raw(n: ref Node) ref u8 = {
+    return node_str_raw(n.d1)
 }
 
 pub fn match_res_ok_body(n: ref Node) ref Node = {
     return n.d2 as ref Node
 }  // wrapper, .d0 = stmts list
 
-pub fn match_res_err_bind(n: ref Node) ref u8 = {
-    return n.d3 as ref u8
+pub fn match_res_err_bind(n: ref Node) string.StringView = {
+    return node_str(n.d3)
+}
+
+pub fn match_res_err_bind_raw(n: ref Node) ref u8 = {
+    return node_str_raw(n.d3)
 }
 
 pub fn match_res_err_body(n: ref Node) ref Node = {
@@ -499,8 +575,12 @@ pub fn match_str_else(n: ref Node) ref Node = {
     return n.d2 as ref Node
 }  // wrapper, .d0 = stmts list
 
-pub fn match_str_arm_value(arm: ref Node) ref u8 = {
-    return arm.d0 as ref u8
+pub fn match_str_arm_value(arm: ref Node) string.StringView = {
+    return node_str(arm.d0)
+}
+
+pub fn match_str_arm_value_raw(arm: ref Node) ref u8 = {
+    return node_str_raw(arm.d0)
 }
 
 pub fn match_str_arm_body(arm: ref Node) list[ref Node] = {
@@ -539,8 +619,12 @@ pub fn match_tagged_union_else(n: ref Node) ref Node = {
     return n.d2 as ref Node
 }  // wrapper, .d0 = stmts list
 
-pub fn match_tagged_union_arm_variant(arm: ref Node) ref u8 = {
-    return arm.d0 as ref u8
+pub fn match_tagged_union_arm_variant(arm: ref Node) string.StringView = {
+    return node_str(arm.d0)
+}
+
+pub fn match_tagged_union_arm_variant_raw(arm: ref Node) ref u8 = {
+    return node_str_raw(arm.d0)
 }
 
 pub fn match_tagged_union_arm_bindings(arm: ref Node) list[ref u8] = {
@@ -557,12 +641,16 @@ fn make_int_lit(
     line: i64
 ) result[ref Node, ref u8] = trust {
     val n: mut ref Node = make_node(arena, NK_INT_LIT, line)
-    node_store_slot[ref u8](@addr(n.d0), text)
+    node_store_string_slot(@addr(n.d0), text)
     return ok n
 }
 
-pub fn int_lit_text(n: ref Node) ref u8 = {
-    return n.d0 as ref u8
+pub fn int_lit_text(n: ref Node) string.StringView = {
+    return node_str(n.d0)
+}
+
+pub fn int_lit_text_raw(n: ref Node) ref u8 = {
+    return node_str_raw(n.d0)
 }
 
 fn make_float_lit(
@@ -571,12 +659,16 @@ fn make_float_lit(
     line: i64
 ) result[ref Node, ref u8] = trust {
     val n: mut ref Node = make_node(arena, NK_FLOAT_LIT, line)
-    node_store_slot[ref u8](@addr(n.d0), text)
+    node_store_string_slot(@addr(n.d0), text)
     return ok n
 }
 
-pub fn float_lit_text(n: ref Node) ref u8 = {
-    return n.d0 as ref u8
+pub fn float_lit_text(n: ref Node) string.StringView = {
+    return node_str(n.d0)
+}
+
+pub fn float_lit_text_raw(n: ref Node) ref u8 = {
+    return node_str_raw(n.d0)
 }
 
 fn make_str_lit(
@@ -585,22 +677,34 @@ fn make_str_lit(
     line: i64
 ) result[ref Node, ref u8] = trust {
     val n: mut ref Node = make_node(arena, NK_STR_LIT, line)
-    node_store_slot[ref u8](@addr(n.d0), text)
+    node_store_string_slot(@addr(n.d0), text)
     return ok n
 }
 
-pub fn str_lit_text(n: ref Node) ref u8 = {
-    return n.d0 as ref u8
+pub fn str_lit_text(n: ref Node) string.StringView = {
+    return node_str(n.d0)
+}
+
+pub fn str_lit_text_raw(n: ref Node) ref u8 = {
+    return node_str_raw(n.d0)
 }
 
 /// For a named struct literal `Name{...}`, return `Name`; otherwise `none`.
-pub fn struct_lit_type_name(n: ref Node) ref u8 = {
-    return n.d2 as ref u8
+pub fn struct_lit_type_name(n: ref Node) string.StringView = {
+    return node_str(n.d2)
+}
+
+pub fn struct_lit_type_name_raw(n: ref Node) ref u8 = {
+    return node_str_raw(n.d2)
 }
 
 /// Optional name attached to a `test "name" { ... }` block.
-pub fn test_name(n: ref Node) ref u8 = {
-    return n.d1 as ref u8
+pub fn test_name(n: ref Node) string.StringView = {
+    return node_str(n.d1)
+}
+
+pub fn test_name_raw(n: ref Node) ref u8 = {
+    return node_str_raw(n.d1)
 }
 
 pub fn val_bulk_items(n: ref Node) list[ref Node] = {
@@ -627,6 +731,7 @@ pub fn parser_new(
     p.pos = 0
     p.filename = filename
     p.arena = arena
+    set_node_string_arena(arena)
     return p
 }
 
@@ -664,7 +769,7 @@ fn p_advance(p: mut ref Parser) lexer.TokenKind = trust {
 }
 
 fn p_advance_text(p: mut ref Parser) ref u8 = trust {
-    val txt: ref u8 = lexer.tok_text(p.tokens, p.pos)
+    val txt: ref u8 = lexer.tok_text_raw(p.tokens, p.pos)
     if p.pos + 1 < @len(p.tokens) as i64 {
         p.pos++
     }
@@ -696,7 +801,7 @@ fn p_expect_kind(
     name: ref u8
 ) result[ref u8, ref u8] = trust {
     if is_kind(p_peek_kind(p)) {
-        val txt: ref u8 = lexer.tok_text(p.tokens, p.pos)
+        val txt: ref u8 = lexer.tok_text_raw(p.tokens, p.pos)
         p_advance(p)
         return ok txt
     }
@@ -708,7 +813,7 @@ fn p_expect_kind(
 fn p_expect_ident(p: mut ref Parser) result[ref u8, ref u8] = trust {
     match p_peek_kind(p) {
         Ident _ => {
-            val txt: ref u8 = lexer.tok_text(p.tokens, p.pos)
+            val txt: ref u8 = lexer.tok_text_raw(p.tokens, p.pos)
             p_advance(p)
             return ok txt
         }
@@ -721,7 +826,7 @@ fn p_expect_ident(p: mut ref Parser) result[ref u8, ref u8] = trust {
 fn p_expect_string(p: mut ref Parser) result[ref u8, ref u8] = trust {
     match p_peek_kind(p) {
         Str _ => {
-            val txt: ref u8 = lexer.tok_text(p.tokens, p.pos)
+            val txt: ref u8 = lexer.tok_text_raw(p.tokens, p.pos)
             p_advance(p)
             return ok txt
         }
@@ -1458,7 +1563,7 @@ pub fn parse_type(p: mut ref Parser) result[ref Node, ref u8] = trust {
         val n2: mut ref Node = make_node(p.arena, TY_FIXED_ARR, line)
         n2.d0 = sz
         node_store_slot[ref Node](@addr(n2.d1), inner2)
-        node_store_slot[ref u8](@addr(n2.d2), sz_name)
+        node_store_string_slot(@addr(n2.d2), sz_name)
         return ok n2
     }
 
@@ -1553,7 +1658,7 @@ pub fn parse_type(p: mut ref Parser) result[ref Node, ref u8] = trust {
         @free(@load(full_str))
         @free(full_str)
         val nn: mut ref Node = make_node(p.arena, TY_NAMED, line)
-        node_store_slot[ref u8](@addr(nn.d0), full)
+        node_store_string_slot(@addr(nn.d0), full)
         return ok nn
     }
 
@@ -1569,8 +1674,8 @@ fn substitute_self_type(ty: ref Node, self_name: ref u8) ref Node = trust {
         return ty
     }
     if ty.kind == TY_NAMED {
-        if string.str_eql(ty.d0 as ref u8, "self") {
-            node_store_slot[ref u8](@addr(ty.d0), self_name)
+        if string.str_eql(node_str_raw(ty.d0), "self") {
+            node_store_string_slot(@addr(ty.d0), self_name)
         }
         return ty
     }
@@ -1930,7 +2035,7 @@ fn parse_postfix(p: mut ref Parser) result[ref Node, ref u8] = trust {
                 }
                 val ta: mut ref Node = none
                 if kind_is_ident(p_peek_kind(p)) && string.str_eql(
-                    lexer.tok_text(p.tokens, p.pos),
+                    lexer.tok_text_raw(p.tokens, p.pos),
                     "_"
                 ) {
                     p_advance(p)
@@ -1961,11 +2066,11 @@ fn expr_to_type_name(p: ref Parser, expr: ref Node) ref u8 = trust {
         return none
     }
     if expr.kind == NK_IDENT {
-        return expr.d0 as ref u8
+        return node_str_raw(expr.d0)
     }
     if expr.kind == NK_FIELD {
         val base: ref Node = field_base(expr)
-        val field: ref u8 = field_name(expr)
+        val field: ref u8 = field_name_raw(expr)
         val base_name: ref u8 = expr_to_type_name(p, base)
         if base_name == none || field == none {
             return none
@@ -2007,7 +2112,7 @@ fn parse_struct_lit_fields(
     val flist: list[ref Node] = fields
     node_store_slot[list[ref Node]](@addr(ns.d0), flist)
     if type_name != none {
-        node_store_slot[ref u8](@addr(ns.d2), type_name)
+        node_store_string_slot(@addr(ns.d2), type_name)
     }
     return ok ns
 }
@@ -2112,7 +2217,7 @@ fn parse_primary(p: mut ref Parser) result[ref Node, ref u8] = trust {
                 }
                 val bta: mut ref Node = none
                 if kind_is_ident(p_peek_kind(p)) && string.str_eql(
-                    lexer.tok_text(p.tokens, p.pos),
+                    lexer.tok_text_raw(p.tokens, p.pos),
                     "_"
                 ) {
                     p_advance(p)
@@ -2130,7 +2235,7 @@ fn parse_primary(p: mut ref Parser) result[ref Node, ref u8] = trust {
         if string.str_eql(bname, "zeroed") {
             if !lexer.kind_is_lparen(p_peek_kind(p)) {
                 val nz0: mut ref Node = make_node(p.arena, NK_ZERO_INIT, line)
-                node_store_slot[ref u8](@addr(nz0.d0), bname)
+                node_store_string_slot(@addr(nz0.d0), bname)
                 return ok nz0
             }
         }
@@ -2138,7 +2243,7 @@ fn parse_primary(p: mut ref Parser) result[ref Node, ref u8] = trust {
         if string.str_eql(bname, "zeroed") {
             p_expect_rparen(p)?
             val nz1: mut ref Node = make_node(p.arena, NK_ZERO_INIT, line)
-            node_store_slot[ref u8](@addr(nz1.d0), bname)
+            node_store_string_slot(@addr(nz1.d0), bname)
             return ok nz1
         }
         if string.str_eql(bname, "addr") {
@@ -2159,7 +2264,7 @@ fn parse_primary(p: mut ref Parser) result[ref Node, ref u8] = trust {
             val ty = parse_type(p)?
             p_expect_rparen(p)?
             val nb: mut ref Node = make_node(p.arena, NK_BUILTIN, line)
-            node_store_slot[ref u8](@addr(nb.d0), bname)
+            node_store_string_slot(@addr(nb.d0), bname)
             val targs: mut list[ref Node] = mem.new[ref Node]()
             @append(targs, ty)
             node_store_slot[list[ref Node]](@addr(nb.d1), targs)
@@ -2172,7 +2277,7 @@ fn parse_primary(p: mut ref Parser) result[ref Node, ref u8] = trust {
             val target_ty = parse_type(p)?
             p_expect_rparen(p)?
             val nb: mut ref Node = make_node(p.arena, NK_BUILTIN, line)
-            node_store_slot[ref u8](@addr(nb.d0), bname)
+            node_store_string_slot(@addr(nb.d0), bname)
             val bargs: mut list[ref Node] = mem.new[ref Node]()
             @append(bargs, target_ty)
             @append(bargs, source_expr)
@@ -2193,7 +2298,7 @@ fn parse_primary(p: mut ref Parser) result[ref Node, ref u8] = trust {
         }
         p_expect_rparen(p)?
         val nb: mut ref Node = make_node(p.arena, NK_BUILTIN, line)
-        node_store_slot[ref u8](@addr(nb.d0), bname)
+        node_store_string_slot(@addr(nb.d0), bname)
         val blist: list[ref Node] = bargs
         node_store_slot[list[ref Node]](@addr(nb.d1), blist)
         node_store_slot[list[ref Node]](@addr(nb.d4), btype_args)
@@ -2206,11 +2311,11 @@ fn parse_primary(p: mut ref Parser) result[ref Node, ref u8] = trust {
             p_advance(p)
             p_advance(p)
             val nz: mut ref Node = make_node(p.arena, NK_ZERO_INIT, line)
-            node_store_slot[ref u8](@addr(nz.d0), name)
+            node_store_string_slot(@addr(nz.d0), name)
             return ok nz
         }
         val ni: mut ref Node = make_node(p.arena, NK_IDENT, line)
-        node_store_slot[ref u8](@addr(ni.d0), name)
+        node_store_string_slot(@addr(ni.d0), name)
         return ok ni
     }
 
@@ -2257,7 +2362,7 @@ fn parse_contracts(p: mut ref Parser) result[list[ref Node], ref u8] = trust {
         }
         val expr = parse_expr(p)?
         val c: mut ref Node = make_node(p.arena, NK_PRE, line)
-        node_store_slot[ref u8](@addr(c.d0), label)
+        node_store_string_slot(@addr(c.d0), label)
         node_store_slot[ref Node](@addr(c.d1), expr)
         @append(contracts, c)
     }
@@ -2288,7 +2393,7 @@ pub fn parse_stmt(p: mut ref Parser) result[ref Node, ref u8] = trust {
             return err p_error(p, "type-prefixed initialization is not valid")
         }
         val n: mut ref Node = make_node(p.arena, NK_VAL, line)
-        node_store_slot[ref u8](@addr(n.d0), name)
+        node_store_string_slot(@addr(n.d0), name)
         n.d1 = mutable
         node_store_slot[ref Node](@addr(n.d2), ty)
         node_store_slot[ref Node](@addr(n.d3), expr)
@@ -2374,7 +2479,7 @@ pub fn parse_stmt(p: mut ref Parser) result[ref Node, ref u8] = trust {
         val peek_next_ok: mut bool = false
         val peek_next_err: mut bool = false
         if lexer.kind_is_ident(p_peek_kind(p)) {
-            val ptxt: ref u8 = lexer.tok_text(p.tokens, p.pos)
+            val ptxt: ref u8 = lexer.tok_text_raw(p.tokens, p.pos)
             if ptxt != none {
                 if string.str_eql(ptxt, "is") {
                     if kind_is_some(p_peek2_kind(p)) {
@@ -2466,7 +2571,7 @@ pub fn parse_stmt(p: mut ref Parser) result[ref Node, ref u8] = trust {
 
             val nmo: mut ref Node = make_node(p.arena, NK_MATCH_OPT, line)
             node_store_slot[ref Node](@addr(nmo.d0), cond)
-            node_store_slot[ref u8](@addr(nmo.d1), is_bind)
+            node_store_string_slot(@addr(nmo.d1), is_bind)
             node_store_slot[ref Node](@addr(nmo.d2), is_some_body)
             node_store_slot[ref Node](@addr(nmo.d3), is_none_body)
             nmo.d6 = 1
@@ -2549,7 +2654,7 @@ pub fn parse_stmt(p: mut ref Parser) result[ref Node, ref u8] = trust {
 
             val nmo: mut ref Node = make_node(p.arena, NK_MATCH_OPT, line)
             node_store_slot[ref Node](@addr(nmo.d0), cond)
-            node_store_slot[ref u8](@addr(nmo.d1), none)
+            node_store_string_slot(@addr(nmo.d1), none)
             node_store_slot[ref Node](@addr(nmo.d2), is_some_body)
             node_store_slot[ref Node](@addr(nmo.d3), is_none_body)
             nmo.d6 = 2
@@ -2633,9 +2738,9 @@ pub fn parse_stmt(p: mut ref Parser) result[ref Node, ref u8] = trust {
 
             val nmr: mut ref Node = make_node(p.arena, NK_MATCH_RES, line)
             node_store_slot[ref Node](@addr(nmr.d0), cond)
-            node_store_slot[ref u8](@addr(nmr.d1), is_bind)
+            node_store_string_slot(@addr(nmr.d1), is_bind)
             node_store_slot[ref Node](@addr(nmr.d2), is_ok_body)
-            node_store_slot[ref u8](@addr(nmr.d3), none)
+            node_store_string_slot(@addr(nmr.d3), none)
             node_store_slot[ref Node](@addr(nmr.d4), is_err_body)
             nmr.d6 = 1
             return ok nmr
@@ -2718,9 +2823,9 @@ pub fn parse_stmt(p: mut ref Parser) result[ref Node, ref u8] = trust {
 
             val nmr: mut ref Node = make_node(p.arena, NK_MATCH_RES, line)
             node_store_slot[ref Node](@addr(nmr.d0), cond)
-            node_store_slot[ref u8](@addr(nmr.d1), none)
+            node_store_string_slot(@addr(nmr.d1), none)
             node_store_slot[ref Node](@addr(nmr.d2), is_ok_body)
-            node_store_slot[ref u8](@addr(nmr.d3), is_bind)
+            node_store_string_slot(@addr(nmr.d3), is_bind)
             node_store_slot[ref Node](@addr(nmr.d4), is_err_body)
             nmr.d6 = 2
             return ok nmr
@@ -2790,7 +2895,7 @@ pub fn parse_stmt(p: mut ref Parser) result[ref Node, ref u8] = trust {
                 val fi_body = parse_stmts(p)?
                 p_expect_rbrace(p)?
                 val nfi: mut ref Node = make_node(p.arena, NK_FORIN, line)
-                node_store_slot[ref u8](@addr(nfi.d0), first_name)
+                node_store_string_slot(@addr(nfi.d0), first_name)
                 node_store_slot[ref Node](@addr(nfi.d1), iter)
                 val fibl: list[ref Node] = fi_body
                 node_store_slot[list[ref Node]](@addr(nfi.d2), fibl)
@@ -2838,7 +2943,7 @@ pub fn parse_stmt(p: mut ref Parser) result[ref Node, ref u8] = trust {
                 val for_body = parse_stmts(p)?
                 p_expect_rbrace(p)?
                 val nfor: mut ref Node = make_node(p.arena, NK_FOR, line)
-                node_store_slot[ref u8](@addr(nfor.d0), first_name)
+                node_store_string_slot(@addr(nfor.d0), first_name)
                 node_store_slot[ref Node](@addr(nfor.d1), init_expr)
                 node_store_slot[ref Node](@addr(nfor.d2), cond2)
                 node_store_slot[ref Node](@addr(nfor.d3), post_node)
@@ -2918,7 +3023,7 @@ pub fn parse_stmt(p: mut ref Parser) result[ref Node, ref u8] = trust {
                 val gwb = parse_stmts(p)?
                 p_expect_rbrace(p)?
                 val gcond: mut ref Node = make_node(p.arena, NK_GWHEN_COND, line)
-                node_store_slot[ref u8](@addr(gcond.d0), ident_text)
+                node_store_string_slot(@addr(gcond.d0), ident_text)
                 gcond.d1 = 3
                 val gtl: list[ref Node] = gtypes
                 node_store_slot[list[ref Node]](@addr(gcond.d2), gtl)
@@ -2952,7 +3057,7 @@ pub fn parse_stmt(p: mut ref Parser) result[ref Node, ref u8] = trust {
             val gwb = parse_stmts(p)?
             p_expect_rbrace(p)?
             val gcond: mut ref Node = make_node(p.arena, NK_GWHEN_COND, line)
-            node_store_slot[ref u8](@addr(gcond.d0), ident_text)
+            node_store_string_slot(@addr(gcond.d0), ident_text)
             gcond.d1 = 1
             val gtl: list[ref Node] = gtypes
             node_store_slot[list[ref Node]](@addr(gcond.d2), gtl)
@@ -2967,7 +3072,7 @@ pub fn parse_stmt(p: mut ref Parser) result[ref Node, ref u8] = trust {
         }
 
         if kind_is_ident(next_k) {
-            val next_txt: ref u8 = lexer.tok_text(p.tokens, p.pos)
+            val next_txt: ref u8 = lexer.tok_text_raw(p.tokens, p.pos)
             if string.str_eql(next_txt, "is") {
                 val gconds2: mut list[ref Node] = mem.new[ref Node]()
                 val cur_tparam: mut ref u8 = ident_text
@@ -2975,7 +3080,7 @@ pub fn parse_stmt(p: mut ref Parser) result[ref Node, ref u8] = trust {
                     p_advance(p)
                     val gty2 = parse_type(p)?
                     val gcond2: mut ref Node = make_node(p.arena, NK_GWHEN_COND, line)
-                    node_store_slot[ref u8](@addr(gcond2.d0), cur_tparam)
+                    node_store_string_slot(@addr(gcond2.d0), cur_tparam)
                     gcond2.d1 = 2
                     val stl: mut list[ref Node] = mem.new[ref Node]()
                     @append(stl, gty2)
@@ -2993,7 +3098,7 @@ pub fn parse_stmt(p: mut ref Parser) result[ref Node, ref u8] = trust {
                     if !kind_is_ident(p_peek_kind(p)) {
                         break
                     }
-                    val nis_txt: ref u8 = lexer.tok_text(p.tokens, p.pos)
+                    val nis_txt: ref u8 = lexer.tok_text_raw(p.tokens, p.pos)
                     if !string.str_eql(nis_txt, "is") {
                         break
                     }
@@ -3038,7 +3143,7 @@ pub fn parse_stmt(p: mut ref Parser) result[ref Node, ref u8] = trust {
             if !kind_is_ident(k2) {
                 break
             }
-            val txt: ref u8 = lexer.tok_text(p.tokens, p.pos)
+            val txt: ref u8 = lexer.tok_text_raw(p.tokens, p.pos)
             if !string.str_eql(txt, "or") {
                 break
             }
@@ -3053,7 +3158,7 @@ pub fn parse_stmt(p: mut ref Parser) result[ref Node, ref u8] = trust {
             val ow_body = parse_stmts(p)?
             p_expect_rbrace(p)?
             val ow_node: mut ref Node = make_node(p.arena, NK_WHEN_STMT, line)
-            node_store_slot[ref u8](@addr(ow_node.d0), ow_plat)
+            node_store_string_slot(@addr(ow_node.d0), ow_plat)
             val ow_bl: list[ref Node] = ow_body
             node_store_slot[list[ref Node]](@addr(ow_node.d1), ow_bl)
             @append(or_when_branches, ow_node)
@@ -3061,7 +3166,7 @@ pub fn parse_stmt(p: mut ref Parser) result[ref Node, ref u8] = trust {
         val otherwise_stmts: mut list[ref Node] = mem.new[ref Node]()
         val k4: lexer.TokenKind = p_peek_kind(p)
         if kind_is_ident(k4) {
-            val txt2: ref u8 = lexer.tok_text(p.tokens, p.pos)
+            val txt2: ref u8 = lexer.tok_text_raw(p.tokens, p.pos)
             if string.str_eql(txt2, "otherwise") {
                 p_advance(p)
                 p_expect_lbrace(p)?
@@ -3071,7 +3176,7 @@ pub fn parse_stmt(p: mut ref Parser) result[ref Node, ref u8] = trust {
             }
         }
         val nw: mut ref Node = make_node(p.arena, NK_WHEN_STMT, line)
-        node_store_slot[ref u8](@addr(nw.d0), plat)
+        node_store_string_slot(@addr(nw.d0), plat)
         val wbl: list[ref Node] = wb
         node_store_slot[list[ref Node]](@addr(nw.d1), wbl)
         val owbl: list[ref Node] = or_when_branches
@@ -3175,9 +3280,9 @@ fn parse_match_stmt(p: mut ref Parser, line: i64) result[ref Node, ref u8] = tru
         p_expect_rbrace(p)?
         val nm: mut ref Node = make_node(p.arena, NK_MATCH_RES, line)
         node_store_slot[ref Node](@addr(nm.d0), expr)
-        node_store_slot[ref u8](@addr(nm.d1), ok_bind)
+        node_store_string_slot(@addr(nm.d1), ok_bind)
         node_store_slot[ref Node](@addr(nm.d2), ok_body)
-        node_store_slot[ref u8](@addr(nm.d3), err_bind)
+        node_store_string_slot(@addr(nm.d3), err_bind)
         node_store_slot[ref Node](@addr(nm.d4), err_body)
         return ok nm
     }
@@ -3214,7 +3319,7 @@ fn parse_match_stmt(p: mut ref Parser, line: i64) result[ref Node, ref u8] = tru
         p_expect_rbrace(p)?
         val nmo: mut ref Node = make_node(p.arena, NK_MATCH_OPT, line)
         node_store_slot[ref Node](@addr(nmo.d0), expr)
-        node_store_slot[ref u8](@addr(nmo.d1), some_bind)
+        node_store_string_slot(@addr(nmo.d1), some_bind)
         node_store_slot[ref Node](@addr(nmo.d2), some_body)
         node_store_slot[ref Node](@addr(nmo.d3), none_body)
         return ok nmo
@@ -3235,8 +3340,8 @@ fn parse_match_stmt(p: mut ref Parser, line: i64) result[ref Node, ref u8] = tru
             val ab = parse_stmts(p)?
             p_expect_rbrace(p)?
             val arm: mut ref Node = make_node(p.arena, NK_MATCH_ENUM, el)
-            node_store_slot[ref u8](@addr(arm.d0), variant)
-            node_store_slot[ref u8](@addr(arm.d2), enum_type_name)
+            node_store_string_slot(@addr(arm.d0), variant)
+            node_store_string_slot(@addr(arm.d2), enum_type_name)
             val abl: list[ref Node] = ab
             node_store_slot[list[ref Node]](@addr(arm.d1), abl)
             @append(arms, arm)
@@ -3274,7 +3379,7 @@ fn parse_match_stmt(p: mut ref Parser, line: i64) result[ref Node, ref u8] = tru
             val sab = parse_stmts(p)?
             p_expect_rbrace(p)?
             val sarm: mut ref Node = make_node(p.arena, NK_MATCH_STR, p_line(p))
-            node_store_slot[ref u8](@addr(sarm.d0), sv)
+            node_store_string_slot(@addr(sarm.d0), sv)
             val sabl: list[ref Node] = sab
             node_store_slot[list[ref Node]](@addr(sarm.d1), sabl)
             @append(sarms, sarm)
@@ -3378,7 +3483,7 @@ fn parse_match_stmt(p: mut ref Parser, line: i64) result[ref Node, ref u8] = tru
             val tab = parse_stmts(p)?
             p_expect_rbrace(p)?
             val tarm: mut ref Node = make_node(p.arena, NK_MATCH_TAGGED_UNION, tline)
-            node_store_slot[ref u8](@addr(tarm.d0), vname)
+            node_store_string_slot(@addr(tarm.d0), vname)
             val bl: list[ref u8] = bindings
             node_store_slot[list[ref Node]](@addr(tarm.d1), bl)
             val tabl: list[ref Node] = tab
@@ -3478,7 +3583,7 @@ fn parse_fn_item(
                 }
             }
             val tp_node: mut ref Node = make_node(p.arena, NK_VAL, line)
-            node_store_slot[ref u8](@addr(tp_node.d0), tp_name)
+            node_store_string_slot(@addr(tp_node.d0), tp_name)
             node_store_slot[ref Node](@addr(tp_node.d1), tp_constraint)
             @append(type_params, tp_node)
             if !p_eat_fn(p, lexer.kind_is_comma) {
@@ -3507,7 +3612,7 @@ fn parse_fn_item(
             actual_ty = mt
         }
         val param: mut ref Node = make_node(p.arena, NK_VAL, line)
-        node_store_slot[ref u8](@addr(param.d0), pname)
+        node_store_string_slot(@addr(param.d0), pname)
         node_store_slot[ref Node](@addr(param.d1), actual_ty)
         @append(params, param)
         if !p_eat_fn(p, lexer.kind_is_comma) {
@@ -3545,8 +3650,8 @@ fn parse_fn_item(
     if @len(type_params) as i64 > 0 {
         val nfn: mut ref Node = make_node(p.arena, NK_GENERIC_FN, line)
         nfn.d0 = public | (is_unsafe << 1) | (is_inline << 2) | (suppress_flag << 3)
-        node_store_slot[ref u8](@addr(nfn.d1), ns)
-        node_store_slot[ref u8](@addr(nfn.d2), name)
+        node_store_string_slot(@addr(nfn.d1), ns)
+        node_store_string_slot(@addr(nfn.d2), name)
         val pl: list[ref Node] = params
         node_store_slot[list[ref Node]](@addr(nfn.d3), pl)
         node_store_slot[ref Node](@addr(nfn.d4), ret_ty)
@@ -3558,8 +3663,8 @@ fn parse_fn_item(
     }
     val nfn: mut ref Node = make_node(p.arena, NK_FN, line)
     nfn.d0 = public
-    node_store_slot[ref u8](@addr(nfn.d1), ns)
-    node_store_slot[ref u8](@addr(nfn.d2), name)
+    node_store_string_slot(@addr(nfn.d1), ns)
+    node_store_string_slot(@addr(nfn.d2), name)
     val pl: list[ref Node] = params
     node_store_slot[list[ref Node]](@addr(nfn.d3), pl)
     node_store_slot[ref Node](@addr(nfn.d4), ret_ty)
@@ -3633,7 +3738,7 @@ fn parse_type_def_item(
         }
         val fty = parse_type(p)?
         val fnode: mut ref Node = make_node(p.arena, NK_VAL, line)
-        node_store_slot[ref u8](@addr(fnode.d0), fname)
+        node_store_string_slot(@addr(fnode.d0), fname)
         fnode.d1 = fmut
         node_store_slot[ref Node](@addr(fnode.d2), fty)
         @append(fields, fnode)
@@ -3646,14 +3751,14 @@ fn parse_type_def_item(
     }
     val nt: mut ref Node = make_node(p.arena, nk, line)
     nt.d0 = public
-    node_store_slot[ref u8](@addr(nt.d1), name)
+    node_store_string_slot(@addr(nt.d1), name)
     val fl: list[ref Node] = fields
     node_store_slot[list[ref Node]](@addr(nt.d2), fl)
     if has_invariant {
         val il: list[ref Node] = inv_exprs
         node_store_slot[list[ref Node]](@addr(nt.d3), il)
     }
-    node_store_slot[ref u8](@addr(nt.d4), spec_name)
+    node_store_string_slot(@addr(nt.d4), spec_name)
     return ok nt
 }
 
@@ -3679,7 +3784,7 @@ fn parse_spec_item(p: mut ref Parser, public: i64) result[ref Node, ref u8] = tr
     p_expect_rbrace(p)?
     val ns: mut ref Node = make_node(p.arena, NK_SPEC, line)
     ns.d0 = public
-    node_store_slot[ref u8](@addr(ns.d1), name)
+    node_store_string_slot(@addr(ns.d1), name)
     val ml: list[ref Node] = methods
     node_store_slot[list[ref Node]](@addr(ns.d2), ml)
     return ok ns
@@ -3704,7 +3809,7 @@ fn parse_enum_def_item(p: mut ref Parser, public: i64) result[ref Node, ref u8] 
     p_expect_rbrace(p)?
     val ne: mut ref Node = make_node(p.arena, NK_ENUMDEF, line)
     ne.d0 = public
-    node_store_slot[ref u8](@addr(ne.d1), name)
+    node_store_string_slot(@addr(ne.d1), name)
     val vl: list[ref u8] = variants
     node_store_slot[list[ref u8]](@addr(ne.d2), vl)
     return ok ne
@@ -3745,7 +3850,7 @@ fn parse_union_def_item(p: mut ref Parser, public: i64) result[ref Node, ref u8]
             }
             p_expect_rparen(p)?
             val vnode: mut ref Node = make_node(p.arena, NK_VAL, vline)
-            node_store_slot[ref u8](@addr(vnode.d0), vname)
+            node_store_string_slot(@addr(vnode.d0), vname)
             val vtl: list[ref Node] = vtypes
             node_store_slot[list[ref Node]](@addr(vnode.d1), vtl)
             @append(variants, vnode)
@@ -3756,7 +3861,7 @@ fn parse_union_def_item(p: mut ref Parser, public: i64) result[ref Node, ref u8]
         p_expect_rbrace(p)?
         val ntu: mut ref Node = make_node(p.arena, NK_TAGGED_UNIONDEF, line)
         ntu.d0 = public
-        node_store_slot[ref u8](@addr(ntu.d1), name)
+        node_store_string_slot(@addr(ntu.d1), name)
         val vl: list[ref Node] = variants
         node_store_slot[list[ref Node]](@addr(ntu.d2), vl)
         return ok ntu
@@ -3776,7 +3881,7 @@ fn parse_union_def_item(p: mut ref Parser, public: i64) result[ref Node, ref u8]
     p_expect_rbrace(p)?
     val nu: mut ref Node = make_node(p.arena, NK_UNIONDEF, line)
     nu.d0 = public
-    node_store_slot[ref u8](@addr(nu.d1), name)
+    node_store_string_slot(@addr(nu.d1), name)
     val vl2: list[ref Node] = variants
     node_store_slot[list[ref Node]](@addr(nu.d2), vl2)
     return ok nu
@@ -3821,7 +3926,7 @@ fn parse_extern_fn_item(p: mut ref Parser, public: i64) result[ref Node, ref u8]
         p_expect_colon(p)?
         val pty = parse_type(p)?
         val param: mut ref Node = make_node(p.arena, NK_VAL, line)
-        node_store_slot[ref u8](@addr(param.d0), pname)
+        node_store_string_slot(@addr(param.d0), pname)
         node_store_slot[ref Node](@addr(param.d1), pty)
         @append(params, param)
         if !p_eat_fn(p, lexer.kind_is_comma) {
@@ -3835,9 +3940,9 @@ fn parse_extern_fn_item(p: mut ref Parser, public: i64) result[ref Node, ref u8]
     val symbol = p_expect_string(p)?
     val nef: mut ref Node = make_node(p.arena, NK_EXTERN_FN, line)
     nef.d0 = public
-    node_store_slot[ref u8](@addr(nef.d1), name)
-    node_store_slot[ref u8](@addr(nef.d2), symbol)
-    node_store_slot[ref u8](@addr(nef.d3), conv)
+    node_store_string_slot(@addr(nef.d1), name)
+    node_store_string_slot(@addr(nef.d2), symbol)
+    node_store_string_slot(@addr(nef.d3), conv)
     val pl: list[ref Node] = params
     node_store_slot[list[ref Node]](@addr(nef.d4), pl)
     node_store_slot[ref Node](@addr(nef.d5), ret_ty)
@@ -3849,7 +3954,7 @@ fn parse_extern_header_item(p: mut ref Parser) result[ref Node, ref u8] = trust 
     val line: i64 = p_line(p)
     val header = p_expect_string(p)?
     val neh: mut ref Node = make_node(p.arena, NK_EXTERN_HEADER, line)
-    node_store_slot[ref u8](@addr(neh.d0), header)
+    node_store_string_slot(@addr(neh.d0), header)
     return ok neh
 }
 
@@ -3871,7 +3976,7 @@ fn parse_bulk_val_entry(p: mut ref Parser, public: i64) result[ref Node, ref u8]
     val expr = parse_expr(p)?
     if is_mut != 0 {
         val nv: mut ref Node = make_node(p.arena, NK_VAL, line)
-        node_store_slot[ref u8](@addr(nv.d0), name)
+        node_store_string_slot(@addr(nv.d0), name)
         nv.d1 = 1
         node_store_slot[ref Node](@addr(nv.d2), ty)
         node_store_slot[ref Node](@addr(nv.d3), expr)
@@ -3879,7 +3984,7 @@ fn parse_bulk_val_entry(p: mut ref Parser, public: i64) result[ref Node, ref u8]
     }
     val nc: mut ref Node = make_node(p.arena, NK_CONST, line)
     nc.d0 = public
-    node_store_slot[ref u8](@addr(nc.d1), name)
+    node_store_string_slot(@addr(nc.d1), name)
     node_store_slot[ref Node](@addr(nc.d2), expr)
     node_store_slot[ref Node](@addr(nc.d3), ty)
     return ok nc
@@ -3922,7 +4027,7 @@ pub fn parse_item(p: mut ref Parser) result[ref Node, ref u8] = trust {
         p_advance(p)
         val link_arg = p_expect_string(p)?
         val nl: mut ref Node = make_node(p.arena, NK_LINK, line)
-        node_store_slot[ref u8](@addr(nl.d0), link_arg)
+        node_store_string_slot(@addr(nl.d0), link_arg)
         return ok nl
     }
 
@@ -3930,7 +4035,7 @@ pub fn parse_item(p: mut ref Parser) result[ref Node, ref u8] = trust {
         p_advance(p)
         val lib_name = p_expect_string(p)?
         val nl: mut ref Node = make_node(p.arena, NK_LIB, line)
-        node_store_slot[ref u8](@addr(nl.d0), lib_name)
+        node_store_string_slot(@addr(nl.d0), lib_name)
         return ok nl
     }
 
@@ -3947,7 +4052,7 @@ pub fn parse_item(p: mut ref Parser) result[ref Node, ref u8] = trust {
         val tlist: list[ref Node] = tbody
         node_store_slot[list[ref Node]](@addr(nt.d0), tlist)
         if tname != none {
-            node_store_slot[ref u8](@addr(nt.d1), tname)
+            node_store_string_slot(@addr(nt.d1), tname)
         }
         return ok nt
     }
@@ -3971,7 +4076,7 @@ pub fn parse_item(p: mut ref Parser) result[ref Node, ref u8] = trust {
             if !kind_is_ident(k2) {
                 break
             }
-            val txt: ref u8 = lexer.tok_text(p.tokens, p.pos)
+            val txt: ref u8 = lexer.tok_text_raw(p.tokens, p.pos)
             if !string.str_eql(txt, "or") {
                 break
             }
@@ -3993,7 +4098,7 @@ pub fn parse_item(p: mut ref Parser) result[ref Node, ref u8] = trust {
             }
             p_expect_rbrace(p)?
             val ow_node: mut ref Node = make_node(p.arena, NK_WHEN_ITEMS, line)
-            node_store_slot[ref u8](@addr(ow_node.d0), ow_plat)
+            node_store_string_slot(@addr(ow_node.d0), ow_plat)
             val ow_il: list[ref Node] = ow_items
             node_store_slot[list[ref Node]](@addr(ow_node.d1), ow_il)
             @append(or_when_item_branches, ow_node)
@@ -4001,7 +4106,7 @@ pub fn parse_item(p: mut ref Parser) result[ref Node, ref u8] = trust {
         val otherwise_items: mut list[ref Node] = mem.new[ref Node]()
         val k4: lexer.TokenKind = p_peek_kind(p)
         if kind_is_ident(k4) {
-            val txt2: ref u8 = lexer.tok_text(p.tokens, p.pos)
+            val txt2: ref u8 = lexer.tok_text_raw(p.tokens, p.pos)
             if string.str_eql(txt2, "otherwise") {
                 p_advance(p)
                 p_expect_lbrace(p)?
@@ -4016,7 +4121,7 @@ pub fn parse_item(p: mut ref Parser) result[ref Node, ref u8] = trust {
             }
         }
         val nwi: mut ref Node = make_node(p.arena, NK_WHEN_ITEMS, line)
-        node_store_slot[ref u8](@addr(nwi.d0), plat)
+        node_store_string_slot(@addr(nwi.d0), plat)
         val wil: list[ref Node] = witems
         node_store_slot[list[ref Node]](@addr(nwi.d1), wil)
         val owil: list[ref Node] = or_when_item_branches
@@ -4080,15 +4185,15 @@ pub fn parse_item(p: mut ref Parser) result[ref Node, ref u8] = trust {
             p_expect_rparen(p)?
             val nu: mut ref Node = make_node(p.arena, NK_USE, line)
             nu.d0 = public
-            node_store_slot[ref u8](@addr(nu.d1), vname)
-            node_store_slot[ref u8](@addr(nu.d2), path)
+            node_store_string_slot(@addr(nu.d1), vname)
+            node_store_string_slot(@addr(nu.d2), path)
             node_store_slot[ref Node](@addr(nu.d3), vty)
             return ok nu
         }
         val vexpr = parse_expr(p)?
         if vmut != 0 {
             val nv: mut ref Node = make_node(p.arena, NK_VAL, line)
-            node_store_slot[ref u8](@addr(nv.d0), vname)
+            node_store_string_slot(@addr(nv.d0), vname)
             nv.d1 = 1
             node_store_slot[ref Node](@addr(nv.d2), vty)
             node_store_slot[ref Node](@addr(nv.d3), vexpr)
@@ -4096,7 +4201,7 @@ pub fn parse_item(p: mut ref Parser) result[ref Node, ref u8] = trust {
         }
         val nc: mut ref Node = make_node(p.arena, NK_CONST, line)
         nc.d0 = public
-        node_store_slot[ref u8](@addr(nc.d1), vname)
+        node_store_string_slot(@addr(nc.d1), vname)
         node_store_slot[ref Node](@addr(nc.d2), vexpr)
         node_store_slot[ref Node](@addr(nc.d3), vty)
         return ok nc
@@ -4167,7 +4272,7 @@ test "parser parses expressions, statements and top-level items" {
         }
         ok n => {
             assert n.kind == NK_INT_LIT
-            assert string.raw_cmp(int_lit_text(n), "42") == 0
+            assert string.raw_cmp(int_lit_text_raw(n), "42") == 0
         }
     }
 
@@ -4188,7 +4293,7 @@ test "parser parses expressions, statements and top-level items" {
         }
         ok n => {
             assert n.kind == NK_STR_LIT
-            assert string.raw_cmp(str_lit_text(n), "hello") == 0
+            assert string.raw_cmp(str_lit_text_raw(n), "hello") == 0
         }
     }
 
@@ -4220,7 +4325,7 @@ test "parser parses expressions, statements and top-level items" {
         }
         ok n => {
             assert n.kind == NK_IDENT
-            assert string.raw_cmp(n.d0 as ref u8, "foo") == 0
+            assert string.raw_cmp(node_str_raw(n.d0), "foo") == 0
         }
     }
 
@@ -4281,7 +4386,10 @@ test "parser parses expressions, statements and top-level items" {
             assert n.kind == NK_FIELD
             val base: ref Node = field_base(n)
             assert base.kind == NK_IDENT
-            assert string.raw_cmp(field_name(n), "field") == 0
+            assert string.raw_cmp(field_name_raw(n), "field") == 0
+            val fname_view: string.StringView = field_name(n)
+            assert fname_view.len == 5
+            assert trust string.view_eql_cstr(fname_view, "field")
         }
     }
 
@@ -4532,7 +4640,7 @@ test "parser parses expressions, statements and top-level items" {
                     assert item.kind == NK_CONST
                     val lit: ref Node = item.d2 as ref Node
                     assert lit.kind == NK_STRUCT_LIT
-                    val lit_name: ref u8 = struct_lit_type_name(lit)
+                    val lit_name: ref u8 = struct_lit_type_name_raw(lit)
                     assert lit_name != none
                     assert string.raw_cmp(lit_name, "Point") == 0
                     assert @len(lit.d0 as list[ref Node]) as i64 == 2
@@ -4557,7 +4665,7 @@ test "parser parses expressions, statements and top-level items" {
                 some item_val => {
                     val item: ref Node = item_val as ref Node
                     assert item.kind == NK_TEST
-                    val name: ref u8 = test_name(item)
+                    val name: ref u8 = test_name_raw(item)
                     assert name != none
                     assert string.raw_cmp(name, "addition works") == 0
                 }
@@ -4578,14 +4686,14 @@ test "parser parses expressions, statements and top-level items" {
             if a_opt is some a_val {
                 val a: ref Node = a_val as ref Node
                 assert a.kind == NK_CONST
-                assert string.raw_cmp(a.d1 as ref u8, "a") == 0
+                assert string.raw_cmp(node_str_raw(a.d1), "a") == 0
             } else {
                 assert false
             }
             if b_opt is some b_val {
                 val b: ref Node = b_val as ref Node
                 assert b.kind == NK_CONST
-                assert string.raw_cmp(b.d1 as ref u8, "b") == 0
+                assert string.raw_cmp(node_str_raw(b.d1), "b") == 0
             } else {
                 assert false
             }
@@ -4654,7 +4762,7 @@ test "parser parses expressions, statements and top-level items" {
                 some item_val => {
                     val item: ref Node = item_val as ref Node
                     assert item.kind == NK_TEST
-                    assert test_name(item) == none
+                    assert test_name_raw(item) == none
                 }
             }
         }

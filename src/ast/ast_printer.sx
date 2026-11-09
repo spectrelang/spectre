@@ -294,7 +294,7 @@ fn print_contract_node(
     prefix: ref u8,
     kind_name: ref u8
 ) void = trust {
-    val label: ref u8 = node.d0 as ref u8
+    val label: ref u8 = parser.node_str_raw(node.d0)
     val expr: ref parser.Node = node.d1 as ref parser.Node
     if label != none {
         stdio.print("{s}{s} : {s}\n", {prefix, kind_name, label})
@@ -344,7 +344,7 @@ fn print_struct_field_nodes(fields: list[ref parser.Node], indent: i64) void = t
         if field_opt is some field_val {
             val field: ref parser.Node = field_val as ref parser.Node
             val prefix: ref u8 = build_prefix(indent + 1, i == nfields - 1)
-            val name: ref u8 = field.d0 as ref u8
+            val name: ref u8 = parser.node_str_raw(field.d0)
             val expr: ref parser.Node = field.d1 as ref parser.Node
             stdio.print("{s}FIELD : {s}\n", {prefix, name})
             if expr != none {
@@ -417,7 +417,7 @@ fn print_match_opt_node(
     }
     if has_some {
         val some_prefix: ref u8 = build_prefix(indent + 1, !has_none)
-        val some_bind: ref u8 = node.d1 as ref u8
+        val some_bind: ref u8 = parser.node_str_raw(node.d1)
         if some_bind != none {
             stdio.print("{s}SOME : {s}\n", {some_prefix, some_bind})
         } else {
@@ -449,7 +449,7 @@ fn print_match_res_node(
     }
     if has_ok {
         val ok_prefix: ref u8 = build_prefix(indent + 1, !has_err)
-        val ok_bind: ref u8 = node.d1 as ref u8
+        val ok_bind: ref u8 = parser.node_str_raw(node.d1)
         if ok_bind != none {
             stdio.print("{s}OK : {s}\n", {ok_prefix, ok_bind})
         } else {
@@ -459,7 +459,7 @@ fn print_match_res_node(
     }
     if has_err {
         val err_prefix: ref u8 = build_prefix(indent + 1, true)
-        val err_bind: ref u8 = node.d3 as ref u8
+        val err_bind: ref u8 = parser.node_str_raw(node.d3)
         if err_bind != none {
             stdio.print("{s}ERR : {s}\n", {err_prefix, err_bind})
         } else {
@@ -495,7 +495,7 @@ fn print_match_enum_node(
         if arm_opt is some arm_val {
             val arm: ref parser.Node = arm_val as ref parser.Node
             val arm_prefix: ref u8 = build_prefix(indent + 1, i == narms - 1)
-            val variant: ref u8 = arm.d0 as ref u8
+            val variant: ref u8 = parser.node_str_raw(arm.d0)
             stdio.print("{s}CASE : {s}\n", {arm_prefix, variant})
             print_list_of_nodes(arm.d1 as list[ref parser.Node], indent + 2, 0)
         }
@@ -529,7 +529,7 @@ fn print_match_str_node(
             if arm_opt is some arm_val {
                 val arm: ref parser.Node = arm_val as ref parser.Node
                 val arm_prefix: ref u8 = build_prefix(indent + 1, !has_else && i == narms - 1)
-                val value: ref u8 = arm.d0 as ref u8
+                val value: ref u8 = parser.node_str_raw(arm.d0)
                 stdio.print("{s}CASE : {s}\n", {arm_prefix, value})
                 print_list_of_nodes(arm.d1 as list[ref parser.Node], indent + 2, 0)
             }
@@ -652,7 +652,7 @@ fn print_match_tagged_union_node(
             if arm_opt is some arm_val {
                 val arm: ref parser.Node = arm_val as ref parser.Node
                 val arm_prefix: ref u8 = build_prefix(indent + 1, !has_else && i == narms - 1)
-                val variant: ref u8 = arm.d0 as ref u8
+                val variant: ref u8 = parser.node_str_raw(arm.d0)
                 stdio.print("{s}CASE : {s}\n", {arm_prefix, variant})
                 print_list_of_nodes(arm.d2 as list[ref parser.Node], indent + 2, 0)
             }
@@ -688,7 +688,7 @@ fn print_expression_nodes(
         val inner: ref parser.Node = parser.unop_inner(node)
         print_node_recursive(inner, indent + 1, true)
     } elif kind == parser.NK_FIELD {
-        val name: ref u8 = parser.field_name(node)
+        val name: ref u8 = parser.field_name_raw(node)
         stdio.print("{s}{s} : {s}\n", {prefix, kind_name, name})
         val base: ref parser.Node = parser.field_base(node)
         print_node_recursive(base, indent + 1, true)
@@ -764,7 +764,7 @@ fn print_type_nodes(
     kind: i64
 ) void = trust {
     if kind == parser.TY_NAMED {
-        val name: ref u8 = node.d0 as ref u8
+        val name: ref u8 = parser.node_str_raw(node.d0)
         stdio.print("{s}{s} : {s}\n", {prefix, kind_name, name})
     } elif kind == parser.TY_REF || kind == parser.TY_MUT {
         stdio.print("{s}{s}\n", {prefix, kind_name})
@@ -799,7 +799,7 @@ fn print_node_recursive(node: ref parser.Node, indent: i64, is_last: bool) void 
     val prefix: ref u8 = build_prefix(indent, is_last)
 
     if kind == parser.NK_FN {
-        val name: ref u8 = node.d2 as ref u8
+        val name: ref u8 = parser.node_str_raw(node.d2)
         stdio.print("{s}{s} : {s}\n", {prefix, kind_name, name})
         val params: list[ref parser.Node] = node.d3 as list[ref parser.Node]
         val ret_ty: ref parser.Node = node.d4 as ref parser.Node
@@ -815,7 +815,7 @@ fn print_node_recursive(node: ref parser.Node, indent: i64, is_last: bool) void 
                 if param_opt is some param_val {
                     val param: ref parser.Node = param_val as ref parser.Node
                     print_named_node_children(
-                        param.d0 as ref u8,
+                        parser.node_str_raw(param.d0),
                         param.d1 as ref parser.Node,
                         indent + 1,
                         i == nparams - 1 && ret_ty == none && (body == none || (@len(body) as i64) == 0)
@@ -827,7 +827,7 @@ fn print_node_recursive(node: ref parser.Node, indent: i64, is_last: bool) void 
         print_node_recursive(ret_ty, indent + 1, false)
         print_list_of_nodes(body, indent + 1, 0)
     } elif kind == parser.NK_TYPEDEF || kind == parser.NK_EXTERN_TYPE {
-        val name: ref u8 = node.d1 as ref u8
+        val name: ref u8 = parser.node_str_raw(node.d1)
         stdio.print("{s}{s} : {s}\n", {prefix, kind_name, name})
         val fields: list[ref parser.Node] = node.d2 as list[ref parser.Node]
         val invariants: list[ref parser.Node] = node.d3 as list[ref parser.Node]
@@ -842,7 +842,7 @@ fn print_node_recursive(node: ref parser.Node, indent: i64, is_last: bool) void 
                 if field_opt is some field_val {
                     val field: ref parser.Node = field_val as ref parser.Node
                     print_named_node_children(
-                        field.d0 as ref u8,
+                        parser.node_str_raw(field.d0),
                         field.d2 as ref parser.Node,
                         indent + 1,
                         i == nfields - 1 && invariants == none
@@ -855,15 +855,15 @@ fn print_node_recursive(node: ref parser.Node, indent: i64, is_last: bool) void 
             print_named_node_list("invariants", invariants, indent + 1, true)
         }
     } elif kind == parser.NK_ENUMDEF {
-        val name: ref u8 = node.d1 as ref u8
+        val name: ref u8 = parser.node_str_raw(node.d1)
         stdio.print("{s}{s} : {s}\n", {prefix, kind_name, name})
     } elif kind == parser.NK_UNIONDEF {
-        val name: ref u8 = node.d1 as ref u8
+        val name: ref u8 = parser.node_str_raw(node.d1)
         stdio.print("{s}{s} : {s}\n", {prefix, kind_name, name})
         val variants: list[ref parser.Node] = node.d2 as list[ref parser.Node]
         print_list_of_nodes(variants, indent + 1, 0)
     } elif kind == parser.NK_TAGGED_UNIONDEF {
-        val name: ref u8 = node.d1 as ref u8
+        val name: ref u8 = parser.node_str_raw(node.d1)
         stdio.print("{s}{s} : {s}\n", {prefix, kind_name, name})
         val variants: list[ref parser.Node] = node.d2 as list[ref parser.Node]
         if variants != none {
@@ -877,7 +877,7 @@ fn print_node_recursive(node: ref parser.Node, indent: i64, is_last: bool) void 
                 if variant_opt is some variant_val {
                     val variant: ref parser.Node = variant_val as ref parser.Node
                     print_named_node_list(
-                        variant.d0 as ref u8,
+                        parser.node_str_raw(variant.d0),
                         variant.d1 as list[ref parser.Node],
                         indent + 1,
                         i == nvariants - 1
@@ -887,7 +887,7 @@ fn print_node_recursive(node: ref parser.Node, indent: i64, is_last: bool) void 
             }
         }
     } elif kind == parser.NK_EXTERN_FN {
-        val name: ref u8 = node.d1 as ref u8
+        val name: ref u8 = parser.node_str_raw(node.d1)
         stdio.print("{s}{s} : {s}\n", {prefix, kind_name, name})
         val params: list[ref parser.Node] = node.d4 as list[ref parser.Node]
         val ret_ty: ref parser.Node = node.d5 as ref parser.Node
@@ -902,7 +902,7 @@ fn print_node_recursive(node: ref parser.Node, indent: i64, is_last: bool) void 
                 if param_opt is some param_val {
                     val param: ref parser.Node = param_val as ref parser.Node
                     print_named_node_children(
-                        param.d0 as ref u8,
+                        parser.node_str_raw(param.d0),
                         param.d1 as ref parser.Node,
                         indent + 1,
                         i == nparams - 1 && ret_ty == none
@@ -913,27 +913,27 @@ fn print_node_recursive(node: ref parser.Node, indent: i64, is_last: bool) void 
         }
         print_node_recursive(ret_ty, indent + 1, true)
     } elif kind == parser.NK_USE {
-        val name: ref u8 = node.d1 as ref u8
+        val name: ref u8 = parser.node_str_raw(node.d1)
         stdio.print("{s}{s} : {s}\n", {prefix, kind_name, name})
     } elif kind == parser.NK_CONST {
-        val name: ref u8 = node.d1 as ref u8
+        val name: ref u8 = parser.node_str_raw(node.d1)
         stdio.print("{s}{s} : {s}\n", {prefix, kind_name, name})
         val expr: ref parser.Node = node.d2 as ref parser.Node
         print_node_recursive(expr, indent + 1, true)
     } elif kind == parser.NK_LINK {
         stdio.print("{s}{s}\n", {prefix, kind_name})
     } elif kind == parser.NK_LIB {
-        val lib_name: ref u8 = node.d0 as ref u8
+        val lib_name: ref u8 = parser.node_str_raw(node.d0)
         stdio.print("{s}{s} : {s}\n", {prefix, kind_name, lib_name})
     } elif kind == parser.NK_EXTERN_HEADER {
-        val header: ref u8 = node.d0 as ref u8
+        val header: ref u8 = parser.node_str_raw(node.d0)
         stdio.print("{s}{s} : {s}\n", {prefix, kind_name, header})
     } elif kind == parser.NK_TEST {
         stdio.print("{s}{s}\n", {prefix, kind_name})
         val body: list[ref parser.Node] = node.d0 as list[ref parser.Node]
         print_list_of_nodes(body, indent + 1, 0)
     } elif kind == parser.NK_WHEN_ITEMS {
-        val plat: ref u8 = node.d0 as ref u8
+        val plat: ref u8 = parser.node_str_raw(node.d0)
         stdio.print("{s}{s} : {s}\n", {prefix, kind_name, plat})
         val items: list[ref parser.Node] = node.d1 as list[ref parser.Node]
         val or_branches: list[ref parser.Node] = node.d2 as list[ref parser.Node]
@@ -942,16 +942,16 @@ fn print_node_recursive(node: ref parser.Node, indent: i64, is_last: bool) void 
         print_list_of_nodes(or_branches, indent + 1, 0)
         print_list_of_nodes(otherwise, indent + 1, 0)
     } elif kind == parser.NK_INT_LIT {
-        val text: ref u8 = parser.int_lit_text(node)
+        val text: ref u8 = parser.int_lit_text_raw(node)
         stdio.print("{s}{s} : {s}\n", {prefix, kind_name, text})
     } elif kind == parser.NK_FLOAT_LIT {
-        val text: ref u8 = parser.float_lit_text(node)
+        val text: ref u8 = parser.float_lit_text_raw(node)
         stdio.print("{s}{s} : {s}\n", {prefix, kind_name, text})
     } elif kind == parser.NK_STR_LIT {
-        val text: ref u8 = parser.str_lit_text(node)
+        val text: ref u8 = parser.str_lit_text_raw(node)
         stdio.print("{s}{s} : {s}\n", {prefix, kind_name, text})
     } elif kind == parser.NK_IDENT {
-        val text: ref u8 = node.d0 as ref u8
+        val text: ref u8 = parser.node_str_raw(node.d0)
         stdio.print("{s}{s} : {s}\n", {prefix, kind_name, text})
     } elif kind == parser.NK_BINOP {
         print_expression_nodes(node, indent, prefix, kind_name, kind)
@@ -970,7 +970,7 @@ fn print_node_recursive(node: ref parser.Node, indent: i64, is_last: bool) void 
     } elif kind == parser.NK_TRY {
         print_expression_nodes(node, indent, prefix, kind_name, kind)
     } elif kind == parser.NK_VAL {
-        val name: ref u8 = node.d0 as ref u8
+        val name: ref u8 = parser.node_str_raw(node.d0)
         stdio.print("{s}{s} : {s}\n", {prefix, kind_name, name})
         val expr: ref parser.Node = node.d3 as ref parser.Node
         if expr != none {
@@ -995,7 +995,7 @@ fn print_node_recursive(node: ref parser.Node, indent: i64, is_last: bool) void 
         val body: list[ref parser.Node] = node.d4 as list[ref parser.Node]
         print_list_of_nodes(body, indent + 1, 0)
     } elif kind == parser.NK_FORIN {
-        val name: ref u8 = node.d0 as ref u8
+        val name: ref u8 = parser.node_str_raw(node.d0)
         stdio.print("{s}{s} : {s}\n", {prefix, kind_name, name})
         val iter: ref parser.Node = node.d1 as ref parser.Node
         val body: list[ref parser.Node] = node.d2 as list[ref parser.Node]
@@ -1012,7 +1012,7 @@ fn print_node_recursive(node: ref parser.Node, indent: i64, is_last: bool) void 
         print_node_recursive(cond, indent + 1, false)
         print_list_of_nodes(body, indent + 1, 0)
     } elif kind == parser.NK_WHEN_STMT {
-        val plat: ref u8 = node.d0 as ref u8
+        val plat: ref u8 = parser.node_str_raw(node.d0)
         stdio.print("{s}{s} : {s}\n", {prefix, kind_name, plat})
         val body: list[ref parser.Node] = node.d1 as list[ref parser.Node]
         val or_branches: list[ref parser.Node] = node.d2 as list[ref parser.Node]
@@ -1053,7 +1053,7 @@ fn print_node_recursive(node: ref parser.Node, indent: i64, is_last: bool) void 
     } elif kind == parser.NK_MATCH_TAGGED_UNION {
         print_match_nodes(node, indent, prefix, kind_name, kind)
     } elif kind == parser.NK_BUILTIN {
-        val name: ref u8 = node.d0 as ref u8
+        val name: ref u8 = parser.node_str_raw(node.d0)
         stdio.print("{s}{s} : {s}\n", {prefix, kind_name, name})
         val args: list[ref parser.Node] = node.d1 as list[ref parser.Node]
         print_list_of_nodes(args, indent + 1, 0)
@@ -1078,7 +1078,7 @@ fn print_node_recursive(node: ref parser.Node, indent: i64, is_last: bool) void 
         val args: list[ref parser.Node] = node.d0 as list[ref parser.Node]
         print_list_of_nodes(args, indent + 1, 0)
     } elif kind == parser.NK_ZERO_INIT {
-        val name: ref u8 = node.d0 as ref u8
+        val name: ref u8 = parser.node_str_raw(node.d0)
         stdio.print("{s}{s} : {s}\n", {prefix, kind_name, name})
     } elif kind == parser.NK_CAST {
         stdio.print("{s}{s}\n", {prefix, kind_name})

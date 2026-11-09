@@ -485,7 +485,7 @@ fn render_type(ty: ref parser.Node) ref u8 = trust {
     }
     match ty.kind {
         parser.TY_NAMED => {
-            return ty.d0 as ref u8
+            return parser.node_str_raw(ty.d0)
         }
         parser.TY_REF => {
             return dfmt("ref {s}", {render_type(ty.d0 as ref parser.Node)})
@@ -509,7 +509,7 @@ fn render_type(ty: ref parser.Node) ref u8 = trust {
             return dfmt("[]{s}", {render_type(ty.d0 as ref parser.Node)})
         }
         parser.TY_FIXED_ARR => {
-            val size_name: ref u8 = parser.fixed_arr_size_name(ty)
+            val size_name: ref u8 = parser.fixed_arr_size_name_raw(ty)
             if size_name != none {
                 return dfmt("[{s}]{s}", {size_name, render_type(parser.fixed_arr_inner(ty))})
             }
@@ -544,7 +544,7 @@ fn render_type(ty: ref parser.Node) ref u8 = trust {
 fn render_fn_params(params: list[ref parser.Node]) ref u8 = trust {
     val out: mut ref u8 = ""
     for param in params {
-        val param_name: ref u8 = param.d0 as ref u8
+        val param_name: ref u8 = parser.node_str_raw(param.d0)
         val param_ty: ref parser.Node = param.d1 as ref parser.Node
         val piece = dfmt("{s}: {s}", {param_name, render_type(param_ty)})
         if str.str_eql(out, "") {
@@ -565,7 +565,7 @@ fn render_type_fields(fields: list[ref parser.Node]) ref u8 = trust {
         }
         val piece = dfmt(
             "{s}: {s}{s}",
-            {field.d0 as ref u8, prefix, render_type(field.d2 as ref parser.Node)}
+            {parser.node_str_raw(field.d0), prefix, render_type(field.d2 as ref parser.Node)}
         )
         if str.str_eql(out, "") {
             out = piece
@@ -711,16 +711,16 @@ fn render_const_expr(expr: ref parser.Node) ref u8 = trust {
     }
     val kind: i64 = expr.kind
     if kind == parser.NK_INT_LIT {
-        return parser.int_lit_text(expr)
+        return parser.int_lit_text_raw(expr)
     }
     if kind == parser.NK_FLOAT_LIT {
-        return parser.float_lit_text(expr)
+        return parser.float_lit_text_raw(expr)
     }
     if kind == parser.NK_STR_LIT {
-        return dfmt("\"{s}\"", {parser.str_lit_text(expr)})
+        return dfmt("\"{s}\"", {parser.str_lit_text_raw(expr)})
     }
     if kind == parser.NK_IDENT {
-        return expr.d0 as ref u8
+        return parser.node_str_raw(expr.d0)
     }
     if kind == parser.NK_BOOL {
         if expr.d0 != 0 {
@@ -729,13 +729,13 @@ fn render_const_expr(expr: ref parser.Node) ref u8 = trust {
         return "false"
     }
     if kind == parser.NK_CHAR_LIT {
-        return dfmt("'{s}'", {expr.d0 as ref u8})
+        return dfmt("'{s}'", {parser.node_str_raw(expr.d0)})
     }
     if kind == parser.NK_NONE {
         return "none"
     }
     if kind == parser.NK_ZERO_INIT {
-        return dfmt("@zeroed[{s}]", {expr.d0 as ref u8})
+        return dfmt("@zeroed[{s}]", {parser.node_str_raw(expr.d0)})
     }
     if kind == parser.NK_UNOP {
         return dfmt(
@@ -753,7 +753,7 @@ fn render_const_expr(expr: ref parser.Node) ref u8 = trust {
     if kind == parser.NK_FIELD {
         return dfmt(
             "{s}.{s}",
-            {render_const_expr(parser.field_base(expr)), parser.field_name(expr)}
+            {render_const_expr(parser.field_base(expr)), parser.field_name_raw(expr)}
         )
     }
     if kind == parser.NK_CALL {
@@ -793,7 +793,7 @@ fn render_const_expr(expr: ref parser.Node) ref u8 = trust {
             return dfmt(
                 "@{s}[{s}]({s})",
                 {
-                    expr.d0 as ref u8,
+                    parser.node_str_raw(expr.d0),
                     rendered_btargs,
                     render_expr_list(expr.d1 as list[ref parser.Node], ", ")
                 }
@@ -801,7 +801,7 @@ fn render_const_expr(expr: ref parser.Node) ref u8 = trust {
         }
         return dfmt(
             "@{s}({s})",
-            {expr.d0 as ref u8, render_expr_list(expr.d1 as list[ref parser.Node], ", ")}
+            {parser.node_str_raw(expr.d0), render_expr_list(expr.d1 as list[ref parser.Node], ", ")}
         )
     }
     if kind == parser.NK_LIST_LIT {
@@ -818,7 +818,7 @@ fn render_tagged_variants(values: list[ref parser.Node]) ref u8 = trust {
     for value in values {
         val types = value.d1 as list[ref parser.Node]
         val rendered_types = render_type_list(types, ", ")
-        val piece: mut ref u8 = value.d0 as ref u8
+        val piece: mut ref u8 = parser.node_str_raw(value.d0)
         if !str.str_eql(rendered_types, "") {
             piece = dfmt("{s}({s})", {piece, rendered_types})
         } else {
@@ -846,20 +846,20 @@ fn render_type_signature(node: ref parser.Node) ref u8 = trust {
         val fields = render_type_fields(node.d2 as list[ref parser.Node])
         return dfmt(
             "{s}{s}type {s} = \\{ {s} \\}",
-            {public_prefix, extern_prefix, node.d1 as ref u8, fields}
+            {public_prefix, extern_prefix, parser.node_str_raw(node.d1), fields}
         )
     }
     if node.kind == parser.NK_ENUMDEF {
         val variants = render_variant_list(node.d2 as list[ref u8], ", ")
-        return dfmt("{s}enum {s} = \\{ {s} \\}", {public_prefix, node.d1 as ref u8, variants})
+        return dfmt("{s}enum {s} = \\{ {s} \\}", {public_prefix, parser.node_str_raw(node.d1), variants})
     }
     if node.kind == parser.NK_UNIONDEF {
         val variants = render_type_list(node.d2 as list[ref parser.Node], " | ")
-        return dfmt("{s}union {s} = \\{ {s} \\}", {public_prefix, node.d1 as ref u8, variants})
+        return dfmt("{s}union {s} = \\{ {s} \\}", {public_prefix, parser.node_str_raw(node.d1), variants})
     }
     if node.kind == parser.NK_TAGGED_UNIONDEF {
         val variants = render_tagged_variants(node.d2 as list[ref parser.Node])
-        return dfmt("{s}union {s} = \\{ {s} \\}", {public_prefix, node.d1 as ref u8, variants})
+        return dfmt("{s}union {s} = \\{ {s} \\}", {public_prefix, parser.node_str_raw(node.d1), variants})
     }
     return ""
 }
@@ -870,7 +870,7 @@ fn render_fn_signature(node: ref parser.Node) ref u8 = trust {
         if node_is_public(node) {
             public_prefix = "pub "
         }
-        val conv: ref u8 = node.d3 as ref u8
+        val conv: ref u8 = parser.node_str_raw(node.d3)
         val params = render_fn_params(node.d4 as list[ref parser.Node])
         val variadic_suffix: mut ref u8 = ""
         if parser.extern_fn_is_variadic(node) {
@@ -892,12 +892,12 @@ fn render_fn_signature(node: ref parser.Node) ref u8 = trust {
                 public_prefix,
                 conv,
                 header_mod,
-                node.d1 as ref u8,
+                parser.node_str_raw(node.d1),
                 params,
                 variadic_suffix,
                 render_type(node.d5 as ref parser.Node),
                 unsafe_suffix,
-                node.d2 as ref u8
+                parser.node_str_raw(node.d2)
             })
     }
     val public_prefix: mut ref u8 = ""
@@ -906,7 +906,7 @@ fn render_fn_signature(node: ref parser.Node) ref u8 = trust {
     }
     val receiver: mut ref u8 = ""
     if node.d1 != 0 as i64 {
-        receiver = dfmt("({s}) ", {node.d1 as ref u8})
+        receiver = dfmt("({s}) ", {parser.node_str_raw(node.d1)})
     }
     val type_params: mut ref u8 = ""
     if node.kind == parser.NK_GENERIC_FN {
@@ -919,11 +919,11 @@ fn render_fn_signature(node: ref parser.Node) ref u8 = trust {
                     tp_strs,
                     dfmt(
                         "{s}: {s}",
-                        {parser.tparam_name(tp as ref parser.Node), render_type(tp_constraint)}
+                        {parser.tparam_name_raw(tp as ref parser.Node), render_type(tp_constraint)}
                     )
                 )
             } else {
-                @append(tp_strs, parser.tparam_name(tp as ref parser.Node))
+                @append(tp_strs, parser.tparam_name_raw(tp as ref parser.Node))
             }
         }
         val parts = render_variant_list(tp_strs, ", ")
@@ -939,7 +939,7 @@ fn render_fn_signature(node: ref parser.Node) ref u8 = trust {
     return dfmt("{s}fn {s}{s}{s}({s}) {s}{s}", {
             public_prefix,
             receiver,
-            node.d2 as ref u8,
+            parser.node_str_raw(node.d2),
             type_params,
             params,
             render_type(node.d4 as ref parser.Node),
@@ -963,11 +963,11 @@ fn render_spec_signature(node: ref parser.Node) ref u8 = trust {
         }
     }
     if str.str_eql(rendered, "") {
-        return dfmt("{s}spec {s} = \\{\\}", {public_prefix, node.d1 as ref u8})
+        return dfmt("{s}spec {s} = \\{\\}", {public_prefix, parser.node_str_raw(node.d1)})
     }
     return dfmt(
         "{s}spec {s} = \\{\n    {s}\n\\}",
-        {public_prefix, node.d1 as ref u8, rendered}
+        {public_prefix, parser.node_str_raw(node.d1), rendered}
     )
 }
 
@@ -978,7 +978,7 @@ fn render_const_signature(node: ref parser.Node) ref u8 = trust {
     }
     return dfmt("{s}val {s} = {s}", {
             public_prefix,
-            node.d1 as ref u8,
+            parser.node_str_raw(node.d1),
             render_const_expr(node.d2 as ref parser.Node)
         })
 }
@@ -998,17 +998,17 @@ fn entry_kind_name(kind: i64) ref u8 = {
 
 fn entry_name(node: ref parser.Node) ref u8 = trust {
     if node.kind == parser.NK_EXTERN_FN {
-        return node.d1 as ref u8
+        return parser.node_str_raw(node.d1)
     }
     if node.kind == parser.NK_FN || node.kind == parser.NK_GENERIC_FN {
-        return node.d2 as ref u8
+        return parser.node_str_raw(node.d2)
     }
-    return node.d1 as ref u8
+    return parser.node_str_raw(node.d1)
 }
 
 fn entry_nav_name(node: ref parser.Node) ref u8 = trust {
     if ((node.kind == parser.NK_FN || node.kind == parser.NK_GENERIC_FN) && node.d1 != 0 as i64) {
-        return dfmt("{s}.{s}", {node.d1 as ref u8, node.d2 as ref u8})
+        return dfmt("{s}.{s}", {parser.node_str_raw(node.d1), parser.node_str_raw(node.d2)})
     }
     return entry_name(node)
 }
@@ -1069,14 +1069,14 @@ fn collect_entries(
         if item.kind == parser.NK_WHEN_ITEMS {
             val branch = combine_availability(
                 availability,
-                dfmt("when {s}", {item.d0 as ref u8})
+                dfmt("when {s}", {parser.node_str_raw(item.d0)})
             )
             collect_entries(item.d1 as list[ref parser.Node], doc_map, out, branch)
             val or_branches = item.d2 as list[ref parser.Node]
             for branch_item in or_branches {
                 val branch_avail = combine_availability(
                     availability,
-                    dfmt("when {s}", {branch_item.d0 as ref u8})
+                    dfmt("when {s}", {parser.node_str_raw(branch_item.d0)})
                 )
                 collect_entries(branch_item.d1 as list[ref parser.Node], doc_map, out, branch_avail)
             }
@@ -1328,7 +1328,7 @@ fn render_entry_details_html(sb: ref void, entry: ref DocEntry) void = trust {
                     prefix = "mut "
                 }
                 string.StringBuilder.append_cstr(sb, "<tr><td><code>")
-                string.StringBuilder.append_cstr(sb, html_escape(field.d0 as ref u8))
+                string.StringBuilder.append_cstr(sb, html_escape(parser.node_str_raw(field.d0)))
                 string.StringBuilder.append_cstr(sb, "</code></td><td><code>")
                 string.StringBuilder.append_cstr(
                     sb,
@@ -1361,7 +1361,7 @@ fn render_entry_details_html(sb: ref void, entry: ref DocEntry) void = trust {
         string.StringBuilder.append_cstr(sb, "<h4>Variants</h4><ul class=\"details\">")
         for variant in node.d2 as list[ref parser.Node] {
             val types = render_type_list(variant.d1 as list[ref parser.Node], ", ")
-            val text: mut ref u8 = variant.d0 as ref u8
+            val text: mut ref u8 = parser.node_str_raw(variant.d0)
             if !str.str_eql(types, "") {
                 text = dfmt("{s}({s})", {text, types})
             } else {
@@ -2446,7 +2446,7 @@ fn render_entry_details_md(sb: ref void, entry: ref DocEntry) void = trust {
                     sb,
                     dfmt(
                         "| `{s}` | `{s}{s}` |\n",
-                        {field.d0 as ref u8, prefix, render_type(field.d2 as ref parser.Node)}
+                        {parser.node_str_raw(field.d0), prefix, render_type(field.d2 as ref parser.Node)}
                     )
                 )
             }
@@ -2465,7 +2465,7 @@ fn render_entry_details_md(sb: ref void, entry: ref DocEntry) void = trust {
         string.StringBuilder.append_cstr(sb, "\n**Variants**\n\n")
         for variant in node.d2 as list[ref parser.Node] {
             val types = render_type_list(variant.d1 as list[ref parser.Node], ", ")
-            val text: mut ref u8 = variant.d0 as ref u8
+            val text: mut ref u8 = parser.node_str_raw(variant.d0)
             if !str.str_eql(types, "") {
                 text = dfmt("{s}({s})", {text, types})
             } else {

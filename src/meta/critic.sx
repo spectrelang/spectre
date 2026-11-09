@@ -153,7 +153,7 @@ fn token_kind(ctx: mut ref Ctx, idx: i64) lexer.TokenKind = trust {
 }
 
 fn token_text(ctx: mut ref Ctx, idx: i64) ref u8 = trust {
-    return lexer.tok_text(ctx.tokens, idx)
+    return lexer.tok_text_raw(ctx.tokens, idx)
 }
 
 fn token_start(ctx: mut ref Ctx, idx: i64) i64 = trust {
@@ -510,7 +510,7 @@ fn find_root_ident_name(node: ref parser.Node) ref u8 = trust {
             return none
         }
         if cur.kind == parser.NK_IDENT {
-            return cur.d0 as ref u8
+            return parser.node_str_raw(cur.d0)
         }
         if cur.kind == parser.NK_FIELD {
             cur = parser.field_base(cur)
@@ -717,7 +717,7 @@ fn mark_call_mutations(ctx: mut ref Ctx, call: ref parser.Node) void = trust {
         return
     }
 
-    val sig: ref FnSig = lookup_fn_sig(ctx, callee.d0 as ref u8)
+    val sig: ref FnSig = lookup_fn_sig(ctx, parser.node_str_raw(callee.d0))
     if sig == none || sig.params == none {
         mark_refish_call_args(ctx, args)
         return
@@ -1020,7 +1020,7 @@ fn type_to_string(arena: allocators.Arena, ty: ref parser.Node) ref u8 = trust {
     }
     val k: i64 = ty.kind
     if k == parser.TY_NAMED {
-        return ty.d0 as ref u8
+        return parser.node_str_raw(ty.d0)
     }
     if k == parser.TY_REF {
         val inner: ref u8 = type_to_string(arena, ty.d0 as ref parser.Node)
@@ -1131,7 +1131,7 @@ fn expr_type(ctx: mut ref Ctx, node: ref parser.Node) ref u8 = trust {
     }
     val k: i64 = node.kind
     if k == parser.NK_IDENT {
-        return lookup_var_type(ctx, node.d0 as ref u8, node.line)
+        return lookup_var_type(ctx, parser.node_str_raw(node.d0), node.line)
     }
     if k == parser.NK_CAST {
         return type_to_string(ctx.arena, node.d1 as ref parser.Node)
@@ -1142,7 +1142,7 @@ fn expr_type(ctx: mut ref Ctx, node: ref parser.Node) ref u8 = trust {
     if k == parser.NK_CALL {
         val callee: ref parser.Node = parser.call_callee(node)
         if callee != none && callee.kind == parser.NK_IDENT {
-            return lookup_fn_ret(ctx, callee.d0 as ref u8)
+            return lookup_fn_ret(ctx, parser.node_str_raw(callee.d0))
         }
         return none
     }
@@ -1742,7 +1742,7 @@ fn count_ident_tokens(ctx: ref Ctx, name: ref u8) i64 = trust {
 
 fn check_unused_imports(ctx: mut ref Ctx) void = trust {
     for use_node in ctx.uses {
-        val alias: ref u8 = use_node.d1 as ref u8
+        val alias: ref u8 = parser.node_str_raw(use_node.d1)
         if alias == none {
             continue
         }
@@ -1773,7 +1773,7 @@ fn collect_fn_sigs(ctx: mut ref Ctx, items: list[ref parser.Node]) void = trust 
         }
         val k: i64 = item.kind
         if k == parser.NK_FN || k == parser.NK_GENERIC_FN {
-            val name: ref u8 = item.d2 as ref u8
+            val name: ref u8 = parser.node_str_raw(item.d2)
             val ret_ty: ref parser.Node = item.d4 as ref parser.Node
             val ret_name: ref u8 = type_to_string(ctx.arena, ret_ty)
             val sig: mut ref FnSig = allocators.Arena.alloc_or_none(
@@ -1809,7 +1809,7 @@ fn type_nodes_equal(a: ref parser.Node, b: ref parser.Node) bool = trust {
         return false
     }
     if a.kind == parser.TY_NAMED {
-        return str.raw_cmp(a.d0 as ref u8, b.d0 as ref u8) == 0
+        return str.raw_cmp(parser.node_str_raw(a.d0), parser.node_str_raw(b.d0)) == 0
     }
     if a.kind == parser.TY_REF || a.kind == parser.TY_MUT || a.kind == parser.TY_OPTION ||
     a.kind == parser.TY_LIST || a.kind == parser.TY_SLICE {
@@ -1866,16 +1866,16 @@ fn nodes_equal(a: ref parser.Node, b: ref parser.Node) bool = trust {
     }
     val k: i64 = a.kind
     if k == parser.NK_IDENT {
-        return str.raw_cmp(a.d0 as ref u8, b.d0 as ref u8) == 0
+        return str.raw_cmp(parser.node_str_raw(a.d0), parser.node_str_raw(b.d0)) == 0
     }
     if k == parser.NK_INT_LIT {
-        return str.raw_cmp(parser.int_lit_text(a), parser.int_lit_text(b)) == 0
+        return str.raw_cmp(parser.int_lit_text_raw(a), parser.int_lit_text_raw(b)) == 0
     }
     if k == parser.NK_FLOAT_LIT {
-        return str.raw_cmp(parser.float_lit_text(a), parser.float_lit_text(b)) == 0
+        return str.raw_cmp(parser.float_lit_text_raw(a), parser.float_lit_text_raw(b)) == 0
     }
     if k == parser.NK_STR_LIT {
-        return str.raw_cmp(parser.str_lit_text(a), parser.str_lit_text(b)) == 0
+        return str.raw_cmp(parser.str_lit_text_raw(a), parser.str_lit_text_raw(b)) == 0
     }
     if k == parser.NK_BOOL || k == parser.NK_CHAR_LIT {
         return a.d0 == b.d0
@@ -1884,7 +1884,7 @@ fn nodes_equal(a: ref parser.Node, b: ref parser.Node) bool = trust {
         return true
     }
     if k == parser.NK_FIELD {
-        return str.raw_cmp(a.d1 as ref u8, b.d1 as ref u8) == 0 &&
+        return str.raw_cmp(parser.node_str_raw(a.d1), parser.node_str_raw(b.d1)) == 0 &&
         nodes_equal(a.d0 as ref parser.Node, b.d0 as ref parser.Node)
     }
     if k == parser.NK_CALL {
@@ -1915,7 +1915,7 @@ fn nodes_equal(a: ref parser.Node, b: ref parser.Node) bool = trust {
         return node_lists_equal(a.d0 as list[ref parser.Node], b.d0 as list[ref parser.Node])
     }
     if k == parser.NK_BUILTIN {
-        return str.raw_cmp(a.d0 as ref u8, b.d0 as ref u8) == 0 &&
+        return str.raw_cmp(parser.node_str_raw(a.d0), parser.node_str_raw(b.d0)) == 0 &&
         node_lists_equal(a.d1 as list[ref parser.Node], b.d1 as list[ref parser.Node])
     }
     return false
@@ -1982,11 +1982,11 @@ fn expr_to_text(arena: allocators.Arena, node: ref parser.Node) ref u8 = trust {
         return none
     }
     if node.kind == parser.NK_IDENT {
-        return node.d0 as ref u8
+        return parser.node_str_raw(node.d0)
     }
     if node.kind == parser.NK_FIELD {
         val base: ref u8 = expr_to_text(arena, node.d0 as ref parser.Node)
-        val name: ref u8 = node.d1 as ref u8
+        val name: ref u8 = parser.node_str_raw(node.d1)
         if base == none || name == none {
             return none
         }
@@ -2019,7 +2019,7 @@ fn check_redundant_arithmetic_assignment(ctx: mut ref Ctx, node: ref parser.Node
     if amount_node == none || amount_node.kind != parser.NK_INT_LIT {
         return
     }
-    val amount: ref u8 = parser.int_lit_text(amount_node)
+    val amount: ref u8 = parser.int_lit_text_raw(amount_node)
     val lhs_text: ref u8 = expr_to_text(ctx.arena, lhs)
     val suggestion: mut ref u8 = none
     if lhs_text != none {
@@ -2131,7 +2131,7 @@ fn walk_expr(ctx: mut ref Ctx, node: ref parser.Node) void = trust {
     }
     if k == parser.NK_BUILTIN {
         val args: list[ref parser.Node] = node.d1 as list[ref parser.Node]
-        val bname: ref u8 = parser.builtin_name(node)
+        val bname: ref u8 = parser.builtin_name_raw(node)
         if is_mutating_builtin(bname) && args != none {
             val first_opt = @get(args, 0 as usize)
             if first_opt is some first {
@@ -2168,7 +2168,7 @@ fn walk_params(ctx: mut ref Ctx, params: list[ref parser.Node]) void = trust {
         if param == none {
             continue
         }
-        val name: ref u8 = param.d0 as ref u8
+        val name: ref u8 = parser.node_str_raw(param.d0)
         val ty: ref parser.Node = param.d1 as ref parser.Node
         check_snake_name(ctx, param.line, name, "variable")
         walk_type(ctx, ty)
@@ -2177,7 +2177,7 @@ fn walk_params(ctx: mut ref Ctx, params: list[ref parser.Node]) void = trust {
 }
 
 fn check_fn_node(ctx: mut ref Ctx, fn_node: ref parser.Node, check_body: bool) void = trust {
-    val name: ref u8 = fn_node.d2 as ref u8
+    val name: ref u8 = parser.node_str_raw(fn_node.d2)
     check_snake_name(ctx, fn_node.line, name, "function")
     val params: list[ref parser.Node] = fn_node.d3 as list[ref parser.Node]
     walk_params(ctx, params)
@@ -2240,14 +2240,14 @@ fn check_fn_node(ctx: mut ref Ctx, fn_node: ref parser.Node, check_body: bool) v
 }
 
 fn walk_type_def(ctx: mut ref Ctx, node: ref parser.Node) void = trust {
-    check_pascal_name(ctx, node.line, node.d1 as ref u8, "type")
+    check_pascal_name(ctx, node.line, parser.node_str_raw(node.d1), "type")
     val fields: list[ref parser.Node] = node.d2 as list[ref parser.Node]
     if fields != none {
         for field in fields {
             if field == none {
                 continue
             }
-            check_snake_name(ctx, field.line, field.d0 as ref u8, "variable")
+            check_snake_name(ctx, field.line, parser.node_str_raw(field.d0), "variable")
             walk_type(ctx, field.d2 as ref parser.Node)
         }
     }
@@ -2260,7 +2260,7 @@ fn walk_type_def(ctx: mut ref Ctx, node: ref parser.Node) void = trust {
 }
 
 fn walk_union_def(ctx: mut ref Ctx, node: ref parser.Node) void = trust {
-    check_pascal_name(ctx, node.line, node.d1 as ref u8, "type")
+    check_pascal_name(ctx, node.line, parser.node_str_raw(node.d1), "type")
     val variants: list[ref parser.Node] = node.d2 as list[ref parser.Node]
     if variants == none {
         return
@@ -2283,7 +2283,7 @@ fn walk_union_def(ctx: mut ref Ctx, node: ref parser.Node) void = trust {
 }
 
 fn walk_spec(ctx: mut ref Ctx, node: ref parser.Node) void = trust {
-    check_pascal_name(ctx, node.line, node.d1 as ref u8, "spec")
+    check_pascal_name(ctx, node.line, parser.node_str_raw(node.d1), "spec")
     val methods: list[ref parser.Node] = node.d2 as list[ref parser.Node]
     if methods == none {
         return
@@ -2334,7 +2334,7 @@ fn walk_stmts(ctx: mut ref Ctx, stmts: list[ref parser.Node]) void = trust {
         }
         val k: i64 = stmt.kind
         if k == parser.NK_VAL {
-            val name: ref u8 = stmt.d0 as ref u8
+            val name: ref u8 = parser.node_str_raw(stmt.d0)
             check_snake_name(ctx, stmt.line, name, "variable")
             val ty: ref parser.Node = stmt.d2 as ref parser.Node
             val init: ref parser.Node = stmt.d3 as ref parser.Node
@@ -2413,7 +2413,7 @@ fn walk_stmts(ctx: mut ref Ctx, stmts: list[ref parser.Node]) void = trust {
             continue
         }
         if k == parser.NK_FOR {
-            val var_name: ref u8 = stmt.d0 as ref u8
+            val var_name: ref u8 = parser.node_str_raw(stmt.d0)
             if var_name != none {
                 check_snake_name(ctx, stmt.line, var_name, "variable")
             }
@@ -2424,7 +2424,7 @@ fn walk_stmts(ctx: mut ref Ctx, stmts: list[ref parser.Node]) void = trust {
             continue
         }
         if k == parser.NK_FORIN {
-            val var_name: ref u8 = stmt.d0 as ref u8
+            val var_name: ref u8 = parser.node_str_raw(stmt.d0)
             check_snake_name(ctx, stmt.line, var_name, "variable")
             walk_expr(ctx, stmt.d1 as ref parser.Node)
             walk_stmts(ctx, stmt.d2 as list[ref parser.Node])
@@ -2469,7 +2469,7 @@ fn walk_stmts(ctx: mut ref Ctx, stmts: list[ref parser.Node]) void = trust {
         }
         if k == parser.NK_MATCH_OPT {
             walk_expr(ctx, stmt.d0 as ref parser.Node)
-            val some_bind: ref u8 = stmt.d1 as ref u8
+            val some_bind: ref u8 = parser.node_str_raw(stmt.d1)
             if some_bind != none {
                 check_snake_name(ctx, stmt.line, some_bind, "variable")
             }
@@ -2493,11 +2493,11 @@ fn walk_stmts(ctx: mut ref Ctx, stmts: list[ref parser.Node]) void = trust {
         }
         if k == parser.NK_MATCH_RES {
             walk_expr(ctx, stmt.d0 as ref parser.Node)
-            val ok_bind: ref u8 = stmt.d1 as ref u8
+            val ok_bind: ref u8 = parser.node_str_raw(stmt.d1)
             if ok_bind != none {
                 check_snake_name(ctx, stmt.line, ok_bind, "variable")
             }
-            val err_bind: ref u8 = stmt.d3 as ref u8
+            val err_bind: ref u8 = parser.node_str_raw(stmt.d3)
             if err_bind != none {
                 check_snake_name(ctx, stmt.line, err_bind, "variable")
             }
@@ -2594,7 +2594,7 @@ fn walk_items(ctx: mut ref Ctx, items: list[ref parser.Node]) void = trust {
             continue
         }
         if k == parser.NK_ENUMDEF {
-            check_pascal_name(ctx, item.line, item.d1 as ref u8, "type")
+            check_pascal_name(ctx, item.line, parser.node_str_raw(item.d1), "type")
             continue
         }
         if k == parser.NK_UNIONDEF || k == parser.NK_TAGGED_UNIONDEF {
@@ -2606,12 +2606,12 @@ fn walk_items(ctx: mut ref Ctx, items: list[ref parser.Node]) void = trust {
             continue
         }
         if k == parser.NK_CONST {
-            check_screaming_snake_name(ctx, item.line, item.d1 as ref u8, "variable")
+            check_screaming_snake_name(ctx, item.line, parser.node_str_raw(item.d1), "variable")
             walk_expr(ctx, item.d2 as ref parser.Node)
             continue
         }
         if k == parser.NK_USE {
-            check_snake_name(ctx, item.line, item.d1 as ref u8, "variable")
+            check_snake_name(ctx, item.line, parser.node_str_raw(item.d1), "variable")
             @append(ctx.uses, item)
             continue
         }

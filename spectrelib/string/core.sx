@@ -214,6 +214,11 @@ pub fn view_eql(a: StringView, b: StringView) bool = trust {
     return view_cmp(a, b) == 0
 }
 
+/// Compare a view with a null-terminated string literal.
+pub fn view_eql_cstr(v: StringView, s: ref u8) bool = trust {
+    return view_eql(v, view_cstr(s))
+}
+
 /// Return a sub-view clamped to the bounds of `v`.
 pub fn view_slice(v: StringView, start: i64, end: i64) StringView = trust {
     val real_start: mut i64 = start

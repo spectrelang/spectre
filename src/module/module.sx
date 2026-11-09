@@ -354,7 +354,7 @@ fn type_references_import_shallow(ty: ref parser.Node, import_name: ref u8) bool
         return false
     }
     if ty.kind == parser.TY_NAMED {
-        val type_name: ref u8 = ty.d0 as ref u8
+        val type_name: ref u8 = parser.node_str_raw(ty.d0)
         return type_name_references_import(type_name, import_name)
     }
     if ty.kind == parser.TY_MUT || ty.kind == parser.TY_REF || ty.kind == parser.TY_LIST {
@@ -1007,7 +1007,7 @@ fn expr_references_import_shallow(node: ref parser.Node, import_name: ref u8) bo
     }
 
     if node.kind == parser.NK_IDENT {
-        val name: ref u8 = node.d0 as ref u8
+        val name: ref u8 = parser.node_str_raw(node.d0)
         if str.raw_cmp(name, import_name) == 0 {
             return true
         }
@@ -1015,7 +1015,7 @@ fn expr_references_import_shallow(node: ref parser.Node, import_name: ref u8) bo
         val base: ref parser.Node = parser.field_base(node)
         if base != none {
             if base.kind == parser.NK_IDENT {
-                val base_name: ref u8 = base.d0 as ref u8
+                val base_name: ref u8 = parser.node_str_raw(base.d0)
                 if str.raw_cmp(base_name, import_name) == 0 {
                     return true
                 }
@@ -1217,7 +1217,7 @@ fn resolve_module_impl(
         return err @fmtalloc("cannot read module: {s}", {canonical_path})
     }
 
-    val lex_result = lexer.tokenize_with(arena, src)
+    val lex_result = lexer.tokenize_with_view(arena, str.view_cstr(src))
     allocators.Arena.free(src_arena)
     val tokens: mut list[ref lexer.Token] = mem.new[ref lexer.Token]()
     match lex_result {
@@ -1264,8 +1264,8 @@ fn resolve_module_impl(
     for item in items {
         val node: ref parser.Node = item
         if node.kind == parser.NK_USE {
-            val import_name: ref u8 = node.d1 as ref u8
-            val use_path: mut ref u8 = node.d2 as ref u8
+            val import_name: ref u8 = parser.node_str_raw(node.d1)
+            val use_path: mut ref u8 = parser.node_str_raw(node.d2)
             val is_json_or_net: bool = str.raw_cmp(import_name, "json") == 0 ||
             str.raw_cmp(import_name, "net") == 0
             val skip_std_dce: bool = is_std_module && !is_json_or_net
@@ -1411,14 +1411,14 @@ pub fn fn_is_public_in_module(m: ref ResolvedModule, fn_name: ref u8) bool = tru
         if item_opt is some item_raw {
             val item: ref parser.Node = item_raw as ref parser.Node
             if item.kind == parser.NK_FN || item.kind == parser.NK_GENERIC_FN {
-                val iname: ref u8 = item.d2 as ref u8
+                val iname: ref u8 = parser.node_str_raw(item.d2)
                 if iname != none {
                     if str.raw_cmp(iname, fn_name) == 0 {
                         return (item.d0 & 1) != 0
                     }
                 }
             } elif item.kind == parser.NK_EXTERN_FN {
-                val iname: ref u8 = item.d1 as ref u8
+                val iname: ref u8 = parser.node_str_raw(item.d1)
                 if iname != none {
                     if str.raw_cmp(iname, fn_name) == 0 {
                         return item.d0 == 1
@@ -1442,7 +1442,7 @@ pub fn fn_is_unsafe_in_module(m: ref ResolvedModule, fn_name: ref u8) bool = tru
         if item_opt is some item_raw {
             val item: ref parser.Node = item_raw as ref parser.Node
             if item.kind == parser.NK_FN || item.kind == parser.NK_GENERIC_FN {
-                val iname: ref u8 = item.d2 as ref u8
+                val iname: ref u8 = parser.node_str_raw(item.d2)
                 if iname != none {
                     if str.raw_cmp(iname, fn_name) == 0 {
                         return parser.fn_is_unsafe(item)
@@ -1759,9 +1759,9 @@ fn resolve_link_directive(
 ) result[list[ref u8], ref u8] = trust {
     val flags: mut list[ref u8] = mem.new[ref u8]()
     if item.kind == parser.NK_LINK {
-        @append(flags, item.d0 as ref u8)
+        @append(flags, parser.node_str_raw(item.d0))
     } elif item.kind == parser.NK_LIB {
-        return libfind.resolve(item.d0 as ref u8, platform, static_link)
+        return libfind.resolve(parser.node_str_raw(item.d0), platform, static_link)
     }
     return ok flags
 }
@@ -1806,7 +1806,7 @@ fn collect_links_with_root(
                 @append(links, flag)
             }
         } elif item.kind == parser.NK_WHEN_ITEMS {
-            val when_platform: ref u8 = item.d0 as ref u8
+            val when_platform: ref u8 = parser.node_str_raw(item.d0)
             val matched: mut bool = false
             if platform_matches(platform, when_platform) {
                 matched = true
@@ -1823,7 +1823,7 @@ fn collect_links_with_root(
                 if or_branches != none {
                     for ob in or_branches as list[ref parser.Node] {
                         if !matched {
-                            val ob_plat: ref u8 = ob.d0 as ref u8
+                            val ob_plat: ref u8 = parser.node_str_raw(ob.d0)
                             if platform_matches(platform, ob_plat) {
                                 matched = true
                                 val ob_items: list[ref parser.Node] = ob.d1 as list[ref parser.Node]
@@ -2599,10 +2599,10 @@ fn collect_needed_subnames_in_expr(
 
     if expr.kind == parser.NK_FIELD {
         val base: ref parser.Node = parser.field_base(expr)
-        val field_name: ref u8 = parser.field_name(expr)
+        val field_name: ref u8 = parser.field_name_raw(expr)
 
         if base != none && base.kind == parser.NK_IDENT {
-            val base_name: ref u8 = base.d0 as ref u8
+            val base_name: ref u8 = parser.node_str_raw(base.d0)
             if str.raw_cmp(base_name, import_name) == 0 {
                 if !import_in_list(needed, field_name) {
                     @append(needed, field_name)
@@ -2743,7 +2743,7 @@ fn collect_used_imports_type(
 
     if ty.kind == parser.TY_NAMED {
         for import_name in import_names {
-            if type_name_references_import(ty.d0 as ref u8, import_name) {
+            if type_name_references_import(parser.node_str_raw(ty.d0), import_name) {
                 mark_import_used(import_names, used, import_name)
                 return
             }
@@ -2776,12 +2776,12 @@ fn collect_used_imports_expr(
     }
 
     if node.kind == parser.NK_IDENT {
-        val name: ref u8 = node.d0 as ref u8
+        val name: ref u8 = parser.node_str_raw(node.d0)
         mark_import_used(import_names, used, name)
     } elif node.kind == parser.NK_FIELD {
         val base: ref parser.Node = parser.field_base(node)
         if base != none && base.kind == parser.NK_IDENT {
-            val name: ref u8 = base.d0 as ref u8
+            val name: ref u8 = parser.node_str_raw(base.d0)
             mark_import_used(import_names, used, name)
         }
         collect_used_imports_expr(base, import_names, used)
@@ -3432,7 +3432,7 @@ fn collect_used_imports_item(
     } elif item.kind == parser.NK_CONST {
         collect_used_imports_expr(item.d2 as ref parser.Node, import_names, used)
     } elif item.kind == parser.NK_TYPEDEF || item.kind == parser.NK_EXTERN_TYPE {
-        val derived_spec_name: ref u8 = item.d4 as ref u8
+        val derived_spec_name: ref u8 = parser.node_str_raw(item.d4)
         if derived_spec_name != none {
             for import_name in import_names {
                 if type_name_references_import(derived_spec_name, import_name) {
@@ -3539,7 +3539,7 @@ fn append_import_aliases(items: list[ref parser.Node], aliases: mut list[ref u8]
             continue
         }
         if item.kind == parser.NK_USE {
-            val import_name: ref u8 = item.d1 as ref u8
+            val import_name: ref u8 = parser.node_str_raw(item.d1)
             if import_name != none && !import_in_list(aliases, import_name) {
                 @append(aliases, import_name)
             }

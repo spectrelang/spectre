@@ -955,7 +955,7 @@ fn token_ident_is(tokens: list[ref lexer.Token], idx: i64, text: ref u8) bool = 
     if !lexer.kind_is_ident(lexer.tok_kind(tokens, idx)) {
         return false
     }
-    val tok_text: ref u8 = lexer.tok_text(tokens, idx)
+    val tok_text: ref u8 = lexer.tok_text_raw(tokens, idx)
     if tok_text == none {
         return false
     }
