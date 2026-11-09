@@ -1,0 +1,24 @@
+val netx       = use("std/netx")
+val allocators = use("std/allocators")
+val stdio      = use("std/stdio")
+
+fn hello(_: ref netx.Request, res: mut ref netx.Response) void = trust {
+    netx.Response.json(
+        res,
+        \\{
+        \\  "header": "Greeting",
+        \\  "message": "Hello, world."
+        \\}
+    )
+}
+
+pub fn main() void = trust {
+    val ac: allocators.HeapAllocator = @zeroed
+    val app: mut netx.WebServer = netx.WebServer.new[_](ac, 8080 as i32)
+    if app == none {
+        stdio.puts("Failed to start server")
+        return
+    }
+    netx.WebServer.get(app, "/", hello)
+    netx.WebServer.serve(app)
+}
