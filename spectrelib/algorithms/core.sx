@@ -1,7 +1,7 @@
-extern "ctype.h"
 val cstr       = use("std/string/cstr")
 val allocators = use("../allocators")
 
+extern "ctype.h"
 extern (C, header) fn isdigit(c: i32) i32 = "isdigit"
 
 /// Generic sort (radix for numeric integers, insertion sort otherwise).
