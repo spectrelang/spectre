@@ -1,5 +1,5 @@
 extern "ctype.h"
-val cstr = use("std/string/cstr")
+val cstr       = use("std/string/cstr")
 val allocators = use("../allocators")
 
 extern (C, header) fn isdigit(c: i32) i32 = "isdigit"

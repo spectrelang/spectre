@@ -5,9 +5,9 @@
 
 val fs          = use("std/fs")
 val mem         = use("meta/mem.sx")
-val str      = use("std/string")
-val cstr = use("std/string/cstr")
-val ostr = use("std/string/owned")
+val str         = use("std/string")
+val cstr        = use("std/string/cstr")
+val ostr        = use("std/string/owned")
 val stdio       = use("std/stdio")
 val os          = use("std/os")
 val allocators  = use("std/allocators")
@@ -849,7 +849,10 @@ pub fn main() i32 = trust {
 
     if translate_c_flag {
         if cstr.cmp(output_name, c"") == 0 {
-            output_name = @fmtalloc("./src-out/{s}.sx", {path.get_name_without_ext_cstr(arena, input)})
+            output_name = @fmtalloc(
+                "./src-out/{s}.sx",
+                {path.get_name_without_ext_cstr(arena, input)}
+            )
         }
         val code: i32 = c_translate.translate_c(input, output_name)
         allocators.Arena.free(arena)

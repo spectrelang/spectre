@@ -3,9 +3,9 @@
 /// SPDX-License-Identifier: GPL-3.0-only
 /// (C) Navid Momtahen - 2026
 
-val str     = use("std/string")
-val cstr = use("std/string/cstr")
-val ostr = use("std/string/owned")
+val str        = use("std/string")
+val cstr       = use("std/string/cstr")
+val ostr       = use("std/string/owned")
 val mem        = use("mem.sx")
 val os         = use("std/os")
 val path       = use("std/path")

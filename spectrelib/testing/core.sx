@@ -7,8 +7,8 @@
 /// SPDX-License-Identifier: GPL-3.0-only
 /// (C) Navid Momtahen - 2026
 
-val stdio  = use("../stdio")
-val str = use("std/string")
+val stdio   = use("../stdio")
+val str     = use("std/string")
 val builder = use("std/string/builder")
 
 /// One live allocation reported by -leak-check.
@@ -99,7 +99,10 @@ pub fn (LeakDiagnostics) pprint_str(ld: self) str.String = {
     trust @free(summary as ref void)
 
     if ld.record_count > (0 as i64) && ld.records != none {
-        trust builder.StringBuilder.append_cstr(sb, c"\nleaked allocations\n        size  location\n")
+        trust builder.StringBuilder.append_cstr(
+            sb,
+            c"\nleaked allocations\n        size  location\n"
+        )
         val index: mut i64 = 0 as i64
         for index < ld.record_count {
             val record = leak_record_at(ld.records, index)

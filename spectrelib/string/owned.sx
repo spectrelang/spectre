@@ -5,7 +5,7 @@
 val collections = use("../collections")
 val allocators  = use("../allocators")
 val str         = use("std/string")
-val cstr = use("std/string/cstr")
+val cstr        = use("std/string/cstr")
 
 extern (C, header) fn strlen(s: ref u8) i64 = "strlen"
 

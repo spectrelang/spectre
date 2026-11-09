@@ -55,8 +55,8 @@ when windows {
     extern (C, header) fn GetFileAttributesA(path: ref u8) u32 = "GetFileAttributesA"
 }
 
-val cstr = use("std/string/cstr")
-val ostr = use("std/string/owned")
+val cstr    = use("std/string/cstr")
+val ostr    = use("std/string/owned")
 val builder = use("std/string/builder")
 
 when linux {
@@ -480,7 +480,7 @@ pub fn exec_trim(cmd: ref u8) result[ref void, ProcessError] = trust {
     }
 }
 
-val stdio  = use("../stdio")
+val stdio = use("../stdio")
 
 test "file, exec and recursive copy operations" {
     val path = c"test_file.txt"

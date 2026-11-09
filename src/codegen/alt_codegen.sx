@@ -6,9 +6,9 @@ val allocators = use("std/allocators")
 val mem        = use("../meta/mem.sx")
 val fmt        = use("std/fmt")
 val str        = use("std/string")
-val cstr = use("std/string/cstr")
-val ostr = use("std/string/owned")
-val builder = use("std/string/builder")
+val cstr       = use("std/string/cstr")
+val ostr       = use("std/string/owned")
+val builder    = use("std/string/builder")
 val stdio      = use("std/stdio")
 val os         = use("std/os")
 val fs         = use("std/fs")
@@ -297,15 +297,15 @@ fn rewrite_fmt(ctx: ref CCtx, s: ref u8) ref u8 = trust {
                             37
                         )
                         @store8(
-                            @ptradd(out, oi+1),
+                            @ptradd(out, oi + 1),
                             108
                         )
-                        @store8(@ptradd(out, oi+2), 108)
-                        @store8(@ptradd(out, oi+3), 100)
+                        @store8(@ptradd(out, oi + 2), 108)
+                        @store8(@ptradd(out, oi + 3), 100)
                         oi += 4
                     } elif sc == 115 {
                         @store8(@ptradd(out, oi), 37)
-                        @store8(@ptradd(out, oi+1), 115)
+                        @store8(@ptradd(out, oi + 1), 115)
                         oi += 2
                     } elif sc == 120 {
                         @store8(
@@ -313,27 +313,27 @@ fn rewrite_fmt(ctx: ref CCtx, s: ref u8) ref u8 = trust {
                             37
                         )
                         @store8(
-                            @ptradd(out, oi+1),
+                            @ptradd(out, oi + 1),
                             108
                         )
-                        @store8(@ptradd(out, oi+2), 108)
-                        @store8(@ptradd(out, oi+3), 120)
+                        @store8(@ptradd(out, oi + 2), 108)
+                        @store8(@ptradd(out, oi + 3), 120)
                         oi += 4
                     } elif sc == 99 {
                         @store8(@ptradd(out, oi), 37)
-                        @store8(@ptradd(out, oi+1), 99)
+                        @store8(@ptradd(out, oi + 1), 99)
                         oi += 2
                     } elif sc == 112 {
                         @store8(@ptradd(out, oi), 37)
-                        @store8(@ptradd(out, oi+1), 112)
+                        @store8(@ptradd(out, oi + 1), 112)
                         oi += 2
                     } elif sc == 102 {
                         @store8(@ptradd(out, oi), 37)
-                        @store8(@ptradd(out, oi+1), 102)
+                        @store8(@ptradd(out, oi + 1), 102)
                         oi += 2
                     } else {
                         @store8(@ptradd(out, oi), 37)
-                        @store8(@ptradd(out, oi+1), sc)
+                        @store8(@ptradd(out, oi + 1), sc)
                         oi += 2
                     }
                 } else {
@@ -7324,7 +7324,7 @@ fn gen_list_lit(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
     }
     val buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 512 as usize) as ref u8
     @snprintf(buf, 512, "int64_t*sx__ll{lld}=(int64_t*)calloc(1,32);int64_t*sx__lld{lld}=(int64_t*)calloc(1,{lld});sx__ll{lld}[0]=(int64_t)(intptr_t)sx__lld{lld};sx__ll{lld}[1]={lld};sx__ll{lld}[2]={lld};sx__ll{lld}[3]=0;\n",
-        {t, t, cap, t, t, t, elen, t, cap/8, t})
+        {t, t, cap, t, t, t, elen, t, cap / 8, t})
     emit(ctx, buf)
     if elems != none {
         val ei: mut i64 = 0
@@ -10768,6 +10768,7 @@ fn cc_symbol_from_c_header(symbol: ref u8) bool = trust {
     }
     return false
 }
+
 fn emit_forward_decls(ctx: ref CCtx) void = trust {
     val flen: i64 = @len(ctx.fn_names as list[ref u8]) as i64
     val fi: mut i64 = 0

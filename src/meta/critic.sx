@@ -3,8 +3,8 @@
 /// SPDX-License-Identifier: GPL-3.0-only
 /// (C) Navid Momtahen - 2026
 
-val cstr = use("std/string/cstr")
-val ostr = use("std/string/owned")
+val cstr       = use("std/string/cstr")
+val ostr       = use("std/string/owned")
 val mem        = use("mem.sx")
 val fs         = use("std/fs")
 val stdio      = use("std/stdio")
@@ -1057,7 +1057,11 @@ fn type_to_string(arena: allocators.Arena, ty: ref parser.Node) ref u8 = trust {
         if ok_ty == none || err_ty == none {
             return none
         }
-        return ostr.as_cstr(fmt.format[allocators.Arena](arena, c"result[{s}, {s}]", {ok_ty, err_ty}))
+        return ostr.as_cstr(fmt.format[allocators.Arena](
+                arena,
+                c"result[{s}, {s}]",
+                {ok_ty, err_ty}
+            ))
     }
     if k == parser.TY_SLICE {
         val inner: ref u8 = type_to_string(arena, ty.d0 as ref parser.Node)
@@ -1664,9 +1668,17 @@ fn collect_redundant_arithmetic_fixes(ctx: mut ref Ctx) void = trust {
         val int_end: i64 = token_start(ctx, int_idx) + cstr.len(amount)
         val replacement: mut ref u8 = none
         if is_add && cstr.cmp(amount, c"1") == 0 {
-            replacement = ostr.as_cstr(fmt.format[allocators.Arena](ctx.arena, c"{s}++", {lhs_text}))
+            replacement = ostr.as_cstr(fmt.format[allocators.Arena](
+                    ctx.arena,
+                    c"{s}++",
+                    {lhs_text}
+                ))
         } elif is_sub && cstr.cmp(amount, c"1") == 0 {
-            replacement = ostr.as_cstr(fmt.format[allocators.Arena](ctx.arena, c"{s}--", {lhs_text}))
+            replacement = ostr.as_cstr(fmt.format[allocators.Arena](
+                    ctx.arena,
+                    c"{s}--",
+                    {lhs_text}
+                ))
         } elif is_add {
             replacement = ostr.as_cstr(fmt.format[allocators.Arena](
                     ctx.arena,
@@ -1752,7 +1764,11 @@ fn check_unused_imports(ctx: mut ref Ctx) void = trust {
             add_issue(
                 ctx,
                 use_node.line,
-                ostr.as_cstr(fmt.format[allocators.Arena](ctx.arena, c"unused import '{s}'", {alias}))
+                ostr.as_cstr(fmt.format[allocators.Arena](
+                        ctx.arena,
+                        c"unused import '{s}'",
+                        {alias}
+                    ))
             )
             if ctx.fix_mode {
                 add_remove_line_fix(ctx, use_node.line)

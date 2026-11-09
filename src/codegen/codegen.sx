@@ -3,9 +3,9 @@ val mem         = use("../meta/mem.sx")
 val allocators  = use("std/allocators")
 val fmt         = use("std/fmt")
 val str         = use("std/string")
-val cstr = use("std/string/cstr")
-val ostr = use("std/string/owned")
-val builder = use("std/string/builder")
+val cstr        = use("std/string/cstr")
+val ostr        = use("std/string/owned")
+val builder     = use("std/string/builder")
 val os          = use("std/os")
 val fs          = use("std/fs")
 val stdio       = use("std/stdio")
@@ -2825,15 +2825,12 @@ fn cg_is_fn(ctx: mut ref CgCtx, name: ref u8) bool = trust {
 /// Return the registered spelling for `name` when it is an exact/alias entry,
 /// or `none` when the name has not been registered.
 fn cg_lookup_canonical_name(ctx: ref CgCtx, name: ref u8) ref u8 = trust {
-    match collections.RawIndexMap.get(ctx.fn_name_index, name) {
-        some raw_index => {
-            val index: usize = raw_index as usize
-            val found_opt = @get(ctx.fn_names, index)
-            if found_opt is some found {
-                return found as ref u8
-            }
+    if collections.RawIndexMap.get(ctx.fn_name_index, name) is some raw_index {
+        val index: usize = raw_index as usize
+        val found_opt = @get(ctx.fn_names, index)
+        if found_opt is some found {
+            return found as ref u8
         }
-        none => {}
     }
     return none
 }
@@ -3078,16 +3075,13 @@ fn cg_resolve_fn_name(ctx: mut ref CgCtx, name: ref u8) ref u8 = trust {
             ) as ref u8
             @snprintf(cur_name, cap, "{s}__{s}", {prefix, name})
         }
-        match collections.RawIndexMap.get(ctx.fn_name_index, cur_name) {
-            some raw_index => {
-                val index: usize = raw_index as usize
-                val found_opt = @get(ctx.fn_names, index)
-                if found_opt is some found {
-                    cg_mark_prefix_used(ctx, prefix)
-                    return found as ref u8
-                }
+        if collections.RawIndexMap.get(ctx.fn_name_index, cur_name) is some raw_index {
+            val index: usize = raw_index as usize
+            val found_opt = @get(ctx.fn_names, index)
+            if found_opt is some found {
+                cg_mark_prefix_used(ctx, prefix)
+                return found as ref u8
             }
-            none => {}
         }
     }
 
@@ -5637,7 +5631,10 @@ fn type_expr_to_annotation(ctx: mut ref CgCtx, ty: ref parser.Node) ref u8 = tru
             }
         }
         builder.StringBuilder.append_cstr(sb, c") ")
-        builder.StringBuilder.append_cstr(sb, type_expr_to_annotation(ctx, ty.d1 as ref parser.Node))
+        builder.StringBuilder.append_cstr(
+            sb,
+            type_expr_to_annotation(ctx, ty.d1 as ref parser.Node)
+        )
         val built: ref void = builder.StringBuilder.build(sb)
         val out: ref u8 = ostr.as_cstr(built)
         builder.StringBuilder.free(sb)
@@ -7009,13 +7006,19 @@ fn gen_expr(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
         if parser.str_lit_is_cstr(expr) {
             val idx: i64 = intern_string(ctx, s)
             val tmp3: i64 = fresh_tmp(ctx)
-            val buf3: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 64 as usize) as ref u8
+            val buf3: ref u8 = allocators.ScopedArena.alloc_or_none(
+                ctx.arena,
+                64 as usize
+            ) as ref u8
             @snprintf(buf3, 64, "    %%t{lld} =l copy $__str{lld}\n", {tmp3, idx})
             emit(
                 ctx,
                 buf3
             )
-            val res3: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 16 as usize) as ref u8
+            val res3: ref u8 = allocators.ScopedArena.alloc_or_none(
+                ctx.arena,
+                16 as usize
+            ) as ref u8
             @snprintf(res3, 16, "%%t{lld}", {tmp3})
             return res3
         }
@@ -19404,7 +19407,10 @@ fn gen_items_with_prefix(
                         val cval: ref u8 = const_unop_value(ctx, cexpr)
                         if cstr.cmp(cval, c"") != 0 {
                             cg_register_module_const(ctx, cname, cval)
-                            if starts_with_cstr(cval, c"d_") || starts_with_cstr(cval, c"s_") { } else {
+                            if starts_with_cstr(
+                                cval,
+                                c"d_"
+                            ) || starts_with_cstr(cval, c"s_") { } else {
                                 if cg_emit_label_if_new(ctx, const_label) {
                                     val data_buf: ref u8 = allocators.ScopedArena.alloc_or_none(
                                         ctx.arena,
@@ -19432,7 +19438,10 @@ fn gen_items_with_prefix(
                         )
                         if cstr.cmp(cval, c"") != 0 {
                             cg_register_module_const(ctx, cname, cval)
-                            if starts_with_cstr(cval, c"d_") || starts_with_cstr(cval, c"s_") { } else {
+                            if starts_with_cstr(
+                                cval,
+                                c"d_"
+                            ) || starts_with_cstr(cval, c"s_") { } else {
                                 if cg_emit_label_if_new(ctx, const_label) {
                                     val data_buf: ref u8 = allocators.ScopedArena.alloc_or_none(
                                         ctx.arena,
@@ -20815,7 +20824,10 @@ fn gen_items_with_prefix_skip_links(
                         val cval: ref u8 = const_unop_value(ctx, cexpr)
                         if cstr.cmp(cval, c"") != 0 {
                             cg_register_module_const(ctx, cname, cval)
-                            if starts_with_cstr(cval, c"d_") || starts_with_cstr(cval, c"s_") { } else {
+                            if starts_with_cstr(
+                                cval,
+                                c"d_"
+                            ) || starts_with_cstr(cval, c"s_") { } else {
                                 if cg_emit_label_if_new(ctx, const_label) {
                                     val data_buf: ref u8 = allocators.ScopedArena.alloc_or_none(
                                         ctx.arena,
@@ -20843,7 +20855,10 @@ fn gen_items_with_prefix_skip_links(
                         )
                         if cstr.cmp(cval, c"") != 0 {
                             cg_register_module_const(ctx, cname, cval)
-                            if starts_with_cstr(cval, c"d_") || starts_with_cstr(cval, c"s_") { } else {
+                            if starts_with_cstr(
+                                cval,
+                                c"d_"
+                            ) || starts_with_cstr(cval, c"s_") { } else {
                                 if cg_emit_label_if_new(ctx, const_label) {
                                     val data_buf: ref u8 = allocators.ScopedArena.alloc_or_none(
                                         ctx.arena,

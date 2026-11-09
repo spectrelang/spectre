@@ -2,8 +2,8 @@
 /// (C) Navid Momtahen - 2026
 
 val str        = use("std/string")
-val cstr = use("std/string/cstr")
-val ostr = use("std/string/owned")
+val cstr       = use("std/string/cstr")
+val ostr       = use("std/string/owned")
 val fs         = use("std/fs")
 val os         = use("std/os")
 val path       = use("std/path")

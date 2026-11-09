@@ -3,7 +3,7 @@
 /// SPDX-License-Identifier: GPL-3.0-only
 /// (C) Navid Momtahen - 2026
 
-val cstr = use("std/string/cstr")
+val cstr       = use("std/string/cstr")
 val mem        = use("mem.sx")
 val fs         = use("std/fs")
 val path       = use("std/path")
@@ -3515,7 +3515,10 @@ fn format_for_headers(src: ref u8) ref u8 = trust {
                             if token_line(tokens, header_start) == token_line(tokens, i) &&
                             range_is_whitespace(src, keyword_end, header_pos) {
                                 val already_one: bool =
-                                header_pos - keyword_end == 1 && byte_at_cstr(src, keyword_end) == 32
+                                header_pos - keyword_end == 1 && byte_at_cstr(
+                                    src,
+                                    keyword_end
+                                ) == 32
                                 if !already_one {
                                     @append(edits, edit_new(keyword_end, header_pos, c" "))
                                 }

@@ -4,7 +4,7 @@
 /// (C) Navid Momtahen - 2026
 
 val stdio      = use("../stdio")
-val cstr = use("std/string/cstr")
+val cstr       = use("std/string/cstr")
 val fmt        = use("../fmt")
 val allocators = use("../allocators")
 

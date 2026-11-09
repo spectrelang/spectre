@@ -1,7 +1,7 @@
 val allocators = use("std/allocators")
 val mem        = use("../meta/mem.sx")
-val str     = use("std/string")
-val cstr = use("std/string/cstr")
+val str        = use("std/string")
+val cstr       = use("std/string/cstr")
 
 val SUPPRESS_UNUSED: i64 = 1
 

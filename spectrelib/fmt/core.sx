@@ -1,6 +1,6 @@
 val stdio      = use("../stdio")
-val cstr = use("std/string/cstr")
-val ostr = use("std/string/owned")
+val cstr       = use("std/string/cstr")
+val ostr       = use("std/string/owned")
 val allocators = use("../allocators")
 
 pub enum ParseIntError = {

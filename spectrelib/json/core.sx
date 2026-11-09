@@ -6,7 +6,7 @@ when posix {
 }
 
 val str        = use("std/string")
-val cstr = use("std/string/cstr")
+val cstr       = use("std/string/cstr")
 val stdio      = use("../stdio")
 val allocators = use("../allocators")
 

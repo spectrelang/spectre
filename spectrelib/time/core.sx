@@ -72,9 +72,9 @@ pub fn (DateTime) now() DateTime = {
     val year: i64 = ((trust @load(@ptradd(tm, 20))) & 0xFFFFFFFF) as i64
     val month: i64 = ((trust @load(@ptradd(tm, 16))) & 0xFFFFFFFF) as i64
     val day: i64 = ((trust @load(@ptradd(tm, 12))) & 0xFFFFFFFF) as i64
-    val hour: i64 = ((trust @load(@ptradd(tm, 8)))  & 0xFFFFFFFF) as i64
-    val minute: i64 = ((trust @load(@ptradd(tm, 4)))  & 0xFFFFFFFF) as i64
-    val second: i64 = ((trust @load(@ptradd(tm, 0)))  & 0xFFFFFFFF) as i64
+    val hour: i64 = ((trust @load(@ptradd(tm, 8))) & 0xFFFFFFFF) as i64
+    val minute: i64 = ((trust @load(@ptradd(tm, 4))) & 0xFFFFFFFF) as i64
+    val second: i64 = ((trust @load(@ptradd(tm, 0))) & 0xFFFFFFFF) as i64
     val millis: i64 = usecs / 1000
 
     return DateTime.new(year + 1900, month + 1, day, hour, minute, second, millis)

@@ -1,9 +1,9 @@
 val stdio      = use("std/stdio")
 val mem        = use("mem.sx")
 val str        = use("std/string")
-val cstr = use("std/string/cstr")
-val ostr = use("std/string/owned")
-val builder = use("std/string/builder")
+val cstr       = use("std/string/cstr")
+val ostr       = use("std/string/owned")
+val builder    = use("std/string/builder")
 val regex      = use("std/regex")
 val fs         = use("std/fs")
 val path       = use("std/path")
@@ -803,7 +803,10 @@ fn render_const_expr(expr: ref parser.Node) ref u8 = trust {
         }
         return dfmt(
             "@{s}({s})",
-            {parser.node_str_raw(expr.d0), render_expr_list(expr.d1 as list[ref parser.Node], c", ")}
+            {
+                parser.node_str_raw(expr.d0),
+                render_expr_list(expr.d1 as list[ref parser.Node], c", ")
+            }
         )
     }
     if kind == parser.NK_LIST_LIT {
@@ -2447,7 +2450,10 @@ fn render_entry_details_md(sb: ref void, entry: ref DocEntry) void = trust {
     } elif node.kind == parser.NK_TYPEDEF || node.kind == parser.NK_EXTERN_TYPE {
         val fields = node.d2 as list[ref parser.Node]
         if @len(fields) as i64 > 0 {
-            builder.StringBuilder.append_cstr(sb, c"\n**Fields**\n\n| Name | Type |\n| --- | --- |\n")
+            builder.StringBuilder.append_cstr(
+                sb,
+                c"\n**Fields**\n\n| Name | Type |\n| --- | --- |\n"
+            )
             for field in fields {
                 val prefix: mut ref u8 = c""
                 if field.d1 != 0 {
@@ -2915,7 +2921,10 @@ test "docs extracts comments, signatures and slugs" {
     assert cstr.eql(trust lookup_doc(spec_src, 2), c"allocator interface")
 
     val docs_src_arena: allocators.Arena = trust allocators.Arena.new(131072 as usize)?
-    val docs_src_opt = trust fs.read_all_cstr[allocators.Arena](docs_src_arena, c"./src/meta/docs.sx")
+    val docs_src_opt = trust fs.read_all_cstr[allocators.Arena](
+        docs_src_arena,
+        c"./src/meta/docs.sx"
+    )
     if docs_src_opt is some docs_src {
         val ml_toggle: mut i64 = 0
         match regex.re_match(c"id=\\\\\"private-toggle\\\\\"", docs_src, @addr(ml_toggle)) {

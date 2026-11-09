@@ -1,9 +1,9 @@
 val net        = use("../net/core.sx")
 val allocators = use("../allocators")
-val str     = use("std/string")
-val cstr = use("std/string/cstr")
-val ostr = use("std/string/owned")
-val builder = use("std/string/builder")
+val str        = use("std/string")
+val cstr       = use("std/string/cstr")
+val ostr       = use("std/string/owned")
+val builder    = use("std/string/builder")
 
 pub val DEFAULT_MAX_ROUTES: i64 = 32
 pub val DEFAULT_MAX_CLIENTS: i64 = 64

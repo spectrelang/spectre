@@ -19,9 +19,9 @@
 /// Use the allocator-aware `utf8_to_codepoints` and `utf16_to_codepoints`
 /// helpers when a dynamic list is more convenient than iterating manually.
 
-val str     = use("std/string")
-val cstr = use("std/string/cstr")
-val ostr = use("std/string/owned")
+val str        = use("std/string")
+val cstr       = use("std/string/cstr")
+val ostr       = use("std/string/owned")
 val allocators = use("../allocators")
 val tables     = use("tables.sx")
 
