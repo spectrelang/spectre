@@ -77,7 +77,7 @@ fi
 BACKEND_FLAG="${SPECTRE_BUILD_BACKEND:-}"
 
 echo "Building spectre stage 1..."
-"$STAGE0" ./src/sxc.sx $BACKEND_FLAG -o ./spectre-stage1 || exit 1
+"$STAGE0" ./src/sxc.sx -runtime:hosted $BACKEND_FLAG -o ./spectre-stage1 || exit 1
 
 echo "Building spectre-dev..."
 ./spectre-stage1 "${DEFINES[@]}" ./src/sxc.sx $BACKEND_FLAG -o spectre-dev || exit 1

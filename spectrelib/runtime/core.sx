@@ -54,9 +54,9 @@ when freestanding {
     extern (C) fn sx_fileno(f: ref void) i32 = "sx_fileno"
     extern (C) fn sx_feof(f: ref void) i32 = "sx_feof"
     extern (C) fn sx_ferror(f: ref void) i32 = "sx_ferror"
-    extern (C) fn sx_stdin() ref void = "sx_stdin"
-    extern (C) fn sx_stdout() ref void = "sx_stdout"
-    extern (C) fn sx_stderr() ref void = "sx_stderr"
+    extern (C) fn sx_stdin_file() ref void = "sx_stdin_file"
+    extern (C) fn sx_stdout_file() ref void = "sx_stdout_file"
+    extern (C) fn sx_stderr_file() ref void = "sx_stderr_file"
 
     extern (C) fn sx_getenv(name: ref u8) ref u8 = "sx_getenv"
     extern (C) fn sx_getcwd(buf: ref u8, size: usize) ref u8 = "sx_getcwd"
@@ -563,7 +563,7 @@ pub fn ferror(f: ref void) i32 = trust {
 
 pub fn stdin() ref void = trust {
     when freestanding {
-        return sx_stdin()
+        return sx_stdin_file()
     } otherwise {
         return @stdin()
     }
@@ -571,7 +571,7 @@ pub fn stdin() ref void = trust {
 
 pub fn stdout() ref void = trust {
     when freestanding {
-        return sx_stdout()
+        return sx_stdout_file()
     } otherwise {
         return @stdout()
     }
@@ -579,7 +579,7 @@ pub fn stdout() ref void = trust {
 
 pub fn stderr() ref void = trust {
     when freestanding {
-        return sx_stderr()
+        return sx_stderr_file()
     } otherwise {
         return @stderr()
     }

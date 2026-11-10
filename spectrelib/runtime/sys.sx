@@ -1,0 +1,984 @@
+/// Spectre-owned freestanding runtime core.
+///
+/// This module implements allocation and string primitives directly in
+/// Spectre.  It calls only the small `__sx_sys_*` boundary in
+/// `spectrelib/csources/freestanding/runtime.c` for memory mapping.
+///
+/// Functions named `sx_*` are exported with their exact names by the compiler
+/// so the C boundary, the standard library, and generated code can share one
+/// stable ABI.
+
+extern (C) fn __sx_sys_mmap(size: usize) ref void = "__sx_sys_mmap"
+extern (C) fn __sx_sys_munmap(ptr: ref void, size: usize) void = "__sx_sys_munmap"
+extern (C) fn __sx_sys_open(path: ref u8, flags: i64, mode: i64) i64 = "__sx_sys_open"
+extern (C) fn __sx_sys_read(fd: i64, buf: ref void, n: usize) i64 = "__sx_sys_read"
+extern (C) fn __sx_sys_write(fd: i64, buf: ref void, n: usize) i64 = "__sx_sys_write"
+extern (C) fn __sx_sys_close(fd: i64) i64 = "__sx_sys_close"
+extern (C) fn __sx_sys_lseek(fd: i64, off: i64, whence: i64) i64 = "__sx_sys_lseek"
+extern (C) fn __sx_sys_stdio(which: i64) i64 = "__sx_sys_stdio"
+extern (C) fn __sx_sys_clock_us() i64 = "__sx_sys_clock_us"
+extern (C) fn __sx_sys_nanosleep_us(us: i64) i64 = "__sx_sys_nanosleep_us"
+extern (C) fn __sx_sys_gettid() i64 = "__sx_sys_gettid"
+extern (C) fn __sx_sys_sched_yield() i64 = "__sx_sys_sched_yield"
+extern (C) fn __sx_sys_futex(addr: i64, op: i64, value: i64, timeout: i64) i64 = "__sx_sys_futex"
+extern (C) fn __sx_sys_clone_thread(flags: i64, stack: ref void, entry: ref void, arg: ref void) i64 = "__sx_sys_clone_thread"
+extern (C) fn __sx_sys_create_thread(entry: ref void, arg: ref void) i64 = "__sx_sys_create_thread"
+extern (C) fn __sx_sys_wait_thread(handle: i64) i64 = "__sx_sys_wait_thread"
+extern (C) fn __sx_sys_detach_thread(handle: i64) i64 = "__sx_sys_detach_thread"
+
+val heap_base: mut ref u8 = none
+val heap_used: mut usize = 0
+val heap_cap: mut usize = 0
+val HEAP_CHUNK: usize = 1048576
+
+fn align16(n: usize) usize = {
+    return ((n + 15) / 16) * 16
+}
+
+fn map_chunk(n: usize) ref u8 = trust {
+    val rounded: usize = ((n + 4095) / 4096) * 4096
+    return __sx_sys_mmap(rounded) as ref u8
+}
+
+fn r_alloc(n: usize) ref void = trust {
+    val total: usize = align16(n) + 16
+    if heap_base == none || heap_used + total > heap_cap {
+        val cap: mut usize = HEAP_CHUNK
+        if total > cap {
+            cap = total
+        }
+        val fresh: ref u8 = map_chunk(cap)
+        if fresh == none {
+            return none
+        }
+        heap_base = fresh
+        heap_used = 0
+        heap_cap = cap
+    }
+    val raw: ref u8 = @ptradd(heap_base, heap_used as i64) as ref u8
+    heap_used = heap_used + total
+    @store(raw, n)
+    return @ptradd(raw, 16) as ref void
+}
+
+fn r_calloc(count: usize, size: usize) ref void = trust {
+    val n: usize = count * size
+    val p: ref void = r_alloc(n)
+    if p != none && n > 0 {
+        r_memset(p, 0, n)
+    }
+    return p
+}
+
+fn r_free(ptr: ref void) void = trust {
+    if ptr == none {
+        return
+    }
+    // The bump allocator keeps small objects in chunks and releases in bulk.
+}
+
+fn r_realloc(ptr: ref void, n: usize) ref void = trust {
+    if ptr == none {
+        return r_alloc(n)
+    }
+    if n == 0 {
+        r_free(ptr)
+        return none
+    }
+    val header: ref void = @ptradd(ptr, -16)
+    val old: usize = @load(header) as usize
+    val fresh: ref void = r_alloc(n)
+    if fresh == none {
+        return none
+    }
+    val copy_len: mut usize = old
+    if n < copy_len {
+        copy_len = n
+    }
+    r_memcpy(fresh, ptr, copy_len)
+    return fresh
+}
+
+fn r_memcpy(dst: ref void, src: ref void, n: usize) ref void = trust {
+    val d: ref u8 = dst as ref u8
+    val s: ref u8 = src as ref u8
+    val i: mut usize = 0
+    for {
+        if i >= n {
+            break
+        }
+        @store8(@ptradd(d, i as i64), @load8(@ptradd(s, i as i64)))
+        i = i + 1
+    }
+    return dst
+}
+
+fn r_memmove(dst: ref void, src: ref void, n: usize) ref void = trust {
+    if dst == src || n == 0 {
+        return dst
+    }
+    val d: ref u8 = dst as ref u8
+    val s: ref u8 = src as ref u8
+    if d < s {
+        return r_memcpy(dst, src, n)
+    }
+    val i: mut usize = n
+    for {
+        if i == 0 {
+            break
+        }
+        i = i - 1
+        @store8(@ptradd(d, i as i64), @load8(@ptradd(s, i as i64)))
+    }
+    return dst
+}
+
+fn r_memset(dst: ref void, value: i32, n: usize) ref void = trust {
+    val d: ref u8 = dst as ref u8
+    val v: u8 = value as u8
+    val i: mut usize = 0
+    for {
+        if i >= n {
+            break
+        }
+        @store8(@ptradd(d, i as i64), v)
+        i = i + 1
+    }
+    return dst
+}
+
+fn r_memcmp(a: ref void, b: ref void, n: usize) i32 = trust {
+    val x: ref u8 = a as ref u8
+    val y: ref u8 = b as ref u8
+    val i: mut usize = 0
+    for {
+        if i >= n {
+            break
+        }
+        val xa: u8 = @load8(@ptradd(x, i as i64))
+        val yb: u8 = @load8(@ptradd(y, i as i64))
+        if xa != yb {
+            return (xa as i32) - (yb as i32)
+        }
+        i = i + 1
+    }
+    return 0
+}
+
+fn r_strlen(s: ref u8) i64 = trust {
+    if s == none {
+        return 0
+    }
+    val n: mut i64 = 0
+    for {
+        if @load8(@ptradd(s, n)) == 0 {
+            break
+        }
+        n = n + 1
+    }
+    return n
+}
+
+fn r_strcmp(a: ref u8, b: ref u8) i32 = trust {
+    val x: mut ref u8 = a
+    val y: mut ref u8 = b
+    if x == none {
+        x = c""
+    }
+    if y == none {
+        y = c""
+    }
+    val i: mut i64 = 0
+    for {
+        val xa: u8 = @load8(@ptradd(x, i))
+        val yb: u8 = @load8(@ptradd(y, i))
+        if xa != yb {
+            return (xa as i32) - (yb as i32)
+        }
+        if xa == 0 {
+            return 0
+        }
+        i = i + 1
+    }
+    return 0
+}
+
+fn r_strncmp(a: ref u8, b: ref u8, n: usize) i32 = trust {
+    val x: mut ref u8 = a
+    val y: mut ref u8 = b
+    if x == none {
+        x = c""
+    }
+    if y == none {
+        y = c""
+    }
+    val i: mut usize = 0
+    for {
+        if i >= n {
+            break
+        }
+        val xa: u8 = @load8(@ptradd(x, i as i64))
+        val yb: u8 = @load8(@ptradd(y, i as i64))
+        if xa != yb {
+            return (xa as i32) - (yb as i32)
+        }
+        if xa == 0 {
+            return 0
+        }
+        i = i + 1
+    }
+    return 0
+}
+
+fn r_strcpy(dst: ref u8, src: ref u8) ref u8 = trust {
+    val i: mut i64 = 0
+    for {
+        val ch: u8 = @load8(@ptradd(src, i))
+        @store8(@ptradd(dst, i), ch)
+        if ch == 0 {
+            break
+        }
+        i = i + 1
+    }
+    return dst
+}
+
+fn r_strcat(dst: ref u8, src: ref u8) ref u8 = trust {
+    val start: i64 = r_strlen(dst)
+    r_strcpy(@ptradd(dst, start) as ref u8, src)
+    return dst
+}
+
+fn r_strchr(s: ref u8, c: i32) ref u8 = trust {
+    if s == none {
+        return none
+    }
+    val want: u8 = c as u8
+    val i: mut i64 = 0
+    for {
+        val ch: u8 = @load8(@ptradd(s, i))
+        if ch == want {
+            return @ptradd(s, i) as ref u8
+        }
+        if ch == 0 {
+            return none
+        }
+        i = i + 1
+    }
+    return none
+}
+
+fn r_strrchr(s: ref u8, c: i32) ref u8 = trust {
+    if s == none {
+        return none
+    }
+    val want: u8 = c as u8
+    val last: mut ref u8 = none
+    val i: mut i64 = 0
+    for {
+        val ch: u8 = @load8(@ptradd(s, i))
+        if ch == want {
+            last = @ptradd(s, i) as ref u8
+        }
+        if ch == 0 {
+            break
+        }
+        i = i + 1
+    }
+    return last
+}
+
+fn r_strstr(haystack: ref u8, needle: ref u8) ref u8 = trust {
+    if haystack == none || needle == none {
+        return none
+    }
+    if @load8(needle) == 0 {
+        return haystack
+    }
+    val h: mut i64 = 0
+    for {
+        if @load8(@ptradd(haystack, h)) == 0 {
+            return none
+        }
+        val n: mut i64 = 0
+        for {
+            val nc: u8 = @load8(@ptradd(needle, n))
+            if nc == 0 {
+                return @ptradd(haystack, h) as ref u8
+            }
+            val hc: u8 = @load8(@ptradd(haystack, h + n))
+            if hc != nc {
+                break
+            }
+            n = n + 1
+        }
+        h = h + 1
+    }
+    return none
+}
+
+fn r_strdup(s: ref u8) ref u8 = trust {
+    if s == none {
+        return none
+    }
+    val n: i64 = r_strlen(s)
+    val out: ref u8 = r_alloc((n + 1) as usize) as ref u8
+    if out == none {
+        return none
+    }
+    r_memcpy(out as ref void, s as ref void, (n + 1) as usize)
+    return out
+}
+
+fn r_strtok_r(s: ref u8, delim: ref u8, save: ref ref u8) ref u8 = trust {
+    if delim == none || save == none {
+        return none
+    }
+    val cursor: mut ref u8 = s
+    if cursor == none {
+        cursor = @load(save)
+    }
+    if cursor == none {
+        return none
+    }
+    for {
+        val ch: u8 = @load8(cursor)
+        if ch == 0 {
+            @store(save, cursor)
+            return none
+        }
+        if r_strchr(delim, ch as i32) != none {
+            cursor = @ptradd(cursor, 1) as ref u8
+        } else {
+            break
+        }
+    }
+    val start: ref u8 = cursor
+    for {
+        val ch: u8 = @load8(cursor)
+        if ch == 0 {
+            @store(save, cursor)
+            return start
+        }
+        if r_strchr(delim, ch as i32) != none {
+            @store8(cursor, 0)
+            @store(save, @ptradd(cursor, 1) as ref u8)
+            return start
+        }
+        cursor = @ptradd(cursor, 1) as ref u8
+    }
+    return start
+}
+
+fn r_atoi(s: ref u8) i32 = trust {
+    if s == none {
+        return 0
+    }
+    val i: mut i64 = 0
+    for {
+        val ch: u8 = @load8(@ptradd(s, i))
+        if ch == 32 || ch == 9 || ch == 10 || ch == 13 {
+            i = i + 1
+        } else {
+            break
+        }
+    }
+    val sign: mut i32 = 1
+    val ch0: u8 = @load8(@ptradd(s, i))
+    if ch0 == 45 {
+        sign = -1
+        i = i + 1
+    } elif ch0 == 43 {
+        i = i + 1
+    }
+    val value: mut i32 = 0
+    for {
+        val ch: u8 = @load8(@ptradd(s, i))
+        if ch < 48 || ch > 57 {
+            break
+        }
+        value = value * 10 + ((ch as i32) - 48)
+        i = i + 1
+    }
+    return sign * value
+}
+
+fn r_isdigit(c: i32) i32 = trust {
+    if c >= 48 && c <= 57 {
+        return 1
+    }
+    return 0
+}
+
+fn r_strtol(s: ref u8, end: ref ref u8, base: i32) i64 = trust {
+    if s == none {
+        if end != none {
+            @store(end, s)
+        }
+        return 0
+    }
+    val i: mut i64 = 0
+    for {
+        val ch: u8 = @load8(@ptradd(s, i))
+        if ch == 32 || ch == 9 || ch == 10 || ch == 13 {
+            i = i + 1
+        } else {
+            break
+        }
+    }
+    val sign: mut i64 = 1
+    val ch0: u8 = @load8(@ptradd(s, i))
+    if ch0 == 45 {
+        sign = -1
+        i = i + 1
+    } elif ch0 == 43 {
+        i = i + 1
+    }
+    val radix: mut i64 = base as i64
+    if radix == 0 {
+        radix = 10
+    }
+    val value: mut i64 = 0
+    for {
+        val ch: u8 = @load8(@ptradd(s, i))
+        val digit: mut i64 = -1
+        if ch >= 48 && ch <= 57 {
+            digit = (ch as i64) - 48
+        } elif ch >= 97 && ch <= 102 {
+            digit = (ch as i64) - 97 + 10
+        } elif ch >= 65 && ch <= 70 {
+            digit = (ch as i64) - 65 + 10
+        }
+        if digit < 0 || digit >= radix {
+            break
+        }
+        value = value * radix + digit
+        i = i + 1
+    }
+    if end != none {
+        @store(end, @ptradd(s, i) as ref u8)
+    }
+    return sign * value
+}
+
+
+// ---------------------------------------------------------------------------
+// File layer
+// ---------------------------------------------------------------------------
+
+type SxFile = {
+    fd: mut i64
+    eof: mut i32
+    ungot: mut i32
+    is_std: mut i32
+}
+
+val std_in_file: mut ref SxFile = none
+val std_out_file: mut ref SxFile = none
+val std_err_file: mut ref SxFile = none
+
+fn new_file(fd: i64, is_std: i32) ref SxFile = trust {
+    val f: mut ref SxFile = r_alloc(@sizeof(SxFile)) as ref SxFile
+    if f == none {
+        return none
+    }
+    f.fd = fd
+    f.eof = 0
+    f.ungot = -1
+    f.is_std = is_std
+    return f
+}
+
+fn r_fopen(path: ref u8, mode: ref u8) ref void = trust {
+    if path == none || mode == none {
+        return none
+    }
+    val c0: u8 = @load8(mode)
+    val plus: bool = @load8(@ptradd(mode, 1)) == 43
+    val flags: mut i64 = 0
+    if c0 == 114 {
+        if plus { flags = 2 } else { flags = 0 }
+    } elif c0 == 119 {
+        flags = 4 | 8
+        if plus { flags = flags | 2 } else { flags = flags | 1 }
+    } elif c0 == 97 {
+        flags = 4 | 16
+        if plus { flags = flags | 2 } else { flags = flags | 1 }
+    } else {
+        flags = 0
+    }
+    val fd: i64 = __sx_sys_open(path, flags, 438)
+    if fd < 0 {
+        return none
+    }
+    return new_file(fd, 0) as ref void
+}
+
+fn r_fclose(fp: ref void) i32 = trust {
+    if fp == none {
+        return -1
+    }
+    val f: ref SxFile = fp as ref SxFile
+    if f.is_std == 0 {
+        __sx_sys_close(f.fd)
+        r_free(fp)
+    }
+    return 0
+}
+
+fn r_fread(ptr: ref void, size: usize, count: usize, fp: ref void) usize = trust {
+    if ptr == none || fp == none || size == 0 {
+        return 0
+    }
+    val f: mut ref SxFile = fp as ref SxFile
+    val total: usize = size * count
+    val out: ref u8 = ptr as ref u8
+    val done: mut usize = 0
+    if f.ungot >= 0 && total > 0 {
+        @store8(out, f.ungot as u8)
+        f.ungot = -1
+        done = 1
+    }
+    for {
+        if done >= total {
+            break
+        }
+        val n: i64 = __sx_sys_read(f.fd, @ptradd(ptr, done as i64), total - done)
+        if n <= 0 {
+            f.eof = 1
+            break
+        }
+        done = done + (n as usize)
+    }
+    return done / size
+}
+
+fn r_fwrite(ptr: ref void, size: usize, count: usize, fp: ref void) usize = trust {
+    if ptr == none || fp == none || size == 0 {
+        return 0
+    }
+    val f: ref SxFile = fp as ref SxFile
+    val total: usize = size * count
+    val done: mut usize = 0
+    for {
+        if done >= total {
+            break
+        }
+        val n: i64 = __sx_sys_write(f.fd, @ptradd(ptr, done as i64), total - done)
+        if n <= 0 {
+            break
+        }
+        done = done + (n as usize)
+    }
+    return done / size
+}
+
+fn r_fseek(fp: ref void, offset: i64, whence: i32) i32 = trust {
+    if fp == none {
+        return -1
+    }
+    val f: mut ref SxFile = fp as ref SxFile
+    val r: i64 = __sx_sys_lseek(f.fd, offset, whence as i64)
+    f.eof = 0
+    if r < 0 {
+        return -1
+    }
+    return 0
+}
+
+fn r_ftell(fp: ref void) i64 = trust {
+    if fp == none {
+        return -1
+    }
+    val f: ref SxFile = fp as ref SxFile
+    return __sx_sys_lseek(f.fd, 0, 1)
+}
+
+fn r_rewind(fp: ref void) void = trust {
+    if fp != none {
+        r_fseek(fp, 0, 0)
+    }
+}
+
+fn r_fflush(_: ref void) i32 = trust {
+    return 0
+}
+
+fn r_fgetc(fp: ref void) i32 = trust {
+    if fp == none {
+        return -1
+    }
+    val f: mut ref SxFile = fp as ref SxFile
+    if f.ungot >= 0 {
+        val r: i32 = f.ungot
+        f.ungot = -1
+        return r
+    }
+    val b: ref u8 = r_alloc(1) as ref u8
+    if b == none {
+        return -1
+    }
+    val n: i64 = __sx_sys_read(f.fd, b, 1)
+    if n != 1 {
+        f.eof = 1
+        r_free(b)
+        return -1
+    }
+    val v: i32 = @load8(b) as i32
+    r_free(b)
+    return v
+}
+
+fn r_getchar() i32 = trust {
+    return r_fgetc(r_stdin())
+}
+
+fn r_fputc(c: i32, fp: ref void) i32 = trust {
+    if fp == none {
+        return -1
+    }
+    val f: ref SxFile = fp as ref SxFile
+    val b: ref u8 = r_alloc(1) as ref u8
+    if b == none {
+        return -1
+    }
+    @store8(b, c as u8)
+    val n: i64 = __sx_sys_write(f.fd, b, 1)
+    r_free(b)
+    if n != 1 {
+        return -1
+    }
+    return c
+}
+
+fn r_putchar(c: i32) i32 = trust {
+    return r_fputc(c, r_stdout())
+}
+
+fn r_fgets(buf: ref u8, n: i32, fp: ref void) ref u8 = trust {
+    if buf == none || n <= 0 || fp == none {
+        return none
+    }
+    val i: mut i32 = 0
+    for {
+        if i >= n - 1 {
+            break
+        }
+        val c: i32 = r_fgetc(fp)
+        if c < 0 {
+            break
+        }
+        @store8(@ptradd(buf, i as i64), c as u8)
+        i = i + 1
+        if c == 10 {
+            break
+        }
+    }
+    if i == 0 {
+        return none
+    }
+    @store8(@ptradd(buf, i as i64), 0)
+    return buf
+}
+
+fn r_fputs(s: ref u8, fp: ref void) i32 = trust {
+    if s == none || fp == none {
+        return -1
+    }
+    val n: i64 = r_strlen(s)
+    return (r_fwrite(s as ref void, 1, n as usize, fp) as i32) * 1
+}
+
+fn r_fdopen(fd: i32, _: ref u8) ref void = trust {
+    return new_file(fd as i64, 0) as ref void
+}
+
+fn r_fileno(fp: ref void) i32 = trust {
+    if fp == none { return -1 }
+    return (fp as ref SxFile).fd as i32
+}
+
+fn r_feof(fp: ref void) i32 = trust {
+    if fp == none { return 0 }
+    return (fp as ref SxFile).eof
+}
+
+fn r_ferror(_: ref void) i32 = trust { return 0 }
+
+fn r_stdin() ref void = trust {
+    if std_in_file == none {
+        std_in_file = new_file(__sx_sys_stdio(0), 1)
+    }
+    return std_in_file as ref void
+}
+
+fn r_stdout() ref void = trust {
+    if std_out_file == none {
+        std_out_file = new_file(__sx_sys_stdio(1), 1)
+    }
+    return std_out_file as ref void
+}
+
+fn r_stderr() ref void = trust {
+    if std_err_file == none {
+        std_err_file = new_file(__sx_sys_stdio(2), 1)
+    }
+    return std_err_file as ref void
+}
+
+// ---------------------------------------------------------------------------
+// Time layer
+// ---------------------------------------------------------------------------
+
+val tm_storage: mut ref u8 = none
+
+fn r_gettimeofday(tv: ref void, _: ref void) i32 = trust {
+    val us: i64 = __sx_sys_clock_us()
+    if tv != none {
+        @store(tv, us / 1000000)
+        @store(@ptradd(tv, 8), us % 1000000)
+    }
+    return 0
+}
+
+fn r_localtime(t: ref i64) ref void = trust {
+    if tm_storage == none {
+        tm_storage = r_alloc(88) as ref u8
+        if tm_storage == none {
+            return none
+        }
+    }
+    val stamp: i64 = @load(t) as i64
+    val days: i64 = stamp / 86400
+    val rem: mut i64 = stamp % 86400
+    if rem < 0 {
+        rem = rem + 86400
+    }
+    @store32(tm_storage, rem % 60)
+    @store32(@ptradd(tm_storage, 4), (rem / 60) % 60)
+    @store32(@ptradd(tm_storage, 8), rem / 3600)
+    val year: mut i64 = 1970
+    val d: mut i64 = days
+    for {
+        val leap: bool = (year % 4 == 0 && year % 100 != 0) || year % 400 == 0
+        val ylen: mut i64 = 365
+        if leap { ylen = 366 }
+        if d < ylen {
+            break
+        }
+        d = d - ylen
+        year = year + 1
+    }
+    val leap2: bool = (year % 4 == 0 && year % 100 != 0) || year % 400 == 0
+    val month: mut i64 = 0
+    for {
+        if month >= 12 {
+            break
+        }
+        val md: mut i64 = 31
+        if month == 1 { if leap2 { md = 29 } else { md = 28 } }
+        elif month == 3 || month == 5 || month == 8 || month == 10 { md = 30 }
+        if d < md {
+            break
+        }
+        d = d - md
+        month = month + 1
+    }
+    @store32(@ptradd(tm_storage, 12), d + 1)
+    @store32(@ptradd(tm_storage, 16), month)
+    @store32(@ptradd(tm_storage, 20), year - 1900)
+    return tm_storage as ref void
+}
+
+fn r_usleep(usec: u32) i32 = trust {
+    return __sx_sys_nanosleep_us(usec as i64) as i32
+}
+
+fn r_sleep(seconds: u32) i32 = trust {
+    return r_usleep(seconds * 1000000)
+}
+
+fn r_time(out: ref i64) i64 = trust {
+    val sec: i64 = __sx_sys_clock_us() / 1000000
+    if out != none {
+        @store(out, sec)
+    }
+    return sec
+}
+
+// ---------------------------------------------------------------------------
+// Thread layer
+// ---------------------------------------------------------------------------
+
+type SxThread = {
+    fnptr: mut usize
+    arg: mut ref void
+    done: mut i32
+    result: mut ref void
+    stack: mut ref void
+    stack_size: mut usize
+    tid: mut i64
+}
+
+fn thread_entry(p: ref void) ref void = trust {
+    val t: mut ref SxThread = p as ref SxThread
+    val f: fn(ref void) ref void = @bitcast(t.fnptr, fn(ref void) ref void)
+    t.result = @call(f, t.arg)
+    t.done = 1
+    __sx_sys_futex(@bitcast(@addr(t.done), i64), 1, 1, 0)
+    return t.result
+}
+
+fn r_pthread_create(thread: ref void, _: ref void, entry: usize, arg: ref void) i32 = trust {
+    val t: mut ref SxThread = r_calloc(1, @sizeof(SxThread)) as ref SxThread
+    if t == none { return -1 }
+    t.fnptr = entry
+    t.arg = arg
+    t.stack_size = 1048576
+    t.stack = __sx_sys_mmap(t.stack_size)
+    if t.stack == none {
+        r_free(t)
+        return -1
+    }
+    val entry_ptr: ref void = @bitcast(thread_entry as usize, ref void)
+    when windows {
+        if t.stack != none {
+            __sx_sys_munmap(t.stack, t.stack_size)
+            t.stack = none
+        }
+        val handle: i64 = __sx_sys_create_thread(entry_ptr, t as ref void)
+        if handle < 0 {
+            r_free(t)
+            return -1
+        }
+        t.tid = handle
+    } otherwise {
+        val top: ref void = @ptradd(t.stack, t.stack_size as i64) as ref void
+        val tid: i64 = __sx_sys_clone_thread(0x50F00, top, entry_ptr, t as ref void)
+        if tid < 0 {
+            __sx_sys_munmap(t.stack, t.stack_size)
+            r_free(t)
+            return -1
+        }
+        t.tid = tid
+    }
+    @store(thread, t as ref void)
+    return 0
+}
+
+fn r_pthread_join(thread: ref void, retval: ref void) i32 = trust {
+    if thread == none { return -1 }
+    val t: mut ref SxThread = thread as ref SxThread
+    when windows {
+        __sx_sys_wait_thread(t.tid)
+    } otherwise {
+        for {
+            if t.done != 0 { break }
+            __sx_sys_futex(@bitcast(@addr(t.done), i64), 0, 0, 0)
+        }
+        __sx_sys_munmap(t.stack, t.stack_size)
+    }
+    if retval != none {
+        @store(retval, t.result)
+    }
+    r_free(t)
+    return 0
+}
+
+fn r_pthread_detach(thread: ref void) i32 = trust {
+    if thread == none {
+        return 0
+    }
+    when windows {
+        if thread != none {
+            val t: ref SxThread = thread as ref SxThread
+            __sx_sys_detach_thread(t.tid)
+        }
+    }
+    return 0
+}
+
+fn r_pthread_self() ref void = trust {
+    return @bitcast(__sx_sys_gettid() as usize, ref void)
+}
+
+fn r_sched_yield() i32 = trust {
+    return __sx_sys_sched_yield() as i32
+}
+
+fn r_mutex_init(m: ref void) i32 = trust {
+    if m != none { @store32(m, 0) }
+    return 0
+}
+fn r_mutex_destroy(_: ref void) i32 = trust { return 0 }
+fn r_mutex_lock(m: ref void) i32 = trust {
+    if m == none { return -1 }
+    for {
+        if @load32(m) == 0 { break }
+    }
+    @store32(m, 1)
+    return 0
+}
+fn r_mutex_unlock(m: ref void) i32 = trust {
+    if m != none { @store32(m, 0) }
+    return 0
+}
+
+// Exported ABI wrappers.
+pub fn sx_alloc(n: usize) ref void = trust { return r_alloc(n) }
+pub fn sx_calloc(count: usize, size: usize) ref void = trust { return r_calloc(count, size) }
+pub fn sx_free(ptr: ref void) void = trust { r_free(ptr) }
+pub fn sx_realloc(ptr: ref void, n: usize) ref void = trust { return r_realloc(ptr, n) }
+pub fn sx_memcpy(dst: ref void, src: ref void, n: usize) ref void = trust { return r_memcpy(dst, src, n) }
+pub fn sx_memmove(dst: ref void, src: ref void, n: usize) ref void = trust { return r_memmove(dst, src, n) }
+pub fn sx_memset(dst: ref void, value: i32, n: usize) ref void = trust { return r_memset(dst, value, n) }
+pub fn sx_memcmp(a: ref void, b: ref void, n: usize) i32 = trust { return r_memcmp(a, b, n) }
+pub fn sx_strlen(s: ref u8) i64 = trust { return r_strlen(s) }
+pub fn sx_strcmp(a: ref u8, b: ref u8) i32 = trust { return r_strcmp(a, b) }
+pub fn sx_strncmp(a: ref u8, b: ref u8, n: usize) i32 = trust { return r_strncmp(a, b, n) }
+pub fn sx_strcpy(dst: ref u8, src: ref u8) ref u8 = trust { return r_strcpy(dst, src) }
+pub fn sx_strcat(dst: ref u8, src: ref u8) ref u8 = trust { return r_strcat(dst, src) }
+pub fn sx_strchr(s: ref u8, c: i32) ref u8 = trust { return r_strchr(s, c) }
+pub fn sx_strrchr(s: ref u8, c: i32) ref u8 = trust { return r_strrchr(s, c) }
+pub fn sx_strstr(haystack: ref u8, needle: ref u8) ref u8 = trust { return r_strstr(haystack, needle) }
+pub fn sx_strdup(s: ref u8) ref u8 = trust { return r_strdup(s) }
+pub fn sx_strtok_r(s: ref u8, delim: ref u8, save: ref ref u8) ref u8 = trust { return r_strtok_r(s, delim, save) }
+pub fn sx_atoi(s: ref u8) i32 = trust { return r_atoi(s) }
+pub fn sx_isdigit(c: i32) i32 = trust { return r_isdigit(c) }
+pub fn sx_strtol(s: ref u8, end: ref ref u8, base: i32) i64 = trust { return r_strtol(s, end, base) }
+
+pub fn sx_fopen(path: ref u8, mode: ref u8) ref void = trust { return r_fopen(path, mode) }
+pub fn sx_fclose(fp: ref void) i32 = trust { return r_fclose(fp) }
+pub fn sx_fread(ptr: ref void, size: usize, count: usize, fp: ref void) usize = trust { return r_fread(ptr, size, count, fp) }
+pub fn sx_fwrite(ptr: ref void, size: usize, count: usize, fp: ref void) usize = trust { return r_fwrite(ptr, size, count, fp) }
+pub fn sx_fseek(fp: ref void, offset: i64, whence: i32) i32 = trust { return r_fseek(fp, offset, whence) }
+pub fn sx_ftell(fp: ref void) i64 = trust { return r_ftell(fp) }
+pub fn sx_rewind(fp: ref void) void = trust { r_rewind(fp) }
+pub fn sx_fflush(fp: ref void) i32 = trust { return r_fflush(fp) }
+pub fn sx_fgetc(fp: ref void) i32 = trust { return r_fgetc(fp) }
+pub fn sx_getchar() i32 = trust { return r_getchar() }
+pub fn sx_fputc(c: i32, fp: ref void) i32 = trust { return r_fputc(c, fp) }
+pub fn sx_putchar(c: i32) i32 = trust { return r_putchar(c) }
+pub fn sx_fgets(buf: ref u8, n: i32, fp: ref void) ref u8 = trust { return r_fgets(buf, n, fp) }
+pub fn sx_fputs(s: ref u8, fp: ref void) i32 = trust { return r_fputs(s, fp) }
+pub fn sx_fdopen(fd: i32, mode: ref u8) ref void = trust { return r_fdopen(fd, mode) }
+pub fn sx_fileno(fp: ref void) i32 = trust { return r_fileno(fp) }
+pub fn sx_feof(fp: ref void) i32 = trust { return r_feof(fp) }
+pub fn sx_ferror(fp: ref void) i32 = trust { return r_ferror(fp) }
+pub fn sx_stdin_file() ref void = trust { return r_stdin() }
+pub fn sx_stdout_file() ref void = trust { return r_stdout() }
+pub fn sx_stderr_file() ref void = trust { return r_stderr() }
+pub fn sx_gettimeofday(tv: ref void, tz: ref void) i32 = trust { return r_gettimeofday(tv, tz) }
+pub fn sx_localtime(t: ref i64) ref void = trust { return r_localtime(t) }
+pub fn sx_usleep(usec: u32) i32 = trust { return r_usleep(usec) }
+pub fn sx_sleep(seconds: u32) i32 = trust { return r_sleep(seconds) }
+pub fn sx_time(out: ref i64) i64 = trust { return r_time(out) }
+pub fn sx_pthread_create(thread: ref void, attr: ref void, entry: usize, arg: ref void) i32 = trust { return r_pthread_create(thread, attr, entry, arg) }
+pub fn sx_pthread_join(thread: ref void, retval: ref void) i32 = trust { return r_pthread_join(thread, retval) }
+pub fn sx_pthread_detach(thread: ref void) i32 = trust { return r_pthread_detach(thread) }
+pub fn sx_pthread_self() ref void = trust { return r_pthread_self() }
+pub fn sx_sched_yield() i32 = trust { return r_sched_yield() }
+pub fn sx_mutex_init(m: ref void) i32 = trust { return r_mutex_init(m) }
+pub fn sx_mutex_destroy(m: ref void) i32 = trust { return r_mutex_destroy(m) }
+pub fn sx_mutex_lock(m: ref void) i32 = trust { return r_mutex_lock(m) }
+pub fn sx_mutex_unlock(m: ref void) i32 = trust { return r_mutex_unlock(m) }

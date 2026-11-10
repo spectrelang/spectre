@@ -2449,52 +2449,10 @@ void __sx_random_fill(void *buf, sx_size_t n) { arc4random_buf(buf, n); }
 /* Public `sx_*` runtime ABI used by std/runtime                             */
 /* ------------------------------------------------------------------------- */
 
-void *sx_alloc(sx_size_t n) { return malloc(n); }
-void *sx_calloc(sx_size_t count, sx_size_t n) { return calloc(count, n); }
-void *sx_realloc(void *p, sx_size_t n) { return realloc(p, n); }
-void sx_free(void *p) { free(p); }
 
-void *sx_memcpy(void *dst, const void *src, sx_size_t n) { return memcpy(dst, src, n); }
-void *sx_memmove(void *dst, const void *src, sx_size_t n) { return memmove(dst, src, n); }
-void *sx_memset(void *dst, int v, sx_size_t n) { return memset(dst, v, n); }
-int sx_memcmp(const void *a, const void *b, sx_size_t n) { return memcmp(a, b, n); }
-sx_size_t sx_strlen(const char *s) { return strlen(s); }
-int sx_strcmp(const char *a, const char *b) { return strcmp(a, b); }
-int sx_strncmp(const char *a, const char *b, sx_size_t n) { return strncmp(a, b, n); }
-char *sx_strcpy(char *dst, const char *src) { return strcpy(dst, src); }
-char *sx_strcat(char *dst, const char *src) { return strcat(dst, src); }
-char *sx_strchr(const char *s, int c) { return strchr(s, c); }
-char *sx_strrchr(const char *s, int c) { return strrchr(s, c); }
-char *sx_strstr(const char *a, const char *b) { return strstr(a, b); }
-char *sx_strdup(const char *s) { return strdup(s); }
-char *sx_strtok_r(char *s, const char *d, char **save) { return strtok_r(s, d, save); }
-int sx_atoi(const char *s) { return atoi(s); }
-int sx_isdigit(int c) { return isdigit(c); }
-long sx_strtol(const char *s, char **end, int base) { return strtol(s, end, base); }
 
-void *sx_fopen(const char *path, const char *mode) { return fopen(path, mode); }
-int sx_fclose(void *f) { return fclose((FILE *)f); }
-sx_size_t sx_fread(void *ptr, sx_size_t size, sx_size_t n, void *f) { return fread(ptr, size, n, (FILE *)f); }
-sx_size_t sx_fwrite(const void *ptr, sx_size_t size, sx_size_t n, void *f) { return fwrite(ptr, size, n, (FILE *)f); }
-int sx_fseek(void *f, long off, int whence) { return fseek((FILE *)f, off, whence); }
-long sx_ftell(void *f) { return ftell((FILE *)f); }
-void sx_rewind(void *f) { rewind((FILE *)f); }
-int sx_fflush(void *f) { return fflush((FILE *)f); }
 int sx_close(int fd) { return close(fd); }
 int sx_fcntl(int fd, int cmd, int arg) { return fcntl(fd, cmd, arg); }
-int sx_fgetc(void *f) { return fgetc((FILE *)f); }
-int sx_getchar(void) { return getchar(); }
-int sx_fputc(int c, void *f) { return fputc(c, (FILE *)f); }
-int sx_putchar(int c) { return putchar(c); }
-char *sx_fgets(char *buf, int n, void *f) { return fgets(buf, n, (FILE *)f); }
-int sx_fputs(const char *s, void *f) { return fputs(s, (FILE *)f); }
-void *sx_fdopen(int fd, const char *mode) { return fdopen(fd, mode); }
-int sx_fileno(void *f) { return fileno((FILE *)f); }
-int sx_feof(void *f) { return feof((FILE *)f); }
-int sx_ferror(void *f) { return ferror((FILE *)f); }
-void *sx_stdin(void) { return stdin; }
-void *sx_stdout(void) { return stdout; }
-void *sx_stderr(void) { return stderr; }
 
 int sx_printf(const char *fmt, ...) {
     char buf[4096];
@@ -2548,28 +2506,11 @@ int sx_system(const char *cmd) { return system(cmd); }
 void *sx_popen(const char *cmd, const char *mode) { return popen(cmd, mode); }
 int sx_pclose(void *f) { return pclose((FILE *)f); }
 
-int sx_gettimeofday(void *tv, void *tz) { return gettimeofday((sx_timeval *)tv, tz); }
-void *sx_localtime(const sx_i64 *t) { return localtime(t); }
-int sx_usleep(unsigned usec) { return usleep(usec); }
-int sx_sleep(unsigned seconds) { return sleep(seconds); }
-sx_i64 sx_time(sx_i64 *out) { return time(out); }
 
 sx_ssize_t sx_getrandom(void *buf, sx_size_t n, unsigned flags) { return getrandom(buf, n, flags); }
 void sx_arc4random_buf(void *buf, sx_size_t n) { arc4random_buf(buf, n); }
 
-int sx_pthread_create(sx_u64 *thread, void *attr, void *(*fn)(void *), void *arg) {
-    return pthread_create(thread, attr, fn, arg);
-}
-int sx_pthread_join(sx_u64 thread, void **retval) { return pthread_join(thread, retval); }
-int sx_pthread_detach(sx_u64 thread) { return pthread_detach(thread); }
-sx_u64 sx_pthread_self(void) { return pthread_self(); }
-int sx_sched_yield(void) { return sched_yield(); }
-
 typedef struct { int state; } sx_mutex_public;
-int sx_mutex_init(void *m) { return pthread_mutex_init((sx_mutex *)m, SX_NULL); }
-int sx_mutex_destroy(void *m) { return pthread_mutex_destroy((sx_mutex *)m); }
-int sx_mutex_lock(void *m) { return pthread_mutex_lock((sx_mutex *)m); }
-int sx_mutex_unlock(void *m) { return pthread_mutex_unlock((sx_mutex *)m); }
 
 int sx_socket(int d, int t, int p) { return socket(d, t, p); }
 int sx_bind(int fd, const void *a, unsigned len) { return bind(fd, a, len); }
@@ -2593,3 +2534,161 @@ int sx_closesocket(int fd) { return closesocket(fd); }
 
 void (*sx_signal(int sig, void (*handler)(int)))(int) { return signal(sig, handler); }
 int sx_raise(int sig) { return raise(sig); }
+
+/* ------------------------------------------------------------------------- */
+/* Raw syscall boundary used by the Spectre runtime                          */
+/* ------------------------------------------------------------------------- */
+
+#if defined(SX_LINUX)
+void *__sx_sys_mmap(sx_size_t n) { return sx_map(n); }
+void __sx_sys_munmap(void *p, sx_size_t n) {
+    sx_sc2(SX_SYS_munmap, (sx_i64)(sx_uintptr_t)p, (sx_i64)n);
+}
+sx_i64 __sx_sys_read(sx_i64 fd, void *buf, sx_size_t n) { return sx_read_fd((int)fd, buf, n); }
+sx_i64 __sx_sys_write(sx_i64 fd, const void *buf, sx_size_t n) { return sx_write_fd((int)fd, buf, n); }
+sx_i64 __sx_sys_close(sx_i64 fd) { return sx_close_fd((int)fd); }
+sx_i64 __sx_sys_lseek(sx_i64 fd, sx_i64 off, sx_i64 whence) {
+    return sx_sc3(SX_SYS_lseek, fd, off, whence);
+}
+sx_i64 __sx_sys_clock_us(void) {
+    sx_timespec ts;
+    sx_sc2(SX_SYS_clock_gettime, 0, (sx_i64)(sx_uintptr_t)&ts);
+    return ts.tv_sec * 1000000 + ts.tv_nsec / 1000;
+}
+sx_i64 __sx_sys_nanosleep_us(sx_i64 us) {
+    sx_timespec ts;
+    ts.tv_sec = us / 1000000;
+    ts.tv_nsec = (us % 1000000) * 1000;
+    return sx_sc2(SX_SYS_nanosleep, (sx_i64)(sx_uintptr_t)&ts, 0);
+}
+sx_i64 __sx_sys_getrandom(void *buf, sx_size_t n) {
+    return sx_sc3(SX_SYS_getrandom, (sx_i64)(sx_uintptr_t)buf, (sx_i64)n, 0);
+}
+sx_i64 __sx_sys_futex(sx_i64 addr, sx_i64 op, sx_i64 val, sx_i64 timeout) {
+    return sx_sc6(SX_SYS_futex, addr, op, val, timeout, 0, 0);
+}
+sx_i64 __sx_sys_clone_thread(sx_i64 flags, void *stack, void *entry, void *arg) {
+    return __sx_clone_thread(flags, stack, entry, arg);
+}
+sx_i64 __sx_sys_clone_process(void) { return sx_clone_process(); }
+sx_i64 __sx_sys_pipe2(sx_i64 *fds) {
+    return sx_sc2(SX_SYS_pipe2, (sx_i64)(sx_uintptr_t)fds, 0);
+}
+sx_i64 __sx_sys_dup2(sx_i64 oldfd, sx_i64 newfd) { return sx_sc2(SX_SYS_dup2, oldfd, newfd); }
+sx_i64 __sx_sys_execve(const char *path, void *argv, void *envp) {
+    return sx_sc3(SX_SYS_execve, (sx_i64)(sx_uintptr_t)path,
+                   (sx_i64)(sx_uintptr_t)argv, (sx_i64)(sx_uintptr_t)envp);
+}
+sx_i64 __sx_sys_wait4(sx_i64 pid, sx_i64 *status) {
+    return sx_sc4(SX_SYS_wait4, pid, (sx_i64)(sx_uintptr_t)status, 0, 0);
+}
+#else
+void *__sx_sys_mmap(sx_size_t n) {
+    return VirtualAlloc(SX_NULL, n, SX_MEM_COMMIT | SX_MEM_RESERVE, SX_PAGE_READWRITE);
+}
+void __sx_sys_munmap(void *p, sx_size_t n) {
+    (void)n;
+    VirtualFree(p, 0, SX_MEM_RELEASE);
+}
+sx_i64 __sx_sys_read(sx_i64 fd, void *buf, sx_size_t n) {
+    DWORD got = 0;
+    if (!ReadFile((HANDLE)(sx_intptr_t)fd, buf, (DWORD)n, &got, SX_NULL)) return -1;
+    return (sx_i64)got;
+}
+sx_i64 __sx_sys_write(sx_i64 fd, const void *buf, sx_size_t n) {
+    DWORD wrote = 0;
+    if (!WriteFile((HANDLE)(sx_intptr_t)fd, buf, (DWORD)n, &wrote, SX_NULL)) return -1;
+    return (sx_i64)wrote;
+}
+sx_i64 __sx_sys_close(sx_i64 fd) { return CloseHandle((HANDLE)(sx_intptr_t)fd) ? 0 : -1; }
+sx_i64 __sx_sys_lseek(sx_i64 fd, sx_i64 off, sx_i64 whence) {
+    LONGLONG r = 0;
+    DWORD method = whence == 0 ? 0 : (whence == 1 ? 1 : 2);
+    if (!SetFilePointerEx((HANDLE)(sx_intptr_t)fd, off, &r, method)) return -1;
+    return r;
+}
+sx_i64 __sx_sys_clock_us(void) {
+    sx_timeval tv;
+    gettimeofday(&tv, SX_NULL);
+    return tv.tv_sec * 1000000 + tv.tv_usec;
+}
+sx_i64 __sx_sys_nanosleep_us(sx_i64 us) { Sleep((DWORD)(us / 1000)); return 0; }
+sx_i64 __sx_sys_getrandom(void *buf, sx_size_t n) {
+    return getrandom(buf, n, 0);
+}
+sx_i64 __sx_sys_futex(sx_i64 addr, sx_i64 op, sx_i64 val, sx_i64 timeout) {
+    (void)addr; (void)op; (void)val; (void)timeout;
+    return -1;
+}
+sx_i64 __sx_sys_clone_thread(sx_i64 flags, void *stack, void *entry, void *arg) {
+    (void)flags; (void)stack; (void)entry; (void)arg;
+    return -1;
+}
+sx_i64 __sx_sys_clone_process(void) { return -1; }
+sx_i64 __sx_sys_pipe2(sx_i64 *fds) { (void)fds; return -1; }
+sx_i64 __sx_sys_dup2(sx_i64 oldfd, sx_i64 newfd) { (void)oldfd; (void)newfd; return -1; }
+sx_i64 __sx_sys_execve(const char *path, void *argv, void *envp) {
+    (void)path; (void)argv; (void)envp; return -1;
+}
+sx_i64 __sx_sys_wait4(sx_i64 pid, sx_i64 *status) {
+    (void)pid; (void)status; return -1;
+}
+#endif
+
+/* Extended Spectre-runtime syscall boundary. */
+#if defined(SX_LINUX)
+sx_i64 __sx_sys_open(const char *path, sx_i64 flags, sx_i64 mode) {
+    int f = 0;
+    if ((flags & 3) == 0) f = SX_O_RDONLY;
+    else if ((flags & 3) == 1) f = SX_O_WRONLY;
+    else f = SX_O_RDWR;
+    if ((flags & 4) != 0) f |= SX_O_CREAT;
+    if ((flags & 8) != 0) f |= SX_O_TRUNC;
+    if ((flags & 16) != 0) f |= SX_O_APPEND;
+    return sx_open_path(path, f, (int)mode);
+}
+sx_i64 __sx_sys_stdio(sx_i64 which) { return which; }
+sx_i64 __sx_sys_gettid(void) {
+#if defined(__x86_64__)
+    return sx_sc0(186);
+#else
+    return sx_sc0(178);
+#endif
+}
+sx_i64 __sx_sys_sched_yield(void) { return sched_yield(); }
+#else
+sx_i64 __sx_sys_open(const char *path, sx_i64 flags, sx_i64 mode) {
+    DWORD access = SX_GENERIC_READ;
+    DWORD disp = SX_OPEN_EXISTING;
+    if ((flags & 3) == 1) access = SX_GENERIC_WRITE;
+    if ((flags & 3) == 2) access = SX_GENERIC_READ | SX_GENERIC_WRITE;
+    if ((flags & 4) != 0) disp = SX_OPEN_ALWAYS;
+    if ((flags & 8) != 0) disp = SX_CREATE_ALWAYS;
+    (void)mode;
+    HANDLE h = CreateFileA(path, access, SX_FILE_SHARE_READ | SX_FILE_SHARE_WRITE,
+                           SX_NULL, disp, SX_FILE_ATTRIBUTE_NORMAL, SX_NULL);
+    if (h == SX_INVALID_HANDLE) return -1;
+    if ((flags & 16) != 0) SetFilePointerEx(h, 0, SX_NULL, 2);
+    return (sx_i64)(sx_intptr_t)h;
+}
+sx_i64 __sx_sys_stdio(sx_i64 which) {
+    DWORD id = which == 0 ? SX_STD_INPUT_HANDLE : (which == 1 ? SX_STD_OUTPUT_HANDLE : SX_STD_ERROR_HANDLE);
+    return (sx_i64)(sx_intptr_t)GetStdHandle(id);
+}
+sx_i64 __sx_sys_gettid(void) { return (sx_i64)GetCurrentThreadId(); }
+sx_i64 __sx_sys_sched_yield(void) { return SwitchToThread() ? 0 : -1; }
+sx_i64 __sx_sys_create_thread(void *entry, void *arg) {
+    DWORD id = 0;
+    HANDLE h = CreateThread(SX_NULL, 0, (DWORD (__stdcall *)(void *))entry, arg, 0, &id);
+    return h ? (sx_i64)(sx_intptr_t)h : -1;
+}
+sx_i64 __sx_sys_wait_thread(sx_i64 h) {
+    WaitForSingleObject((HANDLE)(sx_intptr_t)h, SX_INFINITE);
+    CloseHandle((HANDLE)(sx_intptr_t)h);
+    return 0;
+}
+sx_i64 __sx_sys_detach_thread(sx_i64 h) {
+    CloseHandle((HANDLE)(sx_intptr_t)h);
+    return 0;
+}
+#endif

@@ -18444,7 +18444,10 @@ fn gen_fn_prefixed(ctx: mut ref CgCtx, fn_node: ref parser.Node, mod_prefix: ref
 
     val is_std_child: bool = is_std_child_name(mod_prefix)
 
-    if cstr.cmp(mod_prefix, c"") == 0 {
+    if cstr.starts_with(name, c"sx_") || cstr.starts_with(name, c"__sx_") {
+        // Runtime ABI functions keep their exact symbol name.
+        @snprintf(mangled, 512, "{s}", {name})
+    } elif cstr.cmp(mod_prefix, c"") == 0 {
         if cstr.cmp(base, c"main") == 0 {
             @snprintf(mangled, 512, "{s}", {base})
         } else {
@@ -18471,7 +18474,8 @@ fn gen_fn_prefixed(ctx: mut ref CgCtx, fn_node: ref parser.Node, mod_prefix: ref
     }
 
     val export_kw: mut ref u8 = c""
-    if public == 1 || cstr.ends_with(mangled, c"__alloc")
+    if cstr.starts_with(name, c"sx_") || cstr.starts_with(name, c"__sx_")
+    || public == 1 || cstr.ends_with(mangled, c"__alloc")
     || cstr.ends_with(mangled, c"__free")
     || cstr.ends_with(mangled, c"__realloc") {
         export_kw = c"export "

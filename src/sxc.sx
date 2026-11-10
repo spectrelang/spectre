@@ -1337,6 +1337,57 @@ pub fn main() i32 = trust {
             alt_runtime_obj = rt_lib_spec
         }
 
+        val alt_sys_rt_obj: mut ref u8 = c""
+        if freestanding_runtime && !compile_obj
+        && !cstr.ends_with(input, c"runtime/sys.sx") {
+            val sys_src_alt: ref u8 = path.join_cstr(
+                exe_dir,
+                c"spectrelib/runtime/sys.sx"
+            )
+            if os.exists(sys_src_alt) {
+                val sys_size_alt: mut i64 = 0
+                val sys_size_alt_opt = fs.file_size_cstr(sys_src_alt)
+                match sys_size_alt_opt {
+                    some sz => {
+                        sys_size_alt = sz as i64
+                    }
+                    none => {
+                        sys_size_alt = 0
+                    }
+                }
+                val sys_ext_alt: mut ref u8 = c".o"
+                if cstr.cmp(target_platform, c"windows") == 0 {
+                    sys_ext_alt = c".obj"
+                }
+                val sys_base_alt: ref u8 = builds.freestanding_cache_path(
+                    target_platform,
+                    target_arch,
+                    @fmtalloc("spectre_sys_runtime_{lld}", {sys_size_alt})
+                )
+                alt_sys_rt_obj = @fmtalloc("{s}{s}", {sys_base_alt, sys_ext_alt})
+                if !os.exists(alt_sys_rt_obj) {
+                    val self_exe: ref u8 = reflection.get_exe_path[allocators.Arena](arena)
+                    val sys_cmd_alt: ref u8 = @fmtalloc(
+                        "{s} {s} -c -runtime:hosted -target:{s}.{s} -o {s} 2>&1",
+                        {self_exe, sys_src_alt, target_platform, target_arch, sys_base_alt}
+                    )
+                    if show_cmd != 0 {
+                        stdio.print("{s}\n", {sys_cmd_alt})
+                    }
+                    val sys_res_alt = os.exec(sys_cmd_alt)
+                    match sys_res_alt {
+                        ok v => {
+                            val vstr: ref u8 = ostr.as_cstr(v)
+                            if cstr.len(vstr) > 0 {
+                                stdio.print("{s}", {vstr})
+                            }
+                        }
+                        err _ => { }
+                    }
+                }
+            }
+        }
+
         val alt_win_compat: mut ref u8 = c""
         if cstr.cmp(target_platform, c"windows") == 0
         && !freestanding_runtime && !compile_obj {
@@ -1526,18 +1577,19 @@ pub fn main() i32 = trust {
         if freestanding_runtime && !compile_obj {
             if cstr.cmp(target_platform, c"windows") == 0 {
                 link_flags_alt = @fmtalloc(
-                    "{s} -nostdlib -Wl,/nodefaultlib,/entry:mainCRTStartup {s} {s} {s}",
+                    "{s} -nostdlib -Wl,/nodefaultlib,/entry:mainCRTStartup {s} {s} {s} {s}",
                     {
                         link_flags_alt,
                         builds.freestanding_windows_import_flags(target_arch),
                         alt_runtime_obj,
+                        alt_sys_rt_obj,
                         alt_start_obj
                     }
                 )
             } else {
                 link_flags_alt = @fmtalloc(
-                    "{s} -nostdlib -static {s} {s}",
-                    {link_flags_alt, alt_runtime_obj, alt_start_obj}
+                    "{s} -nostdlib -static {s} {s} {s}",
+                    {link_flags_alt, alt_runtime_obj, alt_sys_rt_obj, alt_start_obj}
                 )
             }
         }
@@ -2029,6 +2081,9 @@ pub fn main() i32 = trust {
         val start_obj_x: mut ref u8 = c""
         val runtime_obj_cached: mut bool = false
         val start_obj_cached: mut bool = false
+        val sys_rt_obj_x: mut ref u8 = c""
+        val sys_rt_cached: mut bool = false
+        val skip_sys_runtime: bool = cstr.ends_with(input, c"runtime/sys.sx")
         if freestanding_runtime {
             val runtime_c: ref u8 = builds.freestanding_runtime_source(exe_dir)
             val runtime_obj_name: mut ref u8 = c"spectre_runtime.o"
@@ -2170,6 +2225,68 @@ pub fn main() i32 = trust {
                     }
                     fs.rename_path_cstr(start_tmp, start_obj_x)
                     start_obj_cached = true
+                }
+            }
+
+            val sys_src: ref u8 = path.join_cstr(
+                exe_dir,
+                c"spectrelib/runtime/sys.sx"
+            )
+            if os.exists(sys_src) && !skip_sys_runtime {
+                val sys_size: mut i64 = 0
+                val sys_size_opt = fs.file_size_cstr(sys_src)
+                match sys_size_opt {
+                    some sz => {
+                        sys_size = sz as i64
+                    }
+                    none => {
+                        sys_size = 0
+                    }
+                }
+                val sys_ext: mut ref u8 = c".o"
+                if cstr.cmp(target_platform, c"windows") == 0 {
+                    sys_ext = c".obj"
+                }
+                val sys_base: ref u8 = builds.freestanding_cache_path(
+                    target_platform,
+                    target_arch,
+                    @fmtalloc("spectre_sys_runtime_{lld}", {sys_size})
+                )
+                sys_rt_obj_x = @fmtalloc("{s}{s}", {sys_base, sys_ext})
+                if os.exists(sys_rt_obj_x) {
+                    sys_rt_cached = true
+                } else {
+                    val self_exe: ref u8 = reflection.get_exe_path[allocators.Arena](arena)
+                    val sys_cmd: ref u8 = @fmtalloc(
+                        "{s} {s} -c -runtime:hosted -target:{s}.{s} -o {s} 2>&1",
+                        {self_exe, sys_src, target_platform, target_arch, sys_base}
+                    )
+                    if show_cmd != 0 {
+                        stdio.print("{s}\n", {sys_cmd})
+                    }
+                    val sys_res = os.exec(sys_cmd)
+                    val sys_ok: mut bool = true
+                    match sys_res {
+                        ok v => {
+                            val vstr: ref u8 = ostr.as_cstr(v)
+                            if cstr.len(vstr) > 0 {
+                                stdio.print("{s}", {vstr})
+                            }
+                            val err_mark = ostr.from_cstr[allocators.Arena](arena, c"error:")
+                            if ostr.contains(v, err_mark) || !os.exists(sys_rt_obj_x) {
+                                sys_ok = false
+                            }
+                        }
+                        err _ => {
+                            sys_ok = false
+                        }
+                    }
+                    if !sys_ok {
+                        stdio.print("error: Spectre runtime compilation failed for '{s}'\n", {sys_src})
+                        allocators.Arena.free(arena)
+                        return 1
+                    }
+                    sys_rt_cached = true
                 }
             }
         }
@@ -2350,6 +2467,9 @@ pub fn main() i32 = trust {
             if cstr.len(runtime_obj_x) > 0 {
                 win_inputs = @fmtalloc("{s} {s}", {win_inputs, runtime_obj_x})
             }
+            if cstr.len(sys_rt_obj_x) > 0 {
+                win_inputs = @fmtalloc("{s} {s}", {win_inputs, sys_rt_obj_x})
+            }
             if cstr.len(start_obj_x) > 0 {
                 win_inputs = @fmtalloc("{s} {s}", {win_inputs, start_obj_x})
             }
@@ -2413,6 +2533,9 @@ pub fn main() i32 = trust {
                 val fs_link_flags: mut ref u8 = c" -nostdlib -static"
                 if cstr.len(runtime_obj_x) > 0 {
                     fs_link_flags = @fmtalloc("{s} {s}", {fs_link_flags, runtime_obj_x})
+                }
+                if cstr.len(sys_rt_obj_x) > 0 {
+                    fs_link_flags = @fmtalloc("{s} {s}", {fs_link_flags, sys_rt_obj_x})
                 }
                 if cstr.len(start_obj_x) > 0 {
                     fs_link_flags = @fmtalloc("{s} {s}", {fs_link_flags, start_obj_x})
