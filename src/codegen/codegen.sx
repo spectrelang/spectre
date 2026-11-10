@@ -12825,7 +12825,12 @@ fn gen_builtin(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
             val3_qtype = expr_qbe_type(ctx, vn as ref parser.Node)
         }
 
-        if cstr.cmp(val3_qtype, c"w") == 0 {
+        val force_word_store: bool = cstr.cmp(name, c"store64") == 0
+        if !force_word_store && cstr.cmp(val3_qtype, c"d") == 0 {
+            @snprintf(buf, 512, "    stored {s}, {s}\n    %%t{lld} =l copy 0\n", {val3, ptr4, tmp})
+        } elif !force_word_store && cstr.cmp(val3_qtype, c"s") == 0 {
+            @snprintf(buf, 512, "    stores {s}, {s}\n    %%t{lld} =l copy 0\n", {val3, ptr4, tmp})
+        } elif cstr.cmp(val3_qtype, c"w") == 0 {
             val ext_tmp: i64 = fresh_tmp(ctx)
             val ext_buf: ref u8 = allocators.ScopedArena.alloc_or_none(
                 ctx.arena,

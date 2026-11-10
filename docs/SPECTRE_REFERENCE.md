@@ -476,11 +476,11 @@ The memory intrinsics operate on raw addresses and byte counts. They do not vali
 | `@load16(p)`        |      1 | `u16`        | load and zero-extend a halfword                   |
 | `@load32(p)`        |      1 | `i32`        | load and sign-extend a 32-bit word                |
 | `@load64(p)`        |      1 | machine word | load a 64-bit word                                |
-| `@store(p, v)`      |      2 | `void`       | store a 64-bit word                               |
+| `@store(p, v)`      |      2 | `void`       | store a scalar; f64/f32 use their natural width   |
 | `@store8(p, v)`     |      2 | `void`       | store a byte                                      |
 | `@store16(p, v)`    |      2 | `void`       | store a halfword                                  |
 | `@store32(p, v)`    |      2 | `void`       | store a 32-bit word                               |
-| `@store64(p, v)`    |      2 | `void`       | store a 64-bit word                               |
+| `@store64(p, v)`    |      2 | `void`       | store exactly one 64-bit word                     |
 | `@ptradd(p, n)`     |      2 | `ref T`      | add `n` bytes to a reference                      |
 | `@memcpy(d, s, n)`  |      3 | `void`       | copy `n` bytes; regions shall not overlap         |
 | `@memmove(d, s, n)` |      3 | `void`       | copy `n` bytes; regions may overlap               |
