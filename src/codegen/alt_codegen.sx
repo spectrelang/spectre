@@ -19,6 +19,21 @@ val module     = use("../module/module.sx")
 val defines    = use("../meta/defines.sx")
 val autovec    = use("autovec.sx")
 
+/// Runtime selection for this compilation (set by the front end).
+val sx_runtime_mode: mut ref u8 = c"hosted"
+
+pub fn set_runtime_mode(mode: ref u8) void = {
+    if mode == none || cstr.cmp(mode, c"") == 0 {
+        sx_runtime_mode = c"hosted"
+    } else {
+        sx_runtime_mode = mode
+    }
+}
+
+pub fn runtime_is_freestanding() bool = {
+    return cstr.cmp(sx_runtime_mode, c"freestanding") == 0
+}
+
 pub type CCtx = {
     sb: mut ref void
     arena: mut allocators.ScopedArenaAllocator
@@ -9604,6 +9619,9 @@ fn gen_extern_fn_prefixed(_: ref CCtx, _: ref parser.Node, _: ref u8) void = tru
 }
 
 fn gen_extern_header(ctx: ref CCtx, item: ref parser.Node) void = trust {
+    if runtime_is_freestanding() {
+        return
+    }
     val header: ref u8 = parser.node_str_raw(item.d0)
     if header == none {
         return
@@ -10334,7 +10352,91 @@ fn emitln_view_fwd(ctx: ref CCtx, s: str.StringView) void = trust {
     builder.StringBuilder.append_char(ctx.fwd_sb, 10 as u8)
 }
 
+fn emit_c_rewrite_fmt(ctx: ref CCtx) void = trust {
+    emitln_view_fwd(ctx, \\static char* sx__rt_rewrite_fmt(const char* s){if(!s)return(char*)"";size_t n=strlen(s);int ps=0;for(size_t i=0;i+1<n;i++){char c=s[i+1];if(s[i]=='%'&&(c=='%'||c=='d'||c=='i'||c=='o'||c=='u'||c=='x'||c=='X'||c=='e'||c=='E'||c=='f'||c=='F'||c=='g'||c=='G'||c=='a'||c=='A'||c=='c'||c=='s'||c=='p'||c=='l')){ps=1;break;}}char*o=(char*)malloc(n*4+2);size_t oi=0;if(ps){memcpy(o,s,n);o[n]=0;return o;}for(size_t i=0;i<n;){unsigned char c=(unsigned char)s[i];if(c=='\\'&&i+1<n&&(s[i+1]=='{'||s[i+1]=='}')){o[oi++]=s[i+1];i+=2;}else if(c=='{'){size_t j=i+1;while(j<n&&s[j]!='}')j++;if(j<n){size_t tlen=j-(i+1);int okk=0;char sp[8];memset(sp,0,8);if(tlen==1){char sc=s[i+1];if(sc=='d'||sc=='i'||sc=='s'||sc=='x'||sc=='c'||sc=='p'||sc=='f'){okk=1;sp[0]=sc;}}else if(tlen<=6){memcpy(sp,s+i+1,tlen);if((tlen==2&&((sp[0]=='l'&&(sp[1]=='d'||sp[1]=='u'||sp[1]=='x'))||(sp[0]=='z'&&(sp[1]=='u'||sp[1]=='d'))))||(tlen==3&&sp[0]=='l'&&sp[1]=='l'&&(sp[2]=='d'||sp[2]=='u'||sp[2]=='x')))okk=1;}if(okk){if(tlen==1){char sc=sp[0];if(sc=='d'||sc=='i'){memcpy(o+oi,"%lld",4);oi+=4;}else if(sc=='s'){memcpy(o+oi,"%s",2);oi+=2;}else if(sc=='x'){memcpy(o+oi,"%llx",4);oi+=4;}else if(sc=='c'){memcpy(o+oi,"%",2);oi+=2;}else if(sc=='p'){memcpy(o+oi,"%p",2);oi+=2;}else{memcpy(o+oi,"%f",2);oi+=2;}}else{o[oi++]='%';memcpy(o+oi,sp,tlen);oi+=tlen;}}else{memcpy(o+oi,s+i,j-i+1);oi+=j-i+1;}i=j+1;}else{o[oi++]=c;i++;}}else{o[oi++]=c;i++;}}o[oi]=0;return o;}
+    )
+}
+
 fn emit_c_preamble(ctx: ref CCtx) void = trust {
+    if runtime_is_freestanding() {
+        emitln_fwd(ctx, c"typedef __SIZE_TYPE__ size_t;")
+        emitln_fwd(ctx, c"typedef __PTRDIFF_TYPE__ ptrdiff_t;")
+        emitln_fwd(ctx, c"typedef __PTRDIFF_TYPE__ sx_ssize_t;")
+        emitln_fwd(ctx, c"typedef __INTPTR_TYPE__ intptr_t;")
+        emitln_fwd(ctx, c"typedef __UINTPTR_TYPE__ uintptr_t;")
+        emitln_fwd(ctx, c"typedef __INT8_TYPE__ int8_t;")
+        emitln_fwd(ctx, c"typedef __UINT8_TYPE__ uint8_t;")
+        emitln_fwd(ctx, c"typedef __INT16_TYPE__ int16_t;")
+        emitln_fwd(ctx, c"typedef __UINT16_TYPE__ uint16_t;")
+        emitln_fwd(ctx, c"typedef __INT32_TYPE__ int32_t;")
+        emitln_fwd(ctx, c"typedef __UINT32_TYPE__ uint32_t;")
+        emitln_fwd(ctx, c"typedef __INT64_TYPE__ int64_t;")
+        emitln_fwd(ctx, c"typedef __UINT64_TYPE__ uint64_t;")
+        emitln_fwd(ctx, c"typedef __INTPTR_TYPE__ isize;")
+        emitln_fwd(ctx, c"typedef __UINTPTR_TYPE__ usize;")
+        emitln_fwd(ctx, c"typedef _Bool bool;")
+        emitln_fwd(ctx, c"#define true 1")
+        emitln_fwd(ctx, c"#define false 0")
+        emitln_fwd(ctx, c"#define NULL ((void*)0)")
+        emitln_fwd(ctx, c"#define INT8_C(x) x")
+        emitln_fwd(ctx, c"#define UINT8_C(x) x")
+        emitln_fwd(ctx, c"#define INT16_C(x) x")
+        emitln_fwd(ctx, c"#define UINT16_C(x) x")
+        emitln_fwd(ctx, c"#define INT32_C(x) x")
+        emitln_fwd(ctx, c"#define UINT32_C(x) x##U")
+        emitln_fwd(ctx, c"#define INT64_C(x) x##LL")
+        emitln_fwd(ctx, c"#define UINT64_C(x) x##ULL")
+        emitln_fwd(ctx, c"typedef struct sx_file FILE;")
+        emitln_fwd(ctx, c"void *malloc(size_t);")
+        emitln_fwd(ctx, c"void *calloc(size_t,size_t);")
+        emitln_fwd(ctx, c"void *realloc(void*,size_t);")
+        emitln_fwd(ctx, c"void free(void*);")
+        emitln_fwd(ctx, c"void *memcpy(void*,const void*,size_t);")
+        emitln_fwd(ctx, c"void *memmove(void*,const void*,size_t);")
+        emitln_fwd(ctx, c"void *memset(void*,int,size_t);")
+        emitln_fwd(ctx, c"int memcmp(const void*,const void*,size_t);")
+        emitln_fwd(ctx, c"size_t strlen(const char*);")
+        emitln_fwd(ctx, c"int strcmp(const char*,const char*);")
+        emitln_fwd(ctx, c"int strncmp(const char*,const char*,size_t);")
+        emitln_fwd(ctx, c"char *strcpy(char*,const char*);")
+        emitln_fwd(ctx, c"char *strstr(const char*,const char*);")
+        emitln_fwd(ctx, c"int snprintf(char*,size_t,const char*,...);")
+        emitln_fwd(ctx, c"int printf(const char*,...);")
+        emitln_fwd(ctx, c"int dprintf(int,const char*,...);")
+        emitln_fwd(ctx, c"int puts(const char*);")
+        emitln_fwd(ctx, c"FILE *fopen(const char*,const char*);")
+        emitln_fwd(ctx, c"FILE *popen(const char*,const char*);")
+        emitln_fwd(ctx, c"int pclose(FILE*);")
+        emitln_fwd(ctx, c"int system(const char*);")
+        emitln_fwd(ctx, c"int fclose(FILE*);")
+        emitln_fwd(ctx, c"size_t fread(void*,size_t,size_t,FILE*);")
+        emitln_fwd(ctx, c"size_t fwrite(const void*,size_t,size_t,FILE*);")
+        emitln_fwd(ctx, c"int fseek(FILE*,long,int);")
+        emitln_fwd(ctx, c"long ftell(FILE*);")
+        emitln_fwd(ctx, c"void rewind(FILE*);")
+        emitln_fwd(ctx, c"int fflush(FILE*);")
+        emitln_fwd(ctx, c"int fgetc(FILE*);")
+        emitln_fwd(ctx, c"int getchar(void);")
+        emitln_fwd(ctx, c"char *fgets(char*,int,FILE*);")
+        emitln_fwd(ctx, c"int fprintf(FILE*,const char*,...);")
+        emitln_fwd(ctx, c"void exit(int);")
+        emitln_fwd(ctx, c"char *getenv(const char*);")
+        emitln_fwd(ctx, c"sx_ssize_t read(int,void*,sx_size_t);")
+        emitln_fwd(ctx, c"sx_ssize_t write(int,const void*,sx_size_t);")
+        emitln_fwd(ctx, c"int close(int);")
+        emitln_fwd(ctx, c"void *opendir(const char*);")
+        emitln_fwd(ctx, c"void *readdir(void*);")
+        emitln_fwd(ctx, c"int closedir(void*);")
+        emitln_fwd(ctx, c"int mkdir(const char*,unsigned);")
+        emitln_fwd(ctx, c"int rmdir(const char*);")
+        emitln_fwd(ctx, c"int remove(const char*);")
+        emitln_fwd(ctx, c"int rename(const char*,const char*);")
+        emitln_fwd(ctx, c"int access(const char*,int);")
+        emitln_fwd(ctx, c"extern FILE *stdin;")
+        emitln_fwd(ctx, c"extern FILE *stdout;")
+        emitln_fwd(ctx, c"extern FILE *stderr;")
+        emit_c_rewrite_fmt(ctx)
+    } else {
     if cc_platform_matches(ctx, c"posix") {
         emitln_fwd(ctx, c"#define _POSIX_C_SOURCE 200809L")
     }
@@ -10343,8 +10445,7 @@ fn emit_c_preamble(ctx: ref CCtx) void = trust {
     emitln_fwd(ctx, c"#include <string.h>")
     emitln_fwd(ctx, c"#include <stdio.h>")
     emitln_fwd(ctx, c"#include <time.h>")
-    emitln_view_fwd(ctx, \\static char* sx__rt_rewrite_fmt(const char* s){if(!s)return(char*)"";size_t n=strlen(s);int ps=0;for(size_t i=0;i+1<n;i++){char c=s[i+1];if(s[i]=='%'&&(c=='%'||c=='d'||c=='i'||c=='o'||c=='u'||c=='x'||c=='X'||c=='e'||c=='E'||c=='f'||c=='F'||c=='g'||c=='G'||c=='a'||c=='A'||c=='c'||c=='s'||c=='p'||c=='l')){ps=1;break;}}char*o=(char*)malloc(n*4+2);size_t oi=0;if(ps){memcpy(o,s,n);o[n]=0;return o;}for(size_t i=0;i<n;){unsigned char c=(unsigned char)s[i];if(c=='\\'&&i+1<n&&(s[i+1]=='{'||s[i+1]=='}')){o[oi++]=s[i+1];i+=2;}else if(c=='{'){size_t j=i+1;while(j<n&&s[j]!='}')j++;if(j<n){size_t tlen=j-(i+1);int okk=0;char sp[8];memset(sp,0,8);if(tlen==1){char sc=s[i+1];if(sc=='d'||sc=='i'||sc=='s'||sc=='x'||sc=='c'||sc=='p'||sc=='f'){okk=1;sp[0]=sc;}}else if(tlen<=6){memcpy(sp,s+i+1,tlen);if((tlen==2&&((sp[0]=='l'&&(sp[1]=='d'||sp[1]=='u'||sp[1]=='x'))||(sp[0]=='z'&&(sp[1]=='u'||sp[1]=='d'))))||(tlen==3&&sp[0]=='l'&&sp[1]=='l'&&(sp[2]=='d'||sp[2]=='u'||sp[2]=='x')))okk=1;}if(okk){if(tlen==1){char sc=sp[0];if(sc=='d'||sc=='i'){memcpy(o+oi,"%lld",4);oi+=4;}else if(sc=='s'){memcpy(o+oi,"%s",2);oi+=2;}else if(sc=='x'){memcpy(o+oi,"%llx",4);oi+=4;}else if(sc=='c'){memcpy(o+oi,"%",2);oi+=2;}else if(sc=='p'){memcpy(o+oi,"%p",2);oi+=2;}else{memcpy(o+oi,"%f",2);oi+=2;}}else{o[oi++]='%';memcpy(o+oi,sp,tlen);oi+=tlen;}}else{memcpy(o+oi,s+i,j-i+1);oi+=j-i+1;}i=j+1;}else{o[oi++]=c;i++;}}else{o[oi++]=c;i++;}}o[oi]=0;return o;}
-    )
+    emit_c_rewrite_fmt(ctx)
     if cc_platform_matches(ctx, c"posix") {
         emitln_fwd(ctx, c"#include <sys/time.h>")
         emitln_fwd(ctx, c"#include <sys/types.h>")
@@ -10418,6 +10519,7 @@ fn emit_c_preamble(ctx: ref CCtx) void = trust {
         emitln_fwd(ctx, c"#define gettimeofday sx__win_gettimeofday")
         emitln_fwd(ctx, c"#endif")
     }
+    }
     emitln_fwd(
         ctx,
         c"/* Autovectorization lane types. GNU/Clang uses vector extensions;\n   MSVC uses AVX2 intrinsics on x86_64 and NEON intrinsics on ARM64.\n   The MSVC backend currently vectorizes 32-bit loops only; 64-bit loops\n   fall back to the scalar path. */\n#if (defined(__clang__) || defined(__GNUC__)) && !defined(__TINYC__)\n#if defined(__AVX2__)\ntypedef int64_t sx__vi64 __attribute__((vector_size(32)));\ntypedef int32_t sx__vi32 __attribute__((vector_size(32)));\n#define SX__VLANES_I64 4\n#define SX__VLANES_I32 8\n#else\ntypedef int64_t sx__vi64 __attribute__((vector_size(16)));\ntypedef int32_t sx__vi32 __attribute__((vector_size(16)));\n#define SX__VLANES_I64 2\n#define SX__VLANES_I32 4\n#endif\nstatic inline sx__vi64 sx__vload_i64(const void*p){sx__vi64 v;__builtin_memcpy(&v,p,sizeof(v));return v;}\nstatic inline void sx__vstore_i64(void*p,sx__vi64 v){__builtin_memcpy(p,&v,sizeof(v));}\nstatic inline sx__vi32 sx__vload_i32(const void*p){sx__vi32 v;__builtin_memcpy(&v,p,sizeof(v));return v;}\nstatic inline void sx__vstore_i32(void*p,sx__vi32 v){__builtin_memcpy(p,&v,sizeof(v));}\n#if defined(__AVX2__)\nstatic inline sx__vi64 sx__vbroadcast_i64(int64_t x){return (sx__vi64){x,x,x,x};}\nstatic inline sx__vi32 sx__vbroadcast_i32(int32_t x){return (sx__vi32){x,x,x,x,x,x,x,x};}\n#else\nstatic inline sx__vi64 sx__vbroadcast_i64(int64_t x){return (sx__vi64){x,x};}\nstatic inline sx__vi32 sx__vbroadcast_i32(int32_t x){return (sx__vi32){x,x,x,x};}\n#endif\nstatic inline sx__vi64 sx__vselect_i64(sx__vi64 m,sx__vi64 a,sx__vi64 b){return (a&m)|(b&(~m));}\nstatic inline sx__vi32 sx__vselect_i32(sx__vi32 m,sx__vi32 a,sx__vi32 b){return (a&m)|(b&(~m));}\n#define SX__HAVE_VECTOR_I32 1\n#define SX__HAVE_VECTOR_I64 1\n#elif defined(_MSC_VER)\n#if defined(_M_ARM64)\n#include <arm64_neon.h>\ntypedef int32x4_t sx__vi32;\n#define SX__VLANES_I32 4\nstatic inline sx__vi32 sx__vload_i32(const void*p){return vld1q_s32((const int32_t*)p);}\nstatic inline void sx__vstore_i32(void*p,sx__vi32 v){vst1q_s32((int32_t*)p,v);}\nstatic inline sx__vi32 sx__vbroadcast_i32(int32_t x){return vdupq_n_s32(x);}\nstatic inline sx__vi32 sx__vadd_i32(sx__vi32 a,sx__vi32 b){return vaddq_s32(a,b);}\nstatic inline sx__vi32 sx__vsub_i32(sx__vi32 a,sx__vi32 b){return vsubq_s32(a,b);}\nstatic inline sx__vi32 sx__vmul_i32(sx__vi32 a,sx__vi32 b){return vmulq_s32(a,b);}\nstatic inline sx__vi32 sx__vand_i32(sx__vi32 a,sx__vi32 b){return vandq_s32(a,b);}\nstatic inline sx__vi32 sx__vor_i32(sx__vi32 a,sx__vi32 b){return vorrq_s32(a,b);}\nstatic inline sx__vi32 sx__vxor_i32(sx__vi32 a,sx__vi32 b){return veorq_s32(a,b);}\nstatic inline sx__vi32 sx__vshl_i32(sx__vi32 a,sx__vi32 b){return vshlq_s32(a,b);}\nstatic inline sx__vi32 sx__vneg_i32(sx__vi32 a){return vnegq_s32(a);}\nstatic inline sx__vi32 sx__vnot_i32(sx__vi32 a){return vmvnq_s32(a);}\nstatic inline sx__vi32 sx__vcmp_eq_i32(sx__vi32 a,sx__vi32 b){return vreinterpretq_s32_u32(vceqq_s32(a,b));}\nstatic inline sx__vi32 sx__vcmp_ne_i32(sx__vi32 a,sx__vi32 b){return vmvnq_s32(vreinterpretq_s32_u32(vceqq_s32(a,b)));}\nstatic inline sx__vi32 sx__vcmp_gt_i32(sx__vi32 a,sx__vi32 b){return vreinterpretq_s32_u32(vcgtq_s32(a,b));}\nstatic inline sx__vi32 sx__vcmp_lt_i32(sx__vi32 a,sx__vi32 b){return vreinterpretq_s32_u32(vcltq_s32(a,b));}\nstatic inline sx__vi32 sx__vcmp_le_i32(sx__vi32 a,sx__vi32 b){return vreinterpretq_s32_u32(vcleq_s32(a,b));}\nstatic inline sx__vi32 sx__vcmp_ge_i32(sx__vi32 a,sx__vi32 b){return vreinterpretq_s32_u32(vcgeq_s32(a,b));}\nstatic inline sx__vi32 sx__vselect_i32(sx__vi32 m,sx__vi32 a,sx__vi32 b){return vbslq_s32(vreinterpretq_u32_s32(m),a,b);}\n#define SX__HAVE_VECTOR_I32 1\n#define SX__HAVE_VECTOR_I64 0\n#elif defined(_M_X64)\n#if defined(__AVX2__)\n#include <immintrin.h>\ntypedef __m256i sx__vi32;\n#define SX__VLANES_I32 8\n#define SX__MM_SET1 _mm256_set1_epi32\n#define SX__MM_LOADU _mm256_loadu_si256\n#define SX__MM_STOREU _mm256_storeu_si256\n#define SX__MM_ADD _mm256_add_epi32\n#define SX__MM_SUB _mm256_sub_epi32\n#define SX__MM_MUL _mm256_mullo_epi32\n#define SX__MM_AND _mm256_and_si256\n#define SX__MM_OR _mm256_or_si256\n#define SX__MM_XOR _mm256_xor_si256\n#define SX__MM_ANDNOT _mm256_andnot_si256\n#define SX__MM_CMPEQ _mm256_cmpeq_epi32\n#define SX__MM_CMPGT _mm256_cmpgt_epi32\nstatic inline sx__vi32 sx__vload_i32(const void*p){return SX__MM_LOADU((const sx__vi32*)p);}\nstatic inline void sx__vstore_i32(void*p,sx__vi32 v){SX__MM_STOREU((sx__vi32*)p,v);}\nstatic inline sx__vi32 sx__vbroadcast_i32(int32_t x){return SX__MM_SET1(x);}\nstatic inline sx__vi32 sx__vadd_i32(sx__vi32 a,sx__vi32 b){return SX__MM_ADD(a,b);}\nstatic inline sx__vi32 sx__vsub_i32(sx__vi32 a,sx__vi32 b){return SX__MM_SUB(a,b);}\nstatic inline sx__vi32 sx__vmul_i32(sx__vi32 a,sx__vi32 b){return SX__MM_MUL(a,b);}\nstatic inline sx__vi32 sx__vand_i32(sx__vi32 a,sx__vi32 b){return SX__MM_AND(a,b);}\nstatic inline sx__vi32 sx__vor_i32(sx__vi32 a,sx__vi32 b){return SX__MM_OR(a,b);}\nstatic inline sx__vi32 sx__vxor_i32(sx__vi32 a,sx__vi32 b){return SX__MM_XOR(a,b);}\nstatic inline sx__vi32 sx__vshl_i32(sx__vi32 a,sx__vi32 b){return _mm256_sll_epi32(a,_mm256_castsi256_si128(b));}\nstatic inline sx__vi32 sx__vneg_i32(sx__vi32 a){return SX__MM_SUB(SX__MM_SET1(0),a);}\nstatic inline sx__vi32 sx__vnot_i32(sx__vi32 a){return SX__MM_XOR(a,SX__MM_SET1(-1));}\nstatic inline sx__vi32 sx__vcmp_eq_i32(sx__vi32 a,sx__vi32 b){return SX__MM_CMPEQ(a,b);}\nstatic inline sx__vi32 sx__vcmp_ne_i32(sx__vi32 a,sx__vi32 b){return SX__MM_XOR(SX__MM_CMPEQ(a,b),SX__MM_SET1(-1));}\nstatic inline sx__vi32 sx__vcmp_gt_i32(sx__vi32 a,sx__vi32 b){return SX__MM_CMPGT(a,b);}\nstatic inline sx__vi32 sx__vcmp_lt_i32(sx__vi32 a,sx__vi32 b){return SX__MM_CMPGT(b,a);}\nstatic inline sx__vi32 sx__vcmp_le_i32(sx__vi32 a,sx__vi32 b){return SX__MM_XOR(SX__MM_CMPGT(a,b),SX__MM_SET1(-1));}\nstatic inline sx__vi32 sx__vcmp_ge_i32(sx__vi32 a,sx__vi32 b){return SX__MM_XOR(SX__MM_CMPGT(b,a),SX__MM_SET1(-1));}\nstatic inline sx__vi32 sx__vselect_i32(sx__vi32 m,sx__vi32 a,sx__vi32 b){return SX__MM_OR(SX__MM_AND(m,a),SX__MM_ANDNOT(m,b));}\n#define SX__HAVE_VECTOR_I32 1\n#define SX__HAVE_VECTOR_I64 0\n#else\n#define SX__HAVE_VECTOR_I32 0\n#define SX__HAVE_VECTOR_I64 0\n#endif\n#else\n#define SX__HAVE_VECTOR_I32 0\n#define SX__HAVE_VECTOR_I64 0\n#endif\n#else\n#define SX__HAVE_VECTOR_I32 0\n#define SX__HAVE_VECTOR_I64 0\n#endif"
@@ -10488,7 +10590,7 @@ fn emit_c_preamble(ctx: ref CCtx) void = trust {
     )
     emitln_fwd(
         ctx,
-        c"#ifdef _WIN32\n#include <stdarg.h>\nstatic int sx__dprintf(int fd,const char*fmt,...){char buf[4096];va_list ap;va_start(ap,fmt);int n=vsnprintf(buf,(int)(sizeof(buf)-1),fmt,ap);va_end(ap);if(n>0)_write(fd,buf,(unsigned)n);return n;}\n#else\n#define sx__dprintf dprintf\n#endif"
+        c"#if defined(_WIN32) && !defined(SX_FREESTANDING)\nstatic int sx__dprintf(int fd,const char*fmt,...){char buf[4096];__builtin_va_list ap;__builtin_va_start(ap,fmt);int n=vsnprintf(buf,(int)(sizeof(buf)-1),fmt,ap);__builtin_va_end(ap);if(n>0)_write(fd,buf,(unsigned)n);return n;}\n#else\n#define sx__dprintf dprintf\n#endif"
     )
     emitln_fwd(
         ctx,

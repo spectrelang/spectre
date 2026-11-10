@@ -16,6 +16,23 @@ val parser      = use("../ast/parser.sx")
 val module      = use("../module/module.sx")
 val defines     = use("../meta/defines.sx")
 
+/// Runtime selection for this compilation.  The compiler front end sets this
+/// once before code generation; "freestanding" removes hosted C runtime
+/// dependencies from generated programs.
+val sx_runtime_mode: mut ref u8 = c"hosted"
+
+pub fn set_runtime_mode(mode: ref u8) void = {
+    if mode == none || cstr.cmp(mode, c"") == 0 {
+        sx_runtime_mode = c"hosted"
+    } else {
+        sx_runtime_mode = mode
+    }
+}
+
+pub fn runtime_is_freestanding() bool = {
+    return cstr.cmp(sx_runtime_mode, c"freestanding") == 0
+}
+
 extern (C, header) fn strstr(haystack: ref u8, needle: ref u8) ref u8 = "strstr"
 
 /// Codegen context
@@ -2091,6 +2108,9 @@ fn cg_const_val(ctx: ref CgCtx, name: ref u8) ref u8 = trust {
 }
 
 fn cg_register_c_header(ctx: mut ref CgCtx, header: ref u8) void = trust {
+    if runtime_is_freestanding() {
+        return
+    }
     if header == none || cstr.cmp(header, c"") == 0 {
         return
     }
@@ -2123,10 +2143,23 @@ fn cg_c_const_symbol(ctx: mut ref CgCtx, raw_name: ref u8) ref u8 = trust {
 
 fn cg_alloc_runtime_c_source() str.StringView = trust {
     return \\
+    \\#ifdef SX_FREESTANDING
+    \\typedef __SIZE_TYPE__ size_t;
+    \\typedef __INTPTR_TYPE__ intptr_t;
+    \\void *malloc(size_t);
+    \\void *calloc(size_t, size_t);
+    \\void *realloc(void *, size_t);
+    \\void free(void *);
+    \\void *memcpy(void *, const void *, size_t);
+    \\void *memset(void *, int, size_t);
+    \\size_t strlen(const char *);
+    \\int snprintf(char *, size_t, const char *, ...);
+    \\#else
     \\#include <stdint.h>
     \\#include <stdlib.h>
     \\#include <stdio.h>
     \\#include <string.h>
+    \\#endif
     \\typedef long long (*sxqbe_alloc_fn)(long long,unsigned long long);
     \\typedef int (*sxqbe_free_fn)(long long,long long);
     \\typedef long long (*sxqbe_realloc_fn)(long long,long long,unsigned long long);
@@ -2160,6 +2193,10 @@ fn cg_alloc_runtime_c_source() str.StringView = trust {
     \\long long sxqbe_some_alloc(void* af,long long ctx,long long value){void* p=sxqbe_raw_alloc_call((sxqbe_raw_alloc_fn)af,ctx,8);if(!p)return 0;*(long long*)p=value;return (long long)(intptr_t)p+1;}
     \\long long sxqbe_ok_alloc(void* af,long long ctx,long long value){long long* p=(long long*)sxqbe_raw_alloc_call((sxqbe_raw_alloc_fn)af,ctx,16);if(!p)return 0;p[0]=0;p[1]=value;return (long long)(intptr_t)p;}
     \\long long sxqbe_err_alloc(void* af,long long ctx,long long value){long long* p=(long long*)sxqbe_raw_alloc_call((sxqbe_raw_alloc_fn)af,ctx,16);if(!p)return 0;p[0]=1;p[1]=value;return (long long)(intptr_t)p;}
+    \\#if defined(_WIN32) && !defined(SX_FREESTANDING)
+    \\#include <stdarg.h>
+    \\int dprintf(int fd,const char*fmt,...){char buf[4096];va_list ap;va_start(ap,fmt);int n=vsnprintf(buf,sizeof(buf),fmt,ap);va_end(ap);if(n>0){FILE*f=fd==2?stderr:stdout;fwrite(buf,1,(size_t)n,f);fflush(f);}return n;}
+    \\#endif
     \\
 }
 
@@ -2328,6 +2365,33 @@ fn cg_build_c_shim(ctx: ref CgCtx) ref u8 = trust {
     }
     if (@len(ctx.c_headers) as i64) > 0 {
         builder.StringBuilder.append_cstr(sb, c"\n")
+    }
+    if runtime_is_freestanding() {
+        builder.StringBuilder.append(sb, \\
+        \\#ifndef INT_MAX
+        \\#define INT_MAX 2147483647
+        \\#define INT_MIN (-2147483647 - 1)
+        \\#define UINT_MAX 4294967295U
+        \\#define LONG_MAX 9223372036854775807L
+        \\#define LONG_MIN (-9223372036854775807L - 1)
+        \\#define ULONG_MAX 18446744073709551615UL
+        \\#define LLONG_MAX 9223372036854775807LL
+        \\#define LLONG_MIN (-9223372036854775807LL - 1)
+        \\#define ULLONG_MAX 18446744073709551615ULL
+        \\#define CHAR_BIT 8
+        \\#define SCHAR_MAX 127
+        \\#define SCHAR_MIN (-128)
+        \\#define UCHAR_MAX 255
+        \\#define SHRT_MAX 32767
+        \\#define SHRT_MIN (-32768)
+        \\#define USHRT_MAX 65535
+        \\#define EOF (-1)
+        \\#define SEEK_SET 0
+        \\#define SEEK_CUR 1
+        \\#define SEEK_END 2
+        \\#endif
+        \\
+        )
     }
 
     val i: mut i64 = 0

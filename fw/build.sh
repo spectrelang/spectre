@@ -85,7 +85,7 @@ rm -f ./spectre-stage1
 
 if [ $DO_BOOTSTRAP -eq 1 ]; then
 	echo "Emitting bootstrap SSA..."
-	./spectre-dev "${DEFINES[@]}" ./src/sxc.sx -emit-ssa >./bootstrap/sxc.ssa || exit 1
+	./spectre-dev "${DEFINES[@]}" ./src/sxc.sx -b -emit-ssa >./bootstrap/sxc.ssa || exit 1
 	echo "Bootstrap SSA written to ./bootstrap/sxc.ssa"
 fi
 

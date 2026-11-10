@@ -50,8 +50,12 @@ pub fn print_usage() void = {
     stdio.puts("  -emit-alt            Print alternative IR to stdout and exit")
     stdio.puts("  -emit-asm            Print assembly to stdout and exit")
     stdio.puts("  -target:<os>.<arch>  Cross-compile (linux/windows, x86_64/aarch64)")
+    stdio.puts("  -runtime:<mode>      Runtime mode: freestanding (default) or hosted")
     stdio.puts("  -xwin:<dir>          xwin root for hosted Windows cross builds")
     stdio.puts("  -no-xwin             Disable automatic xwin discovery")
+    stdio.puts("  -import-map:<file>   Extra Windows symbol-to-DLL map")
+    stdio.puts("  -sysroot:<dir>       Target sysroot for hosted cross builds")
+    stdio.puts("  -rt-lib:<file>       Explicit freestanding runtime archive/object")
     stdio.puts("  -src-target:<os>     Mock target OS for when-blocks in source output")
     stdio.puts("  -translate-c         Translate C input into a single .sx file")
     stdio.puts("  -inc-path:<dir>      Add an include search path for the alt backend")
@@ -392,6 +396,25 @@ pub fn print_help(topic: str.StringView) i32 = trust {
             "Disable automatic xwin discovery for Windows cross builds.",
             "spectre <input.sx> -target:windows.x86_64 -no-xwin"
         )
+        return 0
+    }
+
+    if str.eql_cstr(topic, c"-runtime") == 0
+    || str.eql_cstr(topic, c"-runtime:<mode>") == 0 {
+        stdio.puts("-runtime:<mode>")
+        stdio.puts("")
+        stdio.puts("  Select the target runtime:")
+        stdio.puts("    freestanding  Direct syscalls on Linux and Win32/ntdll imports")
+        stdio.puts("                  on Windows. No libc, CRT, or Linux sysroot.")
+        stdio.puts("    hosted        The host C library / MSVC UCRT. Use with xwin")
+        stdio.puts("                  for Windows cross builds.")
+        stdio.puts("")
+        stdio.puts("  Freestanding is the default for linux and windows targets.")
+        stdio.puts("  Dynamic (-dynamic) and shared (-dll) output use hosted mode.")
+        stdio.puts("")
+        stdio.puts("Examples:")
+        stdio.puts("    spectre app.sx -runtime:freestanding -o app")
+        stdio.puts("    spectre app.sx -target:windows.x86_64 -runtime:hosted -xwin:$HOME/.xwin -o app.exe")
         return 0
     }
 

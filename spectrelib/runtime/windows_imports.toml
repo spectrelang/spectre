@@ -1,0 +1,83 @@
+# Windows symbol-to-DLL map for the freestanding runtime.
+#
+# The compiler's built-in fallback map mirrors this file.  User projects can
+# extend it with -import-map:<file> once the source-level import collector is
+# enabled.  Symbols are imported undecorated; the synthesizer creates the
+# `__imp_<symbol>` entries that lld-link expects.
+
+[imports]
+
+# kernel32.dll
+GetStdHandle = "kernel32"
+WriteFile = "kernel32"
+ReadFile = "kernel32"
+CloseHandle = "kernel32"
+CreateFileA = "kernel32"
+SetFilePointer = "kernel32"
+SetFilePointerEx = "kernel32"
+GetFileSizeEx = "kernel32"
+ExitProcess = "kernel32"
+GetCurrentProcessId = "kernel32"
+GetCurrentThreadId = "kernel32"
+GetCurrentProcess = "kernel32"
+GetSystemTimeAsFileTime = "kernel32"
+GetLocalTime = "kernel32"
+Sleep = "kernel32"
+GetProcessHeap = "kernel32"
+HeapAlloc = "kernel32"
+HeapFree = "kernel32"
+VirtualAlloc = "kernel32"
+VirtualFree = "kernel32"
+GetEnvironmentVariableA = "kernel32"
+GetCurrentDirectoryA = "kernel32"
+SetCurrentDirectoryA = "kernel32"
+GetFullPathNameA = "kernel32"
+GetFileAttributesA = "kernel32"
+CreateDirectoryA = "kernel32"
+RemoveDirectoryA = "kernel32"
+DeleteFileA = "kernel32"
+MoveFileA = "kernel32"
+CopyFileA = "kernel32"
+FindFirstFileA = "kernel32"
+FindNextFileA = "kernel32"
+FindClose = "kernel32"
+CreateProcessA = "kernel32"
+CreatePipe = "kernel32"
+SetHandleInformation = "kernel32"
+WaitForSingleObject = "kernel32"
+GetExitCodeProcess = "kernel32"
+CreateThread = "kernel32"
+InitializeCriticalSection = "kernel32"
+DeleteCriticalSection = "kernel32"
+EnterCriticalSection = "kernel32"
+LeaveCriticalSection = "kernel32"
+SwitchToThread = "kernel32"
+WideCharToMultiByte = "kernel32"
+GetCommandLineW = "kernel32"
+LocalFree = "kernel32"
+GetModuleFileNameA = "kernel32"
+SetConsoleOutputCP = "kernel32"
+
+# shell32.dll
+CommandLineToArgvW = "shell32"
+
+# bcrypt.dll
+BCryptGenRandom = "bcrypt"
+
+# ws2_32.dll
+WSAStartup = "ws2_32"
+WSACleanup = "ws2_32"
+socket = "ws2_32"
+bind = "ws2_32"
+listen = "ws2_32"
+accept = "ws2_32"
+connect = "ws2_32"
+send = "ws2_32"
+recv = "ws2_32"
+sendto = "ws2_32"
+recvfrom = "ws2_32"
+setsockopt = "ws2_32"
+closesocket = "ws2_32"
+htons = "ws2_32"
+WSAPoll = "ws2_32"
+ioctlsocket = "ws2_32"

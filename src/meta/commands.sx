@@ -1806,6 +1806,26 @@ pub fn cmd_doctor() i32 = {
         trust stdio.print("xwin arches: {s}\n", {xwin_archs})
     }
 
+    val doctor_arena: allocators.Arena = trust allocators.Arena.new(4096 as usize)?
+    val doctor_exe: ref u8 = trust reflection.get_exe_path[allocators.Arena](doctor_arena)
+    val doctor_dir: ref u8 = trust path.dir_cstr(doctor_exe)
+    val rt_source: ref u8 = trust builds.freestanding_runtime_source(doctor_dir)
+    if os.exists(rt_source) {
+        trust stdio.print("runtime: freestanding available ({s})\n", {rt_source})
+    } else {
+        stdio.puts("runtime: freestanding source not found")
+    }
+    val import_map: ref u8 = trust path.join_cstr(
+        doctor_dir,
+        c"spectrelib/runtime/windows_imports.toml"
+    )
+    if os.exists(import_map) {
+        trust stdio.print("imports: {s}\n", {import_map})
+    } else {
+        stdio.puts("imports: built-in Windows map")
+    }
+    trust allocators.Arena.free(doctor_arena)
+
     val git_ver: ref u8 = tool_version(c"git --version 2>&1")
     trust stdio.print("git:     {s}\n", {git_ver})
 

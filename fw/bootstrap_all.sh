@@ -38,13 +38,13 @@ emit() {
 
 emit bootstrap/sxc.ssa \
     ./spectre-dev "${DEFINES[@]}" ./src/sxc.sx \
-    -emit-ssa -emit-shim:spectrelib/csources/qbe_runtime.c -src-target:linux
+    -b -emit-ssa -emit-shim:spectrelib/csources/qbe_runtime.c -src-target:linux
 emit bootstrap/sxc.c \
     ./spectre-dev "${DEFINES[@]}" ./src/sxc.sx \
     -b -emit-alt -src-target:linux
 emit bootstrap/sxc_darwin.ssa \
     ./spectre-dev "${DEFINES[@]}" ./src/sxc.sx \
-    -emit-ssa -src-target:darwin
+    -b -emit-ssa -src-target:darwin
 emit bootstrap/sxc_darwin.c \
     ./spectre-dev "${DEFINES[@]}" ./src/sxc.sx \
     -b -emit-alt -src-target:darwin

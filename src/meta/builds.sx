@@ -8,6 +8,7 @@ val path       = use("std/path")
 val reflection = use("std/reflection")
 val allocators = use("std/allocators")
 val random     = use("std/crypto/random")
+val mem        = use("../meta/mem.sx")
 val parser     = use("../ast/parser.sx")
 
 /// Join a temporary directory and file name using a tracked allocation.
@@ -293,8 +294,310 @@ pub fn translate_link_flag(kind: ref u8, flag: ref u8) ref u8 = trust {
     return flag
 }
 
-/// Returns true when the host platform can produce a completely statically
-/// linked executable.
+/// Runtime modes supported by the compiler.
+pub fn runtime_is_freestanding(mode: ref u8) bool = {
+    return cstr.cmp(mode, c"freestanding") == 0
+}
+
+pub fn runtime_is_hosted(mode: ref u8) bool = {
+    return cstr.cmp(mode, c"hosted") == 0
+}
+
+/// Returns true when a runtime mode is meaningful for the target.
+pub fn runtime_supported(platform: ref u8, arch: ref u8, mode: ref u8) bool = {
+    if runtime_is_hosted(mode) {
+        return true
+    }
+    if !runtime_is_freestanding(mode) {
+        return false
+    }
+    if cstr.cmp(platform, c"linux") == 0 {
+        return cstr.cmp(arch, c"x86_64") == 0
+        || cstr.cmp(arch, c"aarch64") == 0
+    }
+    if cstr.cmp(platform, c"windows") == 0 {
+        return cstr.cmp(arch, c"x86_64") == 0
+        || cstr.cmp(arch, c"aarch64") == 0
+    }
+    return false
+}
+
+/// Cache directory for prebuilt freestanding runtime objects.
+pub fn freestanding_runtime_cache_dir(platform: ref u8, arch: ref u8) ref u8 = trust {
+    val base: mut ref u8 = c"/tmp/spectre-runtime-cache"
+    when windows {
+        val tmp: ref u8 = os.getenv(c"TEMP")
+        if tmp != none {
+            base = @fmtalloc("{s}/spectre-runtime-cache", {tmp})
+        }
+    }
+    fs.mkdir_path_cstr(base)
+    val dir: ref u8 = @fmtalloc("{s}/{s}.{s}", {base, platform, arch})
+    fs.mkdir_path_cstr(dir)
+    return dir
+}
+
+/// Compute a stable cache path for a runtime/start object.
+pub fn freestanding_cache_path(
+    platform: ref u8,
+    arch: ref u8,
+    name: ref u8
+) ref u8 = trust {
+    val dir: ref u8 = freestanding_runtime_cache_dir(platform, arch)
+    return @fmtalloc("{s}/{s}", {dir, name})
+}
+
+/// Path to the freestanding runtime source shipped beside the compiler.
+pub fn freestanding_runtime_source(exe_dir: ref u8) ref u8 = trust {
+    return path.join_cstr(exe_dir, c"spectrelib/csources/freestanding/runtime.c")
+}
+
+/// Path to the Linux freestanding entry stub, or an empty string when the
+/// platform does not use an assembly entry.
+pub fn freestanding_start_source(exe_dir: ref u8, platform: ref u8, arch: ref u8) ref u8 = trust {
+    if cstr.cmp(platform, c"linux") != 0 {
+        if cstr.cmp(platform, c"windows") == 0 {
+            if cstr.cmp(arch, c"aarch64") == 0 {
+                return path.join_cstr(exe_dir, c"spectrelib/csources/freestanding/start_windows_aarch64.S")
+            }
+            return path.join_cstr(exe_dir, c"spectrelib/csources/freestanding/start_windows_x86_64.S")
+        }
+        return c""
+    }
+    if cstr.cmp(arch, c"aarch64") == 0 {
+        return path.join_cstr(exe_dir, c"spectrelib/csources/freestanding/start_linux_aarch64.S")
+    }
+    return path.join_cstr(exe_dir, c"spectrelib/csources/freestanding/start_linux_x86_64.S")
+}
+
+/// Compiler flags shared by freestanding runtime/translation-unit compiles.
+pub fn freestanding_c_flags() ref u8 = {
+    return c"-ffreestanding -nostdinc -fno-builtin -fno-stack-protector -fno-common -fno-asynchronous-unwind-tables"
+}
+
+/// Optional architecture flags for freestanding compiles.
+pub fn freestanding_arch_flags(arch: ref u8) ref u8 = {
+    if cstr.cmp(arch, c"aarch64") == 0 {
+        return c""
+    }
+    return c""
+}
+
+/// Default import libraries used by the freestanding Windows runtime.
+pub fn freestanding_windows_import_libs() ref u8 = {
+    return c"kernel32.lib shell32.lib bcrypt.lib ws2_32.lib"
+}
+
+/// Build a deterministic import library from a DLL and symbol list using
+/// llvm-dlltool. Returns the generated library path, or an empty string.
+pub fn generate_windows_import_library(
+    cache_dir: ref u8,
+    dll: ref u8,
+    symbols: list[ref u8],
+    arch: ref u8
+) ref u8 = trust {
+    if (@len(symbols) as i64) == 0 {
+        return c""
+    }
+    val machine: mut ref u8 = c"i386:x86-64"
+    if cstr.cmp(arch, c"aarch64") == 0 {
+        machine = c"arm64"
+    }
+    val def_path: ref u8 = @fmtalloc("{s}/{s}.def", {cache_dir, dll})
+    val lib_path: ref u8 = @fmtalloc("{s}/{s}_{s}.lib", {cache_dir, dll, arch})
+    val f = os.open(def_path, c"w")
+    if f is some fh {
+        val header: ref u8 = @fmtalloc("LIBRARY {s}.dll\nEXPORTS\n", {dll})
+        os.write(fh, header, cstr.len(header) as i64)
+        for sym in symbols {
+            val line: ref u8 = @fmtalloc("    {s}\n", {sym})
+            os.write(fh, line, cstr.len(line) as i64)
+        }
+        os.close(fh)
+    } else {
+        return c""
+    }
+    val dlltool: mut ref u8 = c"llvm-dlltool"
+    if !is_compiler_available(dlltool) {
+        if is_compiler_available(c"llvm-dlltool-18") {
+            dlltool = c"llvm-dlltool-18"
+        } elif is_compiler_available(c"llvm-dlltool-15") {
+            dlltool = c"llvm-dlltool-15"
+        } else {
+            return c""
+        }
+    }
+    val cmd: ref u8 = @fmtalloc(
+        "{s} -m {s} -d {s} -l {s} 2>&1",
+        {dlltool, machine, def_path, lib_path}
+    )
+    val res = os.exec(cmd)
+    match res {
+        ok _ => {
+            if os.exists(lib_path) {
+                return lib_path
+            }
+            return c""
+        }
+        err _ => {
+            return c""
+        }
+    }
+}
+
+/// Create (or reuse) a cache directory for generated Windows import libraries.
+pub fn windows_import_cache_dir(arch: ref u8) ref u8 = trust {
+    val base: mut ref u8 = c"/tmp/spectre-freestanding-imports"
+    when windows {
+        val tmp: ref u8 = os.getenv(c"TEMP")
+        if tmp != none {
+            base = @fmtalloc("{s}/spectre-freestanding-imports", {tmp})
+        }
+    }
+    fs.mkdir_path_cstr(base)
+    val dir: ref u8 = @fmtalloc("{s}/{s}", {base, arch})
+    fs.mkdir_path_cstr(dir)
+    return dir
+}
+
+/// Returns a comma-separated list of import libraries synthesized for the
+/// freestanding Windows runtime.
+pub fn freestanding_windows_import_flags(arch: ref u8) ref u8 = trust {
+    val cache: ref u8 = windows_import_cache_dir(arch)
+    val kernel: mut list[ref u8] = mem.new[ref u8]()
+    @append(kernel, c"GetStdHandle")
+    @append(kernel, c"WriteFile")
+    @append(kernel, c"ReadFile")
+    @append(kernel, c"CloseHandle")
+    @append(kernel, c"CreateFileA")
+    @append(kernel, c"SetFilePointer")
+    @append(kernel, c"SetFilePointerEx")
+    @append(kernel, c"GetFileSizeEx")
+    @append(kernel, c"ExitProcess")
+    @append(kernel, c"GetCurrentProcessId")
+    @append(kernel, c"GetCurrentThreadId")
+    @append(kernel, c"GetCurrentProcess")
+    @append(kernel, c"GetSystemTimeAsFileTime")
+    @append(kernel, c"GetLocalTime")
+    @append(kernel, c"Sleep")
+    @append(kernel, c"GetProcessHeap")
+    @append(kernel, c"HeapAlloc")
+    @append(kernel, c"HeapFree")
+    @append(kernel, c"VirtualAlloc")
+    @append(kernel, c"VirtualFree")
+    @append(kernel, c"GetEnvironmentVariableA")
+    @append(kernel, c"GetCurrentDirectoryA")
+    @append(kernel, c"SetCurrentDirectoryA")
+    @append(kernel, c"GetFullPathNameA")
+    @append(kernel, c"GetFileAttributesA")
+    @append(kernel, c"CreateDirectoryA")
+    @append(kernel, c"RemoveDirectoryA")
+    @append(kernel, c"DeleteFileA")
+    @append(kernel, c"MoveFileA")
+    @append(kernel, c"CopyFileA")
+    @append(kernel, c"FindFirstFileA")
+    @append(kernel, c"FindNextFileA")
+    @append(kernel, c"FindClose")
+    @append(kernel, c"CreateProcessA")
+    @append(kernel, c"CreatePipe")
+    @append(kernel, c"SetHandleInformation")
+    @append(kernel, c"WaitForSingleObject")
+    @append(kernel, c"GetExitCodeProcess")
+    @append(kernel, c"CreateThread")
+    @append(kernel, c"InitializeCriticalSection")
+    @append(kernel, c"DeleteCriticalSection")
+    @append(kernel, c"EnterCriticalSection")
+    @append(kernel, c"LeaveCriticalSection")
+    @append(kernel, c"SwitchToThread")
+    @append(kernel, c"WideCharToMultiByte")
+    @append(kernel, c"GetCommandLineW")
+    @append(kernel, c"LocalFree")
+    @append(kernel, c"GetModuleFileNameA")
+    @append(kernel, c"SetConsoleOutputCP")
+
+    val shell: mut list[ref u8] = mem.new[ref u8]()
+    @append(shell, c"CommandLineToArgvW")
+
+    val bcrypt: mut list[ref u8] = mem.new[ref u8]()
+    @append(bcrypt, c"BCryptGenRandom")
+
+    val ws2: mut list[ref u8] = mem.new[ref u8]()
+    @append(ws2, c"WSAStartup")
+    @append(ws2, c"WSACleanup")
+    @append(ws2, c"socket")
+    @append(ws2, c"bind")
+    @append(ws2, c"listen")
+    @append(ws2, c"accept")
+    @append(ws2, c"connect")
+    @append(ws2, c"send")
+    @append(ws2, c"recv")
+    @append(ws2, c"sendto")
+    @append(ws2, c"recvfrom")
+    @append(ws2, c"setsockopt")
+    @append(ws2, c"closesocket")
+    @append(ws2, c"htons")
+    @append(ws2, c"WSAPoll")
+    @append(ws2, c"ioctlsocket")
+
+    val out: mut ref u8 = c""
+    val kernel_lib: ref u8 = generate_windows_import_library(cache, c"kernel32", kernel, arch)
+    val shell_lib: ref u8 = generate_windows_import_library(cache, c"shell32", shell, arch)
+    val bcrypt_lib: ref u8 = generate_windows_import_library(cache, c"bcrypt", bcrypt, arch)
+    val ws2_lib: ref u8 = generate_windows_import_library(cache, c"ws2_32", ws2, arch)
+    if cstr.len(kernel_lib) > 0 {
+        out = @fmtalloc("{s} {s}", {out, kernel_lib})
+    }
+    if cstr.len(shell_lib) > 0 {
+        out = @fmtalloc("{s} {s}", {out, shell_lib})
+    }
+    if cstr.len(bcrypt_lib) > 0 {
+        out = @fmtalloc("{s} {s}", {out, bcrypt_lib})
+    }
+    if cstr.len(ws2_lib) > 0 {
+        out = @fmtalloc("{s} {s}", {out, ws2_lib})
+    }
+    return out
+}
+/// Returns true when a link list contains a library that is not part of the
+/// freestanding runtime (and therefore requires the hosted toolchain).
+pub fn links_require_hosted(links: list[ref u8]) bool = trust {
+    for flag in links {
+        if cstr.cmp(flag, c"") == 0 {
+            continue
+        }
+        if cstr.starts_with(flag, c"-L") || cstr.starts_with(flag, c"-Wl,") {
+            continue
+        }
+        if cstr.cmp(flag, c"-pthread") == 0 {
+            continue
+        }
+        if cstr.starts_with(flag, c"-l") {
+            val name: ref u8 = cstr.substr(flag, 2, cstr.len(flag) - 2)
+            if cstr.cmp(name, c"m") == 0
+            || cstr.cmp(name, c"dl") == 0
+            || cstr.cmp(name, c"rt") == 0
+            || cstr.cmp(name, c"c") == 0
+            || cstr.cmp(name, c"gcc") == 0
+            || cstr.cmp(name, c"gcc_s") == 0
+            || cstr.cmp(name, c"pthread") == 0
+            || cstr.cmp(name, c"bcrypt") == 0
+            || cstr.cmp(name, c"dbghelp") == 0 {
+                continue
+            }
+            return true
+        }
+        if cstr.ends_with(flag, c".lib")
+        || cstr.ends_with(flag, c".a")
+        || cstr.ends_with(flag, c".so")
+        || cstr.ends_with(flag, c".c")
+        || cstr.ends_with(flag, c".o")
+        || cstr.ends_with(flag, c".obj") {
+            return true
+        }
+    }
+    return false
+}
+
 pub fn supports_static_linking(platform: ref u8) bool = {
     if cstr.cmp(platform, c"linux") == 0 {
         return true

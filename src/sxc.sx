@@ -591,8 +591,12 @@ pub fn main() i32 = trust {
     val inc_paths: mut list[ref u8] = mem.new[ref u8]()
     val src_target: mut ref u8 = c""
     val target_spec: mut ref u8 = c""
+    val runtime_spec: mut ref u8 = c""
     val xwin_dir: mut ref u8 = c""
     val no_xwin: mut bool = false
+    val import_map_spec: mut ref u8 = c""
+    val sysroot_spec: mut ref u8 = c""
+    val rt_lib_spec: mut ref u8 = c""
     val shim_output: mut ref u8 = c""
     val bootstrap_mode: mut bool = false
     val arg_i: mut i64 = input_arg_i + 1
@@ -820,6 +824,24 @@ pub fn main() i32 = trust {
                     src_target = cstr.substr(arg, 12, tgt_len)
                 }
                 arg_i++
+            } elif cstr.starts_with(arg, c"-runtime:") {
+                val rt_len: i64 = cstr.len(arg) as i64 - 9
+                if rt_len <= 0 {
+                    stdio.puts("error: -runtime requires hosted or freestanding")
+                    allocators.Arena.free(arena)
+                    return 1
+                }
+                runtime_spec = cstr.substr(arg, 9, rt_len)
+                if cstr.cmp(runtime_spec, c"hosted") != 0
+                && cstr.cmp(runtime_spec, c"freestanding") != 0 {
+                    stdio.print(
+                        "error: unknown runtime mode '{s}'; expected hosted or freestanding\n",
+                        {runtime_spec}
+                    )
+                    allocators.Arena.free(arena)
+                    return 1
+                }
+                arg_i++
             } elif cstr.starts_with(arg, c"-xwin:") {
                 val xwin_len: i64 = cstr.len(arg) as i64 - 6
                 if xwin_len <= 0 {
@@ -831,6 +853,24 @@ pub fn main() i32 = trust {
                 arg_i++
             } elif cstr.cmp(arg, c"-no-xwin") == 0 {
                 no_xwin = true
+                arg_i++
+            } elif cstr.starts_with(arg, c"-import-map:") {
+                val n: i64 = cstr.len(arg) as i64 - 12
+                if n > 0 {
+                    import_map_spec = cstr.substr(arg, 12, n)
+                }
+                arg_i++
+            } elif cstr.starts_with(arg, c"-sysroot:") {
+                val n: i64 = cstr.len(arg) as i64 - 9
+                if n > 0 {
+                    sysroot_spec = cstr.substr(arg, 9, n)
+                }
+                arg_i++
+            } elif cstr.starts_with(arg, c"-rt-lib:") {
+                val n: i64 = cstr.len(arg) as i64 - 8
+                if n > 0 {
+                    rt_lib_spec = cstr.substr(arg, 8, n)
+                }
                 arg_i++
             } elif cstr.starts_with(arg, c"-emit-shim:") {
                 val shim_len: i64 = cstr.len(arg) as i64 - 11
@@ -897,12 +937,40 @@ pub fn main() i32 = trust {
         host_arch
     )
 
+    // Runtime selection.  Freestanding is the default for the supported
+    // Linux/Windows targets; other hosts keep the hosted runtime unless the
+    // user explicitly asks for a mode that the target cannot provide.
+    val runtime_mode: mut ref u8 = c"freestanding"
+    if cstr.len(runtime_spec) > 0 {
+        runtime_mode = runtime_spec
+    }
+    if !builds.runtime_supported(target_platform, target_arch, runtime_mode) {
+        if cstr.len(runtime_spec) > 0 {
+            stdio.print(
+                "error: runtime mode '{s}' is not implemented for {s}.{s}\n",
+                {runtime_mode, target_platform, target_arch}
+            )
+            allocators.Arena.free(arena)
+            return 1
+        }
+        runtime_mode = c"hosted"
+    }
+    // Dynamic/shared output and the bootstrap path still use the hosted C
+    // runtime; freestanding mode is a fully static link.
+    if dynamic_linking || build_dll || bootstrap_mode {
+        runtime_mode = c"hosted"
+    }
+    val freestanding_runtime: mut bool = builds.runtime_is_freestanding(runtime_mode)
+    codegen.set_runtime_mode(runtime_mode)
+    alt_codegen.set_runtime_mode(runtime_mode)
+
     // Hosted Windows cross links need the MSVC CRT and Windows SDK import
     // libraries. Resolve xwin once, before any compilation starts, so a
     // missing toolchain produces one actionable error instead of a pile of
     // missing `.lib` diagnostics from the linker.
     val wants_windows_link: bool = cross_target
     && builds.target_is_windows(target_platform)
+    && !freestanding_runtime
     && !compile_obj
     && !emit_alt
     && !emit_qbe
@@ -1003,6 +1071,43 @@ pub fn main() i32 = trust {
         }
         err e => {
             stdio.print("error: {s}\n", {e})
+            allocators.Arena.free(arena)
+            return 1
+        }
+    }
+
+    // Programs that explicitly link a non-system C library cannot be made
+    // freestanding without that library being rebuilt for the target.  Fall
+    // back to the hosted runtime unless the user requested freestanding.
+    if freestanding_runtime && cstr.len(runtime_spec) == 0
+    && !dynamic_linking && !build_dll && !compile_obj {
+        match module.collect_used_links(root_mod, exe_dir, true) {
+            ok detected_links => {
+                if builds.links_require_hosted(detected_links) {
+                    runtime_mode = c"hosted"
+                    freestanding_runtime = false
+                    codegen.set_runtime_mode(runtime_mode)
+                    alt_codegen.set_runtime_mode(runtime_mode)
+                    if !quiet {
+                        stdio.puts("[I  ]│ external C library detected - using hosted runtime")
+                    }
+                }
+            }
+            err _ => { }
+        }
+    }
+
+    if !freestanding_runtime && cross_target && builds.target_is_windows(target_platform)
+    && !compile_obj && !emit_alt && !emit_qbe && !emit_ll && !emit_asm
+    && !syntax_check && !print_ast && !translate_c_flag {
+        if !builds.xwin_available_in(xwin_root, target_arch) {
+            stdio.print(
+                "error: windows.{s} requires xwin or a compatible Windows SDK\n",
+                {target_arch}
+            )
+            stdio.print("  install: cargo install xwin --locked\n", {})
+            stdio.print("  or pass: -xwin:<dir>\n", {})
+            stdio.print("  or use:  -runtime:freestanding\n", {})
             allocators.Arena.free(arena)
             return 1
         }
@@ -1122,6 +1227,112 @@ pub fn main() i32 = trust {
                 target_arch
             )
         }
+        if freestanding_runtime {
+            simd_backend = 2
+        }
+
+        val alt_runtime_obj: mut ref u8 = c""
+        val alt_start_obj: mut ref u8 = c""
+        if freestanding_runtime && !compile_obj {
+            val rt_c: ref u8 = builds.freestanding_runtime_source(exe_dir)
+            val rt_name: mut ref u8 = c"spectre_runtime.o"
+            if cstr.cmp(target_platform, c"windows") == 0 {
+                rt_name = c"spectre_runtime.obj"
+            }
+            val _rt_size: mut i64 = 0
+            val _rt_size_opt = fs.file_size_cstr(rt_c)
+            match _rt_size_opt {
+                some sz => {
+                    _rt_size = sz as i64
+                }
+                none => {
+                    _rt_size = 0
+                }
+            }
+            val rt_cache_name: ref u8 = @fmtalloc("{s}_{lld}", {rt_name, _rt_size})
+            alt_runtime_obj = builds.freestanding_cache_path(
+                target_platform,
+                target_arch,
+                rt_cache_name
+            )
+            if !os.exists(alt_runtime_obj) {
+                val alt_triple: ref u8 = builds.target_triple(target_platform, target_arch)
+                val rt_tmp: ref u8 = @fmtalloc("{s}.tmp", {alt_runtime_obj})
+                val rt_cmd_alt: ref u8 = @fmtalloc(
+                    "clang --target={s} {s} -c {s} -o {s} 2>&1",
+                    {alt_triple, builds.freestanding_c_flags(), rt_c, rt_tmp}
+                )
+                if show_cmd != 0 {
+                    stdio.print("{s}\n", {rt_cmd_alt})
+                }
+                val rt_res_alt = os.exec(rt_cmd_alt)
+                match rt_res_alt {
+                    ok v => {
+                        val vstr: ref u8 = ostr.as_cstr(v)
+                        if cstr.len(vstr) > 0 {
+                            stdio.print("{s}", {vstr})
+                        }
+                    }
+                    err _ => { }
+                }
+                if os.exists(alt_runtime_obj) {
+                    os.delete(alt_runtime_obj)
+                }
+                fs.rename_path_cstr(rt_tmp, alt_runtime_obj)
+            }
+            val start_src_alt: ref u8 = builds.freestanding_start_source(
+                exe_dir,
+                target_platform,
+                target_arch
+            )
+            if cstr.len(start_src_alt) > 0 {
+                val _st_size: mut i64 = 0
+                val _st_size_opt = fs.file_size_cstr(start_src_alt)
+                match _st_size_opt {
+                    some sz => {
+                        _st_size = sz as i64
+                    }
+                    none => {
+                        _st_size = 0
+                    }
+                }
+                val st_cache_name: ref u8 = @fmtalloc("spectre_start_{lld}.o", {_st_size})
+                alt_start_obj = builds.freestanding_cache_path(
+                    target_platform,
+                    target_arch,
+                    st_cache_name
+                )
+                if !os.exists(alt_start_obj) {
+                    val alt_triple2: ref u8 = builds.target_triple(target_platform, target_arch)
+                    val st_tmp: ref u8 = @fmtalloc("{s}.tmp", {alt_start_obj})
+                    val st_cmd_alt: ref u8 = @fmtalloc(
+                        "clang --target={s} -c {s} -o {s} 2>&1",
+                        {alt_triple2, start_src_alt, st_tmp}
+                    )
+                    if show_cmd != 0 {
+                        stdio.print("{s}\n", {st_cmd_alt})
+                    }
+                    val st_res_alt = os.exec(st_cmd_alt)
+                    match st_res_alt {
+                        ok v => {
+                            val vstr: ref u8 = ostr.as_cstr(v)
+                            if cstr.len(vstr) > 0 {
+                                stdio.print("{s}", {vstr})
+                            }
+                        }
+                        err _ => { }
+                    }
+                    if os.exists(alt_start_obj) {
+                        os.delete(alt_start_obj)
+                    }
+                    fs.rename_path_cstr(st_tmp, alt_start_obj)
+                }
+            }
+        }
+
+        if cstr.len(rt_lib_spec) > 0 {
+            alt_runtime_obj = rt_lib_spec
+        }
 
         val c_ir: mut ref u8 = c""
         val emit_ld: bool = !bootstrap_mode
@@ -1217,7 +1428,7 @@ pub fn main() i32 = trust {
                 return 1
             }
         }
-        if !compile_obj {
+        if !compile_obj && !freestanding_runtime {
             builds.append_debug_runtime_links(
                 links_alt,
                 exe_dir,
@@ -1259,7 +1470,7 @@ pub fn main() i32 = trust {
                 link_flags_alt = @fmtalloc("{s} {s}", {link_flags_alt, translated_link})
             }
         }
-        if windows_cross_link {
+        if windows_cross_link && !freestanding_runtime {
             link_flags_alt = @fmtalloc(
                 "{s} {s} -Wl,/ignore:4099",
                 {
@@ -1267,6 +1478,24 @@ pub fn main() i32 = trust {
                     builds.xwin_lib_path_flags_clang(xwin_root, target_arch)
                 }
             )
+        }
+        if freestanding_runtime && !compile_obj {
+            if cstr.cmp(target_platform, c"windows") == 0 {
+                link_flags_alt = @fmtalloc(
+                    "{s} -nostdlib -Wl,/nodefaultlib,/entry:mainCRTStartup {s} {s} {s}",
+                    {
+                        link_flags_alt,
+                        builds.freestanding_windows_import_flags(target_arch),
+                        alt_runtime_obj,
+                        alt_start_obj
+                    }
+                )
+            } else {
+                link_flags_alt = @fmtalloc(
+                    "{s} -nostdlib -static {s} {s}",
+                    {link_flags_alt, alt_runtime_obj, alt_start_obj}
+                )
+            }
         }
         if compile_obj {
             link_flags_alt = c""
@@ -1278,7 +1507,7 @@ pub fn main() i32 = trust {
                 {include_flags_alt, builds.compiler_include_flag(compiler_kind, inc_path)}
             )
         }
-        if windows_cross_link {
+        if windows_cross_link && !freestanding_runtime {
             include_flags_alt = @fmtalloc(
                 "{s} {s}",
                 {include_flags_alt, builds.xwin_include_flags(xwin_root, target_arch)}
@@ -1336,6 +1565,12 @@ pub fn main() i32 = trust {
                 cc_flags_alt = @fmtalloc(
                     "--target={s} -fuse-ld=lld {s}",
                     {builds.target_triple(target_platform, target_arch), cc_flags_alt}
+                )
+            }
+            if freestanding_runtime {
+                cc_flags_alt = @fmtalloc(
+                    "{s} {s}",
+                    {cc_flags_alt, builds.freestanding_c_flags()}
                 )
             }
             if windows_cross_link {
@@ -1617,7 +1852,7 @@ pub fn main() i32 = trust {
         return 0
     }
 
-    if cross_target {
+    if cross_target || freestanding_runtime {
         val binary_name_x: mut ref u8 = c""
         if cstr.cmp(output_name, c"") == 0 {
             binary_name_x = path.get_name_without_ext_cstr(arena, input)
@@ -1649,6 +1884,9 @@ pub fn main() i32 = trust {
                 final_output_x = @fmtalloc("{s}.so", {final_output_x})
             }
         }
+        if test_mode {
+            final_output_x = builds.get_unique_tmp_path(c"spectre_test_bin")
+        }
 
         val static_link_x: mut ref u8 = c""
         val strip_link_x: mut ref u8 = c""
@@ -1675,7 +1913,7 @@ pub fn main() i32 = trust {
                 return 1
             }
         }
-        if !compile_obj {
+        if !compile_obj && !freestanding_runtime {
             builds.append_debug_runtime_links(
                 links_x,
                 exe_dir,
@@ -1740,6 +1978,160 @@ pub fn main() i32 = trust {
             return 0
         }
 
+        val runtime_obj_x: mut ref u8 = c""
+        val start_obj_x: mut ref u8 = c""
+        val runtime_obj_cached: mut bool = false
+        val start_obj_cached: mut bool = false
+        if freestanding_runtime {
+            val runtime_c: ref u8 = builds.freestanding_runtime_source(exe_dir)
+            val runtime_obj_name: mut ref u8 = c"spectre_runtime.o"
+            if cstr.cmp(target_platform, c"windows") == 0 {
+                runtime_obj_name = c"spectre_runtime.obj"
+            }
+            val rt_source_size: mut i64 = 0
+            val rt_size_opt = fs.file_size_cstr(runtime_c)
+            match rt_size_opt {
+                some sz => {
+                    rt_source_size = sz as i64
+                }
+                none => {
+                    rt_source_size = 0
+                }
+            }
+            val cached_name: ref u8 = @fmtalloc(
+                "{s}_{lld}",
+                {runtime_obj_name, rt_source_size}
+            )
+            runtime_obj_x = builds.freestanding_cache_path(
+                target_platform,
+                target_arch,
+                cached_name
+            )
+            if os.exists(runtime_obj_x) {
+                runtime_obj_cached = true
+            } else {
+                val rt_flags: ref u8 = builds.freestanding_c_flags()
+                val rt_arch_flags: ref u8 = builds.freestanding_arch_flags(target_arch)
+                val rt_tmp: ref u8 = @fmtalloc("{s}.tmp", {runtime_obj_x})
+                val rt_cmd: ref u8 = @fmtalloc(
+                    "clang --target={s} {s}{s} -c {s} -o {s} 2>&1",
+                    {triple_x, rt_flags, rt_arch_flags, runtime_c, rt_tmp}
+                )
+                if show_cmd != 0 {
+                    stdio.print("{s}\n", {rt_cmd})
+                }
+                val rt_res = os.exec(rt_cmd)
+                val rt_ok: mut bool = true
+                match rt_res {
+                    ok v => {
+                        val vstr: ref u8 = ostr.as_cstr(v)
+                        if cstr.len(vstr) > 0 {
+                            stdio.print("{s}", {vstr})
+                        }
+                        val err_mark = ostr.from_cstr[allocators.Arena](arena, c"error:")
+                        if ostr.contains(v, err_mark) || !os.exists(rt_tmp) {
+                            rt_ok = false
+                        }
+                    }
+                    err _ => {
+                        rt_ok = false
+                    }
+                }
+                if !rt_ok {
+                    stdio.print("error: freestanding runtime compilation failed for '{s}'\n", {runtime_c})
+                    os.delete(rt_tmp)
+                    os.delete(qbe_file)
+                    os.delete(asm_file)
+                    os.delete(asm_obj_x)
+                    allocators.Arena.free(arena)
+                    return 1
+                }
+                if os.exists(runtime_obj_x) {
+                    os.delete(runtime_obj_x)
+                }
+                fs.rename_path_cstr(rt_tmp, runtime_obj_x)
+                runtime_obj_cached = true
+            }
+
+            val start_source: ref u8 = builds.freestanding_start_source(
+                exe_dir,
+                target_platform,
+                target_arch
+            )
+            if cstr.len(start_source) > 0 {
+                val start_size: mut i64 = 0
+                val start_size_opt = fs.file_size_cstr(start_source)
+                match start_size_opt {
+                    some sz => {
+                        start_size = sz as i64
+                    }
+                    none => {
+                        start_size = 0
+                    }
+                }
+                val start_cached_name: ref u8 = @fmtalloc(
+                    "spectre_start_{lld}.o",
+                    {start_size}
+                )
+                start_obj_x = builds.freestanding_cache_path(
+                    target_platform,
+                    target_arch,
+                    start_cached_name
+                )
+                if os.exists(start_obj_x) {
+                    start_obj_cached = true
+                } else {
+                    val start_tmp: ref u8 = @fmtalloc("{s}.tmp", {start_obj_x})
+                    val start_cmd: ref u8 = @fmtalloc(
+                        "clang --target={s} -c {s} -o {s} 2>&1",
+                        {triple_x, start_source, start_tmp}
+                    )
+                    if show_cmd != 0 {
+                        stdio.print("{s}\n", {start_cmd})
+                    }
+                    val start_res = os.exec(start_cmd)
+                    val start_ok: mut bool = true
+                    match start_res {
+                        ok v => {
+                            val vstr: ref u8 = ostr.as_cstr(v)
+                            if cstr.len(vstr) > 0 {
+                                stdio.print("{s}", {vstr})
+                            }
+                            val err_mark = ostr.from_cstr[allocators.Arena](arena, c"error:")
+                            if ostr.contains(v, err_mark) || !os.exists(start_tmp) {
+                                start_ok = false
+                            }
+                        }
+                        err _ => {
+                            start_ok = false
+                        }
+                    }
+                    if !start_ok {
+                        stdio.print("error: freestanding entry compilation failed for '{s}'\n", {start_source})
+                        os.delete(start_tmp)
+                        if !runtime_obj_cached {
+                            os.delete(runtime_obj_x)
+                        }
+                        os.delete(qbe_file)
+                        os.delete(asm_file)
+                        os.delete(asm_obj_x)
+                        allocators.Arena.free(arena)
+                        return 1
+                    }
+                    if os.exists(start_obj_x) {
+                        os.delete(start_obj_x)
+                    }
+                    fs.rename_path_cstr(start_tmp, start_obj_x)
+                    start_obj_cached = true
+                }
+            }
+        }
+
+        if cstr.len(rt_lib_spec) > 0 {
+            runtime_obj_x = rt_lib_spec
+            runtime_obj_cached = true
+        }
+
         val shim_obj_x: mut ref u8 = c""
         if cstr.len(c_shim_source) > 0 {
             val shim_c_file_x: ref u8 = builds.get_unique_tmp_path(c"spectre_c_shim.c")
@@ -1759,7 +2151,7 @@ pub fn main() i32 = trust {
             for inc_path in inc_paths {
                 include_flags_x = @fmtalloc("{s} -I{s}", {include_flags_x, inc_path})
             }
-            if cstr.len(xwin_root) > 0 {
+            if cstr.len(xwin_root) > 0 && !freestanding_runtime {
                 include_flags_x = @fmtalloc(
                     "{s} {s}",
                     {include_flags_x, xwin_inc_x}
@@ -1770,9 +2162,16 @@ pub fn main() i32 = trust {
                 shim_obj_name = c"spectre_c_shim.obj"
             }
             shim_obj_x = builds.get_unique_tmp_path(shim_obj_name)
+            val shim_extra_flags: mut ref u8 = c""
+            if freestanding_runtime {
+                shim_extra_flags = @fmtalloc(
+                    " -DSX_FREESTANDING {s}",
+                    {builds.freestanding_c_flags()}
+                )
+            }
             val shim_cmd_x: ref u8 = @fmtalloc(
-                "clang --target={s} -std=c99 -Wno-error=int-conversion -c -o {s} {s}{s} 2>&1",
-                {triple_x, shim_obj_x, shim_c_file_x, include_flags_x}
+                "clang --target={s} -std=c99 -Wno-error=int-conversion{s} -c -o {s} {s}{s} 2>&1",
+                {triple_x, shim_extra_flags, shim_obj_x, shim_c_file_x, include_flags_x}
             )
             if show_cmd != 0 {
                 stdio.print("{s}\n", {shim_cmd_x})
@@ -1869,24 +2268,43 @@ pub fn main() i32 = trust {
             if cstr.len(shim_obj_x) > 0 {
                 win_inputs = @fmtalloc("{s} {s}", {win_inputs, shim_obj_x})
             }
+            if cstr.len(runtime_obj_x) > 0 {
+                win_inputs = @fmtalloc("{s} {s}", {win_inputs, runtime_obj_x})
+            }
+            if cstr.len(start_obj_x) > 0 {
+                win_inputs = @fmtalloc("{s} {s}", {win_inputs, start_obj_x})
+            }
             val subsystem_x: mut ref u8 = c"/subsystem:console"
             if build_dll {
                 subsystem_x = c"/dll"
             }
-            val win_libs: mut ref u8 = builds.xwin_default_libs()
-            val win_env_libs: ref u8 = os.getenv(c"SPECTRE_WIN_LIBS")
-            if win_env_libs != none {
-                win_libs = win_env_libs
+            val win_libs: mut ref u8 = c""
+            val win_lib_paths: mut ref u8 = c""
+            val entry_flag: mut ref u8 = c""
+            if freestanding_runtime {
+                win_libs = builds.freestanding_windows_import_flags(target_arch)
+                if cstr.len(win_libs) == 0 {
+                    win_libs = builds.freestanding_windows_import_libs()
+                    win_lib_paths = builds.xwin_lib_path_flags(xwin_root, target_arch)
+                }
+                entry_flag = c"/nodefaultlib /entry:mainCRTStartup"
+            } else {
+                win_libs = builds.xwin_default_libs()
+                val win_env_libs: ref u8 = os.getenv(c"SPECTRE_WIN_LIBS")
+                if win_env_libs != none {
+                    win_libs = win_env_libs
+                }
+                win_lib_paths = builds.xwin_lib_path_flags(
+                    xwin_root,
+                    target_arch
+                )
             }
-            val win_lib_paths: ref u8 = builds.xwin_lib_path_flags(
-                xwin_root,
-                target_arch
-            )
             link_cmd_x = @fmtalloc(
-                "lld-link /nologo /out:{s} {s} {s} {s} {s} {s} 2>&1",
+                "lld-link /nologo /out:{s} {s} {s} {s} {s} {s} {s} 2>&1",
                 {
                     final_output_x,
                     subsystem_x,
+                    entry_flag,
                     win_lib_paths,
                     asm_obj_x,
                     win_inputs,
@@ -1908,6 +2326,16 @@ pub fn main() i32 = trust {
             }
             if cstr.len(shim_obj_x) > 0 {
                 link_flags_x = @fmtalloc("{s} {s}", {link_flags_x, shim_obj_x})
+            }
+            if freestanding_runtime {
+                val fs_link_flags: mut ref u8 = c" -nostdlib -static"
+                if cstr.len(runtime_obj_x) > 0 {
+                    fs_link_flags = @fmtalloc("{s} {s}", {fs_link_flags, runtime_obj_x})
+                }
+                if cstr.len(start_obj_x) > 0 {
+                    fs_link_flags = @fmtalloc("{s} {s}", {fs_link_flags, start_obj_x})
+                }
+                link_flags_x = @fmtalloc("{s}{s}", {fs_link_flags, link_flags_x})
             }
             link_cmd_x = @fmtalloc(
                 "clang --target={s} -fuse-ld=lld {s} -o {s}{s} 2>&1",
@@ -1942,10 +2370,22 @@ pub fn main() i32 = trust {
         if cstr.len(shim_obj_x) > 0 {
             os.delete(shim_obj_x)
         }
+        if cstr.len(runtime_obj_x) > 0 && !runtime_obj_cached {
+            os.delete(runtime_obj_x)
+        }
+        if cstr.len(start_obj_x) > 0 && !start_obj_cached {
+            os.delete(start_obj_x)
+        }
         if !link_ok {
             stdio.puts("error: target link failed")
             allocators.Arena.free(arena)
             return 1
+        }
+        if test_mode {
+            val test_res: i32 = os.run(final_output_x)
+            os.delete(final_output_x)
+            allocators.Arena.free(arena)
+            return test_res
         }
         if !quiet {
             stdio.print("Compiled ({s}.{s}): {s}\n", {
@@ -1984,7 +2424,7 @@ pub fn main() i32 = trust {
             return 1
         }
     }
-    if !compile_obj {
+    if !compile_obj && !freestanding_runtime {
         builds.append_debug_runtime_links(links, exe_dir, quiet, release_mode, c"cc", platform)
     }
 
