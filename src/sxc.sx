@@ -2381,6 +2381,11 @@ pub fn main() i32 = trust {
             allocators.Arena.free(arena)
             return 1
         }
+        if run_mode {
+            val run_res: i32 = os.run(final_output_x)
+            allocators.Arena.free(arena)
+            return run_res
+        }
         if test_mode {
             val test_res: i32 = os.run(final_output_x)
             os.delete(final_output_x)
