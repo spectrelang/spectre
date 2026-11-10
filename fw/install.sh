@@ -592,7 +592,7 @@ else
 
 	log "Building spectre-ls..."
 	SPECTRE_LS_BUILD_OK=1
-	(cd "$SPECTRE_LS_DIR" && "${BIN_DIR}/spectre" build release) || SPECTRE_LS_BUILD_OK=0
+	(cd "$SPECTRE_LS_DIR" && "${BIN_DIR}/spectre" restore && "${BIN_DIR}/spectre" build release) || SPECTRE_LS_BUILD_OK=0
 
 	if [ "$SPECTRE_LS_SXMOD_PATCHED" -eq 1 ]; then
 		mv "${SPECTRE_LS_SXMOD}.install.bak" "$SPECTRE_LS_SXMOD"
