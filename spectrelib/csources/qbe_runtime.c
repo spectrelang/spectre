@@ -1,8 +1,21 @@
 
+#ifdef SX_FREESTANDING
+typedef __SIZE_TYPE__ size_t;
+typedef __INTPTR_TYPE__ intptr_t;
+void *malloc(size_t);
+void *calloc(size_t, size_t);
+void *realloc(void *, size_t);
+void free(void *);
+void *memcpy(void *, const void *, size_t);
+void *memset(void *, int, size_t);
+size_t strlen(const char *);
+int snprintf(char *, size_t, const char *, ...);
+#else
 #include <stdint.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#endif
 typedef long long (*sxqbe_alloc_fn)(long long,unsigned long long);
 typedef int (*sxqbe_free_fn)(long long,long long);
 typedef long long (*sxqbe_realloc_fn)(long long,long long,unsigned long long);
@@ -36,6 +49,10 @@ static void* sxqbe_wrap_alloc(void* af,long long ctx,long long size){return sxqb
 long long sxqbe_some_alloc(void* af,long long ctx,long long value){void* p=sxqbe_raw_alloc_call((sxqbe_raw_alloc_fn)af,ctx,8);if(!p)return 0;*(long long*)p=value;return (long long)(intptr_t)p+1;}
 long long sxqbe_ok_alloc(void* af,long long ctx,long long value){long long* p=(long long*)sxqbe_raw_alloc_call((sxqbe_raw_alloc_fn)af,ctx,16);if(!p)return 0;p[0]=0;p[1]=value;return (long long)(intptr_t)p;}
 long long sxqbe_err_alloc(void* af,long long ctx,long long value){long long* p=(long long*)sxqbe_raw_alloc_call((sxqbe_raw_alloc_fn)af,ctx,16);if(!p)return 0;p[0]=1;p[1]=value;return (long long)(intptr_t)p;}
+#if defined(_WIN32) && !defined(SX_FREESTANDING)
+#include <stdarg.h>
+int dprintf(int fd,const char*fmt,...){char buf[4096];va_list ap;va_start(ap,fmt);int n=vsnprintf(buf,sizeof(buf),fmt,ap);va_end(ap);if(n>0){FILE*f=fd==2?stderr:stdout;fwrite(buf,1,(size_t)n,f);fflush(f);}return n;}
+#endif
 extern void std__allocators__ListArena__alloc(long long*,long long,unsigned long long);
 extern int std__allocators__ListArena__free(long long,long long);
 extern void std__allocators__ListArena__realloc(long long*,long long,long long,unsigned long long);

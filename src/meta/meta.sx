@@ -382,7 +382,6 @@ pub fn print_help(topic: str.StringView) i32 = trust {
         stdio.puts("  ~/.cache/xwin/splat, and ./.xwin-cache/splat.")
         stdio.puts("")
         stdio.puts("  Create an xwin root with:")
-        stdio.puts("    cargo install xwin --locked")
         stdio.puts("    xwin --arch x86_64 --accept-license splat --output ~/.xwin")
         stdio.puts("")
         stdio.puts("  Example:")
