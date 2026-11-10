@@ -4,7 +4,7 @@
 /// (C) Navid Momtahen - 2026
 
 val stdio      = use("std/stdio")
-val cstr = use("std/string/cstr")
+val cstr       = use("std/string/cstr")
 val allocators = use("std/allocators")
 val mem        = use("../../src/meta/mem.sx")
 val sema       = use("../../src/sema/sema.sx")

@@ -6874,7 +6874,7 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
         }
 
         if (cstr.eql(bname, c"append") || cstr.eql(bname, c"insert") ||
-        cstr.eql(bname, c"set")) &&
+            cstr.eql(bname, c"set")) &&
         bargs != none {
             val blist: list[ref parser.Node] = bargs as list[ref parser.Node]
             val alen: i64 = @len(blist) as i64
@@ -9163,7 +9163,7 @@ fn check_stmt(ctx: mut ref SemaCtx, stmt: ref parser.Node, filename: ref u8) voi
                 val rhs_wrap: i64 = comparison_wrap_kind(ctx, rhs)
                 if (target_wrap == 0 && sema_is_wrap_kind(rhs_wrap)) ||
                 (sema_is_wrap_kind(target_wrap) && sema_is_wrap_kind(rhs_wrap) &&
-                target_wrap != rhs_wrap) {
+                    target_wrap != rhs_wrap) {
                     val target_ty_str: ref u8 = format_type_for_error(
                         ctx,
                         target_type_name,
@@ -9276,7 +9276,7 @@ fn check_stmt(ctx: mut ref SemaCtx, stmt: ref parser.Node, filename: ref u8) voi
                                 val rhs_wrap: i64 = comparison_wrap_kind(ctx, rhs)
                                 if (field_wrap == 0 && sema_is_wrap_kind(rhs_wrap)) ||
                                 (sema_is_wrap_kind(field_wrap) && sema_is_wrap_kind(rhs_wrap) &&
-                                field_wrap != rhs_wrap) {
+                                    field_wrap != rhs_wrap) {
                                     val field_ty_str: ref u8 = format_type_for_error(
                                         ctx,
                                         extract_type_name(fty),

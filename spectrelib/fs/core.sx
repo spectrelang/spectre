@@ -674,27 +674,54 @@ pub fn rmdir_path_cstr(path: ref u8) bool = trust {
 /// Remove a file or directory tree recursively.
 /// Returns true when the path no longer exists.
 pub fn remove_dir_all_cstr(path: ref u8) bool = trust {
-    val entries_opt = walk_dir_cstr[allocators.HeapAllocator](cstr_heap(), path)
-    match entries_opt {
-        none => {
-            // Not a directory: fall back to unlinking it as a file.
-            return delete_cstr(path)
+    val dir: ref void = opendir(path)
+    if dir == none {
+        // Not a directory: fall back to unlinking it as a file.
+        return delete_cstr(path)
+    }
+
+    val success: mut bool = true
+    for {
+        val entry: ref Dirent = readdir(dir)
+        if entry == none {
+            break
         }
-        some entries => {
-            for entry in entries {
-                val child: ref u8 = pathutil.join_cstr(path, entry)
-                val dir: ref void = opendir(child)
-                if dir != none {
-                    closedir(dir)
-                    remove_dir_all_cstr(child)
-                } else {
-                    delete_cstr(child)
+        val name: ref u8 = @addr(entry.d_name) as ref u8
+        val c0: u8 = @load8(name)
+        if c0 == 46 { // '.'
+            val c1: u8 = @load8(@ptradd(name, 1))
+            if c1 == 0 {
+                continue
+            }
+            if c1 == 46 { // '..'
+                val c2: u8 = @load8(@ptradd(name, 2))
+                if c2 == 0 {
+                    continue
                 }
             }
-            @listfree(entries)
-            return rmdir_path_cstr(path)
         }
+
+        val child: mut ref u8 = pathutil.join_cstr(path, name)
+        val child_ptr: mut ref u8 = child
+        val sub: ref void = opendir(child)
+        if sub != none {
+            closedir(sub)
+            if !remove_dir_all_cstr(child) {
+                success = false
+            }
+        } else {
+            if !delete_cstr(child) {
+                success = false
+            }
+        }
+        @free(child_ptr as ref void)
     }
+    closedir(dir)
+
+    if !success {
+        return false
+    }
+    return rmdir_path_cstr(path)
 }
 
 /// Return the current working directory as an allocator-backed str.

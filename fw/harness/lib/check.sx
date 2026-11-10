@@ -4,8 +4,8 @@
 /// (C) Navid Momtahen - 2026
 
 val stdio      = use("std/stdio")
-val str     = use("std/string")
-val cstr = use("std/string/cstr")
+val str        = use("std/string")
+val cstr       = use("std/string/cstr")
 val testing    = use("std/testing")
 val allocators = use("std/allocators")
 val mem        = use("../../../src/meta/mem.sx")
@@ -67,7 +67,7 @@ pub fn expect_clean(name: str.StringView) void = trust {
     }
     if diagnostics.live_allocations != 0 || diagnostics.invalid_frees != 0 {
         stdio.print("[FAIL] {s}: live allocations or invalid frees detected\n", {name})
-        testing.pprint(diagnostics)
+        testing.LeakDiagnostics.pprint(diagnostics)
         assert false
     }
     stdio.print(
@@ -123,13 +123,13 @@ pub fn expect_clean_since(name: str.StringView, before: Baseline) void = trust {
     }
 
     if new_leaks > 0 {
-        testing.pprint(diagnostics)
+        testing.LeakDiagnostics.pprint(diagnostics)
         assert false
     }
 
     if new_invalid != 0 {
         stdio.print("[FAIL] {s}: {d} new invalid frees\n", {name, new_invalid})
-        testing.pprint(diagnostics)
+        testing.LeakDiagnostics.pprint(diagnostics)
         assert false
     }
 
