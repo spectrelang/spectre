@@ -351,6 +351,162 @@ pub fn parse_alt_compiler_arg(arg: ref u8) ref u8 = {
     return c""
 }
 
+/// Normalize the OS component of a `-target:<os>.<arch>` selector.
+pub fn normalize_target_platform(name: ref u8) ref u8 = {
+    if cstr.cmp(name, c"macos") == 0 || cstr.cmp(name, c"osx") == 0 {
+        return c"darwin"
+    }
+    if cstr.cmp(name, c"win") == 0 || cstr.cmp(name, c"win32") == 0 {
+        return c"windows"
+    }
+    return name
+}
+
+/// Normalize the architecture component of a target selector.
+pub fn normalize_target_arch(name: ref u8) ref u8 = {
+    if cstr.cmp(name, c"amd64") == 0 || cstr.cmp(name, c"x64") == 0 {
+        return c"x86_64"
+    }
+    if cstr.cmp(name, c"arm64") == 0 {
+        return c"aarch64"
+    }
+    return name
+}
+
+/// Return the OS component of a target string, or the empty string when the
+/// target has no dot.
+pub fn target_platform_of(target: ref u8) ref u8 = trust {
+    val n: i64 = cstr.len(target)
+    val i: mut i64 = 0
+    for {
+        if i >= n {
+            break
+        }
+        if @load8(@ptradd(target, i)) == 46 {
+            if i == 0 {
+                return c""
+            }
+            return normalize_target_platform(cstr.substr(target, 0, i))
+        }
+        i++
+    }
+    return normalize_target_platform(target)
+}
+
+/// Return the architecture component of a target string, or the empty string
+/// when the target has no dot.
+pub fn target_arch_of(target: ref u8) ref u8 = trust {
+    val n: i64 = cstr.len(target)
+    val i: mut i64 = 0
+    for {
+        if i >= n {
+            break
+        }
+        if @load8(@ptradd(target, i)) == 46 {
+            if i + 1 >= n {
+                return c""
+            }
+            return normalize_target_arch(cstr.substr(target, i + 1, n - i - 1))
+        }
+        i++
+    }
+    return c""
+}
+
+/// Cross-compilation targets currently supported by Spectre.
+pub fn target_is_supported(platform: ref u8, arch: ref u8) bool = {
+    if cstr.cmp(platform, c"windows") == 0 {
+        return cstr.cmp(arch, c"x86_64") == 0
+        || cstr.cmp(arch, c"aarch64") == 0
+    }
+    if cstr.cmp(platform, c"linux") == 0 {
+        return cstr.cmp(arch, c"x86_64") == 0
+        || cstr.cmp(arch, c"aarch64") == 0
+    }
+    return false
+}
+
+pub fn target_is_windows(platform: ref u8) bool = {
+    return cstr.cmp(platform, c"windows") == 0
+}
+
+pub fn target_is_linux(platform: ref u8) bool = {
+    return cstr.cmp(platform, c"linux") == 0
+}
+
+/// QBE target name for a platform/architecture pair.
+pub fn target_qbe_name(platform: ref u8, arch: ref u8) ref u8 = {
+    if cstr.cmp(platform, c"windows") == 0 {
+        if cstr.cmp(arch, c"aarch64") == 0 {
+            return c"arm64_win"
+        }
+        return c"amd64_win"
+    }
+    if cstr.cmp(arch, c"aarch64") == 0 {
+        return c"arm64"
+    }
+    return c"amd64_sysv"
+}
+
+/// Clang target triple for a platform/architecture pair.
+pub fn target_triple(platform: ref u8, arch: ref u8) ref u8 = {
+    if cstr.cmp(platform, c"windows") == 0 {
+        if cstr.cmp(arch, c"aarch64") == 0 {
+            return c"aarch64-pc-windows-msvc"
+        }
+        return c"x86_64-pc-windows-msvc"
+    }
+    if cstr.cmp(arch, c"aarch64") == 0 {
+        return c"aarch64-unknown-linux-gnu"
+    }
+    return c"x86_64-unknown-linux-gnu"
+}
+
+pub fn target_object_ext(platform: ref u8) ref u8 = {
+    if cstr.cmp(platform, c"windows") == 0 {
+        return c".obj"
+    }
+    return c".o"
+}
+
+pub fn target_needs_cross(
+    platform: ref u8,
+    arch: ref u8,
+    host_platform: ref u8,
+    host_arch: ref u8
+) bool = {
+    return cstr.cmp(platform, host_platform) != 0
+    || cstr.cmp(arch, host_arch) != 0
+}
+
+/// Cross compilation always needs Clang to assemble or compile for the target
+/// triple. Windows links use lld-link; Linux links use ld.lld via Clang.
+pub fn cross_toolchain_available(platform: ref u8) bool = {
+    if !is_compiler_available(c"clang") {
+        return false
+    }
+    if cstr.cmp(platform, c"windows") == 0 {
+        return is_compiler_available(c"lld-link")
+    }
+    return is_compiler_available(c"ld.lld")
+}
+
+/// Library name translation for lld-link.
+pub fn translate_lld_link_flag(flag: ref u8) ref u8 = trust {
+    if cstr.cmp(flag, c"-pthread") == 0 {
+        return c""
+    }
+    if cstr.starts_with(flag, c"-l") {
+        val name: ref u8 = cstr.substr(flag, 2, cstr.len(flag) - 2)
+        return @fmtalloc("{s}.lib", {name})
+    }
+    if cstr.ends_with(flag, c".lib") || cstr.ends_with(flag, c".a")
+    || cstr.ends_with(flag, c".obj") || cstr.ends_with(flag, c".o") {
+        return flag
+    }
+    return flag
+}
+
 pub fn filter_c_diagnostics(raw: ref u8) ref u8 = trust {
     val sb: ref void = builder.StringBuilder.new()
     val len: i64 = cstr.len(raw) as i64
@@ -488,9 +644,8 @@ pub fn append_debug_runtime_links(
     quiet: bool,
     release_mode: bool,
     compiler: ref u8,
-    arena: ref allocators.Arena
+    platform: ref u8
 ) void = trust {
-    val platform: ref u8 = reflection.current_platform_name[allocators.Arena](arena)
     val kind: ref u8 = alt_compiler_kind(compiler)
     if cstr.cmp(platform, c"windows") == 0 {
         if compiler_uses_msvc_flags(kind) {

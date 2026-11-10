@@ -590,6 +590,7 @@ pub fn main() i32 = trust {
     val extra_includes: mut list[ref u8] = mem.new[ref u8]()
     val inc_paths: mut list[ref u8] = mem.new[ref u8]()
     val src_target: mut ref u8 = c""
+    val target_spec: mut ref u8 = c""
     val shim_output: mut ref u8 = c""
     val bootstrap_mode: mut bool = false
     val arg_i: mut i64 = input_arg_i + 1
@@ -673,10 +674,8 @@ pub fn main() i32 = trust {
         }
     }
 
-    when windows {
-        use_alt = true
-    }
-
+    // Explicit -target selections may use QBE on any host.  Keep the
+    // automatic fallback below for hosts where QBE is unavailable.
     for {
         if (arg_i >= parse_argc) {
             break
@@ -804,6 +803,15 @@ pub fn main() i32 = trust {
                     alt_compiler = compiler_str
                 }
                 arg_i++
+            } elif cstr.starts_with(arg, c"-target:") {
+                val tgt_len: i64 = cstr.len(arg) as i64 - 8
+                if tgt_len <= 0 {
+                    stdio.puts("error: -target requires <os>.<arch>, e.g. -target:windows.x86_64")
+                    allocators.Arena.free(arena)
+                    return 1
+                }
+                target_spec = cstr.substr(arg, 8, tgt_len)
+                arg_i++
             } elif cstr.starts_with(arg, c"-src-target:") {
                 val tgt_len: i64 = cstr.len(arg) as i64 - 12
                 if tgt_len > 0 {
@@ -835,7 +843,47 @@ pub fn main() i32 = trust {
         }
     }
 
-    if cstr.cmp(src_target, c"") != 0 && !emit_alt && !emit_qbe {
+    val host_platform: ref u8 = reflection.current_platform_name[allocators.Arena](arena)
+    val host_arch: ref u8 = reflection.current_arch_name[allocators.Arena](arena)
+    val target_platform: mut ref u8 = host_platform
+    val target_arch: mut ref u8 = host_arch
+    val explicit_target: bool = cstr.cmp(target_spec, c"") != 0
+    if explicit_target {
+        target_platform = builds.target_platform_of(target_spec)
+        target_arch = builds.target_arch_of(target_spec)
+        if cstr.cmp(target_platform, c"") == 0 || cstr.cmp(target_arch, c"") == 0 {
+            stdio.print(
+                "error: invalid target '{s}', expected <os>.<arch> (for example windows.x86_64)\n",
+                {target_spec}
+            )
+            allocators.Arena.free(arena)
+            return 1
+        }
+        if cstr.cmp(target_platform, c"darwin") == 0 {
+            stdio.puts("error: cross compilation to macOS is not supported")
+            allocators.Arena.free(arena)
+            return 1
+        }
+        if !builds.target_is_supported(target_platform, target_arch) {
+            stdio.print(
+                "error: unsupported target '{s}'; supported: linux.x86_64, linux.aarch64, windows.x86_64, windows.aarch64\n",
+                {target_spec}
+            )
+            allocators.Arena.free(arena)
+            return 1
+        }
+        if cstr.cmp(src_target, c"") == 0 {
+            src_target = target_spec
+        }
+    }
+    val cross_target: bool = builds.target_needs_cross(
+        target_platform,
+        target_arch,
+        host_platform,
+        host_arch
+    )
+
+    if cstr.cmp(src_target, c"") != 0 && !explicit_target && !emit_alt && !emit_qbe && !emit_asm {
         stdio.puts("error: -src-target requires -emit-alt or -emit-ssa")
         allocators.Arena.free(arena)
         return 1
@@ -946,17 +994,23 @@ pub fn main() i32 = trust {
     }
 
     if use_alt || emit_alt {
-        val platform_alt: ref u8 = reflection.current_platform_name[allocators.Arena](arena)
-        val arch_alt: ref u8 = reflection.current_arch_name[allocators.Arena](arena)
-        val target_platform: mut ref u8 = platform_alt
-        if cstr.cmp(src_target, c"") != 0 {
-            target_platform = src_target
+        if cross_target && !builds.cross_toolchain_available(target_platform) {
+            val linker_hint: mut ref u8 = c"ld.lld"
+            if cstr.cmp(target_platform, c"windows") == 0 {
+                linker_hint = c"lld-link"
+            }
+            stdio.print(
+                "error: cross compilation to {s}.{s} requires clang and {s}\n",
+                {target_platform, target_arch, linker_hint}
+            )
+            allocators.Arena.free(arena)
+            return 1
         }
 
         val static_flag_alt: mut ref u8 = c""
         val strip_flag_alt: mut ref u8 = c""
         if !compile_obj && !build_dll {
-            static_flag_alt = builds.static_link_flag(platform_alt, dynamic_linking)
+            static_flag_alt = builds.static_link_flag(target_platform, dynamic_linking)
         }
 
         val selected_compiler: mut ref u8 = builds.pick_alt_backend(
@@ -966,6 +1020,9 @@ pub fn main() i32 = trust {
             root_mod.items,
             arena
         )
+        if cross_target && cstr.cmp(alt_compiler, c"") == 0 {
+            selected_compiler = c"clang"
+        }
         if cstr.cmp(
             static_flag_alt,
             c""
@@ -992,7 +1049,7 @@ pub fn main() i32 = trust {
         }
         if !compile_obj && !build_dll {
             strip_flag_alt = builds.compiler_strip_flag(compiler_kind, release_mode)
-            if cstr.cmp(platform_alt, c"windows") == 0 {
+            if cstr.cmp(target_platform, c"windows") == 0 {
                 strip_flag_alt = c""
             }
         }
@@ -1001,7 +1058,7 @@ pub fn main() i32 = trust {
             simd_backend = builds.alt_simd_backend(
                 selected_compiler,
                 target_platform,
-                arch_alt
+                target_arch
             )
         }
 
@@ -1063,6 +1120,18 @@ pub fn main() i32 = trust {
             fs.mkdir_path_cstr(c"./s-out")
             final_output_alt = @fmtalloc("./s-out/{s}", {binary_name_alt})
         }
+        if compile_obj {
+            final_output_alt = @fmtalloc(
+                "{s}{s}",
+                {final_output_alt, builds.target_object_ext(target_platform)}
+            )
+        } elif build_dll {
+            if cstr.cmp(target_platform, c"windows") == 0 {
+                final_output_alt = @fmtalloc("{s}.dll", {final_output_alt})
+            } else {
+                final_output_alt = @fmtalloc("{s}.so", {final_output_alt})
+            }
+        }
 
         val links_alt_result = module.collect_used_links(
             root_mod,
@@ -1088,7 +1157,7 @@ pub fn main() i32 = trust {
                 quiet,
                 release_mode,
                 selected_compiler,
-                arena
+                target_platform
             )
         }
         val link_flags_alt: mut ref u8 = c""
@@ -1123,8 +1192,8 @@ pub fn main() i32 = trust {
         if cstr.cmp(selected_compiler, c"tcc") != 0 {
             val native_flags: ref u8 = builds.compiler_native_flags(
                 compiler_kind,
-                platform_alt,
-                arch_alt,
+                target_platform,
+                target_arch,
                 native_mode
             )
             if cstr.len(native_flags) > 0 {
@@ -1165,6 +1234,15 @@ pub fn main() i32 = trust {
                     perf_flags
                 }
             )
+            if cross_target {
+                cc_flags_alt = @fmtalloc(
+                    "--target={s} -fuse-ld=lld {s}",
+                    {builds.target_triple(target_platform, target_arch), cc_flags_alt}
+                )
+            }
+            if compile_obj {
+                cc_flags_alt = @fmtalloc("{s} -c", {cc_flags_alt})
+            }
         }
         val test_output_alt: ref u8 = builds.get_unique_tmp_path(c"spectre_test_bin_alt")
         val compile_output: mut ref u8 = test_output_alt
@@ -1174,15 +1252,19 @@ pub fn main() i32 = trust {
 
         val alt_cmd: mut ref u8 = c""
         if cstr.cmp(selected_compiler, c"tcc") == 0 {
+            val tcc_compile: mut ref u8 = c""
+            if compile_obj {
+                tcc_compile = c" -c"
+            }
             if test_mode {
                 alt_cmd = @fmtalloc(
-                    "tcc {s} -o {s} -w -std=c99{s} {s} 2>&1",
-                    {c_file, test_output_alt, include_flags_alt, link_flags_alt}
+                    "tcc {s} -o {s} -w -std=c99{s}{s} {s} 2>&1",
+                    {c_file, test_output_alt, tcc_compile, include_flags_alt, link_flags_alt}
                 )
             } else {
                 alt_cmd = @fmtalloc(
-                    "tcc {s} -o {s} -w -std=c99{s} {s} 2>&1",
-                    {c_file, final_output_alt, include_flags_alt, link_flags_alt}
+                    "tcc {s} -o {s} -w -std=c99{s}{s} {s} 2>&1",
+                    {c_file, final_output_alt, tcc_compile, include_flags_alt, link_flags_alt}
                 )
             }
         } elif builds.compiler_uses_msvc_flags(compiler_kind) {
@@ -1366,7 +1448,21 @@ pub fn main() i32 = trust {
         return 1
     }
 
-    val qbe_cmd = @fmtalloc("qbe -o {s} {s} 2>&1", {asm_file, qbe_file})
+    val qbe_target_name: mut ref u8 = c""
+    if explicit_target {
+        qbe_target_name = builds.target_qbe_name(target_platform, target_arch)
+    } elif cstr.cmp(host_platform, c"windows") == 0 {
+        qbe_target_name = builds.target_qbe_name(host_platform, host_arch)
+    }
+    val qbe_cmd: mut ref u8 = c""
+    if cstr.cmp(qbe_target_name, c"") != 0 {
+        qbe_cmd = @fmtalloc(
+            "qbe -t {s} -o {s} {s} 2>&1",
+            {qbe_target_name, asm_file, qbe_file}
+        )
+    } else {
+        qbe_cmd = @fmtalloc("qbe -o {s} {s} 2>&1", {asm_file, qbe_file})
+    }
     val qbe_res = os.exec(qbe_cmd)
     if show_cmd != 0 {
         stdio.print("{s}\n", {qbe_cmd})
@@ -1420,6 +1516,293 @@ pub fn main() i32 = trust {
         return 0
     }
 
+    if cross_target {
+        val binary_name_x: mut ref u8 = c""
+        if cstr.cmp(output_name, c"") == 0 {
+            binary_name_x = path.get_name_without_ext_cstr(arena, input)
+        } else {
+            binary_name_x = output_name
+        }
+        val final_output_x: mut ref u8 = c""
+        if cstr.cmp(output_name, c"") != 0 {
+            final_output_x = binary_name_x
+        } else {
+            fs.mkdir_path_cstr(c"./s-out")
+            final_output_x = @fmtalloc("./s-out/{s}", {binary_name_x})
+        }
+        if compile_obj {
+            final_output_x = @fmtalloc(
+                "{s}{s}",
+                {final_output_x, builds.target_object_ext(target_platform)}
+            )
+        } elif build_dll {
+            if cstr.cmp(target_platform, c"windows") == 0 {
+                final_output_x = @fmtalloc("{s}.dll", {final_output_x})
+            } else {
+                final_output_x = @fmtalloc("{s}.so", {final_output_x})
+            }
+        }
+
+        val static_link_x: mut ref u8 = c""
+        val strip_link_x: mut ref u8 = c""
+        if !compile_obj && !build_dll {
+            static_link_x = builds.static_link_flag(target_platform, dynamic_linking)
+            strip_link_x = builds.strip_link_flag(release_mode)
+        }
+
+        val links_result_x = module.collect_used_links(
+            root_mod,
+            exe_dir,
+            cstr.cmp(static_link_x, c"") != 0
+        )
+        val links_x: mut list[ref u8] = mem.new[ref u8]()
+        match links_result_x {
+            ok resolved => {
+                links_x = resolved
+            }
+            err e => {
+                stdio.print("error: {s}\n", {e})
+                os.delete(qbe_file)
+                os.delete(asm_file)
+                allocators.Arena.free(arena)
+                return 1
+            }
+        }
+        if !compile_obj {
+            builds.append_debug_runtime_links(
+                links_x,
+                exe_dir,
+                quiet,
+                release_mode,
+                c"clang",
+                target_platform
+            )
+        }
+
+        val triple_x: ref u8 = builds.target_triple(target_platform, target_arch)
+        val asm_obj_name: mut ref u8 = c"spectre_output.o"
+        if cstr.cmp(target_platform, c"windows") == 0 {
+            asm_obj_name = c"spectre_output.obj"
+        }
+        val asm_obj_x: mut ref u8 = final_output_x
+        if !compile_obj {
+            asm_obj_x = builds.get_unique_tmp_path(asm_obj_name)
+        }
+        val asm_cc_cmd: ref u8 = @fmtalloc(
+            "clang --target={s} -c {s} -o {s} 2>&1",
+            {triple_x, asm_file, asm_obj_x}
+        )
+        if show_cmd != 0 {
+            stdio.print("{s}\n", {asm_cc_cmd})
+        }
+        val asm_cc_res = os.exec(asm_cc_cmd)
+        match asm_cc_res {
+            ok v => {
+                val vstr: ref u8 = ostr.as_cstr(v)
+                val err_mark = ostr.from_cstr[allocators.Arena](arena, c"error:")
+                if ostr.contains(v, err_mark) {
+                    stdio.print("{s}", {vstr})
+                    stdio.puts("error: target assembly failed")
+                    os.delete(qbe_file)
+                    os.delete(asm_file)
+                    os.delete(asm_obj_x)
+                    allocators.Arena.free(arena)
+                    return 1
+                }
+            }
+            err _ => {
+                stdio.puts("error: failed to run clang for target assembly")
+                os.delete(qbe_file)
+                os.delete(asm_file)
+                allocators.Arena.free(arena)
+                return 1
+            }
+        }
+
+        if compile_obj {
+            os.delete(qbe_file)
+            os.delete(asm_file)
+            if !quiet {
+                stdio.print("Compiled (target object): {s}\n", {final_output_x})
+            }
+            allocators.Arena.free(arena)
+            return 0
+        }
+
+        val shim_obj_x: mut ref u8 = c""
+        if cstr.len(c_shim_source) > 0 {
+            val shim_c_file_x: ref u8 = builds.get_unique_tmp_path(c"spectre_c_shim.c")
+            val shim_f_x = os.open(shim_c_file_x, c"w")
+            if shim_f_x is some f {
+                os.write(f, c_shim_source, cstr.len(c_shim_source) as i64)
+                os.close(f)
+            } else {
+                stdio.puts("error: could not write C shim")
+                os.delete(qbe_file)
+                os.delete(asm_file)
+                os.delete(asm_obj_x)
+                allocators.Arena.free(arena)
+                return 1
+            }
+            val include_flags_x: mut ref u8 = c" -I."
+            for inc_path in inc_paths {
+                include_flags_x = @fmtalloc("{s} -I{s}", {include_flags_x, inc_path})
+            }
+            val shim_obj_name: mut ref u8 = c"spectre_c_shim.o"
+            if cstr.cmp(target_platform, c"windows") == 0 {
+                shim_obj_name = c"spectre_c_shim.obj"
+            }
+            shim_obj_x = builds.get_unique_tmp_path(shim_obj_name)
+            val shim_cmd_x: ref u8 = @fmtalloc(
+                "clang --target={s} -std=c99 -Wno-error=int-conversion -c -o {s} {s}{s} 2>&1",
+                {triple_x, shim_obj_x, shim_c_file_x, include_flags_x}
+            )
+            if show_cmd != 0 {
+                stdio.print("{s}\n", {shim_cmd_x})
+            }
+            val shim_res_x = os.exec(shim_cmd_x)
+            match shim_res_x {
+                ok v => {
+                    val vstr: ref u8 = ostr.as_cstr(v)
+                    val err_mark = ostr.from_cstr[allocators.Arena](arena, c"error:")
+                    if ostr.contains(v, err_mark) {
+                        stdio.print("{s}", {vstr})
+                        stdio.puts("error: target C shim compilation failed")
+                        os.delete(qbe_file)
+                        os.delete(asm_file)
+                        os.delete(asm_obj_x)
+                        os.delete(shim_c_file_x)
+                        allocators.Arena.free(arena)
+                        return 1
+                    }
+                }
+                err _ => {
+                    stdio.puts("error: failed to run clang for the C shim")
+                    os.delete(qbe_file)
+                    os.delete(asm_file)
+                    os.delete(asm_obj_x)
+                    os.delete(shim_c_file_x)
+                    allocators.Arena.free(arena)
+                    return 1
+                }
+            }
+        }
+
+        val link_cmd_x: mut ref u8 = c""
+        if cstr.cmp(target_platform, c"windows") == 0 {
+            val win_inputs: mut ref u8 = c""
+            for link_flag in links_x {
+                if cstr.starts_with(link_flag, c"-l") {
+                    win_inputs = @fmtalloc(
+                        "{s} {s}",
+                        {win_inputs, builds.translate_lld_link_flag(link_flag)}
+                    )
+                } elif cstr.ends_with(link_flag, c".c") {
+                    val extra_obj: ref u8 = builds.get_unique_tmp_path(c"spectre_link.obj")
+                    val extra_cmd: ref u8 = @fmtalloc(
+                        "clang --target={s} -c {s} -o {s} 2>&1",
+                        {triple_x, link_flag, extra_obj}
+                    )
+                    os.exec(extra_cmd)
+                    win_inputs = @fmtalloc("{s} {s}", {win_inputs, extra_obj})
+                } elif cstr.ends_with(link_flag, c".o") {
+                    if !quiet {
+                        stdio.print(
+                            "warning: ignoring host object '{s}' for windows target; provide a target object or library instead\n",
+                            {link_flag}
+                        )
+                    }
+                } elif cstr.len(link_flag) > 0 {
+                    win_inputs = @fmtalloc("{s} {s}", {win_inputs, link_flag})
+                }
+            }
+            if cstr.len(shim_obj_x) > 0 {
+                win_inputs = @fmtalloc("{s} {s}", {win_inputs, shim_obj_x})
+            }
+            val subsystem_x: mut ref u8 = c"/subsystem:console"
+            if build_dll {
+                subsystem_x = c"/dll"
+            }
+            val win_libs: mut ref u8 = c"libcmt.lib oldnames.lib"
+            val win_env_libs: ref u8 = os.getenv(c"SPECTRE_WIN_LIBS")
+            if win_env_libs != none {
+                win_libs = win_env_libs
+            }
+            link_cmd_x = @fmtalloc(
+                "lld-link /nologo /out:{s} {s} {s} {s} {s} 2>&1",
+                {
+                    final_output_x,
+                    subsystem_x,
+                    asm_obj_x,
+                    win_inputs,
+                    win_libs
+                }
+            )
+        } else {
+            val link_flags_x: mut ref u8 = c""
+            if cstr.cmp(static_link_x, c"") != 0 {
+                link_flags_x = @fmtalloc(" {s}", {static_link_x})
+            }
+            if cstr.cmp(strip_link_x, c"") != 0 {
+                link_flags_x = @fmtalloc("{s} {s}", {link_flags_x, strip_link_x})
+            }
+            for link_flag in links_x {
+                if cstr.len(link_flag) > 0 {
+                    link_flags_x = @fmtalloc("{s} {s}", {link_flags_x, link_flag})
+                }
+            }
+            if cstr.len(shim_obj_x) > 0 {
+                link_flags_x = @fmtalloc("{s} {s}", {link_flags_x, shim_obj_x})
+            }
+            link_cmd_x = @fmtalloc(
+                "clang --target={s} -fuse-ld=lld {s} -o {s}{s} 2>&1",
+                {triple_x, asm_obj_x, final_output_x, link_flags_x}
+            )
+        }
+
+        if show_cmd != 0 {
+            stdio.print("{s}\n", {link_cmd_x})
+        }
+        val link_res_x = os.exec(link_cmd_x)
+        val link_ok: mut bool = true
+        match link_res_x {
+            ok v => {
+                val vstr: ref u8 = ostr.as_cstr(v)
+                if cstr.len(vstr) > 0 {
+                    stdio.print("{s}", {builds.filter_c_diagnostics(vstr)})
+                }
+                val err_mark = ostr.from_cstr[allocators.Arena](arena, c"error")
+                if ostr.contains(v, err_mark) {
+                    link_ok = false
+                }
+            }
+            err _ => {
+                link_ok = false
+            }
+        }
+
+        os.delete(qbe_file)
+        os.delete(asm_file)
+        os.delete(asm_obj_x)
+        if cstr.len(shim_obj_x) > 0 {
+            os.delete(shim_obj_x)
+        }
+        if !link_ok {
+            stdio.puts("error: target link failed")
+            allocators.Arena.free(arena)
+            return 1
+        }
+        if !quiet {
+            stdio.print("Compiled ({s}.{s}): {s}\n", {
+                target_platform,
+                target_arch,
+                final_output_x
+            })
+        }
+        allocators.Arena.free(arena)
+        return 0
+    }
+
     val platform: ref u8 = reflection.current_platform_name[allocators.Arena](arena)
     val static_link: mut ref u8 = c""
     val strip_link: mut ref u8 = c""
@@ -1447,7 +1830,7 @@ pub fn main() i32 = trust {
         }
     }
     if !compile_obj {
-        builds.append_debug_runtime_links(links, exe_dir, quiet, release_mode, c"cc", arena)
+        builds.append_debug_runtime_links(links, exe_dir, quiet, release_mode, c"cc", platform)
     }
 
     val output_specified: bool = cstr.cmp(output_name, c"") != 0

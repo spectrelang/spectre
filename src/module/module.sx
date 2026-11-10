@@ -2178,6 +2178,11 @@ pub fn arch_matches(name: ref u8) bool = trust {
     return matched
 }
 
+/// Check whether an architecture selector matches the supplied architecture.
+fn arch_matches_named(name: ref u8, current: ref u8) bool = trust {
+    return cstr.cmp(normalize_arch_name(name), normalize_arch_name(current)) == 0
+}
+
 /// Check whether a when selector matches the current platform (and host
 /// architecture when the selector names or includes one).
 ///
@@ -2199,19 +2204,47 @@ pub fn when_selector_matches(current: ref u8, name: ref u8) bool = trust {
         }
         i++
     }
+
+    val cur_len: i64 = cstr.len(current)
+    val cur_dot: mut i64 = -1
+    val ci: mut i64 = 0
+    for {
+        if ci >= cur_len {
+            break
+        }
+        if @load8(@ptradd(current, ci)) == 46 {
+            cur_dot = ci
+            break
+        }
+        ci++
+    }
+    val cur_platform: mut ref u8 = current
+    val cur_arch: mut ref u8 = c""
+    if cur_dot > 0 && cur_dot + 1 < cur_len {
+        cur_platform = cstr.substr(current, 0, cur_dot)
+        cur_arch = cstr.substr(current, cur_dot + 1, cur_len - cur_dot - 1)
+    }
+
     if dot >= 0 {
         if dot == 0 || dot + 1 >= nlen {
             return false
         }
-        if !platform_segment_matches(current, name, dot) {
+        if !platform_segment_matches(cur_platform, name, dot) {
             return false
         }
-        return arch_matches(@ptradd(name, dot + 1))
+        val wanted_arch: ref u8 = @ptradd(name, dot + 1)
+        if cstr.cmp(cur_arch, c"") != 0 {
+            return arch_matches_named(wanted_arch, cur_arch)
+        }
+        return arch_matches(wanted_arch)
     }
     if is_arch_selector(name) {
+        if cstr.cmp(cur_arch, c"") != 0 {
+            return arch_matches_named(name, cur_arch)
+        }
         return arch_matches(name)
     }
-    return platform_segment_matches(current, name, nlen)
+    return platform_segment_matches(cur_platform, name, nlen)
 }
 
 /// Check if a platform/architecture selector matches the current platform.

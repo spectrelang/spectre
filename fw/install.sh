@@ -202,7 +202,7 @@ git_clone_with_fallback() {
 	MIRROR="$2"
 	DEST="$3"
 	git clone "$PRIMARY" "$DEST" 2>/dev/null || {
-		log "Primary remote failed, trying mirror..."
+		log "Primary remote failed, trying fallback..."
 		git clone "$MIRROR" "$DEST"
 	}
 }
@@ -322,6 +322,21 @@ else
 	log "tcc already installed: $(command -v tcc)"
 fi
 
+log "Checking for lld (used by -target: cross builds)..."
+if ! command -v lld-link >/dev/null 2>&1 && ! command -v ld.lld >/dev/null 2>&1; then
+	log "lld not found — attempting install (optional)..."
+	if [ "$PKG_MGR" != "unknown" ]; then
+		install_pkg "$PKG_MGR" lld 2>/dev/null || true
+	fi
+	if command -v lld-link >/dev/null 2>&1 || command -v ld.lld >/dev/null 2>&1; then
+		log "lld installed successfully."
+	else
+		log "lld unavailable; cross builds (-target:...) will need lld installed manually."
+	fi
+else
+	log "lld already installed."
+fi
+
 log "Checking required tools..."
 require_cmd git
 require_cmd make
@@ -349,14 +364,18 @@ else
 	QBE_DIR="${SRC_DIR}/qbe"
 
 	if [ -d "$QBE_DIR" ]; then
-		log "QBE source already exists, updating..."
+		log "QBE source already exists, updating from the Spectre mirror..."
+		git -C "$QBE_DIR" remote set-url origin "$QBE_MIRROR_REPO" 2>/dev/null || true
 		git -C "$QBE_DIR" pull --ff-only || {
-			log "Primary remote failed, trying mirror..."
-			git -C "$QBE_DIR" remote set-url origin "$QBE_MIRROR_REPO"
+			log "Spectre mirror failed, trying upstream QBE..."
+			git -C "$QBE_DIR" remote set-url origin "$QBE_REPO"
 			git -C "$QBE_DIR" pull --ff-only || QBE_OK=0
 		}
 	else
-		git_clone_with_fallback "$QBE_REPO" "$QBE_MIRROR_REPO" "$QBE_DIR" || QBE_OK=0
+		# Prefer the Spectre mirror; it carries the Windows targets and
+		# cross-compilation fixes. The upstream c9x.me repository is only
+		# a fallback.
+		git_clone_with_fallback "$QBE_MIRROR_REPO" "$QBE_REPO" "$QBE_DIR" || QBE_OK=0
 	fi
 
 	if [ "$QBE_OK" -eq 1 ]; then

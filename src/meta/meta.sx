@@ -49,6 +49,7 @@ pub fn print_usage() void = {
     }
     stdio.puts("  -emit-alt            Print alternative IR to stdout and exit")
     stdio.puts("  -emit-asm            Print assembly to stdout and exit")
+    stdio.puts("  -target:<os>.<arch>  Cross-compile (linux/windows, x86_64/aarch64)")
     stdio.puts("  -src-target:<os>     Mock target OS for when-blocks in source output")
     stdio.puts("  -translate-c         Translate C input into a single .sx file")
     stdio.puts("  -inc-path:<dir>      Add an include search path for the alt backend")
@@ -60,7 +61,7 @@ pub fn print_usage() void = {
     stdio.puts("  -release             Build in release mode")
     stdio.puts("  -native              Optimize the alt backend for the host CPU")
     stdio.puts("  -unroll              Enable aggressive loop unrolling in the alt backend")
-    stdio.puts("  -no-simd             Disable autovectorization (scalar fallback)")
+    stdio.puts("  -no-simd             Disable autovectorization, use scalar fallback")
     stdio.puts("  -dynamic             Link dynamically instead of statically")
     stdio.puts("  -dll                 Build a shared library")
     when posix {
@@ -353,6 +354,14 @@ pub fn print_help(topic: str.StringView) i32 = trust {
 
     if str.eql_cstr(
         topic,
+        c"-target"
+    ) == 0 || str.eql_cstr(topic, c"-target:<os>.<arch>") == 0 {
+        print_target_help()
+        return 0
+    }
+
+    if str.eql_cstr(
+        topic,
         c"-src-target"
     ) == 0 || str.eql_cstr(topic, c"-src-target:<os>") == 0 {
         print_src_target_help()
@@ -592,4 +601,26 @@ pub fn print_src_target_help() void = {
     stdio.puts("")
     stdio.puts("  Example:")
     stdio.puts("    spectre file.sx -src-target:windows -emit-alt")
+}
+
+pub fn print_target_help() void = {
+    stdio.puts("-target:<os>.<arch>")
+    stdio.puts("")
+    stdio.puts("  Compile for another platform or architecture.")
+    stdio.puts("  The target also selects the matching when-blocks.")
+    stdio.puts("")
+    stdio.puts("  Supported targets:")
+    stdio.puts("    linux.x86_64      linux.aarch64")
+    stdio.puts("    windows.x86_64    windows.aarch64")
+    stdio.puts("")
+    stdio.puts("  The QBE backend emits native target assembly. Cross builds use")
+    stdio.puts("  clang to assemble and lld-link to link Windows executables. The")
+    stdio.puts("  C99 backend additionally needs a target C toolchain.")
+    stdio.puts("")
+    stdio.puts("  Cross compilation to macOS is not supported.")
+    stdio.puts("")
+    stdio.puts("  Examples:")
+    stdio.puts("    spectre app.sx -target:windows.x86_64 -o app.exe")
+    stdio.puts("    spectre app.sx -target:linux.aarch64 -o app")
+    stdio.puts("    spectre app.sx -target:windows.aarch64 -alt -o app.exe")
 }
