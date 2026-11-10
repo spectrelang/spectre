@@ -1,0 +1,841 @@
+= Spectre Cross-Compilation and Freestanding Runtime Plan
+:author: Navid M
+:revdate: 2026-11-10
+:toc:
+:toclevels: 3
+
+== Purpose
+
+This document is the execution plan for four related goals:
+
+. A libc-free Spectre runtime for compiled programs.
+. A freestanding mode for the C99 backend.
+. A Mach-style import synthesizer for Windows.
+. Reliable `linux`/`darwin` -> `windows` cross-compilation using `xwin`
+  as the transitional hosted toolchain.
+
+The plan is intentionally staged. Each phase has a deliverable, concrete
+implementation work, and acceptance criteria. Phases can be landed as separate
+pull requests.
+
+== Scope and non-goals
+
+=== In scope
+
+* Linux targets: direct syscalls, no libc, no CRT, no Linux sysroot for static
+  freestanding builds.
+* Windows targets: no libc/CRT, but NOT raw Windows syscalls. Windows
+  interaction goes through `kernel32.dll`, `ntdll.dll`, `ws2_32.dll`,
+  `bcrypt.dll`, and other documented DLLs.
+* Windows import synthesis from Spectre declarations and a symbol-to-DLL map.
+* `xwin` auto-detection and use for hosted Windows cross builds.
+* C99 backend freestanding output for Linux and Windows.
+* QBE backend remains the primary code generator for freestanding builds.
+* Cross-compilation matrix:
+  ** Linux -> Windows x86_64/AArch64
+  ** Linux -> Linux AArch64
+  ** macOS -> Linux x86_64/AArch64
+  ** macOS -> Windows x86_64/AArch64
+  ** Windows -> Linux x86_64/AArch64
+
+=== Out of scope for this plan
+
+* Cross-compilation to macOS.
+* Replacing QBE with LLVM.
+* Raw Windows syscall numbers and undocumented `syscall` use.
+* Making the Spectre compiler itself fully libc-free. The compiler may keep
+  using the host libc initially; only compiled target programs need the new
+  runtime.
+* Full POSIX emulation on Windows. Only the API surface Spectre's stdlib uses.
+
+== Runtime modes
+
+Introduce an explicit runtime selection:
+
+[cols="1,2,2",options="header"]
+|===
+| Mode | Linux | Windows
+
+| `hosted` (default today)
+| libc via the host C toolchain
+| MSVC/UCRT via xwin
+
+| `freestanding`
+| direct syscalls, no libc
+| Win32/ntdll DLL calls, no libc/CRT
+
+| `bootstrap`
+| existing compiler bootstrap path
+| existing compiler bootstrap path
+|===
+
+Proposed command-line surface:
+
+[source,sh]
+----
+spectre app.sx -target:linux.x86_64 -runtime:freestanding -o app
+spectre app.sx -target:windows.x86_64 -runtime:freestanding -o app.exe
+spectre app.sx -target:windows.x86_64 -runtime:hosted -xwin:$HOME/.xwin -o app.exe
+spectre app.sx -target:windows.aarch64 -alt -runtime:freestanding -o app.exe
+----
+
+Flags:
+
+[cols="1,2",options="header"]
+|===
+| Flag | Meaning
+
+| `-runtime:hosted` | Current libc/CRT behaviour. Default.
+| `-runtime:freestanding` | Use the libc-free runtime.
+| `-xwin:<dir>` | Explicit xwin root for hosted Windows builds.
+| `-no-xwin` | Do not auto-discover xwin.
+| `-import-map:<file>` | Extra symbol-to-DLL map entries.
+| `-sysroot:<dir>` | Target sysroot for hosted Linux cross builds.
+| `-rt-lib:<file>` | Explicit prebuilt runtime archive/object.
+|===
+
+`-runtime:` must also be settable from `sx.mod`/`mach`-style project build
+configuration later.
+
+== Current state
+
+* `-target:<os>.<arch>` selects the target for QBE and C99 backends.
+* QBE has `amd64_win` and `arm64_win` targets and COFF emission.
+* Windows cross links currently invoke `lld-link` directly.
+* Hosted Windows builds currently fail unless the CRT/SDK libraries are present.
+* The C99 backend emits hosted C and includes libc/Windows headers.
+* `spectrelib/csources/qbe_runtime.c` and the C99 preamble call libc.
+* The standard library uses `extern (C)` libc and platform APIs directly.
+
+== Target architecture
+
+.End-state link flow for freestanding Linux
+[source,text]
+----
+Spectre source
+  -> QBE IR / C99 C
+  -> QBE assembly or Clang C
+  -> target object
+  -> freestanding runtime objects
+  -> ld.lld
+  -> static ELF with no libc and no interpreter
+----
+
+.End-state link flow for freestanding Windows
+[source,text]
+----
+Spectre source
+  -> QBE IR / C99 C
+  -> COFF target object
+  -> freestanding runtime object
+  -> symbol-to-DLL import synthesizer
+  -> generated .def files + llvm-dlltool -> .lib stubs
+  -> lld-link /nodefaultlib
+  -> PE executable importing only kernel32/ntdll/ws2_32/etc.
+----
+
+.End-state link flow for hosted Windows cross builds
+[source,text]
+----
+Spectre source
+  -> QBE assembly / C99 C
+  -> Clang with xwin headers
+  -> COFF object(s)
+  -> lld-link with xwin /libpath directories
+  -> PE executable linked against libcmt/libucrt/oldnames
+----
+
+== Proposed source layout
+
+[source,text]
+----
+spectrelib/runtime/
+  api.sx                  # runtime ABI declarations and shared helpers
+  start/
+    linux_x86_64.s        # _start, stack parsing, syscall entry
+    linux_aarch64.s
+    windows_x86_64.s      # mainCRTStartup / SxStart
+    windows_aarch64.s
+  core/
+    memory.sx             # allocator API over mmap / VirtualAlloc
+    strings.sx            # memcpy/memset/strlen/strcmp/...
+    format.sx             # minimal formatting, if not using std/fmt
+    error.sx              # errno-style result handling
+  platform/
+    linux/
+      syscall_x86_64.s
+      syscall_aarch64.s
+      file.sx
+      process.sx
+      time.sx
+      thread.sx
+    windows/
+      kernel32.sx         # Win32 import declarations
+      ntdll.sx
+      file.sx
+      process.sx
+      time.sx
+      thread.sx
+      socket.sx
+      crypto.sx
+  windows_imports.toml    # symbol -> DLL map for the synthesizer
+  freestanding.h          # generated C ABI header for the C99 backend
+
+spectrelib/csources/freestanding/
+  builtins.c              # mem* and any compiler-rt-style helpers
+  start_linux.c           # only if an assembly start is not used
+  start_windows.c
+  panic_freestanding.c
+----
+
+The low-level entry and syscall stubs may be `.s` files assembled by Clang.
+Everything above the syscall/import boundary should be Spectre where practical.
+A temporary freestanding-C implementation is acceptable to prove the ABI, but
+the target is a Spectre-owned runtime.
+
+== Phase 0: xwin integration for hosted Windows builds
+
+Goal: make `-target:windows.x86_64` and `-target:windows.aarch64` produce a
+runnable `.exe` today, using the existing hosted runtime.
+
+=== Work
+
+. Add xwin discovery in `src/meta/builds.sx`:
+   * `SPECTRE_XWIN_DIR`
+   * `XWIN_DIR`
+   * `~/.xwin`
+   * `~/.cache/xwin/splat`
+   * `./.xwin-cache/splat`
+. Add validation:
+   * required include directories exist,
+   * `<root>/crt/lib/<arch>`,
+   * `<root>/sdk/lib/um/<arch>`,
+   * `<root>/sdk/lib/ucrt/<arch>`,
+   * at least `libcmt.lib`, `kernel32.lib`, and `libucrt.lib` are present.
+. Map architecture directory names:
+   * `x86_64`
+   * `aarch64` (also accept `arm64` if present).
+. Add compiler helpers:
+   * `xwin_include_flags(target_arch)`
+   * `xwin_lib_path_flags(target_arch)`
+   * `xwin_default_libs()`
+   * `xwin_available(target_arch)`
+. Use the include flags when compiling:
+   * the QBE C shim,
+   * `panic_handler.c`,
+   * the generated C99 file.
+. Use `/libpath:` flags on `lld-link`:
+[source,text]
+----
+/libpath:<root>/crt/lib/x86_64
+/libpath:<root>/sdk/lib/um/x86_64
+/libpath:<root>/sdk/lib/ucrt/x86_64
+----
+. Fix the current missing-`spectre_link_*.obj` error:
+   * check the result of every C-to-object compile before adding the object,
+   * delete partial objects on failure,
+   * report the compiler diagnostic rather than a later linker error.
+. Add a `doctor` section:
+   * xwin root,
+   * detected architectures,
+   * CRT/SDK versions if discoverable,
+   * `lld-link` path.
+. Add a clear error when hosted Windows is requested without xwin:
+[source,text]
+----
+error: windows.x86_64 requires xwin or a compatible Windows SDK
+  install: cargo install xwin --locked
+           xwin splat --arch x86_64 --accept-license --output ~/.xwin
+  or pass: -xwin:<dir>
+  or use:  -runtime:freestanding
+----
+
+=== Acceptance criteria
+
+* `spectre hi.sx -target:windows.x86_64 -xwin:$HOME/.xwin -o hi.exe`
+  links and runs under Wine.
+* `-target:windows.aarch64` produces a valid AArch64 PE/COFF image when the
+  AArch64 xwin libraries are installed.
+* `-show-cmd` shows xwin include paths and `/libpath:` flags.
+* A missing xwin produces one actionable error, not several missing `.lib`
+  errors.
+
+== Phase 1: Runtime ABI and build-mode plumbing
+
+Goal: define the boundary between generated code and the runtime before writing
+two platform implementations.
+
+=== Work
+
+. Define the runtime ABI in `spectrelib/runtime/api.sx` and
+   `spectrelib/runtime/freestanding.h`.
+. Initial ABI surface:
+[source,text]
+----
+__sx_start / mainCRTStartup
+__sx_exit
+__sx_args / __sx_argc / __sx_argv
+__sx_alloc / __sx_calloc / __sx_realloc / __sx_free
+__sx_memcpy / __sx_memmove / __sx_memset / __sx_memcmp
+__sx_strlen / __sx_strcmp / __sx_strstr
+__sx_read / __sx_write / __sx_open / __sx_close / __sx_seek
+__sx_clock / __sx_sleep
+__sx_thread_* / __sx_mutex_*
+__sx_random_fill
+__sx_socket_* (later)
+----
+. Define ownership and error rules:
+   * allocation returns `nil` on failure,
+   * file and socket calls return negative errno-style values,
+   * no hidden global allocator,
+   * all pointers and sizes are target-sized.
+. Add `-runtime:` parsing in `src/sxc.sx`.
+. Propagate runtime mode to:
+   * `src/codegen/codegen.sx` (QBE),
+   * `src/codegen/alt_codegen.sx` (C99),
+   * `src/meta/builds.sx` (link commands).
+. Introduce a runtime selection object instead of scattering flags:
+[source,text]
+----
+RuntimePlan {
+  mode: hosted | freestanding
+  platform, arch
+  start_object
+  runtime_objects
+  import_libraries
+  link_flavor
+}
+----
+. Keep hosted mode as the default and preserve all current behaviour.
+. Add a `-runtime:` help topic.
+
+=== Acceptance criteria
+
+* `-runtime:hosted` behaves exactly as before.
+* `-runtime:freestanding` is rejected with a clear "not implemented for this
+  target yet" message until Phase 2/3 land.
+* Link command construction is centralized in one resolver, not duplicated
+  across QBE and C99 branches.
+* The runtime ABI header compiles as freestanding C.
+
+== Phase 2: Linux freestanding runtime
+
+Goal: compile and run a libc-free static Linux program.
+
+=== Work
+
+. Implement `_start` for x86_64 and AArch64:
+   * read `argc`, `argv`, `envp`, `auxv` from the initial stack,
+   * align the stack,
+   * call `__sx_init` and then `main`,
+   * call `exit_group`.
+. Implement syscall stubs:
+   * x86_64: `read`, `write`, `openat`, `close`, `lseek`, `mmap`, `munmap`,
+     `mprotect`, `exit_group`, `clock_gettime`, `getrandom`, `clone`,
+     `futex`, `socket`, `connect`, `accept`, `sendto`, `recvfrom`.
+   * AArch64: the same set with AArch64 syscall numbers and conventions.
+   * Keep numbers in one per-arch table, not inline magic numbers.
+. Implement runtime core:
+   * bump/`mmap` allocator with `realloc`/`free`,
+   * `mem*` and `str*`,
+   * direct `write`-based console output,
+   * argument/environment access,
+   * time and sleep,
+   * basic thread and mutex layer over `clone`/`futex` if needed.
+. Link with `ld.lld`:
+[source,text]
+----
+ld.lld -static -o app start.o app.o runtime.o
+----
+   or invoke Clang with `-nostdlib -static -fuse-ld=lld`.
+. Confirm the output has no interpreter and no libc symbols.
+. Keep hosted Linux mode untouched.
+
+=== Acceptance criteria
+
+* `file app` reports a static ELF.
+* `llvm-readobj --needed-libs` / `readelf -d` shows no dynamic dependencies.
+* `nm -u` shows no `malloc`, `printf`, `memcpy`, `__libc_*`, or `_start` from
+  a CRT.
+* Hello world, argument passing, allocation, file read/write, and a basic
+  thread test pass natively on x86_64.
+* AArch64 output runs under `qemu-aarch64`.
+
+== Phase 3: Windows libc-free runtime
+
+Goal: compile and run a libc-free Windows program without the MSVC CRT.
+
+Windows uses Win32/ntdll APIs, not raw syscalls.
+
+=== Work
+
+. Implement `mainCRTStartup` for x86_64 and AArch64:
+   * align the stack,
+   * reserve shadow space on x86_64,
+   * call `__sx_init`,
+   * obtain args via `GetCommandLineW` and a UTF-16 -> UTF-8 converter,
+   * call `main(argc, argv)`,
+   * terminate with `ExitProcess`.
+. Implement runtime core over Win32:
+   * memory: `VirtualAlloc`/`VirtualFree` or `HeapAlloc`/`HeapFree`,
+   * strings: own `mem*`/`str*`,
+   * console: `GetStdHandle` + `WriteFile` + `ReadFile`,
+   * files: `CreateFileW`, `ReadFile`, `WriteFile`,
+     `SetFilePointerEx`, `CloseHandle`,
+   * process: `ExitProcess`, `GetCurrentProcessId`,
+   * time: `GetSystemTimeAsFileTime`, `QueryPerformanceCounter`,
+   * threads: `CreateThread`, `WaitForSingleObject`,
+   * synchronization: `InitializeCriticalSection` or
+     `WaitOnAddress`/`WakeByAddressSingle`,
+   * random: `BCryptGenRandom`,
+   * sockets: `ws2_32` APIs.
+. Define Win32 structures/constants in Spectre:
+   * `HANDLE`, `DWORD`, `BOOL`, `FILETIME`, `OVERLAPPED`,
+     `STARTUPINFOW`, `PROCESS_INFORMATION`, etc.
+   * Keep the definitions next to the API declarations.
+. Add QBE prerequisites for robust Windows output:
+   * stack probing/`__chkstk` for allocations >= 4 KiB,
+   * `.pdata`/`.xdata` unwind records for x86_64 and AArch64,
+   * TLS only if the runtime needs it.
+. Do not link `libcmt`, `libucrt`, `oldnames`, or any CRT object.
+. Initially use generated import stubs from Phase 4; temporarily use xwin
+   import libraries only to unblock testing.
+
+=== Acceptance criteria
+
+* A PE executable links with `lld-link /nodefaultlib`.
+* `llvm-readobj --coff-imports` lists only the intended DLLs.
+* Hello world runs under Wine.
+* Args, allocation, file I/O, sleep, and a basic thread test run under Wine.
+* No `libcmt.lib`, `libucrt.lib`, `msvcrt.lib`, or `oldnames.lib` is passed.
+
+== Phase 4: Mach-style Windows import synthesizer
+
+Goal: eliminate the need for Windows SDK import libraries in freestanding
+Windows builds.
+
+This is the Spectre equivalent of Mach's `#[library("kernel32")]` model, adapted
+to `lld-link`.
+
+=== Design
+
+==== Phase 4a: table-driven imports
+
+Start with a checked-in symbol map:
+
+[source,toml]
+----
+[imports]
+ExitProcess = "kernel32"
+GetStdHandle = "kernel32"
+WriteFile = "kernel32"
+VirtualAlloc = "kernel32"
+BCryptGenRandom = "bcrypt"
+WSAStartup = "ws2_32"
+----
+
+The map is the source of truth for the freestanding runtime and generated code.
+User projects can extend it with `-import-map:<file>`.
+
+==== Phase 4b: source-level attribution
+
+Add Spectre syntax equivalent to Mach's library decorator, for example:
+
+[source,spectre]
+----
+extern (C, library: "kernel32") fn ExitProcess(code: u32) void = "ExitProcess"
+----
+
+The exact syntax is an implementation decision. The important property is that
+the compiler records:
+
+[source,text]
+----
+object symbol -> loader DLL
+----
+
+for each imported symbol.
+
+==== Import collection
+
+Collect imports from all inputs:
+
+. Explicit Spectre `extern` declarations, with an optional library hint.
+. Generated runtime declarations.
+. Undefined symbols in COFF objects produced by the QBE C shim and panic
+   handler. Use `llvm-readobj --symbols` or `llvm-nm` as a fallback.
+. Undefined symbols in any user-provided C object, if the user supplies a map.
+
+==== Import library generation
+
+For each DLL:
+
+. Write a deterministic `.def` file:
+
+[source,def]
+----
+LIBRARY kernel32.dll
+EXPORTS
+    ExitProcess
+    GetStdHandle
+    WriteFile
+    VirtualAlloc
+----
+
+. Run `llvm-dlltool`:
+
+[source,sh]
+----
+llvm-dlltool -m i386:x86-64 -d kernel32.def -l kernel32.lib
+llvm-dlltool -m arm64       -d kernel32.def -l kernel32.lib
+----
+
+. Cache the generated `.lib` files by target, DLL, and sorted symbol set.
+. Pass the generated import libraries to `lld-link`.
+. Handle `__imp_X` by importing `X` undecorated, never by creating an
+   `__imp_X` export.
+
+==== Diagnostics
+
+An unmapped symbol must produce one of:
+
+[source,text]
+----
+error: unresolved windows import 'SomeApi'
+  known DLLs: kernel32, user32, ws2_32
+  add it to -import-map:<file> or declare its library in source
+----
+
+or:
+
+[source,text]
+----
+error: symbol 'ReadFile' is mapped to both kernel32 and ntdll
+----
+
+=== Work
+
+. Add `spectrelib/runtime/windows_imports.toml` with the initial map.
+. Add parser support for library-qualified `extern` declarations.
+. Add import collection to the compiler's link plan.
+. Add `.def` and import-lib generation in `src/meta/builds.sx` or a new
+   `src/meta/imports.sx`.
+. Add caching under the build output directory or the user cache directory.
+. Add tests that inspect generated `.def` files and COFF import libraries.
+. Ensure hosted Windows mode can still use xwin or MinGW libraries.
+
+=== Acceptance criteria
+
+* A freestanding Windows hello-world links with no SDK paths and no xwin.
+* The PE import directory names only the required DLLs and symbols.
+* Adding a new Win32 call requires only a declaration/map entry, not a full
+   SDK update.
+* A missing mapping fails before invoking `lld-link`, with the symbol name.
+
+== Phase 5: Freestanding C99 backend
+
+Goal: make `-alt -runtime:freestanding` emit C that compiles with no system
+headers and no libc.
+
+=== Work
+
+. Split `emit_c_preamble` in `src/codegen/alt_codegen.sx`:
+   * `hosted` preamble: current includes and shims,
+   * `freestanding` preamble: no system includes.
+. Generate or ship `spectrelib/runtime/freestanding.h` containing:
+   * fixed-width integer and size types,
+   * `bool`,
+   * allocator and string prototypes,
+   * runtime file/console/time/thread prototypes,
+   * no libc declarations.
+. Replace generated C helpers that currently use `calloc`, `free`, `malloc`,
+   `realloc`, `memset`, `memcpy`, `snprintf`, and `stdio` with runtime calls:
+   * `sx__rt_alloc`, `sx__rt_free`, `sx__rt_memcpy`, etc.
+. Replace the Windows-specific hosted preamble shims:
+   * `sx__win_access`, `sx__win_opendir`, `sx__win_popen`,
+     `sx__win_gettimeofday`, and the `HANDLE`/`WIN32_FIND_DATAA` code.
+   * Move equivalent behaviour into the runtime's Windows layer.
+. Replace the `emit_c_panic_handler` hosted implementation with a freestanding
+   handler or omit it in release/freestanding mode.
+. Add compiler flags:
+[source,text]
+----
+-ffreestanding
+-nostdinc
+-fno-builtin
+-fno-stack-protector
+-fno-common
+----
+   plus target-specific flags where needed.
+. Decide the compiler-rt strategy:
+   * link `libclang_rt.builtins-<arch>.a` from the Clang resource directory, or
+   * implement the required builtins in `spectrelib/csources/freestanding/builtins.c`.
+. Audit operations that may cause Clang to emit implicit helpers:
+   * struct copies -> `memcpy`,
+   * large zeroing -> `memset`,
+   * 128-bit division -> `__divti3`/`__udivti3`,
+   * float/integer conversions,
+   * Windows `__chkstk`.
+. Add links:
+   * Linux: `-nostdlib -static -fuse-ld=lld`,
+   * Windows: compile to COFF, then `lld-link /nodefaultlib` with synthesized
+     imports and a freestanding start object.
+. Keep hosted C99 as the default and unchanged.
+
+=== Acceptance criteria
+
+* Generated freestanding C contains no `#include <stdio.h>`, `<stdlib.h>`,
+   `<windows.h>`, or `<unistd.h>`.
+* `llvm-nm -u` on the object shows only runtime symbols intended to be resolved
+   by the runtime.
+* Freestanding C99 hello-world runs on Linux and Windows.
+* The same C source builds for x86_64 and AArch64.
+* Hosted C99 tests still pass unchanged.
+
+== Phase 6: Migrate the standard library and QBE helpers off libc
+
+Goal: make the standard library usable from freestanding programs without
+falling back to hosted libc accidentally.
+
+=== Work
+
+. Replace `spectrelib/csources/qbe_runtime.c` with a freestanding runtime
+   implementation, or compile the existing helpers against the runtime ABI.
+. Audit every `extern (C)` libc use in `spectrelib`:
+   * `malloc`, `calloc`, `realloc`, `free`
+   * `memcpy`, `memset`, `strlen`, `strcmp`, `strstr`
+   * `printf`, `puts`, `snprintf`, `fopen`, `fread`, `fwrite`, `fseek`
+   * `getenv`, `getcwd`, `realpath`, `access`, `remove`, `rename`
+   * `localtime`, `gettimeofday`, `usleep`
+   * `pthread_*`
+   * `socket`, `bind`, `listen`, `accept`, `send`, `recv`, `poll`
+. Group them by runtime primitive:
+   * allocation,
+   * strings,
+   * formatting,
+   * file and directory,
+   * process,
+   * time,
+   * threads and synchronization,
+   * sockets.
+. Add runtime-backed implementations behind compile-time platform gates.
+. Keep the hosted implementations for the compiler and existing hosted builds.
+. Make freestanding builds fail at compile time if they reach an unsupported
+   libc symbol, rather than failing later in the linker.
+. Port in this order:
+   * allocators and lists,
+   * strings and formatting,
+   * args/env,
+   * stdout/stderr and file I/O,
+   * time and sleep,
+   * threads/mutexes,
+   * sockets and random.
+. Add a conformance test suite shared by hosted and freestanding runtimes.
+
+=== Acceptance criteria
+
+* Hello world, allocation, strings, formatting, args, file I/O, time, threads,
+   and sockets pass on:
+   * native Linux hosted,
+   * native Linux freestanding,
+   * Windows hosted via xwin,
+   * Windows freestanding via synthesized imports.
+* A symbol audit proves no unintended libc import remains in freestanding
+   binaries.
+* Hosted compiler builds are unaffected.
+
+== Phase 7: QBE Windows completeness
+
+Goal: make Windows freestanding output robust for real programs.
+
+=== Work
+
+. Emit x86_64 `.pdata`/`.xdata` and AArch64 `.pdata`/`.xdata` unwind records.
+. Emit or call a stack probe for frames >= 4 KiB.
+. Implement or explicitly reject TLS per target.
+. Implement `__imp_X`-compatible references where needed by runtime objects.
+. Add tests that assemble and link both Windows targets under `lld-link`.
+. Add `qbe -t amd64_win` and `qbe -t arm64_win` regression assembly tests.
+
+=== Acceptance criteria
+
+* Exception/unwind metadata is present in PE images.
+* Large-frame functions link and run on Windows.
+* The runtime never needs a CRT-provided stack probe.
+
+== Phase 8: Installer, doctor, CI, and documentation
+
+=== Installer
+
+* Keep the QBE mirror as the primary source.
+* Add optional xwin guidance:
+[source,sh]
+----
+cargo install xwin --locked
+xwin splat --arch x86_64 --accept-license --output ~/.xwin
+----
+* Do not download the SDK automatically without an explicit opt-in.
+* Add `DOCTOR` output for:
+   * QBE path and targets,
+   * Clang and lld-link paths,
+   * xwin root and detected architectures,
+   * freestanding runtime availability,
+   * import-map path.
+
+=== CI matrix
+
+[cols="1,1,1",options="header"]
+|===
+| Host | Targets | Runtime modes
+| Linux x86_64 | linux.x86_64, linux.aarch64, windows.x86_64, windows.aarch64
+| hosted + freestanding
+| macOS x86_64/AArch64 | linux.x86_64, linux.aarch64, windows.x86_64, windows.aarch64
+| hosted + freestanding
+| Windows x86_64 | linux.x86_64, linux.aarch64, windows.x86_64
+| hosted + freestanding
+|===
+
+Use:
+
+* Wine for Windows executables on Linux.
+* `qemu-aarch64` for Linux AArch64.
+* Native runners where available for AArch64 and Windows.
+
+=== Tests
+
+* Unit tests for target parsing, xwin discovery, import mapping, and `.def`
+  generation.
+* Assembly/link tests for `amd64_win` and `arm64_win`.
+* Runtime conformance tests shared across modes.
+* Negative tests:
+  * missing xwin,
+  * missing import mapping,
+  * conflicting DLL mappings,
+  * unsupported freestanding combination,
+  * accidental libc symbol.
+* Reproducibility tests for generated import libraries.
+
+=== Documentation
+
+* Update `docs/CROSS_COMPILATION_PHASES.adoc`.
+* Add a user guide for:
+  * hosted Windows cross builds with xwin,
+  * freestanding Linux builds,
+  * freestanding Windows builds,
+  * writing a library-qualified Windows import,
+  * adding a symbol to the import map.
+* Add runtime ABI reference documentation.
+
+== Work breakdown and suggested pull requests
+
+[cols="1,3,1",options="header"]
+|===
+| PR | Contents | Depends on
+
+| 1
+| xwin discovery, include/lib flags, link command fix, doctor output
+| none
+
+| 2
+| runtime mode flag, runtime plan resolver, ABI header skeleton
+| 1
+
+| 3
+| Linux `_start`, syscall layer, memory/strings/console/args
+| 2
+
+| 4
+| Linux file/time/thread runtime and conformance tests
+| 3
+
+| 5
+| Windows `mainCRTStartup`, memory/strings/console/args
+| 2
+
+| 6
+| Windows file/time/thread runtime
+| 5
+
+| 7
+| import map, import collection, `.def` generation, lld-link integration
+| 5
+
+| 8
+| source-level library annotations and diagnostics
+| 7
+
+| 9
+| C99 freestanding preamble and runtime linkage
+| 2, 3, 5
+
+| 10
+| stdlib migration in dependency order
+| 4, 6, 7, 9
+
+| 11
+| QBE unwind/stack-probe work
+| 5
+
+| 12
+| CI matrix, installer, docs
+| all
+|===
+
+== Risks and mitigations
+
+[cols="2,3",options="header"]
+|===
+| Risk | Mitigation
+
+| Windows import map is incomplete
+| Start with the exact symbol set in `spectrelib/runtime`; fail early with the
+  symbol name; allow user maps.
+
+| Windows API/ABI structures are wrong
+| Keep declarations small and add compile-time/runtime ABI checks. Test under
+  Wine and on real Windows.
+
+| Raw Windows syscalls are tempting but unstable
+| Do not use raw syscalls. Use documented DLL APIs only.
+
+| Two runtime implementations (hosted vs freestanding) diverge
+| Share one runtime ABI and one conformance suite.
+
+| C99 backend needs implicit compiler builtins
+| Audit Clang output; link compiler-rt or implement the exact builtins.
+
+| QBE lacks unwind/stack-probe support
+| Treat Phase 7 as a prerequisite for production Windows freestanding output.
+
+| Freestanding stdlib port is larger than expected
+| Migrate in dependency order and gate unsupported modules with clear errors.
+
+| xwin download size/licence
+| Keep it optional, document size and licence, and support `-xwin:<dir>`.
+
+| macOS cross to macOS is expected by users
+| Keep rejecting it explicitly; native macOS builds remain hosted.
+|===
+
+== Definition of done
+
+The plan is complete when all of the following hold:
+
+. Hosted Windows cross builds work from Linux and macOS with xwin.
+. `-runtime:freestanding` produces a libc-free static Linux executable using
+   direct syscalls.
+. `-runtime:freestanding` produces a libc-free Windows PE executable using
+   Win32/ntdll imports and synthesized import libraries.
+. `-alt -runtime:freestanding` produces the same class of program through the
+   C99 backend.
+. No freestanding binary imports libc/CRT symbols.
+. The import synthesizer can add a new Windows API with a declaration or map
+   entry only.
+. Tests cover Linux x86_64/AArch64 and Windows x86_64/AArch64.
+. Documentation and `doctor` explain how to select each mode.
+
+== Immediate next step
+
+Start with Phase 0. It is independent of the runtime work, fixes the current
+Windows cross-link failure, and gives a working baseline for validating the
+rest of the plan.
