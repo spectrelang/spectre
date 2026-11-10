@@ -15,6 +15,7 @@ val lexer       = use("../ast/lexer.sx")
 val parser      = use("../ast/parser.sx")
 val module      = use("../module/module.sx")
 val defines     = use("../meta/defines.sx")
+val rt          = use("std/runtime")
 
 /// Runtime selection for this compilation.  The compiler front end sets this
 /// once before code generation; "freestanding" removes hosted C runtime
@@ -32,8 +33,6 @@ pub fn set_runtime_mode(mode: ref u8) void = {
 pub fn runtime_is_freestanding() bool = {
     return cstr.cmp(sx_runtime_mode, c"freestanding") == 0
 }
-
-extern (C, header) fn strstr(haystack: ref u8, needle: ref u8) ref u8 = "strstr"
 
 /// Codegen context
 pub type CgCtx = {
@@ -20141,7 +20140,7 @@ fn scan_node_for_calls_depth(ctx: mut ref CgCtx, node: ref parser.Node, depth: i
 }
 
 fn cg_contains_cstr(haystack: ref u8, needle: ref u8) bool = trust {
-    return strstr(haystack, needle) != none
+    return rt.strstr(haystack, needle) != none
 }
 
 fn cg_qbe_char_at(qbe: ref u8, index: i64, at_end: bool) i64 = trust {

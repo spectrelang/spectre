@@ -8,12 +8,7 @@
 /// should avoid allocating, blocking, or taking locks. Keep the work to setting
 /// a flag or writing to a self-pipe where possible.
 
-extern (C, header) fn c_signal(
-    signum: i32,
-    handler: fn(i32) void
-)
-fn(i32) void = "signal"
-extern (C, header) fn c_raise(sig: i32) i32 = "raise"
+val rt = use("../runtime")
 
 /// Number of listeners that can be registered at once.
 pub val MAX_LISTENERS: usize = 32
@@ -437,7 +432,7 @@ fn dispatch(signum: i32) void = trust {
     if @load(installed_slot(signum)) != 0 {
         // Reinstall the dispatcher. Some C libraries reset the handler to the
         // default action after the first delivery.
-        c_signal(signum, dispatch)
+        rt.signal(signum, dispatch)
     }
 
     val count: usize = listener_count
@@ -463,7 +458,7 @@ fn install(signum: i32) result[void, SignalError] = trust {
         return ok ()
     }
 
-    val previous: fn(i32) void = c_signal(signum, dispatch)
+    val previous: fn(i32) void = rt.signal(signum, dispatch)
     val previous_address: usize = previous as usize
     if @bitcast(previous_address, i64) == -1 {
         return err SignalError.InstallFailed
@@ -531,7 +526,7 @@ pub fn off_number(signum: i32) void = trust {
     if @load(installed_slot(signum)) != 0 {
         val previous_address: usize = @load(previous_slot(signum))
         val previous: fn(i32) void = @bitcast(previous_address, fn(i32) void)
-        c_signal(signum, previous)
+        rt.signal(signum, previous)
         @store(previous_slot(signum), 0)
         @store(installed_slot(signum), 0)
     }
@@ -578,7 +573,7 @@ pub fn clear() void = trust {
 
 /// Send a numeric signal to the current process.
 pub fn raise_number(signum: i32) i32 = trust {
-    return c_raise(signum)
+    return rt.raise(signum)
 }
 
 /// Send `sig` to the current process.
@@ -587,7 +582,7 @@ pub fn raise_signal(sig: Signal) i32 = trust {
     if signum < 0 {
         return -1
     }
-    return c_raise(signum)
+    return rt.raise(signum)
 }
 
 fn test_listener(sig: i32) void = {

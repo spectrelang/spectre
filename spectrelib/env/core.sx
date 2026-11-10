@@ -3,13 +3,12 @@
 /// SPDX-License-Identifier: GPL-3.0-only
 /// (C) Navid Momtahen - 2026
 
-/// The getenv extern.
-extern (C, header) fn getenv(name: ref u8) ref u8 = "getenv"
+val rt = use("../runtime")
 
 /// Get an environment variable.
 /// Returns an empty string when the variable is not set.
 pub fn get(name: ref u8) ref u8 = {
-    val value: ref u8 = trust getenv(name)
+    val value: ref u8 = trust rt.getenv(name)
     if value == none {
         return c""
     }
@@ -18,7 +17,7 @@ pub fn get(name: ref u8) ref u8 = {
 
 /// Get an environment variable, or `none` when it is not set.
 pub fn get_opt(name: ref u8) option[ref u8] = {
-    val value: ref u8 = trust getenv(name)
+    val value: ref u8 = trust rt.getenv(name)
     if value == none {
         return none
     }
@@ -30,5 +29,5 @@ pub fn has(name: ref u8) bool = {
     guarded pre {
         name != none
     }
-    return trust getenv(name) != none
+    return trust rt.getenv(name) != none
 }

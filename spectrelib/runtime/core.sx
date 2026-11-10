@@ -1,0 +1,1058 @@
+/// Spectre runtime API.
+///
+/// std/runtime is the namespaced, user-facing boundary between the standard
+/// library and the platform runtime:
+///
+///     val rt = use("std/runtime")
+///     val p = rt.alloc(64)
+///     rt.free(p)
+///
+/// In hosted mode the wrappers call the platform C library.  In freestanding
+/// mode the same wrappers call the `sx_*` entry points implemented by
+/// `spectrelib/csources/freestanding/runtime.c` using direct syscalls on Linux
+/// and Win32 DLL imports on Windows.
+
+when freestanding {
+    extern (C) fn sx_alloc(size: usize) ref void = "sx_alloc"
+    extern (C) fn sx_calloc(count: usize, size: usize) ref void = "sx_calloc"
+    extern (C) fn sx_realloc(ptr: ref void, size: usize) ref void = "sx_realloc"
+    extern (C) fn sx_free(ptr: ref void) void = "sx_free"
+
+    extern (C) fn sx_memcpy(dst: ref void, src: ref void, n: usize) ref void = "sx_memcpy"
+    extern (C) fn sx_memmove(dst: ref void, src: ref void, n: usize) ref void = "sx_memmove"
+    extern (C) fn sx_memset(dst: ref void, value: i32, n: usize) ref void = "sx_memset"
+    extern (C) fn sx_memcmp(a: ref void, b: ref void, n: usize) i32 = "sx_memcmp"
+    extern (C) fn sx_strlen(s: ref u8) i64 = "sx_strlen"
+    extern (C) fn sx_strcmp(a: ref u8, b: ref u8) i32 = "sx_strcmp"
+    extern (C) fn sx_strncmp(a: ref u8, b: ref u8, n: usize) i32 = "sx_strncmp"
+    extern (C) fn sx_strcpy(dst: ref u8, src: ref u8) ref u8 = "sx_strcpy"
+    extern (C) fn sx_strcat(dst: ref u8, src: ref u8) ref u8 = "sx_strcat"
+    extern (C) fn sx_strchr(s: ref u8, c: i32) ref u8 = "sx_strchr"
+    extern (C) fn sx_strrchr(s: ref u8, c: i32) ref u8 = "sx_strrchr"
+    extern (C) fn sx_strstr(haystack: ref u8, needle: ref u8) ref u8 = "sx_strstr"
+    extern (C) fn sx_strdup(s: ref u8) ref u8 = "sx_strdup"
+    extern (C) fn sx_strtok_r(s: ref u8, delim: ref u8, save: ref ref u8) ref u8 = "sx_strtok_r"
+    extern (C) fn sx_atoi(s: ref u8) i32 = "sx_atoi"
+    extern (C) fn sx_isdigit(c: i32) i32 = "sx_isdigit"
+    extern (C) fn sx_strtol(s: ref u8, end: ref ref u8, base: i32) i64 = "sx_strtol"
+
+    extern (C) fn sx_fopen(path: ref u8, mode: ref u8) ref void = "sx_fopen"
+    extern (C) fn sx_fclose(f: ref void) i32 = "sx_fclose"
+    extern (C) fn sx_fread(ptr: ref void, size: usize, count: usize, f: ref void) usize = "sx_fread"
+    extern (C) fn sx_fwrite(ptr: ref void, size: usize, count: usize, f: ref void) usize = "sx_fwrite"
+    extern (C) fn sx_fseek(f: ref void, offset: i64, whence: i32) i32 = "sx_fseek"
+    extern (C) fn sx_ftell(f: ref void) i64 = "sx_ftell"
+    extern (C) fn sx_rewind(f: ref void) void = "sx_rewind"
+    extern (C) fn sx_fflush(f: ref void) i32 = "sx_fflush"
+    extern (C) fn sx_fgetc(f: ref void) i32 = "sx_fgetc"
+    extern (C) fn sx_getchar() i32 = "sx_getchar"
+    extern (C) fn sx_fputc(c: i32, f: ref void) i32 = "sx_fputc"
+    extern (C) fn sx_putchar(c: i32) i32 = "sx_putchar"
+    extern (C) fn sx_fgets(buf: ref u8, n: i32, f: ref void) ref u8 = "sx_fgets"
+    extern (C) fn sx_fputs(s: ref u8, f: ref void) i32 = "sx_fputs"
+    extern (C) fn sx_fdopen(fd: i32, mode: ref u8) ref void = "sx_fdopen"
+    extern (C) fn sx_fileno(f: ref void) i32 = "sx_fileno"
+    extern (C) fn sx_feof(f: ref void) i32 = "sx_feof"
+    extern (C) fn sx_ferror(f: ref void) i32 = "sx_ferror"
+    extern (C) fn sx_stdin() ref void = "sx_stdin"
+    extern (C) fn sx_stdout() ref void = "sx_stdout"
+    extern (C) fn sx_stderr() ref void = "sx_stderr"
+
+    extern (C) fn sx_getenv(name: ref u8) ref u8 = "sx_getenv"
+    extern (C) fn sx_getcwd(buf: ref u8, size: usize) ref u8 = "sx_getcwd"
+    extern (C) fn sx_chdir(path: ref u8) i32 = "sx_chdir"
+    extern (C) fn sx_access(path: ref u8, mode: i32) i32 = "sx_access"
+    extern (C) fn sx_mkdir(path: ref u8, mode: u32) i32 = "sx_mkdir"
+    extern (C) fn sx_rmdir(path: ref u8) i32 = "sx_rmdir"
+    extern (C) fn sx_remove(path: ref u8) i32 = "sx_remove"
+    extern (C) fn sx_rename(old: ref u8, new: ref u8) i32 = "sx_rename"
+    extern (C) fn sx_unlink(path: ref u8) i32 = "sx_unlink"
+    extern (C) fn sx_realpath(path: ref u8, out: ref u8) ref u8 = "sx_realpath"
+    extern (C) fn sx_readlink(path: ref u8, buf: ref u8, n: usize) i64 = "sx_readlink"
+    extern (C) fn sx_isatty(fd: i32) i32 = "sx_isatty"
+    extern (C) fn sx_stat(path: ref u8, buf: ref void) i32 = "sx_stat"
+    extern (C) fn sx_uname(buf: ref void) i32 = "sx_uname"
+    extern (C) fn sx_opendir(path: ref u8) ref void = "sx_opendir"
+    extern (C) fn sx_closedir(dir: ref void) i32 = "sx_closedir"
+    extern (C) fn sx_readdir(dir: ref void) ref void = "sx_readdir"
+
+    extern (C) fn sx_exit(code: i32) void = "sx_exit"
+    extern (C) fn sx_system(cmd: ref u8) i32 = "sx_system"
+    extern (C) fn sx_popen(cmd: ref u8, mode: ref u8) ref void = "sx_popen"
+    extern (C) fn sx_pclose(pipe: ref void) i32 = "sx_pclose"
+
+    extern (C) fn sx_gettimeofday(tv: ref void, tz: ref void) i32 = "sx_gettimeofday"
+    extern (C) fn sx_localtime(t: ref i64) ref void = "sx_localtime"
+    extern (C) fn sx_usleep(usec: u32) i32 = "sx_usleep"
+    extern (C) fn sx_sleep(seconds: u32) i32 = "sx_sleep"
+    extern (C) fn sx_time(out: ref i64) i64 = "sx_time"
+
+    extern (C) fn sx_getrandom(buf: ref void, n: usize, flags: u32) i64 = "sx_getrandom"
+    extern (C) fn sx_arc4random_buf(buf: ref void, n: usize) void = "sx_arc4random_buf"
+
+    extern (C) fn sx_pthread_create(thread: ref void, attr: ref void, entry: usize, arg: ref void) i32 = "sx_pthread_create"
+    extern (C) fn sx_pthread_join(thread: ref void, retval: ref void) i32 = "sx_pthread_join"
+    extern (C) fn sx_pthread_detach(thread: ref void) i32 = "sx_pthread_detach"
+    extern (C) fn sx_pthread_self() ref void = "sx_pthread_self"
+    extern (C) fn sx_sched_yield() i32 = "sx_sched_yield"
+    extern (C) fn sx_mutex_init(m: ref void) i32 = "sx_mutex_init"
+    extern (C) fn sx_mutex_destroy(m: ref void) i32 = "sx_mutex_destroy"
+    extern (C) fn sx_mutex_lock(m: ref void) i32 = "sx_mutex_lock"
+    extern (C) fn sx_mutex_unlock(m: ref void) i32 = "sx_mutex_unlock"
+
+    extern (C) fn sx_socket(domain: i32, kind: i32, protocol: i32) i32 = "sx_socket"
+    extern (C) fn sx_bind(fd: i32, addr: ref void, len: u32) i32 = "sx_bind"
+    extern (C) fn sx_listen(fd: i32, backlog: i32) i32 = "sx_listen"
+    extern (C) fn sx_accept(fd: i32, addr: ref void, len: ref u32) i32 = "sx_accept"
+    extern (C) fn sx_connect(fd: i32, addr: ref void, len: u32) i32 = "sx_connect"
+    extern (C) fn sx_send(fd: i32, buf: ref void, n: usize, flags: i32) i64 = "sx_send"
+    extern (C) fn sx_recv(fd: i32, buf: ref void, n: usize, flags: i32) i64 = "sx_recv"
+    extern (C) fn sx_sendto(fd: i32, buf: ref void, n: usize, flags: i32, addr: ref void, len: u32) i32 = "sx_sendto"
+    extern (C) fn sx_recvfrom(fd: i32, buf: ref void, n: usize, flags: i32, addr: ref void, len: ref u32) i32 = "sx_recvfrom"
+    extern (C) fn sx_setsockopt(fd: i32, level: i32, opt: i32, value: ref void, len: u32) i32 = "sx_setsockopt"
+    extern (C) fn sx_getsockopt(fd: i32, level: i32, opt: i32, value: ref void, len: ref u32) i32 = "sx_getsockopt"
+    extern (C) fn sx_poll(fds: ref void, n: u64, timeout: i32) i32 = "sx_poll"
+    extern (C) fn sx_htons(v: u16) u16 = "sx_htons"
+    extern (C) fn sx_ntohs(v: u16) u16 = "sx_ntohs"
+    extern (C) fn sx_closesocket(fd: i32) i32 = "sx_closesocket"
+
+    extern (C) fn sx_signal(sig: i32, handler: fn(i32) void) fn(i32) void = "sx_signal"
+    extern (C) fn sx_raise(sig: i32) i32 = "sx_raise"
+} otherwise {
+    extern (C, header) fn c_alloc(size: usize) ref void = "malloc"
+    extern (C, header) fn c_calloc(count: usize, size: usize) ref void = "calloc"
+    extern (C, header) fn c_realloc(ptr: ref void, size: usize) ref void = "realloc"
+    extern (C, header) fn c_free(ptr: ref void) void = "free"
+    extern (C, header) fn c_memcpy(dst: ref void, src: ref void, n: usize) ref void = "memcpy"
+    extern (C, header) fn c_memmove(dst: ref void, src: ref void, n: usize) ref void = "memmove"
+    extern (C, header) fn c_memset(dst: ref void, value: i32, n: usize) ref void = "memset"
+    extern (C, header) fn c_memcmp(a: ref void, b: ref void, n: usize) i32 = "memcmp"
+    extern (C, header) fn c_strlen(s: ref u8) i64 = "strlen"
+    extern (C, header) fn c_strcmp(a: ref u8, b: ref u8) i32 = "strcmp"
+    extern (C, header) fn c_strncmp(a: ref u8, b: ref u8, n: usize) i32 = "strncmp"
+    extern (C, header) fn c_strcpy(dst: ref u8, src: ref u8) ref u8 = "strcpy"
+    extern (C, header) fn c_strcat(dst: ref u8, src: ref u8) ref u8 = "strcat"
+    extern (C, header) fn c_strchr(s: ref u8, c: i32) ref u8 = "strchr"
+    extern (C, header) fn c_strrchr(s: ref u8, c: i32) ref u8 = "strrchr"
+    extern (C, header) fn c_strstr(haystack: ref u8, needle: ref u8) ref u8 = "strstr"
+    extern (C, header) fn c_strdup(s: ref u8) ref u8 = "strdup"
+    extern (C, header) fn c_strtok_r(s: ref u8, delim: ref u8, save: ref ref u8) ref u8 = "strtok_r"
+    extern (C, header) fn c_atoi(s: ref u8) i32 = "atoi"
+    extern (C, header) fn c_isdigit(c: i32) i32 = "isdigit"
+    extern (C, header) fn c_strtol(s: ref u8, end: ref ref u8, base: i32) i64 = "strtol"
+
+    extern (C, header) fn c_fopen(path: ref u8, mode: ref u8) ref void = "fopen"
+    extern (C, header) fn c_fclose(f: ref void) i32 = "fclose"
+    extern (C, header) fn c_fread(ptr: ref void, size: usize, count: usize, f: ref void) usize = "fread"
+    extern (C, header) fn c_fwrite(ptr: ref void, size: usize, count: usize, f: ref void) usize = "fwrite"
+    extern (C, header) fn c_fseek(f: ref void, offset: i64, whence: i32) i32 = "fseek"
+    extern (C, header) fn c_ftell(f: ref void) i64 = "ftell"
+    extern (C, header) fn c_rewind(f: ref void) void = "rewind"
+    extern (C, header) fn c_fflush(f: ref void) i32 = "fflush"
+    extern (C, header) fn c_fgetc(f: ref void) i32 = "fgetc"
+    extern (C, header) fn c_getchar() i32 = "getchar"
+    extern (C, header) fn c_fputc(c: i32, f: ref void) i32 = "fputc"
+    extern (C, header) fn c_putchar(c: i32) i32 = "putchar"
+    extern (C, header) fn c_fgets(buf: ref u8, n: i32, f: ref void) ref u8 = "fgets"
+    extern (C, header) fn c_fputs(s: ref u8, f: ref void) i32 = "fputs"
+    extern (C, header) fn c_fdopen(fd: i32, mode: ref u8) ref void = "fdopen"
+    extern (C, header) fn c_fileno(f: ref void) i32 = "fileno"
+    extern (C, header) fn c_feof(f: ref void) i32 = "feof"
+    extern (C, header) fn c_ferror(f: ref void) i32 = "ferror"
+
+    extern (C, header) fn c_getenv(name: ref u8) ref u8 = "getenv"
+    extern (C, header) fn c_getcwd(buf: ref u8, size: usize) ref u8 = "getcwd"
+    extern (C, header) fn c_chdir(path: ref u8) i32 = "chdir"
+    extern (C, header) fn c_access(path: ref u8, mode: i32) i32 = "access"
+    extern (C, header) fn c_mkdir(path: ref u8, mode: u32) i32 = "mkdir"
+    extern (C, header) fn c_rmdir(path: ref u8) i32 = "rmdir"
+    extern (C, header) fn c_remove(path: ref u8) i32 = "remove"
+    extern (C, header) fn c_rename(old: ref u8, new: ref u8) i32 = "rename"
+    extern (C, header) fn c_unlink(path: ref u8) i32 = "unlink"
+    extern (C, header) fn c_realpath(path: ref u8, out: ref u8) ref u8 = "realpath"
+    extern (C, header) fn c_readlink(path: ref u8, buf: ref u8, n: usize) i64 = "readlink"
+    extern (C, header) fn c_isatty(fd: i32) i32 = "isatty"
+    extern (C, header) fn c_stat(path: ref u8, buf: ref void) i32 = "stat"
+    extern (C, header) fn c_uname(buf: ref void) i32 = "uname"
+    extern (C, header) fn c_opendir(path: ref u8) ref void = "opendir"
+    extern (C, header) fn c_closedir(dir: ref void) i32 = "closedir"
+    extern (C, header) fn c_readdir(dir: ref void) ref void = "readdir"
+    when windows {
+        extern (C, header) fn c_mkdir_win(path: ref u8) i32 = "_mkdir"
+        extern (C, header) fn c_rmdir_win(path: ref u8) i32 = "_rmdir"
+        extern (C, header) fn c_access_win(path: ref u8, mode: i32) i32 = "_access"
+        extern (C, header) fn c_getcwd_win(buf: ref u8, size: usize) ref u8 = "_getcwd"
+        extern (C, header) fn c_chdir_win(path: ref u8) i32 = "_chdir"
+        extern (C, header) fn c_unlink_win(path: ref u8) i32 = "_unlink"
+        extern (C, header) fn c_isatty_win(fd: i32) i32 = "_isatty"
+        extern (C, header) fn c_fileno_win(f: ref void) i32 = "_fileno"
+        extern (C, header) fn c_fdopen_win(fd: i32, mode: ref u8) ref void = "_fdopen"
+        extern (C, header) fn c_strdup_win(s: ref u8) ref u8 = "_strdup"
+        extern (C, header) fn c_popen_win(cmd: ref u8, mode: ref u8) ref void = "_popen"
+        extern (C, header) fn c_pclose_win(pipe: ref void) i32 = "_pclose"
+    }
+
+    extern (C, header) fn c_exit(code: i32) void = "exit"
+    extern (C, header) fn c_system(cmd: ref u8) i32 = "system"
+    extern (C, header) fn c_popen(cmd: ref u8, mode: ref u8) ref void = "popen"
+    extern (C, header) fn c_pclose(pipe: ref void) i32 = "pclose"
+
+    extern (C, header) fn c_gettimeofday(tv: ref void, tz: ref void) i32 = "gettimeofday"
+    extern (C, header) fn c_localtime(t: ref i64) ref void = "localtime"
+    extern (C, header) fn c_usleep(usec: u32) i32 = "usleep"
+    extern (C, header) fn c_sleep(seconds: u32) i32 = "sleep"
+    extern (C, header) fn c_time(out: ref i64) i64 = "time"
+
+    extern (C, header) fn c_getrandom(buf: ref void, n: usize, flags: u32) i64 = "getrandom"
+    extern (C, header) fn c_arc4random_buf(buf: ref void, n: usize) void = "arc4random_buf"
+
+    extern (C, header) fn c_pthread_create(thread: ref void, attr: ref void, entry: usize, arg: ref void) i32 = "pthread_create"
+    extern (C, header) fn c_pthread_join(thread: ref void, retval: ref void) i32 = "pthread_join"
+    extern (C, header) fn c_pthread_detach(thread: ref void) i32 = "pthread_detach"
+    extern (C, header) fn c_pthread_self() ref void = "pthread_self"
+    extern (C, header) fn c_sched_yield() i32 = "sched_yield"
+    extern (C, header) fn c_mutex_init(m: ref void) i32 = "pthread_mutex_init"
+    extern (C, header) fn c_mutex_destroy(m: ref void) i32 = "pthread_mutex_destroy"
+    extern (C, header) fn c_mutex_lock(m: ref void) i32 = "pthread_mutex_lock"
+    extern (C, header) fn c_mutex_unlock(m: ref void) i32 = "pthread_mutex_unlock"
+
+    extern (C, header) fn c_socket(domain: i32, kind: i32, protocol: i32) i32 = "socket"
+    extern (C, header) fn c_bind(fd: i32, addr: ref void, len: u32) i32 = "bind"
+    extern (C, header) fn c_listen(fd: i32, backlog: i32) i32 = "listen"
+    extern (C, header) fn c_accept(fd: i32, addr: ref void, len: ref u32) i32 = "accept"
+    extern (C, header) fn c_connect(fd: i32, addr: ref void, len: u32) i32 = "connect"
+    extern (C, header) fn c_send(fd: i32, buf: ref void, n: usize, flags: i32) i64 = "send"
+    extern (C, header) fn c_recv(fd: i32, buf: ref void, n: usize, flags: i32) i64 = "recv"
+    extern (C, header) fn c_sendto(fd: i32, buf: ref void, n: usize, flags: i32, addr: ref void, len: u32) i32 = "sendto"
+    extern (C, header) fn c_recvfrom(fd: i32, buf: ref void, n: usize, flags: i32, addr: ref void, len: ref u32) i32 = "recvfrom"
+    extern (C, header) fn c_setsockopt(fd: i32, level: i32, opt: i32, value: ref void, len: u32) i32 = "setsockopt"
+    extern (C, header) fn c_getsockopt(fd: i32, level: i32, opt: i32, value: ref void, len: ref u32) i32 = "getsockopt"
+    extern (C, header) fn c_poll(fds: ref void, n: u64, timeout: i32) i32 = "poll"
+    extern (C, header) fn c_htons(v: u16) u16 = "htons"
+    extern (C, header) fn c_ntohs(v: u16) u16 = "ntohs"
+    extern (C, header) fn c_close(fd: i32) i32 = "close"
+    extern (C, header) fn c_closesocket(fd: i32) i32 = "closesocket"
+
+    extern (C, header) fn c_signal(sig: i32, handler: fn(i32) void) fn(i32) void = "signal"
+    extern (C, header) fn c_raise(sig: i32) i32 = "raise"
+}
+
+pub fn alloc(size: usize) ref void = trust {
+    when freestanding {
+        return sx_alloc(size)
+    } otherwise {
+        return c_alloc(size)
+    }
+}
+
+pub fn calloc(count: usize, size: usize) ref void = trust {
+    when freestanding {
+        return sx_calloc(count, size)
+    } otherwise {
+        return c_calloc(count, size)
+    }
+}
+
+pub fn realloc(ptr: ref void, size: usize) ref void = trust {
+    when freestanding {
+        return sx_realloc(ptr, size)
+    } otherwise {
+        return c_realloc(ptr, size)
+    }
+}
+
+pub fn free(ptr: ref void) void = trust {
+    when freestanding {
+        sx_free(ptr)
+    } otherwise {
+        c_free(ptr)
+    }
+}
+
+pub fn memcpy(dst: ref void, src: ref void, n: usize) ref void = trust {
+    when freestanding {
+        return sx_memcpy(dst, src, n)
+    } otherwise {
+        return c_memcpy(dst, src, n)
+    }
+}
+
+pub fn memmove(dst: ref void, src: ref void, n: usize) ref void = trust {
+    when freestanding {
+        return sx_memmove(dst, src, n)
+    } otherwise {
+        return c_memmove(dst, src, n)
+    }
+}
+
+pub fn memset(dst: ref void, value: i32, n: usize) ref void = trust {
+    when freestanding {
+        return sx_memset(dst, value, n)
+    } otherwise {
+        return c_memset(dst, value, n)
+    }
+}
+
+pub fn memcmp(a: ref void, b: ref void, n: usize) i32 = trust {
+    when freestanding {
+        return sx_memcmp(a, b, n)
+    } otherwise {
+        return c_memcmp(a, b, n)
+    }
+}
+
+pub fn strlen(s: ref u8) i64 = trust {
+    when freestanding {
+        return sx_strlen(s)
+    } otherwise {
+        return c_strlen(s)
+    }
+}
+
+pub fn strcmp(a: ref u8, b: ref u8) i32 = trust {
+    when freestanding {
+        return sx_strcmp(a, b)
+    } otherwise {
+        return c_strcmp(a, b)
+    }
+}
+
+pub fn strncmp(a: ref u8, b: ref u8, n: usize) i32 = trust {
+    when freestanding {
+        return sx_strncmp(a, b, n)
+    } otherwise {
+        return c_strncmp(a, b, n)
+    }
+}
+
+pub fn strcpy(dst: ref u8, src: ref u8) ref u8 = trust {
+    when freestanding {
+        return sx_strcpy(dst, src)
+    } otherwise {
+        return c_strcpy(dst, src)
+    }
+}
+
+pub fn strcat(dst: ref u8, src: ref u8) ref u8 = trust {
+    when freestanding {
+        return sx_strcat(dst, src)
+    } otherwise {
+        return c_strcat(dst, src)
+    }
+}
+
+pub fn strchr(s: ref u8, c: i32) ref u8 = trust {
+    when freestanding {
+        return sx_strchr(s, c)
+    } otherwise {
+        return c_strchr(s, c)
+    }
+}
+
+pub fn strrchr(s: ref u8, c: i32) ref u8 = trust {
+    when freestanding {
+        return sx_strrchr(s, c)
+    } otherwise {
+        return c_strrchr(s, c)
+    }
+}
+
+pub fn strstr(haystack: ref u8, needle: ref u8) ref u8 = trust {
+    when freestanding {
+        return sx_strstr(haystack, needle)
+    } otherwise {
+        return c_strstr(haystack, needle)
+    }
+}
+
+pub fn strdup(s: ref u8) ref u8 = trust {
+    when freestanding {
+        return sx_strdup(s)
+    } otherwise {
+        when windows {
+            return c_strdup_win(s)
+        } otherwise {
+            return c_strdup(s)
+        }
+    }
+}
+
+pub fn strtok_r(s: ref u8, delim: ref u8, save: ref ref u8) ref u8 = trust {
+    when freestanding {
+        return sx_strtok_r(s, delim, save)
+    } otherwise {
+        return c_strtok_r(s, delim, save)
+    }
+}
+
+pub fn atoi(s: ref u8) i32 = trust {
+    when freestanding {
+        return sx_atoi(s)
+    } otherwise {
+        return c_atoi(s)
+    }
+}
+
+pub fn isdigit(c: i32) i32 = trust {
+    when freestanding {
+        return sx_isdigit(c)
+    } otherwise {
+        return c_isdigit(c)
+    }
+}
+
+pub fn strtol(s: ref u8, end: ref ref u8, base: i32) i64 = trust {
+    when freestanding {
+        return sx_strtol(s, end, base)
+    } otherwise {
+        return c_strtol(s, end, base)
+    }
+}
+
+pub fn fopen(path: ref u8, mode: ref u8) ref void = trust {
+    when freestanding {
+        return sx_fopen(path, mode)
+    } otherwise {
+        return c_fopen(path, mode)
+    }
+}
+
+pub fn fclose(f: ref void) i32 = trust {
+    when freestanding {
+        return sx_fclose(f)
+    } otherwise {
+        return c_fclose(f)
+    }
+}
+
+pub fn fread(ptr: ref void, size: usize, count: usize, f: ref void) usize = trust {
+    when freestanding {
+        return sx_fread(ptr, size, count, f)
+    } otherwise {
+        return c_fread(ptr, size, count, f)
+    }
+}
+
+pub fn fwrite(ptr: ref void, size: usize, count: usize, f: ref void) usize = trust {
+    when freestanding {
+        return sx_fwrite(ptr, size, count, f)
+    } otherwise {
+        return c_fwrite(ptr, size, count, f)
+    }
+}
+
+pub fn fseek(f: ref void, offset: i64, whence: i32) i32 = trust {
+    when freestanding {
+        return sx_fseek(f, offset, whence)
+    } otherwise {
+        return c_fseek(f, offset, whence)
+    }
+}
+
+pub fn ftell(f: ref void) i64 = trust {
+    when freestanding {
+        return sx_ftell(f)
+    } otherwise {
+        return c_ftell(f)
+    }
+}
+
+pub fn rewind(f: ref void) void = trust {
+    when freestanding {
+        sx_rewind(f)
+    } otherwise {
+        c_rewind(f)
+    }
+}
+
+pub fn fflush(f: ref void) i32 = trust {
+    when freestanding {
+        return sx_fflush(f)
+    } otherwise {
+        return c_fflush(f)
+    }
+}
+
+pub fn fgetc(f: ref void) i32 = trust {
+    when freestanding {
+        return sx_fgetc(f)
+    } otherwise {
+        return c_fgetc(f)
+    }
+}
+
+pub fn getchar() i32 = trust {
+    when freestanding {
+        return sx_getchar()
+    } otherwise {
+        return c_getchar()
+    }
+}
+
+pub fn fputc(c: i32, f: ref void) i32 = trust {
+    when freestanding {
+        return sx_fputc(c, f)
+    } otherwise {
+        return c_fputc(c, f)
+    }
+}
+
+pub fn putchar(c: i32) i32 = trust {
+    when freestanding {
+        return sx_putchar(c)
+    } otherwise {
+        return c_putchar(c)
+    }
+}
+
+pub fn fgets(buf: ref u8, n: i32, f: ref void) ref u8 = trust {
+    when freestanding {
+        return sx_fgets(buf, n, f)
+    } otherwise {
+        return c_fgets(buf, n, f)
+    }
+}
+
+pub fn fputs(s: ref u8, f: ref void) i32 = trust {
+    when freestanding {
+        return sx_fputs(s, f)
+    } otherwise {
+        return c_fputs(s, f)
+    }
+}
+
+pub fn fdopen(fd: i32, mode: ref u8) ref void = trust {
+    when freestanding {
+        return sx_fdopen(fd, mode)
+    } otherwise {
+        when windows {
+            return c_fdopen_win(fd, mode)
+        } otherwise {
+            return c_fdopen(fd, mode)
+        }
+    }
+}
+
+pub fn fileno(f: ref void) i32 = trust {
+    when freestanding {
+        return sx_fileno(f)
+    } otherwise {
+        when windows {
+            return c_fileno_win(f)
+        } otherwise {
+            return c_fileno(f)
+        }
+    }
+}
+
+pub fn feof(f: ref void) i32 = trust {
+    when freestanding {
+        return sx_feof(f)
+    } otherwise {
+        return c_feof(f)
+    }
+}
+
+pub fn ferror(f: ref void) i32 = trust {
+    when freestanding {
+        return sx_ferror(f)
+    } otherwise {
+        return c_ferror(f)
+    }
+}
+
+pub fn stdin() ref void = trust {
+    when freestanding {
+        return sx_stdin()
+    } otherwise {
+        return @stdin()
+    }
+}
+
+pub fn stdout() ref void = trust {
+    when freestanding {
+        return sx_stdout()
+    } otherwise {
+        return @stdout()
+    }
+}
+
+pub fn stderr() ref void = trust {
+    when freestanding {
+        return sx_stderr()
+    } otherwise {
+        return @stderr()
+    }
+}
+
+pub fn getenv(name: ref u8) ref u8 = trust {
+    when freestanding {
+        return sx_getenv(name)
+    } otherwise {
+        return c_getenv(name)
+    }
+}
+
+pub fn getcwd(buf: ref u8, size: usize) ref u8 = trust {
+    when freestanding {
+        return sx_getcwd(buf, size)
+    } otherwise {
+        when windows {
+            return c_getcwd_win(buf, size)
+        } otherwise {
+            return c_getcwd(buf, size)
+        }
+    }
+}
+
+pub fn chdir(path: ref u8) i32 = trust {
+    when freestanding {
+        return sx_chdir(path)
+    } otherwise {
+        when windows {
+            return c_chdir_win(path)
+        } otherwise {
+            return c_chdir(path)
+        }
+    }
+}
+
+pub fn access(path: ref u8, mode: i32) i32 = trust {
+    when freestanding {
+        return sx_access(path, mode)
+    } otherwise {
+        when windows {
+            return c_access_win(path, mode)
+        } otherwise {
+            return c_access(path, mode)
+        }
+    }
+}
+
+pub fn mkdir(path: ref u8, mode: u32) i32 = trust {
+    when freestanding {
+        return sx_mkdir(path, mode)
+    } otherwise {
+        when windows {
+            return c_mkdir_win(path) + ((mode as i32) * 0)
+        } otherwise {
+            return c_mkdir(path, mode)
+        }
+    }
+}
+
+pub fn rmdir(path: ref u8) i32 = trust {
+    when freestanding {
+        return sx_rmdir(path)
+    } otherwise {
+        when windows {
+            return c_rmdir_win(path)
+        } otherwise {
+            return c_rmdir(path)
+        }
+    }
+}
+
+pub fn remove(path: ref u8) i32 = trust {
+    when freestanding {
+        return sx_remove(path)
+    } otherwise {
+        return c_remove(path)
+    }
+}
+
+pub fn rename(old: ref u8, new: ref u8) i32 = trust {
+    when freestanding {
+        return sx_rename(old, new)
+    } otherwise {
+        return c_rename(old, new)
+    }
+}
+
+pub fn unlink(path: ref u8) i32 = trust {
+    when freestanding {
+        return sx_unlink(path)
+    } otherwise {
+        when windows {
+            return c_unlink_win(path)
+        } otherwise {
+            return c_unlink(path)
+        }
+    }
+}
+
+pub fn realpath(path: ref u8, out: ref u8) ref u8 = trust {
+    when freestanding {
+        return sx_realpath(path, out)
+    } otherwise {
+        return c_realpath(path, out)
+    }
+}
+
+pub fn readlink(path: ref u8, buf: ref u8, n: usize) i64 = trust {
+    when freestanding {
+        return sx_readlink(path, buf, n)
+    } otherwise {
+        return c_readlink(path, buf, n)
+    }
+}
+
+pub fn isatty(fd: i32) i32 = trust {
+    when freestanding {
+        return sx_isatty(fd)
+    } otherwise {
+        when windows {
+            return c_isatty_win(fd)
+        } otherwise {
+            return c_isatty(fd)
+        }
+    }
+}
+
+pub fn stat(path: ref u8, buf: ref void) i32 = trust {
+    when freestanding {
+        return sx_stat(path, buf)
+    } otherwise {
+        return c_stat(path, buf)
+    }
+}
+
+pub fn uname(buf: ref void) i32 = trust {
+    when freestanding {
+        return sx_uname(buf)
+    } otherwise {
+        return c_uname(buf)
+    }
+}
+
+pub fn opendir(path: ref u8) ref void = trust {
+    when freestanding {
+        return sx_opendir(path)
+    } otherwise {
+        return c_opendir(path)
+    }
+}
+
+pub fn closedir(dir: ref void) i32 = trust {
+    when freestanding {
+        return sx_closedir(dir)
+    } otherwise {
+        return c_closedir(dir)
+    }
+}
+
+pub fn readdir(dir: ref void) ref void = trust {
+    when freestanding {
+        return sx_readdir(dir)
+    } otherwise {
+        return c_readdir(dir)
+    }
+}
+
+pub fn exit(code: i32) void = trust {
+    when freestanding {
+        sx_exit(code)
+    } otherwise {
+        c_exit(code)
+    }
+}
+
+pub fn system(cmd: ref u8) i32 = trust {
+    when freestanding {
+        return sx_system(cmd)
+    } otherwise {
+        return c_system(cmd)
+    }
+}
+
+pub fn popen(cmd: ref u8, mode: ref u8) ref void = trust {
+    when freestanding {
+        return sx_popen(cmd, mode)
+    } otherwise {
+        when windows {
+            return c_popen_win(cmd, mode)
+        } otherwise {
+            return c_popen(cmd, mode)
+        }
+    }
+}
+
+pub fn pclose(pipe: ref void) i32 = trust {
+    when freestanding {
+        return sx_pclose(pipe)
+    } otherwise {
+        when windows {
+            return c_pclose_win(pipe)
+        } otherwise {
+            return c_pclose(pipe)
+        }
+    }
+}
+
+pub fn gettimeofday(tv: ref void, tz: ref void) i32 = trust {
+    when freestanding {
+        return sx_gettimeofday(tv, tz)
+    } otherwise {
+        return c_gettimeofday(tv, tz)
+    }
+}
+
+pub fn localtime(t: ref i64) ref void = trust {
+    when freestanding {
+        return sx_localtime(t)
+    } otherwise {
+        return c_localtime(t)
+    }
+}
+
+pub fn usleep(usec: u32) i32 = trust {
+    when freestanding {
+        return sx_usleep(usec)
+    } otherwise {
+        return c_usleep(usec)
+    }
+}
+
+pub fn sleep(seconds: u32) i32 = trust {
+    when freestanding {
+        return sx_sleep(seconds)
+    } otherwise {
+        return c_sleep(seconds)
+    }
+}
+
+pub fn time(out: ref i64) i64 = trust {
+    when freestanding {
+        return sx_time(out)
+    } otherwise {
+        return c_time(out)
+    }
+}
+
+pub fn getrandom(buf: ref void, n: usize, flags: u32) i64 = trust {
+    when freestanding {
+        return sx_getrandom(buf, n, flags)
+    } otherwise {
+        return c_getrandom(buf, n, flags)
+    }
+}
+
+pub fn arc4random_buf(buf: ref void, n: usize) void = trust {
+    when freestanding {
+        sx_arc4random_buf(buf, n)
+    } otherwise {
+        c_arc4random_buf(buf, n)
+    }
+}
+
+pub fn pthread_create(thread: ref void, attr: ref void, entry: usize, arg: ref void) i32 = trust {
+    when freestanding {
+        return sx_pthread_create(thread, attr, entry, arg)
+    } otherwise {
+        return c_pthread_create(thread, attr, entry, arg)
+    }
+}
+
+pub fn pthread_join(thread: ref void, retval: ref void) i32 = trust {
+    when freestanding {
+        return sx_pthread_join(thread, retval)
+    } otherwise {
+        return c_pthread_join(thread, retval)
+    }
+}
+
+pub fn pthread_detach(thread: ref void) i32 = trust {
+    when freestanding {
+        return sx_pthread_detach(thread)
+    } otherwise {
+        return c_pthread_detach(thread)
+    }
+}
+
+pub fn pthread_self() ref void = trust {
+    when freestanding {
+        return sx_pthread_self()
+    } otherwise {
+        return c_pthread_self()
+    }
+}
+
+pub fn sched_yield() i32 = trust {
+    when freestanding {
+        return sx_sched_yield()
+    } otherwise {
+        return c_sched_yield()
+    }
+}
+
+pub fn mutex_init(m: ref void) i32 = trust {
+    when freestanding {
+        return sx_mutex_init(m)
+    } otherwise {
+        return c_mutex_init(m)
+    }
+}
+
+pub fn mutex_destroy(m: ref void) i32 = trust {
+    when freestanding {
+        return sx_mutex_destroy(m)
+    } otherwise {
+        return c_mutex_destroy(m)
+    }
+}
+
+pub fn mutex_lock(m: ref void) i32 = trust {
+    when freestanding {
+        return sx_mutex_lock(m)
+    } otherwise {
+        return c_mutex_lock(m)
+    }
+}
+
+pub fn mutex_unlock(m: ref void) i32 = trust {
+    when freestanding {
+        return sx_mutex_unlock(m)
+    } otherwise {
+        return c_mutex_unlock(m)
+    }
+}
+
+pub fn socket(domain: i32, kind: i32, protocol: i32) i32 = trust {
+    when freestanding {
+        return sx_socket(domain, kind, protocol)
+    } otherwise {
+        return c_socket(domain, kind, protocol)
+    }
+}
+
+pub fn bind(fd: i32, addr: ref void, len: u32) i32 = trust {
+    when freestanding {
+        return sx_bind(fd, addr, len)
+    } otherwise {
+        return c_bind(fd, addr, len)
+    }
+}
+
+pub fn listen(fd: i32, backlog: i32) i32 = trust {
+    when freestanding {
+        return sx_listen(fd, backlog)
+    } otherwise {
+        return c_listen(fd, backlog)
+    }
+}
+
+pub fn accept(fd: i32, addr: ref void, len: ref u32) i32 = trust {
+    when freestanding {
+        return sx_accept(fd, addr, len)
+    } otherwise {
+        return c_accept(fd, addr, len)
+    }
+}
+
+pub fn connect(fd: i32, addr: ref void, len: u32) i32 = trust {
+    when freestanding {
+        return sx_connect(fd, addr, len)
+    } otherwise {
+        return c_connect(fd, addr, len)
+    }
+}
+
+pub fn send(fd: i32, buf: ref void, n: usize, flags: i32) i64 = trust {
+    when freestanding {
+        return sx_send(fd, buf, n, flags)
+    } otherwise {
+        return c_send(fd, buf, n, flags)
+    }
+}
+
+pub fn recv(fd: i32, buf: ref void, n: usize, flags: i32) i64 = trust {
+    when freestanding {
+        return sx_recv(fd, buf, n, flags)
+    } otherwise {
+        return c_recv(fd, buf, n, flags)
+    }
+}
+
+pub fn sendto(fd: i32, buf: ref void, n: usize, flags: i32, addr: ref void, len: u32) i32 = trust {
+    when freestanding {
+        return sx_sendto(fd, buf, n, flags, addr, len)
+    } otherwise {
+        return c_sendto(fd, buf, n, flags, addr, len)
+    }
+}
+
+pub fn recvfrom(fd: i32, buf: ref void, n: usize, flags: i32, addr: ref void, len: ref u32) i32 = trust {
+    when freestanding {
+        return sx_recvfrom(fd, buf, n, flags, addr, len)
+    } otherwise {
+        return c_recvfrom(fd, buf, n, flags, addr, len)
+    }
+}
+
+pub fn setsockopt(fd: i32, level: i32, opt: i32, value: ref void, len: u32) i32 = trust {
+    when freestanding {
+        return sx_setsockopt(fd, level, opt, value, len)
+    } otherwise {
+        return c_setsockopt(fd, level, opt, value, len)
+    }
+}
+
+pub fn getsockopt(fd: i32, level: i32, opt: i32, value: ref void, len: ref u32) i32 = trust {
+    when freestanding {
+        return sx_getsockopt(fd, level, opt, value, len)
+    } otherwise {
+        return c_getsockopt(fd, level, opt, value, len)
+    }
+}
+
+pub fn poll(fds: ref void, n: u64, timeout: i32) i32 = trust {
+    when freestanding {
+        return sx_poll(fds, n, timeout)
+    } otherwise {
+        return c_poll(fds, n, timeout)
+    }
+}
+
+pub fn htons(v: u16) u16 = trust {
+    when freestanding {
+        return sx_htons(v)
+    } otherwise {
+        return c_htons(v)
+    }
+}
+
+pub fn ntohs(v: u16) u16 = trust {
+    when freestanding {
+        return sx_ntohs(v)
+    } otherwise {
+        return c_ntohs(v)
+    }
+}
+
+pub fn closesocket(fd: i32) i32 = trust {
+    when freestanding {
+        return sx_closesocket(fd)
+    } otherwise {
+        when windows {
+            return c_closesocket(fd)
+        } otherwise {
+            return c_close(fd)
+        }
+    }
+}
+
+pub fn signal(sig: i32, handler: fn(i32) void) fn(i32) void = trust {
+    when freestanding {
+        return sx_signal(sig, handler)
+    } otherwise {
+        return c_signal(sig, handler)
+    }
+}
+
+pub fn raise(sig: i32) i32 = trust {
+    when freestanding {
+        return sx_raise(sig)
+    } otherwise {
+        return c_raise(sig)
+    }
+}

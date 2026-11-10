@@ -6,28 +6,36 @@ when windows {
 }
 
 when posix {
-    extern "sys/socket.h"
-    extern "netinet/in.h"
-    extern "arpa/inet.h"
-    extern "fcntl.h"
-    extern "poll.h"
-    extern (C, header) fn socket(domain: i32, type_: i32, protocol: i32) i32 = "socket"
-    extern (C, header) fn bind(fd: i32, addr: ref void, addrlen: i32) i32 = "bind"
-    extern (C, header) fn listen(fd: i32, backlog: i32) i32 = "listen"
-    extern (C, header) fn accept(fd: i32, addr: ref void, addrlen: ref void) i32 = "accept"
-    extern (C, header) fn send(fd: i32, buf: ref void, len: i64, flags: i32) i64 = "send"
-    extern (C, header) fn recv(fd: i32, buf: ref void, len: i64, flags: i32) i64 = "recv"
-    extern (C, header) fn close(fd: i32) i32 = "close"
-    extern (C, header) fn htons(port: i32) i32 = "htons"
-    extern (C, header) fn setsockopt(
-        fd: i32,
-        level: i32,
-        opt: i32,
-        vl: ref void,
-        len: i32
-    ) i32 = "setsockopt"
-    extern (C, header) fn fcntl(fd: i32, cmd: i32, ...) i32 = "fcntl"
-    extern (C, header) fn poll(fds: ref void, count: usize, timeout: i32) i32 = "poll"
+    when freestanding {
+        extern (C) fn socket(domain: i32, type_: i32, protocol: i32) i32 = "sx_socket"
+        extern (C) fn bind(fd: i32, addr: ref void, addrlen: i32) i32 = "sx_bind"
+        extern (C) fn listen(fd: i32, backlog: i32) i32 = "sx_listen"
+        extern (C) fn accept(fd: i32, addr: ref void, addrlen: ref void) i32 = "sx_accept"
+        extern (C) fn send(fd: i32, buf: ref void, len: i64, flags: i32) i64 = "sx_send"
+        extern (C) fn recv(fd: i32, buf: ref void, len: i64, flags: i32) i64 = "sx_recv"
+        extern (C) fn close(fd: i32) i32 = "sx_close"
+        extern (C) fn htons(port: i32) i32 = "sx_htons"
+        extern (C) fn setsockopt(fd: i32, level: i32, opt: i32, vl: ref void, len: i32) i32 = "sx_setsockopt"
+        extern (C) fn fcntl(fd: i32, cmd: i32, arg: i32) i32 = "sx_fcntl"
+        extern (C) fn poll(fds: ref void, count: usize, timeout: i32) i32 = "sx_poll"
+    } otherwise {
+        extern "sys/socket.h"
+        extern "netinet/in.h"
+        extern "arpa/inet.h"
+        extern "fcntl.h"
+        extern "poll.h"
+        extern (C, header) fn socket(domain: i32, type_: i32, protocol: i32) i32 = "socket"
+        extern (C, header) fn bind(fd: i32, addr: ref void, addrlen: i32) i32 = "bind"
+        extern (C, header) fn listen(fd: i32, backlog: i32) i32 = "listen"
+        extern (C, header) fn accept(fd: i32, addr: ref void, addrlen: ref void) i32 = "accept"
+        extern (C, header) fn send(fd: i32, buf: ref void, len: i64, flags: i32) i64 = "send"
+        extern (C, header) fn recv(fd: i32, buf: ref void, len: i64, flags: i32) i64 = "recv"
+        extern (C, header) fn close(fd: i32) i32 = "close"
+        extern (C, header) fn htons(port: i32) i32 = "htons"
+        extern (C, header) fn setsockopt(fd: i32, level: i32, opt: i32, vl: ref void, len: i32) i32 = "setsockopt"
+        extern (C, header) fn fcntl(fd: i32, cmd: i32, ...) i32 = "fcntl"
+        extern (C, header) fn poll(fds: ref void, count: usize, timeout: i32) i32 = "poll"
+    }
 }
 
 when windows {

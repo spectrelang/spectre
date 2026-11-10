@@ -1,22 +1,3 @@
-pub extern (C, header) fn getenv(name: ref u8) ref u8 = "getenv"
-pub extern (C, header) fn mkdir(path: ref u8, mode: u32) i32 = "mkdir"
-pub extern (C, header) fn rmdir(path: ref u8) i32 = "rmdir"
-pub extern (C, header) fn opendir(path: ref u8) ref void = "opendir"
-pub extern (C, header) fn closedir(dir: ref void) i32 = "closedir"
-pub extern (C, header) fn readdir(dir: ref void) ref Dirent = "readdir"
-pub extern (C, header) fn exit(code: i64) void = "exit"
-
-extern (C, header) fn fopen(path: ref u8, mode: ref u8) ref void = "fopen"
-extern (C, header) fn fclose(file: ref void) i32 = "fclose"
-extern (C, header) fn fread(ptr: ref void, size: i64, nmemb: i64, file: ref void) i64 = "fread"
-extern (C, header) fn fwrite(ptr: ref void, size: i64, nmemb: i64, file: ref void) i64 = "fwrite"
-extern (C, header) fn remove(path: ref u8) i32 = "remove"
-extern (C, header) fn rename(oldpath: ref u8, newpath: ref u8) i32 = "rename"
-extern (C, header) fn access(path: ref u8, mode: i32) i32 = "access"
-extern (C, header) fn popen(cmd: ref u8, mode: ref u8) ref void = "popen"
-extern (C, header) fn pclose(pipe: ref void) i32 = "pclose"
-extern (C, header) fn system(cmd: ref u8) i32 = "system"
-
 when windows {
     extern type WinFindDataA = {
         dwFileAttributes: u32
@@ -58,6 +39,7 @@ when windows {
 val cstr    = use("std/string/cstr")
 val ostr    = use("std/string/owned")
 val builder = use("std/string/builder")
+val rt      = use("../runtime")
 
 when linux {
     extern type Dirent = {
@@ -112,6 +94,83 @@ when netbsd {
         d_type: u8
         d_name: [512]u8
     }
+}
+
+when windows {
+    extern type Dirent = {
+        d_ino: i32
+        d_reclen: u16
+        d_namlen: u16
+        d_name: [260]u8
+    }
+}
+
+pub fn getenv(name: ref u8) ref u8 = trust {
+    return rt.getenv(name)
+}
+
+pub fn mkdir(path: ref u8, mode: u32) i32 = trust {
+    return rt.mkdir(path, mode)
+}
+
+pub fn rmdir(path: ref u8) i32 = trust {
+    return rt.rmdir(path)
+}
+
+pub fn opendir(path: ref u8) ref void = trust {
+    return rt.opendir(path)
+}
+
+pub fn closedir(dir: ref void) i32 = trust {
+    return rt.closedir(dir)
+}
+
+pub fn readdir(dir: ref void) ref Dirent = trust {
+    return rt.readdir(dir) as ref Dirent
+}
+
+pub fn exit(code: i64) void = trust {
+    rt.exit(code as i32)
+}
+
+fn fopen(path: ref u8, mode: ref u8) ref void = trust {
+    return rt.fopen(path, mode)
+}
+
+fn fclose(file: ref void) i32 = trust {
+    return rt.fclose(file)
+}
+
+fn fread(ptr: ref void, size: i64, nmemb: i64, file: ref void) i64 = trust {
+    return rt.fread(ptr, size as usize, nmemb as usize, file) as i64
+}
+
+fn fwrite(ptr: ref void, size: i64, nmemb: i64, file: ref void) i64 = trust {
+    return rt.fwrite(ptr, size as usize, nmemb as usize, file) as i64
+}
+
+fn remove(path: ref u8) i32 = trust {
+    return rt.remove(path)
+}
+
+fn rename(oldpath: ref u8, newpath: ref u8) i32 = trust {
+    return rt.rename(oldpath, newpath)
+}
+
+fn access(path: ref u8, mode: i32) i32 = trust {
+    return rt.access(path, mode)
+}
+
+fn popen(cmd: ref u8, mode: ref u8) ref void = trust {
+    return rt.popen(cmd, mode)
+}
+
+fn pclose(pipe: ref void) i32 = trust {
+    return rt.pclose(pipe)
+}
+
+fn system(cmd: ref u8) i32 = trust {
+    return rt.system(cmd)
 }
 
 pub enum ProcessError = {

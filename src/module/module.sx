@@ -12,6 +12,23 @@ val defines    = use("../meta/defines.sx")
 val libfind    = use("../meta/libfind.sx")
 val commands   = use("../meta/commands.sx")
 
+/// Runtime mode used by `when freestanding` / `when hosted` selectors.  The
+/// compiler front end sets this before module resolution and updates it if a
+/// program has to fall back to the hosted toolchain.
+val module_runtime_mode: mut ref u8 = c"hosted"
+
+pub fn set_runtime_mode(mode: ref u8) void = {
+    if mode == none || cstr.cmp(mode, c"") == 0 {
+        module_runtime_mode = c"hosted"
+    } else {
+        module_runtime_mode = mode
+    }
+}
+
+pub fn runtime_is_freestanding() bool = {
+    return cstr.cmp(module_runtime_mode, c"freestanding") == 0
+}
+
 /// A resolved module: its parsed items plus a map of named child imports.
 /// Stored as parallel lists: import_names[i] <-> import_modules[i].
 pub type ResolvedModule = {
@@ -2191,6 +2208,12 @@ fn arch_matches_named(name: ref u8, current: ref u8) bool = trust {
 ///   - architecture: `x86_64`, `aarch64`, `riscv64`
 ///   - platform.architecture: `linux.x86_64`, `posix.aarch64`
 pub fn when_selector_matches(current: ref u8, name: ref u8) bool = trust {
+    if cstr.cmp(name, c"freestanding") == 0 {
+        return cstr.cmp(module_runtime_mode, c"freestanding") == 0
+    }
+    if cstr.cmp(name, c"hosted") == 0 {
+        return cstr.cmp(module_runtime_mode, c"hosted") == 0
+    }
     val nlen: i64 = cstr.len(name)
     val dot: mut i64 = -1
     val i: mut i64 = 0

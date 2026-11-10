@@ -1,5 +1,6 @@
 val stdio      = use("../stdio")
 val allocators = use("../allocators")
+val rt         = use("../runtime")
 
 pub enum ThreadError = {
     OutOfMemory
@@ -26,21 +27,6 @@ fn free_in[A: allocators.GeneralAllocator](ac: A, ptr: ref void) void = trust {
 pub type Thread = {
     handle: ref void
     joined: bool
-}
-
-when posix {
-    extern "pthread.h"
-    extern "sched.h"
-    extern (C, header) fn pthread_create(
-        thread: ref void,
-        attr: ref void,
-        start_routine: usize,
-        arg: ref void
-    ) i32 = "pthread_create"
-    extern (C, header) fn pthread_join(thread: ref void, retval: ref void) i32 = "pthread_join"
-    extern (C, header) fn pthread_detach(thread: ref void) i32 = "pthread_detach"
-    extern (C, header) fn pthread_self() ref void = "pthread_self"
-    extern (C, header) fn sched_yield() i32 = "sched_yield"
 }
 
 when windows {
@@ -79,7 +65,7 @@ pub fn (Thread) new[A: allocators.GeneralAllocator](
             val entry_addr: usize = entry as usize
 
             when posix {
-                val rc: i32 = pthread_create(handle, none, entry_addr, arg)
+                val rc: i32 = rt.pthread_create(handle, none, entry_addr, arg)
                 if (rc != 0) {
                     A.free(ac, handle)
                     return err ThreadError.CreateFailed
@@ -107,7 +93,7 @@ pub fn (Thread) new[A: allocators.GeneralAllocator](
                 none => {
                     when posix {
                         val pthread_id: usize = @load(handle) as usize
-                        pthread_detach(@bitcast(pthread_id, ref void))
+                        rt.pthread_detach(@bitcast(pthread_id, ref void))
                     }
                     when windows {
                         val h: ref void = @load(handle)
@@ -147,7 +133,7 @@ pub fn (Thread) join[A: allocators.GeneralAllocator](
         val pthread_id: usize = @load(handle) as usize
         val retval_slot: ref void = @alloc(8)
         @memset(retval_slot, 0, 8)
-        val rc: i32 = pthread_join(@bitcast(pthread_id, ref void), retval_slot)
+        val rc: i32 = rt.pthread_join(@bitcast(pthread_id, ref void), retval_slot)
         val retval: ref void = @load(retval_slot)
         @free(retval_slot)
         if (rc != 0) {
@@ -188,7 +174,7 @@ pub fn (Thread) detach[A: allocators.GeneralAllocator](
 
     when posix {
         val pthread_id: usize = @load(handle) as usize
-        val rc: i32 = pthread_detach(@bitcast(pthread_id, ref void))
+        val rc: i32 = rt.pthread_detach(@bitcast(pthread_id, ref void))
         if (rc != 0) {
             return err ThreadError.DetachFailed
         }
@@ -213,7 +199,7 @@ pub fn (Thread) free[A: allocators.GeneralAllocator](ac: A, thread: mut self) vo
 /// Returns a platform-specific thread identifier.
 pub fn current_thread_id() usize = {
     when posix {
-        val tid: ref void = trust pthread_self()
+        val tid: ref void = trust rt.pthread_self()
         return trust @bitcast(tid, usize)
     }
     when windows {
@@ -226,7 +212,7 @@ pub fn current_thread_id() usize = {
 /// Yield the current thread's remaining time slice to allow other threads to run.
 pub fn yield_thread() void = trust {
     when posix {
-        sched_yield()
+        rt.sched_yield()
     }
     when windows {
         SwitchToThread()
@@ -242,13 +228,6 @@ pub type Mutex = {
 }
 
 when posix {
-    extern (C, header) fn pthread_mutex_init(
-        mutex: ref void,
-        attr: ref void
-    ) i32 = "pthread_mutex_init"
-    extern (C, header) fn pthread_mutex_destroy(mutex: ref void) i32 = "pthread_mutex_destroy"
-    extern (C, header) fn pthread_mutex_lock(mutex: ref void) i32 = "pthread_mutex_lock"
-    extern (C, header) fn pthread_mutex_unlock(mutex: ref void) i32 = "pthread_mutex_unlock"
 }
 
 when windows {
@@ -283,7 +262,7 @@ pub fn (Mutex) new[A: allocators.GeneralAllocator](ac: A) option[ref void] = tru
             @memset(m, 0, MUTEX_SIZE)
 
             when posix {
-                val rc: i32 = pthread_mutex_init(m, none)
+                val rc: i32 = rt.mutex_init(m)
                 if (rc != 0) {
                     free_in[A](ac, m)
                     return none
@@ -301,7 +280,7 @@ pub fn (Mutex) new[A: allocators.GeneralAllocator](ac: A) option[ref void] = tru
 /// Lock a mutex, blocking until it becomes available.
 pub fn (Mutex) lock(m: self) void = {
     when posix {
-        trust pthread_mutex_lock(m)
+        trust rt.mutex_lock(m)
     }
     when windows {
         trust EnterCriticalSection(m)
@@ -311,7 +290,7 @@ pub fn (Mutex) lock(m: self) void = {
 /// Unlock a previously locked mutex.
 pub fn (Mutex) unlock(m: self) void = trust {
     when posix {
-        pthread_mutex_unlock(m)
+        rt.mutex_unlock(m)
     }
     when windows {
         LeaveCriticalSection(m)
@@ -321,7 +300,7 @@ pub fn (Mutex) unlock(m: self) void = trust {
 /// Destroy and free a mutex.
 pub fn (Mutex) free[A: allocators.GeneralAllocator](ac: A, m: mut self) void = trust {
     when posix {
-        pthread_mutex_destroy(m)
+        rt.mutex_destroy(m)
     }
     when windows {
         DeleteCriticalSection(m)

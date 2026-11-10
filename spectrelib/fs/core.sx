@@ -2,45 +2,46 @@ val stdio      = use("../stdio")
 val str        = use("std/string")
 val pathutil   = use("../path")
 val allocators = use("../allocators")
+val rt         = use("../runtime")
 
 fn cstr_heap() allocators.HeapAllocator = {
     return @zeroed
 }
 
-extern (C, header) fn fopen(path: ref u8, mode: ref u8) ref void = "fopen"
-extern (C, header) fn fclose(stream: ref void) i32 = "fclose"
-extern (C, header) fn fread(
-    buf: ref void,
-    size: usize,
-    count: usize,
-    stream: ref void
-) usize = "fread"
-extern (C, header) fn fwrite(
-    buf: ref void,
-    size: usize,
-    count: usize,
-    stream: ref void
-) usize = "fwrite"
-extern (C, header) fn fseek(stream: ref void, offset: i64, whence: i32) i32 = "fseek"
-extern (C, header) fn ftell(stream: ref void) i64 = "ftell"
-extern (C, header) fn rewind(stream: ref void) void = "rewind"
-extern (C, header) fn remove(path: ref u8) i32 = "remove"
-extern (C, header) fn rename(old: ref u8, new: ref u8) i32 = "rename"
-extern (C, header) fn strlen(s: ref u8) i64 = "strlen"
-extern (C, header) fn getcwd(buf: ref u8, size: usize) ref u8 = "getcwd"
+/// Read an environment variable.
+pub fn getenv(name: ref u8) ref u8 = trust {
+    return rt.getenv(name)
+}
 
-pub extern (C, header) fn getenv(name: ref u8) ref u8 = "getenv"
-when windows {
-    // direct.h exposes the one-argument _mkdir on Windows.
-    pub extern (C, header) fn _mkdir(path: ref u8) i32 = "_mkdir"
+/// Create a directory.
+pub fn mkdir(path: ref u8, mode: u32) i32 = trust {
+    return rt.mkdir(path, mode)
 }
-when posix {
-    pub extern (C, header) fn mkdir(path: ref u8, mode: u32) i32 = "mkdir"
+
+/// Windows-compatible one-argument directory creation.
+pub fn _mkdir(path: ref u8) i32 = trust {
+    return rt.mkdir(path, 0 as u32)
 }
-pub extern (C, header) fn rmdir(path: ref u8) i32 = "rmdir"
-pub extern (C, header) fn opendir(path: ref u8) ref void = "opendir"
-pub extern (C, header) fn closedir(dir: ref void) i32 = "closedir"
-pub extern (C, header) fn readdir(dir: ref void) ref Dirent = "readdir"
+
+/// Remove an empty directory.
+pub fn rmdir(path: ref u8) i32 = trust {
+    return rt.rmdir(path)
+}
+
+/// Open a directory stream.
+pub fn opendir(path: ref u8) ref void = trust {
+    return rt.opendir(path)
+}
+
+/// Close a directory stream.
+pub fn closedir(dir: ref void) i32 = trust {
+    return rt.closedir(dir)
+}
+
+/// Read the next directory entry.
+pub fn readdir(dir: ref void) ref Dirent = trust {
+    return rt.readdir(dir) as ref Dirent
+}
 
 when linux {
     extern type Dirent = {
@@ -139,7 +140,7 @@ fn copy_cstr[A: allocators.Allocator](ac: A, text: ref u8) ref u8 = trust {
     if text == none {
         return none
     }
-    val len: i64 = strlen(text)
+    val len: i64 = rt.strlen(text)
     val buf: ref u8 = alloc_cstr[A](ac, len)
     if buf == none {
         return none
@@ -206,7 +207,7 @@ fn dirent_name_len(entry: ref Dirent) i64 = trust {
     when netbsd {
         return entry.d_namlen as i64
     }
-    return strlen(@addr(entry.d_name) as ref u8)
+    return rt.strlen(@addr(entry.d_name) as ref u8)
 }
 
 fn copy_dirent_name[A: allocators.Allocator](ac: A, entry: ref Dirent) ref u8 = trust {
@@ -220,7 +221,7 @@ fn raw_copy_dirent_name(entry: ref Dirent) ref u8 = trust {
 /// Open a file. Here, mode is a C fopen mode string: "r", "w", "a", "rb", etc.
 /// Returns none if the file could not be opened.
 pub fn open_cstr(path: ref u8, mode: ref u8) option[ref void] = trust {
-    val ptr: ref void = fopen(path, mode)
+    val ptr: ref void = rt.fopen(path, mode)
     if (ptr == none) {
         return none
     }
@@ -288,7 +289,7 @@ pub fn write(f: ref void, data: str.StringView) void = trust {
         return
     }
     val ptr: ref void = @load(f)
-    fwrite(data.ptr as ref void, 1 as usize, data.len as usize, ptr)
+    rt.fwrite(data.ptr as ref void, 1 as usize, data.len as usize, ptr)
 }
 
 /// Write a view followed by a newline to an open file handle.
@@ -296,7 +297,7 @@ pub fn write_line(f: ref void, data: str.StringView) void = trust {
     write(f, data)
     val ptr: ref void = @load(f)
     val nl: mut u8 = 10
-    fwrite(@addr(nl) as ref void, 1 as usize, 1 as usize, ptr)
+    rt.fwrite(@addr(nl) as ref void, 1 as usize, 1 as usize, ptr)
 }
 
 /// View-taking variant of `write_all_cstr`.
@@ -452,7 +453,7 @@ pub fn is_directory(path: str.StringView) bool = trust {
 /// Close a file handle previously returned by open_cstr().
 pub fn close(f: ref void) void = trust {
     val ptr: ref void = @load(f)
-    fclose(ptr)
+    rt.fclose(ptr)
     @free(f)
 }
 
@@ -466,9 +467,9 @@ pub fn file_size_cstr(path: ref u8) option[i64] = trust {
         }
         some f => {
             val ptr: ref void = @load(f)
-            fseek(ptr, 0, 2 as i32)
-            val size: i64 = ftell(ptr)
-            rewind(ptr)
+            rt.fseek(ptr, 0, 2 as i32)
+            val size: i64 = rt.ftell(ptr)
+            rt.rewind(ptr)
             close(f)
             return some size
         }
@@ -485,15 +486,15 @@ pub fn read_all_cstr[A: allocators.Allocator](ac: A, path: ref u8) option[ref u8
         }
         some f => {
             val ptr: ref void = @load(f)
-            fseek(ptr, 0, 2 as i32)          // SEEK_END = 2
-            val size: i64 = ftell(ptr)
-            rewind(ptr)
+            rt.fseek(ptr, 0, 2 as i32)          // SEEK_END = 2
+            val size: i64 = rt.ftell(ptr)
+            rt.rewind(ptr)
             val buf: ref void = alloc_in[A](ac, size + 1)
             if buf == none {
                 close(f)
                 return none
             }
-            fread(buf, 1 as usize, size as usize, ptr)
+            rt.fread(buf, 1 as usize, size as usize, ptr)
             @store8(@ptradd(buf, size), 0)
             close(f)
             return some buf
@@ -509,15 +510,15 @@ pub fn read_all_heap_cstr(path: ref u8) option[ref u8] = trust {
         }
         some f => {
             val ptr: ref void = @load(f)
-            fseek(ptr, 0, 2 as i32)
-            val size: i64 = ftell(ptr)
-            rewind(ptr)
+            rt.fseek(ptr, 0, 2 as i32)
+            val size: i64 = rt.ftell(ptr)
+            rt.rewind(ptr)
             val buf: ref void = @alloc(size + 1)
             if buf == none {
                 close(f)
                 return none
             }
-            fread(buf, 1 as usize, size as usize, ptr)
+            rt.fread(buf, 1 as usize, size as usize, ptr)
             @store8(@ptradd(buf, size), 0)
             close(f)
             return some buf
@@ -534,7 +535,7 @@ pub fn read_line(f: ref void, buf: ref u8, max_len: i64) bool = trust {
     if (result == none) {
         return false
     }
-    val l: mut i64 = strlen(buf)
+    val l: mut i64 = rt.strlen(buf)
     for {
         if (l <= 0) {
             break
@@ -554,8 +555,8 @@ pub fn read_line(f: ref void, buf: ref u8, max_len: i64) bool = trust {
 /// Write a string to a file opened in write mode.
 pub fn write_cstr(f: ref void, data: ref u8) void = trust {
     val ptr: ref void = @load(f)
-    val l: i64 = strlen(data)
-    fwrite(data, 1 as usize, l as usize, ptr)
+    val l: i64 = rt.strlen(data)
+    rt.fwrite(data, 1 as usize, l as usize, ptr)
 }
 
 /// Write exactly `len` bytes to an open file.  Unlike `write_cstr`, this does not
@@ -565,7 +566,7 @@ pub fn write_bytes(f: ref void, data: ref void, len: i64) void = trust {
         return
     }
     val ptr: ref void = @load(f)
-    fwrite(data, 1 as usize, len as usize, ptr)
+    rt.fwrite(data, 1 as usize, len as usize, ptr)
 }
 
 /// Write a string followed by a newline.
@@ -573,7 +574,7 @@ pub fn write_line_cstr(f: ref void, data: ref u8) void = trust {
     write_cstr(f, data)
     val nl: ref u8 = c"\n"
     val ptr: ref void = @load(f)
-    fwrite(nl, 1 as usize, 1 as usize, ptr)
+    rt.fwrite(nl, 1 as usize, 1 as usize, ptr)
 }
 
 /// Write the entire contents of data to path, overwriting any existing file.
@@ -640,14 +641,14 @@ pub fn append_all_cstr(path: ref u8, data: ref u8) bool = trust {
 /// Delete a file.
 /// Returns true on success.
 pub fn delete_cstr(path: ref u8) bool = trust {
-    val r: i32 = remove(path)
+    val r: i32 = rt.remove(path)
     return r == 0
 }
 
 /// Rename (or move) a file or directory.
 /// Returns true on success.
 pub fn rename_path_cstr(old: ref u8, new: ref u8) bool = trust {
-    val r: i32 = rename(old, new)
+    val r: i32 = rt.rename(old, new)
     return r == 0
 }
 
@@ -674,7 +675,7 @@ pub fn rmdir_path_cstr(path: ref u8) bool = trust {
 /// Remove a file or directory tree recursively.
 /// Returns true when the path no longer exists.
 pub fn remove_dir_all_cstr(path: ref u8) bool = trust {
-    val dir: ref void = opendir(path)
+    val dir: ref void = rt.opendir(path)
     if dir == none {
         // Not a directory: fall back to unlinking it as a file.
         return delete_cstr(path)
@@ -682,7 +683,7 @@ pub fn remove_dir_all_cstr(path: ref u8) bool = trust {
 
     val success: mut bool = true
     for {
-        val entry: ref Dirent = readdir(dir)
+        val entry: ref Dirent = rt.readdir(dir)
         if entry == none {
             break
         }
@@ -703,9 +704,9 @@ pub fn remove_dir_all_cstr(path: ref u8) bool = trust {
 
         val child: mut ref u8 = pathutil.join_cstr(path, name)
         val child_ptr: mut ref u8 = child
-        val sub: ref void = opendir(child)
+        val sub: ref void = rt.opendir(child)
         if sub != none {
-            closedir(sub)
+            rt.closedir(sub)
             if !remove_dir_all_cstr(child) {
                 success = false
             }
@@ -716,7 +717,7 @@ pub fn remove_dir_all_cstr(path: ref u8) bool = trust {
         }
         @free(child_ptr as ref void)
     }
-    closedir(dir)
+    rt.closedir(dir)
 
     if !success {
         return false
@@ -731,7 +732,7 @@ pub fn cwd[A: allocators.Allocator](ac: A) option[ref u8] = trust {
     if buf == none {
         return none
     }
-    val result: ref u8 = getcwd(buf, 4096 as usize)
+    val result: ref u8 = rt.getcwd(buf, 4096 as usize)
     if (result == none) {
         return none
     }
@@ -743,7 +744,7 @@ pub fn cwd_cstr() option[ref u8] = trust {
     if buf == none {
         return none
     }
-    val result: ref u8 = getcwd(buf, 4096 as usize)
+    val result: ref u8 = rt.getcwd(buf, 4096 as usize)
     if result == none {
         @free(buf)
         return none
@@ -755,18 +756,18 @@ pub fn cwd_cstr() option[ref u8] = trust {
 /// Falls back to "/tmp" on POSIX if TMPDIR is not set.
 pub fn temp_dir[A: allocators.Allocator](ac: A) ref u8 = trust {
     when posix {
-        val t: ref u8 = getenv(c"TMPDIR")
+        val t: ref u8 = rt.getenv(c"TMPDIR")
         if (t != none) {
             return copy_cstr[A](ac, t)
         }
         return copy_cstr[A](ac, c"/tmp")
     }
     when windows {
-        val t: ref u8 = getenv(c"TEMP")
+        val t: ref u8 = rt.getenv(c"TEMP")
         if (t != none) {
             return copy_cstr[A](ac, t)
         }
-        val t2: ref u8 = getenv(c"TMP")
+        val t2: ref u8 = rt.getenv(c"TMP")
         if (t2 != none) {
             return copy_cstr[A](ac, t2)
         }
@@ -777,18 +778,18 @@ pub fn temp_dir[A: allocators.Allocator](ac: A) ref u8 = trust {
 
 pub fn temp_dir_cstr() ref u8 = trust {
     when posix {
-        val t: ref u8 = getenv(c"TMPDIR")
+        val t: ref u8 = rt.getenv(c"TMPDIR")
         if t != none {
             return t
         }
         return c"/tmp"
     }
     when windows {
-        val t: ref u8 = getenv(c"TEMP")
+        val t: ref u8 = rt.getenv(c"TEMP")
         if t != none {
             return t
         }
-        val t2: ref u8 = getenv(c"TMP")
+        val t2: ref u8 = rt.getenv(c"TMP")
         if t2 != none {
             return t2
         }
@@ -801,18 +802,18 @@ pub fn temp_dir_cstr() ref u8 = trust {
 /// Uses HOME on POSIX, USERPROFILE on Windows.
 pub fn home_dir[A: allocators.Allocator](ac: A) option[ref u8] = trust {
     when posix {
-        val h: ref u8 = getenv(c"HOME")
+        val h: ref u8 = rt.getenv(c"HOME")
         if (h != none) {
             return some copy_cstr[A](ac, h)
         }
         return none
     }
     when windows {
-        val h: ref u8 = getenv(c"USERPROFILE")
+        val h: ref u8 = rt.getenv(c"USERPROFILE")
         if (h != none) {
             return some copy_cstr[A](ac, h)
         }
-        val h2: ref u8 = getenv(c"HOMEDRIVE")
+        val h2: ref u8 = rt.getenv(c"HOMEDRIVE")
         if (h2 != none) {
             return some copy_cstr[A](ac, h2)
         }
@@ -823,18 +824,18 @@ pub fn home_dir[A: allocators.Allocator](ac: A) option[ref u8] = trust {
 
 pub fn home_dir_cstr() option[ref u8] = trust {
     when posix {
-        val h: ref u8 = getenv(c"HOME")
+        val h: ref u8 = rt.getenv(c"HOME")
         if h != none {
             return some h
         }
         return none
     }
     when windows {
-        val h: ref u8 = getenv(c"USERPROFILE")
+        val h: ref u8 = rt.getenv(c"USERPROFILE")
         if h != none {
             return some h
         }
-        val h2: ref u8 = getenv(c"HOMEDRIVE")
+        val h2: ref u8 = rt.getenv(c"HOMEDRIVE")
         if h2 != none {
             return some h2
         }
@@ -849,17 +850,17 @@ pub fn home_dir_cstr() option[ref u8] = trust {
 /// Returns none if no suitable directory can be determined.
 pub fn config_dir[A: allocators.Allocator](ac: A) option[ref u8] = trust {
     when posix {
-        val xdg: ref u8 = getenv(c"XDG_CONFIG_HOME")
+        val xdg: ref u8 = rt.getenv(c"XDG_CONFIG_HOME")
         if (xdg != none) {
             return some copy_cstr[A](ac, xdg)
         }
-        val h: ref u8 = getenv(c"HOME")
+        val h: ref u8 = rt.getenv(c"HOME")
         if (h == none) {
             return none
         }
-        val hl: i64 = strlen(h)
+        val hl: i64 = rt.strlen(h)
         val suffix: ref u8 = c"/.config"
-        val sl: i64 = strlen(suffix)
+        val sl: i64 = rt.strlen(suffix)
         val buf: ref u8 = alloc_cstr[A](ac, hl + sl)
         if buf == none {
             return none
@@ -869,7 +870,7 @@ pub fn config_dir[A: allocators.Allocator](ac: A) option[ref u8] = trust {
         return some buf
     }
     when windows {
-        val appdata: ref u8 = getenv(c"APPDATA")
+        val appdata: ref u8 = rt.getenv(c"APPDATA")
         if (appdata != none) {
             return some copy_cstr[A](ac, appdata)
         }
@@ -880,17 +881,17 @@ pub fn config_dir[A: allocators.Allocator](ac: A) option[ref u8] = trust {
 
 pub fn config_dir_cstr() option[ref u8] = trust {
     when posix {
-        val xdg: ref u8 = getenv(c"XDG_CONFIG_HOME")
+        val xdg: ref u8 = rt.getenv(c"XDG_CONFIG_HOME")
         if xdg != none {
             return some xdg
         }
-        val h: ref u8 = getenv(c"HOME")
+        val h: ref u8 = rt.getenv(c"HOME")
         if h == none {
             return none
         }
-        val hl: i64 = strlen(h)
+        val hl: i64 = rt.strlen(h)
         val suffix: ref u8 = c"/.config"
-        val sl: i64 = strlen(suffix)
+        val sl: i64 = rt.strlen(suffix)
         val buf: ref u8 = raw_alloc_cstr(hl + sl)
         if buf == none {
             return none
@@ -900,7 +901,7 @@ pub fn config_dir_cstr() option[ref u8] = trust {
         return some buf
     }
     when windows {
-        val appdata: ref u8 = getenv(c"APPDATA")
+        val appdata: ref u8 = rt.getenv(c"APPDATA")
         if appdata != none {
             return some appdata
         }
@@ -1082,7 +1083,7 @@ test "file and directory operations roundtrip" {
             assert false
         }
         some dir => {
-            val l: i64 = trust strlen(dir)
+            val l: i64 = trust rt.strlen(dir)
             assert l > 0
         }
     }
@@ -1117,7 +1118,7 @@ pub fn walk_dir[A: allocators.GeneralAllocator](
     ac: A,
     path: ref u8
 ) option[list[ref u8]] = trust {
-    val dir: ref void = opendir(path)
+    val dir: ref void = rt.opendir(path)
     if (dir == none) {
         return none
     }
@@ -1125,7 +1126,7 @@ pub fn walk_dir[A: allocators.GeneralAllocator](
     val result: mut list[ref u8] = @listalloc[A, ref u8](ac)?
 
     for {
-        val entry: ref Dirent = readdir(dir)
+        val entry: ref Dirent = rt.readdir(dir)
         if (entry == none) {
             break
         }
@@ -1144,7 +1145,7 @@ pub fn walk_dir[A: allocators.GeneralAllocator](
                     } else {
                         val copy: ref u8 = copy_dirent_name[A](ac, entry)
                         if copy == none {
-                            closedir(dir)
+                            rt.closedir(dir)
                             @listfree(result)
                             return none
                         }
@@ -1153,7 +1154,7 @@ pub fn walk_dir[A: allocators.GeneralAllocator](
                 } else {
                     val copy: ref u8 = copy_dirent_name[A](ac, entry)
                     if copy == none {
-                        closedir(dir)
+                        rt.closedir(dir)
                         @listfree(result)
                         return none
                     }
@@ -1163,7 +1164,7 @@ pub fn walk_dir[A: allocators.GeneralAllocator](
         } else {
             val copy: ref u8 = copy_dirent_name[A](ac, entry)
             if copy == none {
-                closedir(dir)
+                rt.closedir(dir)
                 @listfree(result)
                 return none
             }
@@ -1171,7 +1172,7 @@ pub fn walk_dir[A: allocators.GeneralAllocator](
         }
     }
 
-    closedir(dir)
+    rt.closedir(dir)
     return some result
 }
 
@@ -1179,7 +1180,7 @@ pub fn walk_dir_cstr[A: allocators.GeneralAllocator](
     ac: A,
     path: ref u8
 ) option[list[ref u8]] = trust {
-    val dir: ref void = opendir(path)
+    val dir: ref void = rt.opendir(path)
     if (dir == none) {
         return none
     }
@@ -1187,7 +1188,7 @@ pub fn walk_dir_cstr[A: allocators.GeneralAllocator](
     val result: mut list[ref u8] = @listalloc[A, ref u8](ac)?
 
     for {
-        val entry: ref Dirent = readdir(dir)
+        val entry: ref Dirent = rt.readdir(dir)
         if (entry == none) {
             break
         }
@@ -1204,7 +1205,7 @@ pub fn walk_dir_cstr[A: allocators.GeneralAllocator](
                     } else {
                         val copy: ref u8 = raw_copy_dirent_name(entry)
                         if copy == none {
-                            closedir(dir)
+                            rt.closedir(dir)
                             @listfree(result)
                             return none
                         }
@@ -1213,7 +1214,7 @@ pub fn walk_dir_cstr[A: allocators.GeneralAllocator](
                 } else {
                     val copy: ref u8 = raw_copy_dirent_name(entry)
                     if copy == none {
-                        closedir(dir)
+                        rt.closedir(dir)
                         @listfree(result)
                         return none
                     }
@@ -1223,7 +1224,7 @@ pub fn walk_dir_cstr[A: allocators.GeneralAllocator](
         } else {
             val copy: ref u8 = raw_copy_dirent_name(entry)
             if copy == none {
-                closedir(dir)
+                rt.closedir(dir)
                 @listfree(result)
                 return none
             }
@@ -1231,7 +1232,7 @@ pub fn walk_dir_cstr[A: allocators.GeneralAllocator](
         }
     }
 
-    closedir(dir)
+    rt.closedir(dir)
     return some result
 }
 
@@ -1239,10 +1240,10 @@ pub fn is_directory_cstr(path: ref u8) bool = trust {
     pre {
         path != none
     }
-    val handle: ref void = opendir(path)
+    val handle: ref void = rt.opendir(path)
     if handle == none {
         return false
     }
-    closedir(handle)
+    rt.closedir(handle)
     return true
 }

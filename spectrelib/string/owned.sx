@@ -6,8 +6,8 @@ val collections = use("../collections")
 val allocators  = use("../allocators")
 val str         = use("std/string")
 val cstr        = use("std/string/cstr")
+val rt          = use("../runtime")
 
-extern (C, header) fn strlen(s: ref u8) i64 = "strlen"
 
 fn alloc_in[T: allocators.Allocator](ac: T, size: i64) ref void = {
     pre {
@@ -89,7 +89,7 @@ pub fn new() str.String = trust {
 
 /// Create from raw C string using the provided allocator.
 pub fn from_cstr[T: allocators.Allocator](ac: T, cstr: ref u8) str.String = trust {
-    val l: i64 = strlen(cstr)
+    val l: i64 = rt.strlen(cstr)
     val s: str.String = alloc_string_in[T](ac, l)
     if s == none {
         return none
@@ -135,7 +135,7 @@ fn ensure_cap(ptr: ref void, needed: i64) void = trust {
 /// Append a C string in place
 pub fn push_cstr(s: str.String, other: ref u8) void = trust {
     val l: i64 = @load(@ptradd(s, 8)) as i64
-    val add_len: i64 = strlen(other)
+    val add_len: i64 = rt.strlen(other)
     val new_len: i64 = l + add_len
 
     ensure_cap(s as ref void, new_len + 1)

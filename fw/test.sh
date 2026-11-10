@@ -25,6 +25,10 @@ if [ ! -x "$COMPILER" ]; then
 	exit 1
 fi
 
+echo "Freestanding runtime audit:"
+bash ./fw/audit_freestanding.sh || exit 1
+echo
+
 LOG_DIR="${TEST_LOG_DIR:-${RUNNER_TEMP:-${TMPDIR:-/tmp}}/spectre-test-logs}"
 mkdir -p "$LOG_DIR"
 

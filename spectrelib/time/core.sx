@@ -1,11 +1,9 @@
 val stdio = use("../stdio")
+val rt    = use("../runtime")
 
-extern (C, header) fn localtime(timep: ref i64) ref void = "localtime"
-extern (C, header) fn gettimeofday(tv: ref TimeVal, tz: ref void) i32 = "gettimeofday"
 
 when posix {
-    extern (C, header) fn usleep(usec: u32) i32 = "usleep"
-}
+    }
 
 when windows {
     extern (C, header) fn Sleep(ms: u32) void = "Sleep"
@@ -63,11 +61,11 @@ pub fn (DateTime) new(
 pub fn (DateTime) now() DateTime = {
     val tv: mut TimeVal = {tv_sec: 0, tv_usec: 0}
 
-    trust gettimeofday(@addr(tv), 0)
+    trust rt.gettimeofday(@addr(tv), 0)
 
     val seconds: mut i64 = tv.tv_sec
     val usecs: i64 = tv.tv_usec
-    val tm: ref void = trust localtime(@addr(seconds))
+    val tm: ref void = trust rt.localtime(@addr(seconds))
 
     val year: i64 = ((trust @load(@ptradd(tm, 20))) & 0xFFFFFFFF) as i64
     val month: i64 = ((trust @load(@ptradd(tm, 16))) & 0xFFFFFFFF) as i64
@@ -83,7 +81,7 @@ pub fn (DateTime) now() DateTime = {
 /// Return the current Unix timestamp in seconds since epoch.
 pub fn unix_now() i64 = {
     val tv: mut TimeVal = {tv_sec: 0, tv_usec: 0}
-    trust gettimeofday(@addr(tv), 0)
+    trust rt.gettimeofday(@addr(tv), 0)
     val seconds: i64 = tv.tv_sec
     return seconds
 }
@@ -91,7 +89,7 @@ pub fn unix_now() i64 = {
 /// Return the current Unix timestamp in milliseconds since epoch.
 pub fn unix_now_millis() i64 = {
     val tv: mut TimeVal = {tv_sec: 0, tv_usec: 0}
-    trust gettimeofday(@addr(tv), 0)
+    trust rt.gettimeofday(@addr(tv), 0)
     val millis: i64 = tv.tv_sec * 1000 + tv.tv_usec / 1000
     return millis
 }
@@ -99,7 +97,7 @@ pub fn unix_now_millis() i64 = {
 /// Return the current Unix timestamp in microseconds since epoch.
 pub fn unix_now_micros() i64 = {
     val tv: mut TimeVal = {tv_sec: 0, tv_usec: 0}
-    trust gettimeofday(@addr(tv), 0)
+    trust rt.gettimeofday(@addr(tv), 0)
     val micros: i64 = tv.tv_sec * 1000000 + tv.tv_usec
     return micros
 }
@@ -108,7 +106,7 @@ pub fn unix_now_micros() i64 = {
 /// The time value is kept on the stack; no allocator is required.
 pub fn now_ns() i64 = {
     val tv: mut TimeVal = {tv_sec: 0, tv_usec: 0}
-    trust gettimeofday(@addr(tv), 0)
+    trust rt.gettimeofday(@addr(tv), 0)
     return tv.tv_sec * 1000000000 + tv.tv_usec * 1000
 }
 
@@ -125,10 +123,10 @@ pub fn sleep_millis(ms: i64) void = trust {
                 break
             }
             if remaining_us > 4294967295 {
-                usleep(4294967295 as u32)
+                rt.usleep(4294967295 as u32)
                 remaining_us -= 4294967295
             } else {
-                usleep(remaining_us as u32)
+                rt.usleep(remaining_us as u32)
                 break
             }
         }

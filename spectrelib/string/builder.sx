@@ -1,10 +1,10 @@
 /// Growable builder for owned heap-allocated strings.
 
 val allocators = use("../allocators")
+val rt         = use("../runtime")
 val str        = use("std/string")
 val ostr       = use("std/string/owned")
 
-extern (C, header) fn strlen(s: ref u8) i64 = "strlen"
 
 /// Ensure capacity (private helper)
 fn ensure_cap(ptr: ref void, needed: i64) void = trust {
@@ -74,7 +74,7 @@ pub fn (StringBuilder) append_string(sb: self, s: str.String) void = trust {
 /// Append a C string to the builder
 pub fn (StringBuilder) append_cstr(sb: self, cstr: ref u8) void = trust {
     val l: i64 = @load(@ptradd(sb as ref void, 8)) as i64
-    val add_len: i64 = strlen(cstr)
+    val add_len: i64 = rt.strlen(cstr)
     val new_len: i64 = l + add_len
 
     ensure_cap(sb as ref void, new_len + 1)

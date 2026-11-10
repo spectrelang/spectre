@@ -536,6 +536,7 @@ pub fn freestanding_windows_import_flags(arch: ref u8) ref u8 = trust {
     @append(ws2, c"setsockopt")
     @append(ws2, c"closesocket")
     @append(ws2, c"htons")
+    @append(ws2, c"ntohs")
     @append(ws2, c"WSAPoll")
     @append(ws2, c"ioctlsocket")
 
@@ -993,7 +994,7 @@ pub fn xwin_lib_path_flags_clang(root: ref u8, arch: ref u8) ref u8 = trust {
 
 /// Default libraries for a hosted Windows link.
 pub fn xwin_default_libs() ref u8 = {
-    return c"libcmt.lib libucrt.lib libvcruntime.lib oldnames.lib kernel32.lib"
+    return c"libcmt.lib libucrt.lib libvcruntime.lib oldnames.lib kernel32.lib ws2_32.lib bcrypt.lib"
 }
 
 /// Human-readable comma-separated list of architectures available in `root`.

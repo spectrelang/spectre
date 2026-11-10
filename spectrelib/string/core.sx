@@ -5,8 +5,7 @@
 
 val allocators = use("../allocators")
 val cstr       = use("std/string/cstr")
-
-extern (C, header) fn strlen(s: ref u8) i64 = "strlen"
+val rt         = use("../runtime")
 
 /// This is the classic string type.
 ///
@@ -92,7 +91,7 @@ fn from_cstr_impl(s: ref u8) StringView = trust {
     if s == none {
         return view(none, 0)
     }
-    return view(s, strlen(s))
+    return view(s, rt.strlen(s))
 }
 
 /// Build a view over an existing null-terminated C str.

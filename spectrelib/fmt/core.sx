@@ -2,6 +2,7 @@ val stdio      = use("../stdio")
 val cstr       = use("std/string/cstr")
 val ostr       = use("std/string/owned")
 val allocators = use("../allocators")
+val rt         = use("../runtime")
 
 pub enum ParseIntError = {
     Empty
@@ -17,7 +18,7 @@ pub enum ParseFloatError = {
 
 /// Runtime rewrite of Spectre format specifiers to printf specifiers.
 fn rewrite_fmt(fmt: ref u8) ref void = trust {
-    val fmtlen: i64 = strlen(fmt)
+    val fmtlen: i64 = rt.strlen(fmt)
     val buf: ref void = @alloc(fmtlen * 2 + 1)
     if buf == none {
         return none
@@ -275,14 +276,13 @@ pub fn i64_to_string[A: allocators.Allocator](ac: A, x: i64) ref u8 = trust {
     return out
 }
 
-extern (C, header) fn strlen(s: ref u8) i64 = "strlen"
 
 pub fn string_to_i64(s: ref u8) result[i64, ParseIntError] = {
     guarded pre {
         non_null: s != none
     }
 
-    val len: i64 = trust strlen(s)
+    val len: i64 = trust rt.strlen(s)
     if len == 0 {
         return err ParseIntError.Empty
     }
@@ -371,7 +371,7 @@ pub fn f64_to_string[A: allocators.Allocator](ac: A, x: f64) ref u8 = trust {
     }
     @store8(@ptradd(frac_buf, 6), 0)
 
-    val int_len: i64 = strlen(int_str)
+    val int_len: i64 = rt.strlen(int_str)
     val offset_x: mut i64 = 0
 
     if neg {
@@ -413,7 +413,7 @@ pub fn string_to_f64(s: ref u8) result[f64, ParseFloatError] = {
         non_null: s != none
     }
 
-    val len: i64 = trust strlen(s)
+    val len: i64 = trust rt.strlen(s)
     if len == 0 {
         return err ParseFloatError.Empty
     }

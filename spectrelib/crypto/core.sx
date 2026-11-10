@@ -4,6 +4,7 @@ val ostr       = use("std/string/owned")
 val random     = use("../crypto/random")
 val allocators = use("../allocators")
 val fs         = use("../fs")
+val rt         = use("../runtime")
 
 /// Cryptography related failure enumeration.
 pub enum CryptoError = {
@@ -17,17 +18,6 @@ pub enum CryptoError = {
     FileReadFailed
 }
 
-extern (C, header) fn fopen(path: ref u8, mode: ref u8) ref void = "fopen"
-extern (C, header) fn fclose(stream: ref void) i32 = "fclose"
-extern (C, header) fn fread(
-    buf: ref void,
-    size: usize,
-    count: usize,
-    stream: ref void
-) usize = "fread"
-extern (C, header) fn fseek(stream: ref void, offset: i64, whence: i32) i32 = "fseek"
-extern (C, header) fn ftell(stream: ref void) i64 = "ftell"
-extern (C, header) fn rewind(stream: ref void) void = "rewind"
 
 /// FNV-1a hash.
 ///
@@ -939,41 +929,41 @@ pub fn hash_file_sha256[A: allocators.Allocator](
     ac: A,
     path: ref u8
 ) result[str.String, CryptoError] = trust {
-    val file: ref void = fopen(path, c"rb")
+    val file: ref void = rt.fopen(path, c"rb")
     if file == none {
         return err CryptoError.FileOpenFailed
     }
 
-    if fseek(file, 0, 2 as i32) != 0 {
-        fclose(file)
+    if rt.fseek(file, 0, 2 as i32) != 0 {
+        rt.fclose(file)
         return err CryptoError.FileReadFailed
     }
 
-    val file_len: i64 = ftell(file)
+    val file_len: i64 = rt.ftell(file)
     if file_len < 0 {
-        fclose(file)
+        rt.fclose(file)
         return err CryptoError.FileReadFailed
     }
 
-    rewind(file)
+    rt.rewind(file)
 
     val data: str.String = alloc_heap_string(file_len)
     if data == none {
-        fclose(file)
+        rt.fclose(file)
         return err CryptoError.OutOfMemory
     }
 
     val data_ptr: ref void = @load(data) as ref void
     if file_len > 0 {
-        val nread: usize = fread(data_ptr, 1 as usize, file_len as usize, file)
+        val nread: usize = rt.fread(data_ptr, 1 as usize, file_len as usize, file)
         if nread != file_len as usize {
-            fclose(file)
+            rt.fclose(file)
             ostr.free(data)
             return err CryptoError.FileReadFailed
         }
     }
 
-    fclose(file)
+    rt.fclose(file)
 
     val digest: str.String = sha256[A, str.String](ac, data)
     ostr.free(data)

@@ -1,23 +1,17 @@
 val str = use("std/string")
-
-extern (C, header) fn fwrite(
-    ptr: ref void,
-    size: usize,
-    nmemb: usize,
-    stream: ref void
-) usize = "fwrite"
+val rt  = use("../runtime")
 
 /// Write a borrowed string view to stdout without requiring null termination.
 pub fn printv(data: str.StringView) void = trust {
     if data.len > 0 {
-        fwrite(data.ptr as ref void, 1 as usize, data.len as usize, @stdout())
+        rt.fwrite(data.ptr as ref void, 1 as usize, data.len as usize, rt.stdout())
     }
 }
 
 /// Write a borrowed string view to stderr without requiring null termination.
 pub fn eprintv(data: str.StringView) void = trust {
     if data.len > 0 {
-        fwrite(data.ptr as ref void, 1 as usize, data.len as usize, @stderr())
+        rt.fwrite(data.ptr as ref void, 1 as usize, data.len as usize, rt.stderr())
     }
 }
 
@@ -25,7 +19,7 @@ pub fn eprintv(data: str.StringView) void = trust {
 pub fn puts(data: str.StringView) void = {
     trust printv(data)
     val nl: mut u8 = 10
-    trust fwrite(@addr(nl) as ref void, 1 as usize, 1 as usize, @stdout())
+    trust rt.fwrite(@addr(nl) as ref void, 1 as usize, 1 as usize, rt.stdout())
 }
 
 /// Print a formatted string to stdout.
@@ -50,7 +44,7 @@ when windows {
 pub fn eputs(msg: str.StringView) void = {
     trust eprintv(msg)
     val nl: mut u8 = 10
-    trust fwrite(@addr(nl) as ref void, 1 as usize, 1 as usize, @stderr())
+    trust rt.fwrite(@addr(nl) as ref void, 1 as usize, 1 as usize, rt.stderr())
 }
 
 /// Print a string to stderr followed by a newline (fd 2).
@@ -68,7 +62,7 @@ pub fn read_key() i32 = trust {
 /// (at most max_len bytes, including null terminator).
 /// Returns buf on success, or a null pointer on EOF/error.
 pub fn read_line(buf: ref u8, max_len: i64) ref u8 = trust {
-    return @fgets(buf, max_len, @stdin())
+    return @fgets(buf, max_len, rt.stdin())
 }
 
 test "stdio reads a line" {

@@ -1,10 +1,4 @@
-/// Spectre freestanding runtime ABI.
-///
-/// This module is the source-level description of the boundary between
-/// generated Spectre code and the platform runtime.  The C implementation in
-/// `spectrelib/csources/freestanding/runtime.c` currently owns the syscall /
-/// Win32 boundary; higher-level allocator, string, file, time and thread code
-/// can migrate here without changing this ABI.
+/// Spectre runtime ABI and ownership rules.
 ///
 /// Ownership rules:
 ///   * allocation returns `none` on failure;
@@ -25,15 +19,3 @@ pub type RuntimePlan = {
     runtime_objects: ref void
     import_libraries: ref void
 }
-
-// The runtime entry points are declared here for documentation and for
-// Spectre modules that want to call the boundary explicitly.  Hosted builds
-// resolve the same names through the C library.
-extern (C) fn __sx_exit(code: i32) void = "__sx_exit"
-extern (C) fn __sx_get_argc() i32 = "__sx_get_argc"
-extern (C) fn __sx_get_argv() ref void = "__sx_get_argv"
-extern (C) fn __sx_alloc(size: usize) ref void = "__sx_alloc"
-extern (C) fn __sx_calloc(count: usize, size: usize) ref void = "__sx_calloc"
-extern (C) fn __sx_realloc(ptr: ref void, size: usize) ref void = "__sx_realloc"
-extern (C) fn __sx_free(ptr: ref void) void = "__sx_free"
-extern (C) fn __sx_clock() i64 = "__sx_clock"

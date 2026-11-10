@@ -961,6 +961,7 @@ pub fn main() i32 = trust {
         runtime_mode = c"hosted"
     }
     val freestanding_runtime: mut bool = builds.runtime_is_freestanding(runtime_mode)
+    module.set_runtime_mode(runtime_mode)
     codegen.set_runtime_mode(runtime_mode)
     alt_codegen.set_runtime_mode(runtime_mode)
 
@@ -1086,11 +1087,13 @@ pub fn main() i32 = trust {
                 if builds.links_require_hosted(detected_links) {
                     runtime_mode = c"hosted"
                     freestanding_runtime = false
+                    module.set_runtime_mode(runtime_mode)
                     codegen.set_runtime_mode(runtime_mode)
                     alt_codegen.set_runtime_mode(runtime_mode)
-                    if !quiet {
-                        stdio.puts("[I  ]│ external C library detected - using hosted runtime")
-                    }
+                    stdio.eprint(
+                        "warning: external C library detected; using hosted runtime (pass -runtime:freestanding to force)\n",
+                        {}
+                    )
                 }
             }
             err _ => { }
@@ -1334,6 +1337,44 @@ pub fn main() i32 = trust {
             alt_runtime_obj = rt_lib_spec
         }
 
+        val alt_win_compat: mut ref u8 = c""
+        if cstr.cmp(target_platform, c"windows") == 0
+        && !freestanding_runtime && !compile_obj {
+            val compat_c: ref u8 = path.join_cstr(
+                exe_dir,
+                c"spectrelib/csources/hosted_windows_compat.c"
+            )
+            if os.exists(compat_c) {
+                val compat_obj: ref u8 = builds.get_unique_tmp_path(c"spectre_hosted_win_compat.obj")
+                val compat_cmd: ref u8 = @fmtalloc(
+                    "clang --target={s} -std=c99 -c {s} -o {s}{s} 2>&1",
+                    {
+                        builds.target_triple(target_platform, target_arch),
+                        compat_c,
+                        compat_obj,
+                        builds.xwin_include_flags(xwin_root, target_arch)
+                    }
+                )
+                if show_cmd != 0 {
+                    stdio.print("{s}\n", {compat_cmd})
+                }
+                val compat_res = os.exec(compat_cmd)
+                match compat_res {
+                    ok v => {
+                        val vstr: ref u8 = ostr.as_cstr(v)
+                        val err_mark = ostr.from_cstr[allocators.Arena](arena, c"error:")
+                        if ostr.contains(v, err_mark) {
+                            stdio.print("{s}", {vstr})
+                            os.delete(compat_obj)
+                        } else {
+                            alt_win_compat = compat_obj
+                        }
+                    }
+                    err _ => { }
+                }
+            }
+        }
+
         val c_ir: mut ref u8 = c""
         val emit_ld: bool = !bootstrap_mode
         if test_mode {
@@ -1478,6 +1519,9 @@ pub fn main() i32 = trust {
                     builds.xwin_lib_path_flags_clang(xwin_root, target_arch)
                 }
             )
+            if cstr.len(alt_win_compat) > 0 {
+                link_flags_alt = @fmtalloc("{s} {s}", {link_flags_alt, alt_win_compat})
+            }
         }
         if freestanding_runtime && !compile_obj {
             if cstr.cmp(target_platform, c"windows") == 0 {
@@ -1711,6 +1755,9 @@ pub fn main() i32 = trust {
             }
         }
 
+        if cstr.len(alt_win_compat) > 0 {
+            os.delete(alt_win_compat)
+        }
         os.delete(c_file)
         allocators.Arena.free(arena)
         return 0
@@ -2205,6 +2252,38 @@ pub fn main() i32 = trust {
             os.delete(shim_c_file_x)
         }
 
+        val win_compat_obj: mut ref u8 = c""
+        if cstr.cmp(target_platform, c"windows") == 0 && !freestanding_runtime {
+            val compat_c: ref u8 = path.join_cstr(
+                exe_dir,
+                c"spectrelib/csources/hosted_windows_compat.c"
+            )
+            if os.exists(compat_c) {
+                val compat_obj: ref u8 = builds.get_unique_tmp_path(c"spectre_hosted_win_compat.obj")
+                val compat_cmd: ref u8 = @fmtalloc(
+                    "clang --target={s} -std=c99 -c {s} -o {s}{s} 2>&1",
+                    {triple_x, compat_c, compat_obj, xwin_inc_x}
+                )
+                if show_cmd != 0 {
+                    stdio.print("{s}\n", {compat_cmd})
+                }
+                val compat_res = os.exec(compat_cmd)
+                match compat_res {
+                    ok v => {
+                        val vstr: ref u8 = ostr.as_cstr(v)
+                        val err_mark = ostr.from_cstr[allocators.Arena](arena, c"error:")
+                        if ostr.contains(v, err_mark) {
+                            stdio.print("{s}", {vstr})
+                            os.delete(compat_obj)
+                        } else {
+                            win_compat_obj = compat_obj
+                        }
+                    }
+                    err _ => { }
+                }
+            }
+        }
+
         val link_cmd_x: mut ref u8 = c""
         if cstr.cmp(target_platform, c"windows") == 0 {
             val win_inputs: mut ref u8 = c""
@@ -2273,6 +2352,9 @@ pub fn main() i32 = trust {
             }
             if cstr.len(start_obj_x) > 0 {
                 win_inputs = @fmtalloc("{s} {s}", {win_inputs, start_obj_x})
+            }
+            if cstr.len(win_compat_obj) > 0 {
+                win_inputs = @fmtalloc("{s} {s}", {win_inputs, win_compat_obj})
             }
             val subsystem_x: mut ref u8 = c"/subsystem:console"
             if build_dll {
@@ -2375,6 +2457,9 @@ pub fn main() i32 = trust {
         }
         if cstr.len(start_obj_x) > 0 && !start_obj_cached {
             os.delete(start_obj_x)
+        }
+        if cstr.len(win_compat_obj) > 0 {
+            os.delete(win_compat_obj)
         }
         if !link_ok {
             stdio.puts("error: target link failed")

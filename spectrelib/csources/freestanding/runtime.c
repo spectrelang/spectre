@@ -1775,6 +1775,7 @@ __attribute__((dllimport)) int __stdcall SX_WS(recvfrom)(SOCKET, char *, int, in
 __attribute__((dllimport)) int __stdcall SX_WS(setsockopt)(SOCKET, int, int, const char *, int) __asm__("setsockopt");
 __attribute__((dllimport)) int __stdcall SX_WS(closesocket)(SOCKET) __asm__("closesocket");
 __declspec(dllimport) unsigned short __stdcall htons(unsigned short);
+__declspec(dllimport) unsigned short __stdcall ntohs(unsigned short);
 __declspec(dllimport) int __stdcall WSAPoll(void *, unsigned long, int);
 __declspec(dllimport) int __stdcall ioctlsocket(SOCKET, long, unsigned long *);
 __declspec(dllimport) int __stdcall BCryptGenRandom(void *, unsigned char *, unsigned long, unsigned long);
@@ -2443,3 +2444,152 @@ void __sx_exit(int code) { exit(code); }
 sx_i64 __sx_clock(void) { return time(SX_NULL); }
 void __sx_sleep(unsigned millis) { usleep(millis * 1000u); }
 void __sx_random_fill(void *buf, sx_size_t n) { arc4random_buf(buf, n); }
+
+/* ------------------------------------------------------------------------- */
+/* Public `sx_*` runtime ABI used by std/runtime                             */
+/* ------------------------------------------------------------------------- */
+
+void *sx_alloc(sx_size_t n) { return malloc(n); }
+void *sx_calloc(sx_size_t count, sx_size_t n) { return calloc(count, n); }
+void *sx_realloc(void *p, sx_size_t n) { return realloc(p, n); }
+void sx_free(void *p) { free(p); }
+
+void *sx_memcpy(void *dst, const void *src, sx_size_t n) { return memcpy(dst, src, n); }
+void *sx_memmove(void *dst, const void *src, sx_size_t n) { return memmove(dst, src, n); }
+void *sx_memset(void *dst, int v, sx_size_t n) { return memset(dst, v, n); }
+int sx_memcmp(const void *a, const void *b, sx_size_t n) { return memcmp(a, b, n); }
+sx_size_t sx_strlen(const char *s) { return strlen(s); }
+int sx_strcmp(const char *a, const char *b) { return strcmp(a, b); }
+int sx_strncmp(const char *a, const char *b, sx_size_t n) { return strncmp(a, b, n); }
+char *sx_strcpy(char *dst, const char *src) { return strcpy(dst, src); }
+char *sx_strcat(char *dst, const char *src) { return strcat(dst, src); }
+char *sx_strchr(const char *s, int c) { return strchr(s, c); }
+char *sx_strrchr(const char *s, int c) { return strrchr(s, c); }
+char *sx_strstr(const char *a, const char *b) { return strstr(a, b); }
+char *sx_strdup(const char *s) { return strdup(s); }
+char *sx_strtok_r(char *s, const char *d, char **save) { return strtok_r(s, d, save); }
+int sx_atoi(const char *s) { return atoi(s); }
+int sx_isdigit(int c) { return isdigit(c); }
+long sx_strtol(const char *s, char **end, int base) { return strtol(s, end, base); }
+
+void *sx_fopen(const char *path, const char *mode) { return fopen(path, mode); }
+int sx_fclose(void *f) { return fclose((FILE *)f); }
+sx_size_t sx_fread(void *ptr, sx_size_t size, sx_size_t n, void *f) { return fread(ptr, size, n, (FILE *)f); }
+sx_size_t sx_fwrite(const void *ptr, sx_size_t size, sx_size_t n, void *f) { return fwrite(ptr, size, n, (FILE *)f); }
+int sx_fseek(void *f, long off, int whence) { return fseek((FILE *)f, off, whence); }
+long sx_ftell(void *f) { return ftell((FILE *)f); }
+void sx_rewind(void *f) { rewind((FILE *)f); }
+int sx_fflush(void *f) { return fflush((FILE *)f); }
+int sx_close(int fd) { return close(fd); }
+int sx_fcntl(int fd, int cmd, int arg) { return fcntl(fd, cmd, arg); }
+int sx_fgetc(void *f) { return fgetc((FILE *)f); }
+int sx_getchar(void) { return getchar(); }
+int sx_fputc(int c, void *f) { return fputc(c, (FILE *)f); }
+int sx_putchar(int c) { return putchar(c); }
+char *sx_fgets(char *buf, int n, void *f) { return fgets(buf, n, (FILE *)f); }
+int sx_fputs(const char *s, void *f) { return fputs(s, (FILE *)f); }
+void *sx_fdopen(int fd, const char *mode) { return fdopen(fd, mode); }
+int sx_fileno(void *f) { return fileno((FILE *)f); }
+int sx_feof(void *f) { return feof((FILE *)f); }
+int sx_ferror(void *f) { return ferror((FILE *)f); }
+void *sx_stdin(void) { return stdin; }
+void *sx_stdout(void) { return stdout; }
+void *sx_stderr(void) { return stderr; }
+
+int sx_printf(const char *fmt, ...) {
+    char buf[4096];
+    sx_va_list ap;
+    __builtin_va_start(ap, fmt);
+    int n = sx_vformat(buf, sizeof(buf), fmt, ap);
+    __builtin_va_end(ap);
+    if (n > 0) write(1, buf, (sx_size_t)n < sizeof(buf) ? (sx_size_t)n : sizeof(buf) - 1);
+    return n;
+}
+int sx_dprintf(int fd, const char *fmt, ...) {
+    char buf[4096];
+    sx_va_list ap;
+    __builtin_va_start(ap, fmt);
+    int n = sx_vformat(buf, sizeof(buf), fmt, ap);
+    __builtin_va_end(ap);
+    if (n > 0) write(fd, buf, (sx_size_t)n < sizeof(buf) ? (sx_size_t)n : sizeof(buf) - 1);
+    return n;
+}
+int sx_snprintf(char *buf, sx_size_t cap, const char *fmt, ...) {
+    sx_va_list ap;
+    __builtin_va_start(ap, fmt);
+    int n = sx_vformat(buf, cap, fmt, ap);
+    __builtin_va_end(ap);
+    return n;
+}
+int sx_puts(const char *s) { return puts(s); }
+
+char *sx_getenv(const char *name) { return getenv(name); }
+char *sx_getcwd(char *buf, sx_size_t n) { return getcwd(buf, n); }
+int sx_chdir(const char *p) { return chdir(p); }
+int sx_access(const char *p, int mode) { return access(p, mode); }
+int sx_mkdir(const char *p, unsigned mode) { return mkdir(p, mode); }
+int sx_rmdir(const char *p) { return rmdir(p); }
+int sx_remove(const char *p) { return remove(p); }
+int sx_rename(const char *a, const char *b) { return rename(a, b); }
+int sx_unlink(const char *p) { return unlink(p); }
+char *sx_realpath(const char *p, char *out) { return realpath(p, out); }
+sx_ssize_t sx_readlink(const char *p, char *buf, sx_size_t n) { return readlink(p, buf, n); }
+int sx_isatty(int fd) { return isatty(fd); }
+int sx_stat(const char *p, void *buf) { return stat(p, buf); }
+int sx_uname(void *u) { return uname((struct sx_utsname *)u); }
+int sx_lstat(const char *p, void *buf) { return lstat(p, buf); }
+int sx_fstat(int fd, void *buf) { return fstat(fd, buf); }
+void *sx_opendir(const char *p) { return opendir(p); }
+int sx_closedir(void *d) { return closedir((DIR *)d); }
+void *sx_readdir(void *d) { return readdir((DIR *)d); }
+
+void sx_exit(int code) { exit(code); }
+int sx_system(const char *cmd) { return system(cmd); }
+void *sx_popen(const char *cmd, const char *mode) { return popen(cmd, mode); }
+int sx_pclose(void *f) { return pclose((FILE *)f); }
+
+int sx_gettimeofday(void *tv, void *tz) { return gettimeofday((sx_timeval *)tv, tz); }
+void *sx_localtime(const sx_i64 *t) { return localtime(t); }
+int sx_usleep(unsigned usec) { return usleep(usec); }
+int sx_sleep(unsigned seconds) { return sleep(seconds); }
+sx_i64 sx_time(sx_i64 *out) { return time(out); }
+
+sx_ssize_t sx_getrandom(void *buf, sx_size_t n, unsigned flags) { return getrandom(buf, n, flags); }
+void sx_arc4random_buf(void *buf, sx_size_t n) { arc4random_buf(buf, n); }
+
+int sx_pthread_create(sx_u64 *thread, void *attr, void *(*fn)(void *), void *arg) {
+    return pthread_create(thread, attr, fn, arg);
+}
+int sx_pthread_join(sx_u64 thread, void **retval) { return pthread_join(thread, retval); }
+int sx_pthread_detach(sx_u64 thread) { return pthread_detach(thread); }
+sx_u64 sx_pthread_self(void) { return pthread_self(); }
+int sx_sched_yield(void) { return sched_yield(); }
+
+typedef struct { int state; } sx_mutex_public;
+int sx_mutex_init(void *m) { return pthread_mutex_init((sx_mutex *)m, SX_NULL); }
+int sx_mutex_destroy(void *m) { return pthread_mutex_destroy((sx_mutex *)m); }
+int sx_mutex_lock(void *m) { return pthread_mutex_lock((sx_mutex *)m); }
+int sx_mutex_unlock(void *m) { return pthread_mutex_unlock((sx_mutex *)m); }
+
+int sx_socket(int d, int t, int p) { return socket(d, t, p); }
+int sx_bind(int fd, const void *a, unsigned len) { return bind(fd, a, len); }
+int sx_listen(int fd, int backlog) { return listen(fd, backlog); }
+int sx_accept(int fd, void *a, unsigned *len) { return accept(fd, a, len); }
+int sx_connect(int fd, const void *a, unsigned len) { return connect(fd, a, len); }
+sx_ssize_t sx_send(int fd, const void *b, sx_size_t n, int flags) { return send(fd, b, n, flags); }
+sx_ssize_t sx_recv(int fd, void *b, sx_size_t n, int flags) { return recv(fd, b, n, flags); }
+int sx_sendto(int fd, const void *b, sx_size_t n, int flags, const void *a, unsigned len) { return sendto(fd, b, n, flags, a, len); }
+int sx_recvfrom(int fd, void *b, sx_size_t n, int flags, void *a, unsigned *len) { return recvfrom(fd, b, n, flags, a, len); }
+int sx_setsockopt(int fd, int level, int opt, const void *v, unsigned len) { return setsockopt(fd, level, opt, v, len); }
+int sx_getsockopt(int fd, int level, int opt, void *v, unsigned *len) { return getsockopt(fd, level, opt, v, len); }
+int sx_poll(void *fds, unsigned long n, int timeout) { return poll(fds, n, timeout); }
+unsigned short sx_htons(unsigned short v) { return htons(v); }
+unsigned short sx_ntohs(unsigned short v) { return ntohs(v); }
+#if defined(SX_LINUX)
+int sx_closesocket(int fd) { return close(fd); }
+#else
+int sx_closesocket(int fd) { return closesocket(fd); }
+#endif
+
+void (*sx_signal(int sig, void (*handler)(int)))(int) { return signal(sig, handler); }
+int sx_raise(int sig) { return raise(sig); }

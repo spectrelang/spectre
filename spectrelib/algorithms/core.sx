@@ -1,8 +1,7 @@
 val cstr       = use("std/string/cstr")
 val allocators = use("../allocators")
+val rt = use("../runtime")
 
-extern "ctype.h"
-extern (C, header) fn isdigit(c: i32) i32 = "isdigit"
 
 /// Generic sort (radix for numeric integers, insertion sort otherwise).
 pub fn sort[A: allocators.GeneralAllocator, T](ac: A, input: list[T]) list[T] = {
@@ -317,7 +316,7 @@ fn parse_leading_num(name: ref u8) i64 = {
                 c = v
             }
         }
-        val is_dig: i32 = trust isdigit(c as i32)
+        val is_dig: i32 = trust rt.isdigit(c as i32)
         if is_dig != 0 {
             result = result * 10 + ((c as i64) - 48)
             found = 1

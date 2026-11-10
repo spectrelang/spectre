@@ -68,10 +68,7 @@ val stdio      = use("../stdio")
 val cstr       = use("std/string/cstr")
 val allocators = use("../allocators")
 val env        = use("../env")
-
-when posix {
-    extern (C) fn uname(buf: ref UnameResult) i32 = "uname"
-}
+val rt         = use("../runtime")
 
 pub fn get_current_platform[T: allocators.Allocator](ac: T) Platform = trust {
     when android {
@@ -102,7 +99,7 @@ pub fn get_current_platform[T: allocators.Allocator](ac: T) Platform = trust {
             version: 0,
             machine: 0
         }
-        val r = uname(@addr(buf))
+        val r = rt.uname(@addr(buf))
         if r == 0 {
             val sysname: ref u8 = @addr(buf.sysname) as ref u8
             if cstr.cmp(sysname, c"Linux") == 0 {
@@ -204,7 +201,7 @@ pub fn current_arch_name[T: allocators.Allocator](ac: T) ref u8 = trust {
             version: 0,
             machine: 0
         }
-        val r = uname(@addr(buf))
+        val r = rt.uname(@addr(buf))
         if r == 0 {
             val machine: ref u8 = @addr(buf.machine) as ref u8
             if cstr.cmp(machine, c"x86_64") == 0 || cstr.cmp(machine, c"amd64") == 0 {
@@ -228,13 +225,8 @@ pub fn current_arch_name[T: allocators.Allocator](ac: T) ref u8 = trust {
     return c"unknown"
 }
 
-when posix {
-    pub extern (C, header) fn readlink(path: ref u8, buf: ref u8, bufsiz: i64) i64 = "readlink"
-}
-
 when darwin {
     extern (C) fn _NSGetExecutablePath(buf: ref u8, bufsize: ref u32) i32 = "_NSGetExecutablePath"
-    extern (C, header) fn realpath(path: ref u8, resolved: ref u8) ref u8 = "realpath"
 }
 
 when windows {
@@ -255,7 +247,7 @@ pub fn get_exe_path[T: allocators.Allocator](ac: T) ref u8 = trust {
             if r == 0 {
                 val resolved: option[ref u8] = T.alloc(ac, 1024)
                 if resolved is some rp {
-                    val canon: i64 = realpath(buf, rp)
+                    val canon: i64 = rt.realpath(buf, rp)
                     if canon != 0 {
                         return rp
                     }
@@ -264,21 +256,21 @@ pub fn get_exe_path[T: allocators.Allocator](ac: T) ref u8 = trust {
             }
         }
         when linux {
-            val n = readlink(c"/proc/self/exe", buf, 1024)
+            val n = rt.readlink(c"/proc/self/exe", buf, 1024)
             if n > 0 {
                 @store8(@ptradd(buf, n), 0)
                 return buf
             }
         }
         when freebsd {
-            val n = readlink(c"/proc/curproc/file", buf, 1024)
+            val n = rt.readlink(c"/proc/curproc/file", buf, 1024)
             if n > 0 {
                 @store8(@ptradd(buf, n), 0)
                 return buf
             }
         }
         when netbsd {
-            val n = readlink(c"/proc/curproc/exe", buf, 1024)
+            val n = rt.readlink(c"/proc/curproc/exe", buf, 1024)
             if n > 0 {
                 @store8(@ptradd(buf, n), 0)
                 return buf

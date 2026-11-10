@@ -4,19 +4,9 @@
 
 val stdio = use("../stdio")
 val str   = use("std/string")
+val rt    = use("../runtime")
 
-when linux {
-    // glibc >= 2.25 / musl provide getrandom(2) directly.
-    extern (C) fn getrandom(buf: ref void, buflen: usize, flags: u32) isize = "getrandom"
-}
-or when android {
-    extern (C) fn getrandom_android(buf: ref void, buflen: usize, flags: u32) isize = "getrandom"
-}
-or when posix {
-    // arc4random is native on macOS and the BSDs.
-    extern (C) fn arc4random_buf(buf: ref void, len: usize) void = "arc4random_buf"
-}
-or when windows {
+when windows {
     link "-lbcrypt"
     extern (C) fn BCryptGenRandom(
         hAlgorithm: ref void,
@@ -34,7 +24,7 @@ pub fn random_bytes(buf: ref void, len: usize) void = {
             if total >= len {
                 break
             }
-            val n: isize = trust getrandom(@ptradd(buf, total as i64), len - total, 0 as u32)
+            val n: isize = trust rt.getrandom(@ptradd(buf, total as i64), len - total, 0 as u32)
             if n <= 0 {
                 break
             }
@@ -47,7 +37,7 @@ pub fn random_bytes(buf: ref void, len: usize) void = {
             if total >= len {
                 break
             }
-            val n: isize = trust getrandom_android(
+            val n: isize = trust rt.getrandom(
                 @ptradd(buf, total as i64),
                 len - total,
                 0 as u32
@@ -59,7 +49,7 @@ pub fn random_bytes(buf: ref void, len: usize) void = {
         }
     }
     or when posix {
-        trust arc4random_buf(buf, len)
+        trust rt.arc4random_buf(buf, len)
     }
     or when windows {
         trust BCryptGenRandom(none, buf, len as u32, 2 as u32)

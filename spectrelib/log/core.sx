@@ -1,8 +1,9 @@
-extern (C, header) fn isatty(fd: i64) i64 = "isatty"
 
 val time  = use("../time")
 val stdio = use("../stdio")
 val os    = use("../os")
+val rt = use("../runtime")
+
 
 pub enum Level = {
     Debug
@@ -12,7 +13,7 @@ pub enum Level = {
     Fatal
 }
 
-val colors: mut bool = trust isatty(1) != 0
+val colors: mut bool = trust rt.isatty(1) != 0
 val min_level: mut Level = Level.Debug
 
 pub fn set_colors(c: bool) void = {

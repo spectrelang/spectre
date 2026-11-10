@@ -2,13 +2,14 @@
 ///
 /// SPDX-License-Identifier: GPL-3.0-only
 /// (C) Navid Momtahen - 2026
+val rt = use("../runtime")
+
 
 val stdio      = use("../stdio")
 val cstr       = use("std/string/cstr")
 val fmt        = use("../fmt")
 val allocators = use("../allocators")
 
-extern (C, header) fn strlen(s: ref u8) i64 = "strlen"
 
 /// Errors reported while creating a flag set.
 pub enum InitError = {
@@ -148,7 +149,7 @@ pub fn string_var(
 ) void = trust {
     val current: ref u8 = @deref(target)
     val default_text: mut ref u8 = none
-    if current == none || strlen(current) == 0 {
+    if current == none || rt.strlen(current) == 0 {
         default_text = @fmtalloc("(default: \"\")", {})
     } else {
         default_text = @fmtalloc("(default: {s})", {current})
@@ -209,7 +210,7 @@ pub fn parse(
             i++
             continue
         }
-        val arg_len: i64 = strlen(arg)
+        val arg_len: i64 = rt.strlen(arg)
 
         if only_positional {
             @append(@deref(fs.positional), arg)
@@ -237,7 +238,7 @@ pub fn parse(
             body = @ptradd(arg, 2)
         }
 
-        val body_len: i64 = strlen(body)
+        val body_len: i64 = rt.strlen(body)
         if body_len == 0 {
             return err ParseError.UnknownFlag(arg)
         }
@@ -402,7 +403,7 @@ fn write_usage(fs: FlagSet, to_stderr: bool) void = trust {
     val title: ref u8 = @fmtalloc("Usage: {s} [options] [args...]\n", {fs.name})
     emit(to_stderr, title)
 
-    if fs.description != none && strlen(fs.description) > 0 {
+    if fs.description != none && rt.strlen(fs.description) > 0 {
         emit(to_stderr, @fmtalloc("\n{s}\n", {fs.description}))
     }
 
@@ -415,7 +416,7 @@ fn write_usage(fs: FlagSet, to_stderr: bool) void = trust {
         }
 
         val names: mut ref u8 = c""
-        if current.alias != none && strlen(current.alias) > 0 {
+        if current.alias != none && rt.strlen(current.alias) > 0 {
             names = @fmtalloc("-{s}, -{s}", {current.alias, current.name})
         } else {
             names = @fmtalloc("-{s}", {current.name})
@@ -451,7 +452,7 @@ fn span_equals(span: ref u8, len: i64, other: ref u8) bool = trust {
     if other == none {
         return false
     }
-    if strlen(other) != len {
+    if rt.strlen(other) != len {
         return false
     }
     val i: mut i64 = 0
@@ -476,7 +477,7 @@ fn find_name(fs: FlagSet, name: ref u8, len: i64) ref Flag = trust {
         if span_equals(name, len, current.name) {
             return current
         }
-        if current.alias != none && strlen(current.alias) > 0 {
+        if current.alias != none && rt.strlen(current.alias) > 0 {
             if span_equals(name, len, current.alias) {
                 return current
             }
@@ -487,7 +488,7 @@ fn find_name(fs: FlagSet, name: ref u8, len: i64) ref Flag = trust {
 }
 
 fn find_separator(s: ref u8) i64 = trust {
-    val len: i64 = strlen(s)
+    val len: i64 = rt.strlen(s)
     val i: mut i64 = 0
     for {
         if i >= len {
@@ -540,7 +541,7 @@ fn parse_bool(value: ref u8) option[bool] = {
 }
 
 fn looks_like_int(value: ref u8) bool = trust {
-    val len: i64 = strlen(value)
+    val len: i64 = rt.strlen(value)
     if len == 0 {
         return false
     }
