@@ -10,7 +10,7 @@ This document is the execution plan for four related goals:
 
 . A libc-free Spectre runtime for compiled programs.
 . A freestanding mode for the C99 backend.
-. A Mach-style import synthesizer for Windows.
+. A Zig-style import synthesizer for Windows.
 . Reliable `linux`/`darwin` -> `windows` cross-compilation using `xwin`
   as the transitional hosted toolchain.
 
@@ -94,7 +94,7 @@ Flags:
 | `-rt-lib:<file>` | Explicit prebuilt runtime archive/object.
 |===
 
-`-runtime:` must also be settable from `sx.mod`/`mach`-style project build
+`-runtime:` must also be settable from `sx.mod`/`zig`-style project build
 configuration later.
 
 == Current state
@@ -409,12 +409,12 @@ Windows uses Win32/ntdll APIs, not raw syscalls.
 * Args, allocation, file I/O, sleep, and a basic thread test run under Wine.
 * No `libcmt.lib`, `libucrt.lib`, `msvcrt.lib`, or `oldnames.lib` is passed.
 
-== Phase 4: Mach-style Windows import synthesizer
+== Phase 4: zig-style Windows import synthesizer
 
 Goal: eliminate the need for Windows SDK import libraries in freestanding
 Windows builds.
 
-This is the Spectre equivalent of Mach's `#[library("kernel32")]` model, adapted
+This is the Spectre equivalent of zig's `#[library("kernel32")]` model, adapted
 to `lld-link`.
 
 === Design
@@ -439,7 +439,7 @@ User projects can extend it with `-import-map:<file>`.
 
 ==== Phase 4b: source-level attribution
 
-Add Spectre syntax equivalent to Mach's library decorator, for example:
+Add Spectre syntax equivalent to zig's library decorator, for example:
 
 [source,spectre]
 ----
