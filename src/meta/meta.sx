@@ -50,6 +50,8 @@ pub fn print_usage() void = {
     stdio.puts("  -emit-alt            Print alternative IR to stdout and exit")
     stdio.puts("  -emit-asm            Print assembly to stdout and exit")
     stdio.puts("  -target:<os>.<arch>  Cross-compile (linux/windows, x86_64/aarch64)")
+    stdio.puts("  -xwin:<dir>          xwin root for hosted Windows cross builds")
+    stdio.puts("  -no-xwin             Disable automatic xwin discovery")
     stdio.puts("  -src-target:<os>     Mock target OS for when-blocks in source output")
     stdio.puts("  -translate-c         Translate C input into a single .sx file")
     stdio.puts("  -inc-path:<dir>      Add an include search path for the alt backend")
@@ -365,6 +367,31 @@ pub fn print_help(topic: str.StringView) i32 = trust {
         c"-src-target"
     ) == 0 || str.eql_cstr(topic, c"-src-target:<os>") == 0 {
         print_src_target_help()
+        return 0
+    }
+
+    if str.eql_cstr(topic, c"-xwin") == 0 || str.eql_cstr(topic, c"-xwin:<dir>") == 0 {
+        stdio.puts("-xwin:<dir>")
+        stdio.puts("")
+        stdio.puts("  Use an explicit xwin root for hosted Windows cross builds.")
+        stdio.puts("  Auto-discovery checks SPECTRE_XWIN_DIR, XWIN_DIR, ~/.xwin,")
+        stdio.puts("  ~/.cache/xwin/splat, and ./.xwin-cache/splat.")
+        stdio.puts("")
+        stdio.puts("  Create an xwin root with:")
+        stdio.puts("    cargo install xwin --locked")
+        stdio.puts("    xwin --arch x86_64 --accept-license splat --output ~/.xwin")
+        stdio.puts("")
+        stdio.puts("  Example:")
+        stdio.puts("    spectre app.sx -target:windows.x86_64 -xwin:$HOME/.xwin")
+        return 0
+    }
+
+    if str.eql_cstr(topic, c"-no-xwin") == 0 {
+        print_flag_help(
+            "-no-xwin",
+            "Disable automatic xwin discovery for Windows cross builds.",
+            "spectre <input.sx> -target:windows.x86_64 -no-xwin"
+        )
         return 0
     }
 

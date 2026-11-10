@@ -507,6 +507,211 @@ pub fn translate_lld_link_flag(flag: ref u8) ref u8 = trust {
     return flag
 }
 
+/// Returns true when `root` looks like an xwin splat directory.
+pub fn xwin_root_looks_valid(root: ref u8) bool = trust {
+    if cstr.cmp(root, c"") == 0 {
+        return false
+    }
+    if !fs.is_directory_cstr(path.join_cstr(root, c"crt")) {
+        return false
+    }
+    if !fs.is_directory_cstr(path.join_cstr(root, c"sdk")) {
+        return false
+    }
+    return true
+}
+
+/// Discover an xwin splat root.
+///
+/// Order: SPECTRE_XWIN_DIR, XWIN_DIR, ~/.xwin, ~/.cache/xwin/splat, then
+/// ./.xwin-cache/splat. Returns an empty string when nothing was found.
+pub fn xwin_find_root() ref u8 = trust {
+    val from_env: ref u8 = os.getenv(c"SPECTRE_XWIN_DIR")
+    if from_env != none && cstr.len(from_env) > 0 {
+        return from_env
+    }
+    val from_env2: ref u8 = os.getenv(c"XWIN_DIR")
+    if from_env2 != none && cstr.len(from_env2) > 0 {
+        return from_env2
+    }
+    val home_opt = fs.home_dir_cstr()
+    if home_opt is some home {
+        val a: ref u8 = path.join_cstr(home, c".xwin")
+        if xwin_root_looks_valid(a) {
+            return a
+        }
+        val b: ref u8 = path.join_cstr(home, c".cache/xwin/splat")
+        if xwin_root_looks_valid(b) {
+            return b
+        }
+    }
+    if xwin_root_looks_valid(c"./.xwin-cache/splat") {
+        return c"./.xwin-cache/splat"
+    }
+    return c""
+}
+
+/// Resolve the architecture directory name used by xwin.
+///
+/// Returns "x86_64", "aarch64", or "arm64" when that directory exists below
+/// `<root>/crt/lib`, and an empty string otherwise.
+pub fn xwin_arch_dir(root: ref u8, arch: ref u8) ref u8 = trust {
+    if cstr.cmp(root, c"") == 0 {
+        return c""
+    }
+    val lib_root: ref u8 = path.join_cstr(root, c"crt/lib")
+    if cstr.cmp(arch, c"aarch64") == 0 || cstr.cmp(arch, c"arm64") == 0 {
+        val a64: ref u8 = path.join_cstr(lib_root, c"aarch64")
+        if fs.is_directory_cstr(a64) {
+            return c"aarch64"
+        }
+        val arm64: ref u8 = path.join_cstr(lib_root, c"arm64")
+        if fs.is_directory_cstr(arm64) {
+            return c"arm64"
+        }
+        return c""
+    }
+    val x64: ref u8 = path.join_cstr(lib_root, c"x86_64")
+    if fs.is_directory_cstr(x64) {
+        return c"x86_64"
+    }
+    return c""
+}
+
+/// Returns true when `root` has the CRT/SDK directories and import libraries
+/// required to link a hosted Windows program for `arch`.
+pub fn xwin_available_in(root: ref u8, arch: ref u8) bool = trust {
+    if !xwin_root_looks_valid(root) {
+        return false
+    }
+    val ad: ref u8 = xwin_arch_dir(root, arch)
+    if cstr.cmp(ad, c"") == 0 {
+        return false
+    }
+    val crt_lib: ref u8 = path.join_cstr(path.join_cstr(root, c"crt/lib"), ad)
+    val um_lib: ref u8 = path.join_cstr(path.join_cstr(root, c"sdk/lib/um"), ad)
+    val ucrt_lib: ref u8 = path.join_cstr(path.join_cstr(root, c"sdk/lib/ucrt"), ad)
+    if !fs.is_directory_cstr(crt_lib) {
+        return false
+    }
+    if !fs.is_directory_cstr(um_lib) {
+        return false
+    }
+    if !fs.is_directory_cstr(ucrt_lib) {
+        return false
+    }
+    if !os.exists(path.join_cstr(crt_lib, c"libcmt.lib")) {
+        return false
+    }
+    if !os.exists(path.join_cstr(ucrt_lib, c"libucrt.lib")) {
+        return false
+    }
+    if !os.exists(path.join_cstr(um_lib, c"kernel32.lib")) {
+        return false
+    }
+    return true
+}
+
+/// Returns true when a usable xwin root for `arch` can be discovered.
+pub fn xwin_available(arch: ref u8) bool = trust {
+    return xwin_available_in(xwin_find_root(), arch)
+}
+
+/// GNU-style Clang include flags for an xwin root.
+pub fn xwin_include_flags(root: ref u8, arch: ref u8) ref u8 = trust {
+    if !xwin_root_looks_valid(root) {
+        return c""
+    }
+    if cstr.cmp(arch, c"") == 0 {
+        return c""
+    }
+    val flags: mut ref u8 = c""
+    val crt_inc: ref u8 = path.join_cstr(root, c"crt/include")
+    val ucrt_inc: ref u8 = path.join_cstr(root, c"sdk/include/ucrt")
+    val shared_inc: ref u8 = path.join_cstr(root, c"sdk/include/shared")
+    val um_inc: ref u8 = path.join_cstr(root, c"sdk/include/um")
+    val winrt_inc: ref u8 = path.join_cstr(root, c"sdk/include/winrt")
+    if fs.is_directory_cstr(crt_inc) {
+        flags = @fmtalloc("{s} -isystem {s}", {flags, crt_inc})
+    }
+    if fs.is_directory_cstr(ucrt_inc) {
+        flags = @fmtalloc("{s} -isystem {s}", {flags, ucrt_inc})
+    }
+    if fs.is_directory_cstr(shared_inc) {
+        flags = @fmtalloc("{s} -isystem {s}", {flags, shared_inc})
+    }
+    if fs.is_directory_cstr(um_inc) {
+        flags = @fmtalloc("{s} -isystem {s}", {flags, um_inc})
+    }
+    if fs.is_directory_cstr(winrt_inc) {
+        flags = @fmtalloc("{s} -isystem {s}", {flags, winrt_inc})
+    }
+    // Clang 18 defines an AArch64 `__prefetch` builtin that conflicts with the
+    // MSVC arm64 CRT's declaration in <intrin.h>. Rename the declaration so the
+    // system headers parse; runtime code does not call it.
+    if cstr.cmp(arch, c"aarch64") == 0 || cstr.cmp(arch, c"arm64") == 0 {
+        flags = @fmtalloc(
+            "{s} -D__prefetch=__sx_unused_prefetch",
+            {flags}
+        )
+    }
+    return flags
+}
+
+/// lld-link `/libpath:` flags for an xwin root.
+pub fn xwin_lib_path_flags(root: ref u8, arch: ref u8) ref u8 = trust {
+    val ad: ref u8 = xwin_arch_dir(root, arch)
+    if cstr.cmp(ad, c"") == 0 {
+        return c""
+    }
+    val crt_lib: ref u8 = path.join_cstr(path.join_cstr(root, c"crt/lib"), ad)
+    val um_lib: ref u8 = path.join_cstr(path.join_cstr(root, c"sdk/lib/um"), ad)
+    val ucrt_lib: ref u8 = path.join_cstr(path.join_cstr(root, c"sdk/lib/ucrt"), ad)
+    return @fmtalloc(
+        "/libpath:{s} /libpath:{s} /libpath:{s}",
+        {crt_lib, um_lib, ucrt_lib}
+    )
+}
+
+/// Clang-driver library search flags for an xwin root.
+pub fn xwin_lib_path_flags_clang(root: ref u8, arch: ref u8) ref u8 = trust {
+    val ad: ref u8 = xwin_arch_dir(root, arch)
+    if cstr.cmp(ad, c"") == 0 {
+        return c""
+    }
+    val crt_lib: ref u8 = path.join_cstr(path.join_cstr(root, c"crt/lib"), ad)
+    val um_lib: ref u8 = path.join_cstr(path.join_cstr(root, c"sdk/lib/um"), ad)
+    val ucrt_lib: ref u8 = path.join_cstr(path.join_cstr(root, c"sdk/lib/ucrt"), ad)
+    return @fmtalloc(
+        "-Wl,/libpath:{s} -Wl,/libpath:{s} -Wl,/libpath:{s}",
+        {crt_lib, um_lib, ucrt_lib}
+    )
+}
+
+/// Default libraries for a hosted Windows link.
+pub fn xwin_default_libs() ref u8 = {
+    return c"libcmt.lib libucrt.lib libvcruntime.lib oldnames.lib kernel32.lib"
+}
+
+/// Human-readable comma-separated list of architectures available in `root`.
+pub fn xwin_available_archs(root: ref u8) ref u8 = trust {
+    val out: mut ref u8 = c""
+    if xwin_available_in(root, c"x86_64") {
+        out = c"x86_64"
+    }
+    if xwin_available_in(root, c"aarch64") {
+        if cstr.len(out) > 0 {
+            out = @fmtalloc("{s}, aarch64", {out})
+        } else {
+            out = c"aarch64"
+        }
+    }
+    if cstr.len(out) == 0 {
+        return c"none"
+    }
+    return out
+}
+
 pub fn filter_c_diagnostics(raw: ref u8) ref u8 = trust {
     val sb: ref void = builder.StringBuilder.new()
     val len: i64 = cstr.len(raw) as i64
@@ -676,7 +881,7 @@ pub fn append_debug_runtime_links(
         if compiler_uses_msvc_flags(kind) {
             @append(links, c"Dbghelp.lib")
         } else {
-            @append(links, c"-lDbghelp")
+            @append(links, c"-ldbghelp")
         }
     }
 }

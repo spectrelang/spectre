@@ -591,6 +591,8 @@ pub fn main() i32 = trust {
     val inc_paths: mut list[ref u8] = mem.new[ref u8]()
     val src_target: mut ref u8 = c""
     val target_spec: mut ref u8 = c""
+    val xwin_dir: mut ref u8 = c""
+    val no_xwin: mut bool = false
     val shim_output: mut ref u8 = c""
     val bootstrap_mode: mut bool = false
     val arg_i: mut i64 = input_arg_i + 1
@@ -818,6 +820,18 @@ pub fn main() i32 = trust {
                     src_target = cstr.substr(arg, 12, tgt_len)
                 }
                 arg_i++
+            } elif cstr.starts_with(arg, c"-xwin:") {
+                val xwin_len: i64 = cstr.len(arg) as i64 - 6
+                if xwin_len <= 0 {
+                    stdio.puts("error: -xwin requires a directory, e.g. -xwin:$HOME/.xwin")
+                    allocators.Arena.free(arena)
+                    return 1
+                }
+                xwin_dir = cstr.substr(arg, 6, xwin_len)
+                arg_i++
+            } elif cstr.cmp(arg, c"-no-xwin") == 0 {
+                no_xwin = true
+                arg_i++
             } elif cstr.starts_with(arg, c"-emit-shim:") {
                 val shim_len: i64 = cstr.len(arg) as i64 - 11
                 if shim_len > 0 {
@@ -882,6 +896,53 @@ pub fn main() i32 = trust {
         host_platform,
         host_arch
     )
+
+    // Hosted Windows cross links need the MSVC CRT and Windows SDK import
+    // libraries. Resolve xwin once, before any compilation starts, so a
+    // missing toolchain produces one actionable error instead of a pile of
+    // missing `.lib` diagnostics from the linker.
+    val wants_windows_link: bool = cross_target
+    && builds.target_is_windows(target_platform)
+    && !compile_obj
+    && !emit_alt
+    && !emit_qbe
+    && !emit_ll
+    && !emit_asm
+    && !syntax_check
+    && !print_ast
+    && !translate_c_flag
+    val xwin_root: mut ref u8 = c""
+    if cross_target && builds.target_is_windows(target_platform) {
+        if cstr.len(xwin_dir) > 0 {
+            xwin_root = xwin_dir
+        } elif !no_xwin {
+            xwin_root = builds.xwin_find_root()
+        }
+        if wants_windows_link && !builds.xwin_available_in(xwin_root, target_arch) {
+            if cstr.len(xwin_root) > 0 {
+                stdio.print(
+                    "error: xwin at '{s}' is missing CRT/SDK libraries for {s}\n",
+                    {xwin_root, target_arch}
+                )
+            } else {
+                stdio.print(
+                    "error: windows.{s} requires xwin or a compatible Windows SDK\n",
+                    {target_arch}
+                )
+            }
+            stdio.print("  install: cargo install xwin --locked\n", {})
+            stdio.print(
+                "           xwin --arch {s} --accept-license splat --output ~/.xwin\n",
+                {target_arch}
+            )
+            stdio.print("  or pass: -xwin:<dir>\n", {})
+            allocators.Arena.free(arena)
+            return 1
+        }
+        if wants_windows_link && !quiet {
+            stdio.print("[I  ]│ xwin root: {s}\n", {xwin_root})
+        }
+    }
 
     if cstr.cmp(src_target, c"") != 0 && !explicit_target && !emit_alt && !emit_qbe && !emit_asm {
         stdio.puts("error: -src-target requires -emit-alt or -emit-ssa")
@@ -1118,7 +1179,13 @@ pub fn main() i32 = trust {
             final_output_alt = binary_name_alt
         } else {
             fs.mkdir_path_cstr(c"./s-out")
-            final_output_alt = @fmtalloc("./s-out/{s}", {binary_name_alt})
+            if cstr.cmp(target_platform, c"windows") == 0
+            && !compile_obj
+            && !build_dll {
+                final_output_alt = @fmtalloc("./s-out/{s}.exe", {binary_name_alt})
+            } else {
+                final_output_alt = @fmtalloc("./s-out/{s}", {binary_name_alt})
+            }
         }
         if compile_obj {
             final_output_alt = @fmtalloc(
@@ -1160,6 +1227,8 @@ pub fn main() i32 = trust {
                 target_platform
             )
         }
+        val windows_cross_link: bool = cross_target
+        && builds.target_is_windows(target_platform)
         val link_flags_alt: mut ref u8 = c""
         if cstr.cmp(static_flag_alt, c"") != 0 {
             link_flags_alt = @fmtalloc(" {s}", {static_flag_alt})
@@ -1168,13 +1237,36 @@ pub fn main() i32 = trust {
             link_flags_alt = @fmtalloc("{s} {s}", {link_flags_alt, strip_flag_alt})
         }
         for link_flag in links_alt {
-            val translated_link: ref u8 = builds.translate_link_flag(
-                compiler_kind,
-                link_flag
-            )
+            val translated_link: mut ref u8 = c""
+            if windows_cross_link {
+                if cstr.starts_with(link_flag, c"-l") {
+                    translated_link = @fmtalloc(
+                        "-Wl,{s}",
+                        {builds.translate_lld_link_flag(link_flag)}
+                    )
+                } elif cstr.ends_with(link_flag, c".lib") {
+                    translated_link = @fmtalloc("-Wl,{s}", {link_flag})
+                } else {
+                    translated_link = link_flag
+                }
+            } else {
+                translated_link = builds.translate_link_flag(
+                    compiler_kind,
+                    link_flag
+                )
+            }
             if cstr.len(translated_link) > 0 {
                 link_flags_alt = @fmtalloc("{s} {s}", {link_flags_alt, translated_link})
             }
+        }
+        if windows_cross_link {
+            link_flags_alt = @fmtalloc(
+                "{s} {s} -Wl,/ignore:4099",
+                {
+                    link_flags_alt,
+                    builds.xwin_lib_path_flags_clang(xwin_root, target_arch)
+                }
+            )
         }
         if compile_obj {
             link_flags_alt = c""
@@ -1184,6 +1276,12 @@ pub fn main() i32 = trust {
             include_flags_alt = @fmtalloc(
                 "{s} {s}",
                 {include_flags_alt, builds.compiler_include_flag(compiler_kind, inc_path)}
+            )
+        }
+        if windows_cross_link {
+            include_flags_alt = @fmtalloc(
+                "{s} {s}",
+                {include_flags_alt, builds.xwin_include_flags(xwin_root, target_arch)}
             )
         }
 
@@ -1239,6 +1337,9 @@ pub fn main() i32 = trust {
                     "--target={s} -fuse-ld=lld {s}",
                     {builds.target_triple(target_platform, target_arch), cc_flags_alt}
                 )
+            }
+            if windows_cross_link {
+                cc_flags_alt = @fmtalloc("{s} -g0", {cc_flags_alt})
             }
             if compile_obj {
                 cc_flags_alt = @fmtalloc("{s} -c", {cc_flags_alt})
@@ -1528,7 +1629,13 @@ pub fn main() i32 = trust {
             final_output_x = binary_name_x
         } else {
             fs.mkdir_path_cstr(c"./s-out")
-            final_output_x = @fmtalloc("./s-out/{s}", {binary_name_x})
+            if cstr.cmp(target_platform, c"windows") == 0
+            && !compile_obj
+            && !build_dll {
+                final_output_x = @fmtalloc("./s-out/{s}.exe", {binary_name_x})
+            } else {
+                final_output_x = @fmtalloc("./s-out/{s}", {binary_name_x})
+            }
         }
         if compile_obj {
             final_output_x = @fmtalloc(
@@ -1580,6 +1687,10 @@ pub fn main() i32 = trust {
         }
 
         val triple_x: ref u8 = builds.target_triple(target_platform, target_arch)
+        val xwin_inc_x: mut ref u8 = c""
+        if cstr.len(xwin_root) > 0 {
+            xwin_inc_x = builds.xwin_include_flags(xwin_root, target_arch)
+        }
         val asm_obj_name: mut ref u8 = c"spectre_output.o"
         if cstr.cmp(target_platform, c"windows") == 0 {
             asm_obj_name = c"spectre_output.obj"
@@ -1648,6 +1759,12 @@ pub fn main() i32 = trust {
             for inc_path in inc_paths {
                 include_flags_x = @fmtalloc("{s} -I{s}", {include_flags_x, inc_path})
             }
+            if cstr.len(xwin_root) > 0 {
+                include_flags_x = @fmtalloc(
+                    "{s} {s}",
+                    {include_flags_x, xwin_inc_x}
+                )
+            }
             val shim_obj_name: mut ref u8 = c"spectre_c_shim.o"
             if cstr.cmp(target_platform, c"windows") == 0 {
                 shim_obj_name = c"spectre_c_shim.obj"
@@ -1686,6 +1803,7 @@ pub fn main() i32 = trust {
                     return 1
                 }
             }
+            os.delete(shim_c_file_x)
         }
 
         val link_cmd_x: mut ref u8 = c""
@@ -1700,10 +1818,42 @@ pub fn main() i32 = trust {
                 } elif cstr.ends_with(link_flag, c".c") {
                     val extra_obj: ref u8 = builds.get_unique_tmp_path(c"spectre_link.obj")
                     val extra_cmd: ref u8 = @fmtalloc(
-                        "clang --target={s} -c {s} -o {s} 2>&1",
-                        {triple_x, link_flag, extra_obj}
+                        "clang --target={s} -std=c99 -Wno-error=int-conversion -c {s} -o {s}{s} 2>&1",
+                        {triple_x, link_flag, extra_obj, xwin_inc_x}
                     )
-                    os.exec(extra_cmd)
+                    if show_cmd != 0 {
+                        stdio.print("{s}\n", {extra_cmd})
+                    }
+                    val extra_res = os.exec(extra_cmd)
+                    val extra_ok: mut bool = true
+                    match extra_res {
+                        ok v => {
+                            val vstr: ref u8 = ostr.as_cstr(v)
+                            val err_mark = ostr.from_cstr[allocators.Arena](arena, c"error")
+                            if ostr.contains(v, err_mark) || !os.exists(extra_obj) {
+                                stdio.print("{s}", {vstr})
+                                extra_ok = false
+                            }
+                        }
+                        err _ => {
+                            extra_ok = false
+                        }
+                    }
+                    if !extra_ok {
+                        stdio.print(
+                            "error: target C compilation failed for '{s}'\n",
+                            {link_flag}
+                        )
+                        os.delete(extra_obj)
+                        os.delete(qbe_file)
+                        os.delete(asm_file)
+                        os.delete(asm_obj_x)
+                        if cstr.len(shim_obj_x) > 0 {
+                            os.delete(shim_obj_x)
+                        }
+                        allocators.Arena.free(arena)
+                        return 1
+                    }
                     win_inputs = @fmtalloc("{s} {s}", {win_inputs, extra_obj})
                 } elif cstr.ends_with(link_flag, c".o") {
                     if !quiet {
@@ -1723,16 +1873,21 @@ pub fn main() i32 = trust {
             if build_dll {
                 subsystem_x = c"/dll"
             }
-            val win_libs: mut ref u8 = c"libcmt.lib oldnames.lib"
+            val win_libs: mut ref u8 = builds.xwin_default_libs()
             val win_env_libs: ref u8 = os.getenv(c"SPECTRE_WIN_LIBS")
             if win_env_libs != none {
                 win_libs = win_env_libs
             }
+            val win_lib_paths: ref u8 = builds.xwin_lib_path_flags(
+                xwin_root,
+                target_arch
+            )
             link_cmd_x = @fmtalloc(
-                "lld-link /nologo /out:{s} {s} {s} {s} {s} 2>&1",
+                "lld-link /nologo /out:{s} {s} {s} {s} {s} {s} 2>&1",
                 {
                     final_output_x,
                     subsystem_x,
+                    win_lib_paths,
                     asm_obj_x,
                     win_inputs,
                     win_libs
