@@ -1,0 +1,115 @@
+// Rotating ASCII torus.
+//
+// A compact, libc-free demo used to verify Linux/Windows cross-compilation:
+//
+//   spectre samples/rotating_torus.sx -o torus
+//   spectre samples/rotating_torus.sx -target:windows.x86_64 \
+//       -runtime:freestanding -o torus.exe
+//
+// The animation writes ANSI cursor-home frames to stdout.  It runs for a
+// fixed number of frames so it can also be launched from scripts and Wine
+// without needing an interactive Ctrl-C.
+
+val math  = use("std/math")
+val stdio = use("std/stdio")
+val str   = use("std/string")
+val time  = use("std/time")
+
+val WIDTH: i64 = 80
+val HEIGHT: i64 = 24
+val FRAMES: i64 = 180
+val FRAME_MS: i64 = 33
+val TAU: f64 = 6.283185307179586
+
+fn shade(n: i64) u8 = trust {
+    val lum = c".,-~:;=!*#$@"
+    val idx: mut i64 = n
+    if idx < 0 {
+        idx = 0
+    }
+    if idx > 11 {
+        idx = 11
+    }
+    return @load8(@ptradd(lum, idx))
+}
+
+pub fn main() void = trust {
+    val pixels: i64 = WIDTH * HEIGHT
+    val z: ref f64 = @alloc((pixels * 8) as usize) as ref f64
+    val out_size: i64 = ((WIDTH + 1) * HEIGHT) + 3
+    val out: ref u8 = @alloc(out_size as usize) as ref u8
+    if z == none || out == none {
+        if z != none {
+            @free(z)
+        }
+        if out != none {
+            @free(out)
+        }
+        return
+    }
+
+    // Clear the screen once; each frame then homes the cursor.
+    stdio.printv(str.from_cstr(c"\x1b[2J\x1b[?25l"))
+
+    val a: mut f64 = 0.0
+    val b: mut f64 = 0.0
+
+    for frame = 0, frame < FRAMES, frame++ {
+        @memset(z, 0, (pixels * 8) as usize)
+        @memset(out, 32, out_size as usize)
+
+        // Prefix with ESC [ H so the next frame overwrites the previous one.
+        @store8(out, 27)
+        @store8(@ptradd(out, 1), 91)
+        @store8(@ptradd(out, 2), 72)
+
+        for jy = 0, jy < 90, jy++ {
+            val j: f64 = (jy as f64) * 0.06981317007977318
+            val d: f64 = math.cos(j)
+            val f: f64 = math.sin(j)
+            val e: f64 = math.sin(a)
+            val g: f64 = math.cos(a)
+
+            for ix = 0, ix < 314, ix++ {
+                val i: f64 = (ix as f64) * 0.02000000000000000
+                val c: f64 = math.sin(i)
+                val l: f64 = math.cos(i)
+                val h: f64 = d + 2.0
+                val denom: f64 = c * h * e + f * g + 5.0
+                val inv: f64 = 1.0 / denom
+                val m: f64 = math.cos(b)
+                val n: f64 = math.sin(b)
+                val t: f64 = c * h * g - f * e
+
+                val sx: i64 = (WIDTH / 2) + ((WIDTH as f64 * 0.375 * inv * (l * h * m - t * n)) as i64)
+                val sy: i64 = (HEIGHT / 2) + ((HEIGHT as f64 * 0.625 * inv * (l * h * n + t * m)) as i64)
+
+                if sx >= 0 && sx < WIDTH && sy >= 1 && sy < HEIGHT - 1 {
+                    val o: i64 = sy * WIDTH + sx
+                    val depth_bits: u64 = @load(@ptradd(z, o * 8)) as u64
+                    val depth: f64 = @bitcast(depth_bits, f64)
+                    if inv > depth {
+                        @store(@ptradd(z, o * 8), inv)
+                        val lum_n: i64 = 8 * (((f * e - c * d * g) * m - c * d * e - f * g - l * d * n) as i64)
+                        @store8(@ptradd(out, 3 + sy * (WIDTH + 1) + sx), shade(lum_n))
+                    }
+                }
+            }
+        }
+
+        // Newline at the end of each output row.
+        for row = 0, row < HEIGHT, row++ {
+            @store8(@ptradd(out, 3 + row * (WIDTH + 1) + WIDTH), 10)
+        }
+
+        stdio.printv(str.view(out, 3 + HEIGHT * (WIDTH + 1)))
+        time.sleep_millis(FRAME_MS)
+
+        a = a + 0.055
+        b = b + 0.025
+    }
+
+    stdio.printv(str.from_cstr(c"\x1b[?25h\n"))
+    @free(z)
+    @free(out)
+}
