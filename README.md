@@ -14,6 +14,7 @@ Resources:
 - [Devlog](https://spectrelang.org/log/devlog)
 - [Matrix](https://matrix.to/#/%23spectrelang:matrix.org)
 - [Discord](https://discord.gg/aCnnVwAUWU)
+- [YouTube](https://www.youtube.com/@spectrelang)
 - [Visual Studio Code Extension](https://marketplace.visualstudio.com/items?itemName=NavidM.spectre-lang)
 - [Neovim Extension](https://github.com/spectrelang/spectre-nvim)
 - [Language Server](https://github.com/spectrelang/spectre-ls)
