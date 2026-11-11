@@ -39,7 +39,9 @@ for path in sorted(pathlib.Path("spectrelib").rglob("*.sx")):
     if rel in SKIP:
         continue
     stack = []
-    for lineno, raw in enumerate(path.read_text().splitlines(), 1):
+    lines = path.read_text().splitlines()
+    for index, raw in enumerate(lines):
+        lineno = index + 1
         line = strip_comment(raw)
         s = line.strip()
         if s.startswith("when "):
@@ -60,16 +62,24 @@ for path in sorted(pathlib.Path("spectrelib").rglob("*.sx")):
         ) for kind, sel in stack)
         if skip or not s.startswith("extern (C"):
             continue
-        if " fn " not in s:
+        stmt = s
+        look = index + 1
+        while '= "' not in stmt and look < len(lines):
+            nxt = strip_comment(lines[look]).strip()
+            if nxt.startswith(("extern ", "when ", "otherwise", "pub ", "val ", "fn ", "}")):
+                break
+            stmt += " " + nxt
+            look += 1
+        if " fn " not in stmt:
             continue
         try:
-            tail = s.split(" fn ",1)[1]
+            tail = stmt.split(" fn ",1)[1]
             name = tail.split("(",1)[0].strip()
         except Exception:
             continue
         symbol = ""
-        if '= "' in s:
-            symbol = s.rsplit('= "', 1)[1].split('"', 1)[0]
+        if '= "' in stmt:
+            symbol = stmt.rsplit('= "', 1)[1].split('"', 1)[0]
         if symbol.startswith(("sx_", "__sx_", "sxqbe_")):
             continue
         if name in FORBIDDEN or symbol in FORBIDDEN:
