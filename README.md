@@ -43,11 +43,10 @@ spectre -v
 
 Linux and Windows targets use a self-contained freestanding runtime by
 default, this means no system libc, CRT, or Linux sysroot. Hosted builds remain
-available with `-runtime:hosted`.
+available with `-runtime:hosted`. Cross compilation from Linux to Windows, for example, is as simple as:
 
 ```
-spectre app.sx -runtime:freestanding -o app
-spectre app.sx -target:windows.x86_64 -runtime:freestanding -o app.exe
+spectre app.sx -target:windows.x86_64 -o app.exe
 ```
 
 An example program:
