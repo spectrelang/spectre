@@ -1,0 +1,6 @@
+pub fn main() void = {
+    val y: bool = false
+    if y == 4 {
+        @puts("shouldnt compile")
+    }
+}

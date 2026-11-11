@@ -1261,7 +1261,7 @@ pub fn main() i32 = trust {
                     "clang --target={s} {s} -c {s} -o {s} 2>&1",
                     {alt_triple, builds.freestanding_c_flags(), rt_c, rt_tmp}
                 )
-                if show_cmd != 0 {
+                if show_cmd {
                     stdio.print("{s}\n", {rt_cmd_alt})
                 }
                 val rt_res_alt = os.exec(rt_cmd_alt)
@@ -1308,7 +1308,7 @@ pub fn main() i32 = trust {
                         "clang --target={s} -c {s} -o {s} 2>&1",
                         {alt_triple2, start_src_alt, st_tmp}
                     )
-                    if show_cmd != 0 {
+                    if show_cmd {
                         stdio.print("{s}\n", {st_cmd_alt})
                     }
                     val st_res_alt = os.exec(st_cmd_alt)
@@ -1367,7 +1367,7 @@ pub fn main() i32 = trust {
                         "{s} {s} -c -runtime:freestanding -target:{s}.{s} -o {s} 2>&1",
                         {self_exe, sys_src_alt, target_platform, target_arch, sys_base_alt}
                     )
-                    if show_cmd != 0 {
+                    if show_cmd {
                         stdio.print("{s}\n", {sys_cmd_alt})
                     }
                     val sys_res_alt = os.exec(sys_cmd_alt)
@@ -1402,7 +1402,7 @@ pub fn main() i32 = trust {
                         builds.xwin_include_flags(xwin_root, target_arch)
                     }
                 )
-                if show_cmd != 0 {
+                if show_cmd {
                     stdio.print("{s}\n", {compat_cmd})
                 }
                 val compat_res = os.exec(compat_cmd)
@@ -1474,7 +1474,7 @@ pub fn main() i32 = trust {
 
         val output_specified_alt: bool = cstr.cmp(output_name, c"") != 0
         val final_output_alt: mut ref u8 = c""
-        if output_specified_alt != 0 {
+        if output_specified_alt {
             final_output_alt = binary_name_alt
         } else {
             fs.mkdir_path_cstr(c"./s-out")
@@ -1744,7 +1744,7 @@ pub fn main() i32 = trust {
         if !quiet && !emit_alt {
             stdio.puts("[IV ]│ AMCS")
         }
-        if show_cmd != 0 {
+        if show_cmd {
             stdio.print("{s}\n", {alt_cmd})
         }
 
@@ -1838,7 +1838,7 @@ pub fn main() i32 = trust {
         stdio.puts("[IV ]│ Module used-links collection")
     }
 
-    if emit_qbe != 0 {
+    if emit_qbe {
         if cstr.len(shim_output) > 0 && cstr.len(c_shim_source) > 0 {
             val shim_f = os.open(shim_output, c"w")
             if shim_f is some f {
@@ -1895,7 +1895,7 @@ pub fn main() i32 = trust {
         qbe_cmd = @fmtalloc("qbe -o {s} {s} 2>&1", {asm_file, qbe_file})
     }
     val qbe_res = os.exec(qbe_cmd)
-    if show_cmd != 0 {
+    if show_cmd {
         stdio.print("{s}\n", {qbe_cmd})
     }
     match qbe_res {
@@ -1919,7 +1919,7 @@ pub fn main() i32 = trust {
         }
     }
 
-    if emit_asm != 0 {
+    if emit_asm {
         val asm_size_opt = fs.file_size_cstr(asm_file)
         val asm_arena_cap: mut i64 = 4096
         if asm_size_opt is some sz {
@@ -2036,7 +2036,7 @@ pub fn main() i32 = trust {
             "clang --target={s} -c {s} -o {s} 2>&1",
             {triple_x, asm_file, asm_obj_x}
         )
-        if show_cmd != 0 {
+        if show_cmd {
             stdio.print("{s}\n", {asm_cc_cmd})
         }
         val asm_cc_res = os.exec(asm_cc_cmd)
@@ -2115,7 +2115,7 @@ pub fn main() i32 = trust {
                     "clang --target={s} {s}{s} -c {s} -o {s} 2>&1",
                     {triple_x, rt_flags, rt_arch_flags, runtime_c, rt_tmp}
                 )
-                if show_cmd != 0 {
+                if show_cmd {
                     stdio.print("{s}\n", {rt_cmd})
                 }
                 val rt_res = os.exec(rt_cmd)
@@ -2187,7 +2187,7 @@ pub fn main() i32 = trust {
                         "clang --target={s} -c {s} -o {s} 2>&1",
                         {triple_x, start_source, start_tmp}
                     )
-                    if show_cmd != 0 {
+                    if show_cmd {
                         stdio.print("{s}\n", {start_cmd})
                     }
                     val start_res = os.exec(start_cmd)
@@ -2263,7 +2263,7 @@ pub fn main() i32 = trust {
                         "{s} {s} -c -runtime:freestanding -target:{s}.{s} -o {s} 2>&1",
                         {self_exe, sys_src, target_platform, target_arch, sys_base}
                     )
-                    if show_cmd != 0 {
+                    if show_cmd {
                         stdio.print("{s}\n", {sys_cmd})
                     }
                     val sys_res = os.exec(sys_cmd)
@@ -2342,7 +2342,7 @@ pub fn main() i32 = trust {
                 "clang --target={s} -std=c99 -Wno-error=int-conversion{s} -c -o {s} {s}{s} 2>&1",
                 {triple_x, shim_extra_flags, shim_obj_x, shim_c_file_x, include_flags_x}
             )
-            if show_cmd != 0 {
+            if show_cmd {
                 stdio.print("{s}\n", {shim_cmd_x})
             }
             val shim_res_x = os.exec(shim_cmd_x)
@@ -2386,7 +2386,7 @@ pub fn main() i32 = trust {
                     "clang --target={s} -std=c99 -c {s} -o {s}{s} 2>&1",
                     {triple_x, compat_c, compat_obj, xwin_inc_x}
                 )
-                if show_cmd != 0 {
+                if show_cmd {
                     stdio.print("{s}\n", {compat_cmd})
                 }
                 val compat_res = os.exec(compat_cmd)
@@ -2421,7 +2421,7 @@ pub fn main() i32 = trust {
                         "clang --target={s} -std=c99 -Wno-error=int-conversion -c {s} -o {s}{s} 2>&1",
                         {triple_x, link_flag, extra_obj, xwin_inc_x}
                     )
-                    if show_cmd != 0 {
+                    if show_cmd {
                         stdio.print("{s}\n", {extra_cmd})
                     }
                     val extra_res = os.exec(extra_cmd)
@@ -2553,7 +2553,7 @@ pub fn main() i32 = trust {
             )
         }
 
-        if show_cmd != 0 {
+        if show_cmd {
             stdio.print("{s}\n", {link_cmd_x})
         }
         val link_res_x = os.exec(link_cmd_x)
@@ -2680,7 +2680,7 @@ pub fn main() i32 = trust {
             "cc -std=c99 -Wno-error=int-conversion -c -o {s} {s}{s} 2>&1",
             {shim_obj, shim_c_file, include_flags}
         )
-        if show_cmd != 0 {
+        if show_cmd {
             stdio.print("{s}\n", {shim_cmd})
         }
         val shim_res = os.exec(shim_cmd)
@@ -2787,7 +2787,7 @@ pub fn main() i32 = trust {
         return exit_code
     }
 
-    if output_specified != 0 {
+    if output_specified {
         val final_output: mut ref u8 = binary_name
         if cstr.cmp(output_ext, c"") != 0 {
             final_output = @fmtalloc("{s}{s}", {binary_name, output_ext})
@@ -2820,7 +2820,7 @@ pub fn main() i32 = trust {
         success_msg = @fmtalloc("Compiled: {s}\n", {final_output})
     }
 
-    if show_cmd != 0 {
+    if show_cmd {
         stdio.print("{s}\n", {cc_cmd})
     }
 

@@ -1,0 +1,6 @@
+pub fn main() void = {
+    val x = 1
+    if x == true { // should error
+        @puts("what")
+    }
+}

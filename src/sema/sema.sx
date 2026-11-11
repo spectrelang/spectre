@@ -3615,6 +3615,12 @@ fn comparison_operands_compatible(
         return true
     }
 
+    val lhs_bool: bool = cstr.eql(unqualified_type_name(lhs_type), c"bool")
+    val rhs_bool: bool = cstr.eql(unqualified_type_name(rhs_type), c"bool")
+    if lhs_bool != rhs_bool {
+        return false
+    }
+
     if lhs_ref != rhs_ref {
         return false
     }
