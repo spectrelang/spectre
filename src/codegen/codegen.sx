@@ -121,6 +121,9 @@ pub type CgCtx = {
     alloc_runtime: mut bool
     current_fn_ret_unboxed: mut bool
     current_fn_ret_layout_size: mut i64
+    current_fn_display: mut ref u8
+    current_fn_file: mut ref u8
+    current_fn_line: mut i64
     aggregate_heap: mut i64
     stack_agg_values: mut list[ref u8]
 }
@@ -176,6 +179,9 @@ fn cg_new() ref CgCtx = trust {
     ctx.current_fn_ret_qtype = c"l"
     ctx.current_fn_ret_union = c""
     ctx.current_fn_ret_ty = none
+    ctx.current_fn_display = c""
+    ctx.current_fn_file = c""
+    ctx.current_fn_line = 0
     ctx.expected_ty = none
     ctx.strs = mem.new[str.StringView]()
     ctx.str_cnt = 0
@@ -8782,7 +8788,9 @@ fn gen_binop(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
     }
 
     val lhs_is_option: bool = expr_is_option(ctx, lhs_expr)
+    && lhs_expr.kind != parser.NK_NONE
     val rhs_is_option: bool = expr_is_option(ctx, rhs_expr)
+    && rhs_expr.kind != parser.NK_NONE
     if ((lhs_is_option || rhs_is_option) && (op == parser.OP_EQ || op == parser.OP_NE)) {
         val lhs: ref u8 = gen_expr(ctx, lhs_expr)
         val rhs: ref u8 = gen_expr(ctx, rhs_expr)
@@ -16490,7 +16498,13 @@ fn gen_stmt(ctx: mut ref CgCtx, stmt: ref parser.Node) void = trust {
         if !is_pre {
             kind_str = c"postcondition"
         }
-        val fn_name: ref u8 = cg_fn_name(ctx)
+        val fn_name: mut ref u8 = ctx.current_fn_display
+        if fn_name == none || cstr.len(fn_name) == 0 {
+            fn_name = cg_fn_name(ctx)
+        }
+        val fn_file: ref u8 = ctx.current_fn_file
+        val fn_line: i64 = ctx.current_fn_line
+        val has_loc: bool = fn_file != none && cstr.len(fn_file) > 0
         val clist: ref void = stmt.d0 as ref void
         if clist != none {
             val clen: i64 = @len(clist) as i64
@@ -16519,14 +16533,24 @@ fn gen_stmt(ctx: mut ref CgCtx, stmt: ref parser.Node) void = trust {
                     )
                     val msg_buf: ref u8 = allocators.ScopedArena.alloc_or_none(
                         ctx.arena,
-                        512 as usize
+                        1024 as usize
                     ) as ref u8
                     if label != none {
-                        @snprintf(msg_buf, 512, "spectre: {s} '{s}' violated in function '{s}'\n",
-                            {kind_str, label, fn_name})
+                        if has_loc {
+                            @snprintf(msg_buf, 1024, "spectre: {s} '{s}' violated in function '{s}' at {s}:{lld}\n",
+                                {kind_str, label, fn_name, fn_file, fn_line})
+                        } else {
+                            @snprintf(msg_buf, 1024, "spectre: {s} '{s}' violated in function '{s}'\n",
+                                {kind_str, label, fn_name})
+                        }
                     } else {
-                        @snprintf(msg_buf, 512, "spectre: {s} violated in function '{s}'\n",
-                            {kind_str, fn_name})
+                        if has_loc {
+                            @snprintf(msg_buf, 1024, "spectre: {s} violated in function '{s}' at {s}:{lld}\n",
+                                {kind_str, fn_name, fn_file, fn_line})
+                        } else {
+                            @snprintf(msg_buf, 1024, "spectre: {s} violated in function '{s}'\n",
+                                {kind_str, fn_name})
+                        }
                     }
                     val msg_idx: i64 = intern_string_cstr(ctx, msg_buf)
                     val msg_tmp: i64 = fresh_tmp(ctx)
@@ -18633,6 +18657,9 @@ fn gen_fn_prefixed(ctx: mut ref CgCtx, fn_node: ref parser.Node, mod_prefix: ref
     }
 
     cg_set_fn_name(ctx, mangled)
+    ctx.current_fn_display = base
+    ctx.current_fn_file = ctx.current_filename
+    ctx.current_fn_line = fn_node.line
     val saved_module_prefix = ctx.current_module_prefix
     if cstr.cmp(mod_prefix, c"") != 0 || cstr.cmp(saved_module_prefix, c"") == 0 {
         ctx.current_module_prefix = mod_prefix

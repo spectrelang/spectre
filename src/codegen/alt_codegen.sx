@@ -84,6 +84,9 @@ pub type CCtx = {
     current_ret_is_void: mut bool
     current_ret_ty: mut ref parser.Node
     current_prefix: mut ref u8
+    current_fn_display: mut ref u8
+    current_fn_file: mut ref u8
+    current_fn_line: mut i64
     fwd_sb: mut ref void
     inv_tnames: mut list[ref u8]
     inv_tlists: mut list[ref void]
@@ -168,6 +171,9 @@ fn cc_new() ref CCtx = trust {
     ctx.current_ret_unboxed = false
     ctx.current_ret_ty = none
     ctx.current_prefix = c""
+    ctx.current_fn_display = c""
+    ctx.current_fn_file = c""
+    ctx.current_fn_line = 0
     ctx.inv_tnames = mem.new[ref u8]()
     ctx.inv_tlists = mem.new[ref void]()
     ctx.inv_cur_pnames = mem.new[ref u8]()
@@ -8234,7 +8240,13 @@ fn gen_stmt(ctx: mut ref CCtx, stmt: ref parser.Node) void = trust {
         if !is_pre {
             ks = c"postcondition"
         }
-        val fn_n: ref u8 = ctx.fn_name
+        val fn_n: mut ref u8 = ctx.current_fn_display
+        if fn_n == none || cstr.len(fn_n) == 0 {
+            fn_n = ctx.fn_name
+        }
+        val fn_file: ref u8 = ctx.current_fn_file
+        val fn_line: i64 = ctx.current_fn_line
+        val has_loc: bool = fn_file != none && cstr.len(fn_file) > 0
         val clist: ref void = stmt.d0 as ref void
         if clist != none {
             val clen: i64 = @len(clist) as i64
@@ -8257,19 +8269,37 @@ fn gen_stmt(ctx: mut ref CCtx, stmt: ref parser.Node) void = trust {
                         1024 as usize
                     ) as ref u8
                     if label != none {
-                        @snprintf(
-                            buf,
-                            1024,
-                            "if(!({s}))\{fprintf(stderr,\"spectre: {s} '%%s' violated in function '%%s'\\n\",\"{s}\",\"{s}\");fflush(stderr);exit(1);}\n",
-                            {cv, ks, label, fn_n}
-                        )
+                        if has_loc {
+                            @snprintf(
+                                buf,
+                                1024,
+                                "if(!({s}))\{fprintf(stderr,\"spectre: {s} '%%s' violated in function '%%s' at {s}:{lld}\\n\",\"{s}\",\"{s}\");fflush(stderr);exit(1);}\n",
+                                {cv, ks, fn_file, fn_line, label, fn_n}
+                            )
+                        } else {
+                            @snprintf(
+                                buf,
+                                1024,
+                                "if(!({s}))\{fprintf(stderr,\"spectre: {s} '%%s' violated in function '%%s'\\n\",\"{s}\",\"{s}\");fflush(stderr);exit(1);}\n",
+                                {cv, ks, label, fn_n}
+                            )
+                        }
                     } else {
-                        @snprintf(
-                            buf,
-                            1024,
-                            "if(!({s}))\{fprintf(stderr,\"spectre: {s} violated in function '%%s'\\n\",\"{s}\");fflush(stderr);exit(1);}\n",
-                            {cv, ks, fn_n}
-                        )
+                        if has_loc {
+                            @snprintf(
+                                buf,
+                                1024,
+                                "if(!({s}))\{fprintf(stderr,\"spectre: {s} violated in function '%%s' at {s}:{lld}\\n\",\"{s}\");fflush(stderr);exit(1);}\n",
+                                {cv, ks, fn_file, fn_line, fn_n}
+                            )
+                        } else {
+                            @snprintf(
+                                buf,
+                                1024,
+                                "if(!({s}))\{fprintf(stderr,\"spectre: {s} violated in function '%%s'\\n\",\"{s}\");fflush(stderr);exit(1);}\n",
+                                {cv, ks, fn_n}
+                            )
+                        }
                     }
                     emit(ctx, buf)
                     cc_expr_drain(ctx)
@@ -9611,6 +9641,9 @@ fn gen_fn_prefixed(ctx: mut ref CCtx, fn_node: ref parser.Node, mod_prefix: ref 
         return
     }
     ctx.fn_name = mangled
+    ctx.current_fn_display = base
+    ctx.current_fn_file = ctx.current_src_file
+    ctx.current_fn_line = fn_node.line
     val saved_prefix: ref u8 = ctx.current_prefix
     if cstr.cmp(mod_prefix, c"") != 0 || cstr.cmp(saved_prefix, c"") == 0 {
         ctx.current_prefix = mod_prefix

@@ -1,0 +1,9 @@
+fn some_function(param: i32) void = {
+    pre {
+        param != none
+    }
+}
+
+pub fn main() void = {
+    some_function(none)
+}

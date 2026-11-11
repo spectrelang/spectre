@@ -7411,6 +7411,9 @@ fn sema_const_eval(
     if k == parser.NK_BOOL {
         return sema_const_known(expr.d0 as i64)
     }
+    if k == parser.NK_NONE {
+        return sema_const_known(0)
+    }
     if k == parser.NK_CHAR_LIT {
         return sema_const_known(expr.d0 as i64)
     }
