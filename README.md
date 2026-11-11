@@ -42,18 +42,13 @@ spectre -v
 ```
 
 Linux and Windows targets use a self-contained freestanding runtime by
-default: no system libc, no CRT, and no Linux sysroot. Hosted builds remain
+default, this means no system libc, CRT, or Linux sysroot. Hosted builds remain
 available with `-runtime:hosted`.
 
 ```
 spectre app.sx -runtime:freestanding -o app
 spectre app.sx -target:windows.x86_64 -runtime:freestanding -o app.exe
 ```
-
-See `docs/FREESTANDING_RUNTIME.adoc` for runtime details and Windows import
-synthesis.
-
-The compiler is tested under MacOS aarch64 and Linux x86_64, a Windows implementation exists, though is currently not as maintained.
 
 An example program:
 
