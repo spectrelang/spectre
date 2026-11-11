@@ -8,16 +8,22 @@ build prod {
 
 build loud {
     flags "-l"
+    env {
+        GIT_HASH=dev-build
+    }
 }
 
 build dev {
     output "./spectre-dev"
     env {
-        GIT_HASH=dev-build-unknown
+        GIT_HASH=dev-build
     }
 }
 
 build quick {
     flags "-alt"
     output "./spectre-dev"
+    env {
+        GIT_HASH=dev-build-quick
+    }
 }
