@@ -1780,7 +1780,8 @@ fn doctor_row(field: ref u8, value: ref u8) void = trust {
 }
 
 pub fn cmd_doctor() i32 = {
-    trust stdio.print("Spectre Compiler {s}\n\n", {meta.get_spectre_version()})
+    trust doctor_row(c"spectre", meta.get_spectre_version().ptr)
+    trust doctor_row(c"hash", meta.get_commit_hash().ptr)
     trust doctor_row(c"os", tool_version(c"uname -srm 2>&1"))
 
     val qbe_ver: ref u8 = tool_version(c"qbe -h 2>&1 | head -1")
