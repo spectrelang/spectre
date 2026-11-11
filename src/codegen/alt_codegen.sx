@@ -10490,6 +10490,7 @@ fn emit_c_preamble(ctx: ref CCtx) void = trust {
         emitln_fwd(ctx, c"#define SX_FREESTANDING 1")
         emitln_fwd(ctx, c"typedef __SIZE_TYPE__ size_t;")
         emitln_fwd(ctx, c"typedef __PTRDIFF_TYPE__ ptrdiff_t;")
+        emitln_fwd(ctx, c"typedef __SIZE_TYPE__ sx_size_t;")
         emitln_fwd(ctx, c"typedef __PTRDIFF_TYPE__ sx_ssize_t;")
         emitln_fwd(ctx, c"typedef __INTPTR_TYPE__ intptr_t;")
         emitln_fwd(ctx, c"typedef __UINTPTR_TYPE__ uintptr_t;")
