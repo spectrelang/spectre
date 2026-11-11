@@ -337478,7 +337478,7 @@ data $__str368 = { b "spectre: precondition 'valid_millis' violated in function 
 data $__str369 = { b "spectre: precondition 'non_negative' violated in function 'std__time__sleep_millis'\n", b 0 }
 data $__str370 = { b "v0.0.16", b 0 }
 data $__str371 = { b "VERSION", b 0 }
-data $__str372 = { b "00cdb9e", b 0 }
+data $__str372 = { b "0a2c58c", b 0 }
 data $__str373 = { b "unknown", b 0 }
 data $__str374 = { b "usage:", b 0 }
 data $__str375 = { b "  spectre <command> [args] | <input.sx> [options]", b 0 }
@@ -340356,9 +340356,9 @@ data $__str3246 = { b "spectre_start_%lld.o", b 0 }
 data $__str3247 = { b "clang --target=%s -c %s -o %s 2>&1", b 0 }
 data $__str3248 = { b "runtime/sys.sx", b 0 }
 data $__str3249 = { b "spectrelib/runtime/sys.sx", b 0 }
-data $__str3250 = { b "spectre_sys_runtime_%lld", b 0 }
+data $__str3250 = { b "spectre_sys_runtime_fs_%lld", b 0 }
 data $__str3251 = { b "%s%s", b 0 }
-data $__str3252 = { b "%s %s -c -runtime:hosted -target:%s.%s -o %s 2>&1", b 0 }
+data $__str3252 = { b "%s %s -c -runtime:freestanding -target:%s.%s -o %s 2>&1", b 0 }
 data $__str3253 = { b "spectrelib/csources/hosted_windows_compat.c", b 0 }
 data $__str3254 = { b "spectre_hosted_win_compat.obj", b 0 }
 data $__str3255 = { b "clang --target=%s -std=c99 -c %s -o %s%s 2>&1", b 0 }
