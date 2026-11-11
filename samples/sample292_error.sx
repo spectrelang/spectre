@@ -1,0 +1,8 @@
+fn needs_even(n: i32) void = { pre { n % 2 == 0 } }
+
+// ERROR
+pub fn main() void = {
+    val a: i32 = 3
+    val b: i32 = a * 2 + 1      // 7
+    needs_even(b)
+}

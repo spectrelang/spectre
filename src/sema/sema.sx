@@ -74,6 +74,9 @@ type SemaCtx = {
     var_origin_types: mut list[ref u8]
     current_ret_ty: mut ref parser.Node
     current_ret_is_ref: mut i64
+    current_fn_name: mut ref u8
+    const_env: mut ref SemaConstEnv
+    const_env_depths: mut list[i64]
     arena: mut allocators.ScopedArenaAllocator
 }
 
@@ -536,6 +539,11 @@ fn push_scope(ctx: ref SemaCtx) void = trust {
 
     val frame: list[ref ScopeEntry] = mem.new[ref ScopeEntry]()
     @append(ctx.scopes, frame as ref void)
+    val const_depth: mut i64 = 0
+    if ctx.const_env != none {
+        const_depth = @len(ctx.const_env.names) as i64
+    }
+    @append(ctx.const_env_depths, const_depth)
 
     guarded post {
         scope_created: @len(ctx.scopes) > 0
@@ -550,6 +558,18 @@ fn pop_scope(ctx: ref SemaCtx, filename: ref u8, _: i64) void = trust {
 
     val len: usize = @len(ctx.scopes)
     if len > 0 {
+        val depth_len: usize = @len(ctx.const_env_depths)
+        if depth_len > 0 {
+            val d_opt = @get(ctx.const_env_depths, depth_len - 1)
+            val depth: mut i64 = 0
+            if d_opt is some d {
+                depth = d as i64
+            }
+            @remove(ctx.const_env_depths, depth_len - 1)
+            if ctx.const_env != none {
+                sema_const_env_truncate(ctx.const_env, depth)
+            }
+        }
         val frame_opt = @get(ctx.scopes, len - 1)
         if frame_opt is some frame {
             val flen: i64 = @len(frame) as i64
@@ -7241,6 +7261,66 @@ fn sema_const_env_push(env: mut ref SemaConstEnv, name: ref u8, v: SemaConstVal)
     @append(env.fvalue, @bitcast(v.fvalue, i64))
 }
 
+fn sema_const_env_truncate(env: ref SemaConstEnv, depth: i64) void = trust {
+    if env == none {
+        return
+    }
+    val cur: mut i64 = @len(env.names) as i64
+    for {
+        if cur <= depth {
+            break
+        }
+        @remove(env.names, (cur - 1) as usize)
+        @remove(env.known, (cur - 1) as usize)
+        @remove(env.is_float, (cur - 1) as usize)
+        @remove(env.value, (cur - 1) as usize)
+        @remove(env.fvalue, (cur - 1) as usize)
+        cur--
+    }
+}
+
+/// Update the compile-time constant environment after a statement has been
+/// checked.  Immutable bindings with constant initializers become known;
+/// assignments and increments make their targets unknown.
+fn sema_const_observe_stmt(ctx: mut ref SemaCtx, stmt: ref parser.Node) void = trust {
+    if ctx.const_env == none || stmt == none {
+        return
+    }
+    val k: i64 = stmt.kind
+    if k == parser.NK_VAL {
+        val name: ref u8 = parser.node_str_raw(stmt.d0)
+        val mutable: i64 = stmt.d1 as i64
+        val init: ref parser.Node = stmt.d3 as ref parser.Node
+        if mutable == 0 && init != none {
+            sema_const_env_push(ctx.const_env, name, sema_const_eval(init, ctx.const_env))
+        } else {
+            sema_const_env_push(ctx.const_env, name, sema_const_unknown())
+        }
+        return
+    }
+    if k == parser.NK_ASSIGN || k == parser.NK_ADD_ASSIGN || k == parser.NK_SUB_ASSIGN {
+        val target: ref parser.Node = stmt.d0 as ref parser.Node
+        if target != none && target.kind == parser.NK_IDENT {
+            sema_const_env_push(
+                ctx.const_env,
+                parser.node_str_raw(target.d0),
+                sema_const_unknown()
+            )
+        }
+        return
+    }
+    if k == parser.NK_INCREMENT || k == parser.NK_DECREMENT {
+        val target: ref parser.Node = stmt.d0 as ref parser.Node
+        if target != none && target.kind == parser.NK_IDENT {
+            sema_const_env_push(
+                ctx.const_env,
+                parser.node_str_raw(target.d0),
+                sema_const_unknown()
+            )
+        }
+    }
+}
+
 fn sema_const_env_lookup(env: ref SemaConstEnv, name: ref u8) SemaConstVal = trust {
     if env == none {
         return sema_const_unknown()
@@ -7565,6 +7645,18 @@ fn sema_const_eval(
         }
         if op == parser.OP_MUL {
             return sema_const_known(a * b)
+        }
+        if op == parser.OP_DIV {
+            if b == 0 {
+                return sema_const_unknown()
+            }
+            return sema_const_known(a / b)
+        }
+        if op == parser.OP_REM {
+            if b == 0 {
+                return sema_const_unknown()
+            }
+            return sema_const_known(a % b)
         }
         return sema_const_unknown()
     }
@@ -8287,7 +8379,11 @@ fn sema_check_call_preconditions(
             if pi < alen {
                 val a_opt = @get(cargs as list[ref parser.Node], pi as usize)
                 if a_opt is some a {
-                    pval = sema_const_eval_no_fields(a as ref parser.Node)
+                    if ctx.const_env != none {
+                        pval = sema_const_eval(a as ref parser.Node, ctx.const_env)
+                    } else {
+                        pval = sema_const_eval_no_fields(a as ref parser.Node)
+                    }
                 }
             }
             if pval.known {
@@ -8333,112 +8429,6 @@ fn sema_check_call_preconditions(
                 )
             }
             add_error(ctx, buf)
-        }
-    }
-}
-
-/// Report pre/postconditions that can never hold because they evaluate to a
-/// constant false.  Only straight-line, immutable constant bindings are
-/// tracked; control flow stops the scan so this stays conservative.
-fn sema_check_static_contracts(
-    ctx: mut ref SemaCtx,
-    stmts: ref void,
-    filename: ref u8,
-    fn_name: ref u8
-) void = trust {
-    if stmts == none {
-        return
-    }
-    val env: mut ref SemaConstEnv = sema_const_env_new(ctx)
-    for stmt in stmts as list[ref parser.Node] {
-        if stmt == none {
-            continue
-        }
-        val k: i64 = stmt.kind
-        if k == parser.NK_VAL {
-            val name: ref u8 = parser.node_str_raw(stmt.d0)
-            val mutable: i64 = stmt.d1 as i64
-            val init: ref parser.Node = stmt.d3 as ref parser.Node
-            if mutable == 0 && init != none {
-                sema_const_env_push(env, name, sema_const_eval(init, env))
-            } else {
-                sema_const_env_push(env, name, sema_const_unknown())
-            }
-            continue
-        }
-        if k == parser.NK_ASSIGN || k == parser.NK_ADD_ASSIGN || k == parser.NK_SUB_ASSIGN {
-            val target: ref parser.Node = stmt.d0 as ref parser.Node
-            if target != none && target.kind == parser.NK_IDENT {
-                sema_const_env_push(
-                    env,
-                    parser.node_str_raw(target.d0),
-                    sema_const_unknown()
-                )
-            }
-            continue
-        }
-        if k == parser.NK_INCREMENT || k == parser.NK_DECREMENT {
-            val target: ref parser.Node = stmt.d0 as ref parser.Node
-            if target != none && target.kind == parser.NK_IDENT {
-                sema_const_env_push(
-                    env,
-                    parser.node_str_raw(target.d0),
-                    sema_const_unknown()
-                )
-            }
-            continue
-        }
-        if k == parser.NK_PRE || k == parser.NK_POST
-        || k == parser.NK_GUARDED_PRE || k == parser.NK_GUARDED_POST {
-            val is_pre: bool = k == parser.NK_PRE || k == parser.NK_GUARDED_PRE
-            val kind_str: mut ref u8 = c"precondition"
-            if !is_pre {
-                kind_str = c"postcondition"
-            }
-            val clist: ref void = stmt.d0 as ref void
-            if clist != none {
-                for c in clist as list[ref parser.Node] {
-                    if c == none {
-                        continue
-                    }
-                    val label: ref u8 = parser.node_str_raw(c.d0)
-                    val cexpr: ref parser.Node = c.d1 as ref parser.Node
-                    val result: SemaConstVal = sema_const_eval(cexpr, env)
-                    if !result.known || !sema_const_is_false(result) {
-                        continue
-                    }
-                    val buf: ref u8 = allocators.ScopedArena.alloc_or_none(
-                        ctx.arena,
-                        512 as usize
-                    ) as ref u8
-                    if label != none {
-                        @snprintf(
-                            buf,
-                            512,
-                            "{s}:{lld}: {s} '{s}' of function '{s}' can never be satisfied",
-                            {filename, c.line, kind_str, label, fn_name}
-                        )
-                    } else {
-                        @snprintf(
-                            buf,
-                            512,
-                            "{s}:{lld}: {s} of function '{s}' can never be satisfied",
-                            {filename, c.line, kind_str, fn_name}
-                        )
-                    }
-                    add_error(ctx, buf)
-                }
-            }
-            continue
-        }
-        if k == parser.NK_IF || k == parser.NK_FOR || k == parser.NK_FORIN ||
-        k == parser.NK_MATCH_OPT || k == parser.NK_MATCH_RES ||
-        k == parser.NK_MATCH_ENUM || k == parser.NK_MATCH_VALUE ||
-        k == parser.NK_MATCH_STR || k == parser.NK_MATCH_UNION ||
-        k == parser.NK_MATCH_TAGGED_UNION || k == parser.NK_WHEN_STMT ||
-        k == parser.NK_GUARD || k == parser.NK_TRUST_BLOCK ||
-        k == parser.NK_DEFER || k == parser.NK_RETURN {
-            return
         }
     }
 }
@@ -8840,6 +8830,7 @@ fn check_stmts(ctx: mut ref SemaCtx, stmts: ref void, filename: ref u8) void = t
     }
     for s in stmts as list[ref parser.Node] {
         check_stmt(ctx, s, filename)
+        sema_const_observe_stmt(ctx, s)
     }
 }
 
@@ -9662,10 +9653,48 @@ fn check_stmt(ctx: mut ref SemaCtx, stmt: ref parser.Node, filename: ref u8) voi
     }
 
     if k == parser.NK_PRE || k == parser.NK_POST || k == parser.NK_GUARDED_PRE || k == parser.NK_GUARDED_POST {
+        val is_pre: bool = k == parser.NK_PRE || k == parser.NK_GUARDED_PRE
+        val kind_str: mut ref u8 = c"precondition"
+        if !is_pre {
+            kind_str = c"postcondition"
+        }
         val clist: ref void = stmt.d0 as ref void
         if clist != none {
             for c in clist as list[ref parser.Node] {
                 check_expr(ctx, c.d1 as ref parser.Node, filename)
+                if ctx.const_env != none {
+                    val result: SemaConstVal = sema_const_eval(
+                        c.d1 as ref parser.Node,
+                        ctx.const_env
+                    )
+                    if result.known && sema_const_is_false(result) {
+                        val label: ref u8 = parser.node_str_raw(c.d0)
+                        val fn_name: mut ref u8 = ctx.current_fn_name
+                        if fn_name == none {
+                            fn_name = c"<anonymous>"
+                        }
+                        val buf: ref u8 = allocators.ScopedArena.alloc_or_none(
+                            ctx.arena,
+                            512 as usize
+                        ) as ref u8
+                        if label != none {
+                            @snprintf(
+                                buf,
+                                512,
+                                "{s}:{lld}: {s} '{s}' of function '{s}' can never be satisfied",
+                                {filename, c.line, kind_str, label, fn_name}
+                            )
+                        } else {
+                            @snprintf(
+                                buf,
+                                512,
+                                "{s}:{lld}: {s} of function '{s}' can never be satisfied",
+                                {filename, c.line, kind_str, fn_name}
+                            )
+                        }
+                        add_error(ctx, buf)
+                    }
+                }
             }
         }
         return
@@ -10183,6 +10212,10 @@ fn check_fn(ctx: mut ref SemaCtx, fn_node: ref parser.Node, filename: ref u8) vo
 
     sema_validate_fn_types(ctx, fn_node, filename)
 
+    val prev_const_env: ref SemaConstEnv = ctx.const_env
+    val prev_fn_name: ref u8 = ctx.current_fn_name
+    ctx.const_env = sema_const_env_new(ctx)
+    ctx.current_fn_name = fn_name
     push_scope(ctx)
     if params != none {
         for param in params as list[ref parser.Node] {
@@ -10213,7 +10246,6 @@ fn check_fn(ctx: mut ref SemaCtx, fn_node: ref parser.Node, filename: ref u8) vo
     ctx.current_ret_ty = ret_ty
     ctx.current_ret_is_ref = sema_ty_is_ref(ret_ty)
     check_stmts(ctx, body, filename)
-    sema_check_static_contracts(ctx, body, filename, fn_name)
     ctx.current_ret_ty = prev_ret_ty
     ctx.current_ret_is_ref = prev_ret_is_ref
     ctx.argspack_params = prev_argspack
@@ -10229,6 +10261,8 @@ fn check_fn(ctx: mut ref SemaCtx, fn_node: ref parser.Node, filename: ref u8) vo
     }
     pop_scope(ctx, filename, 0)
 
+    ctx.const_env = prev_const_env
+    ctx.current_fn_name = prev_fn_name
     ctx.in_variadic_fn = prev_variadic
     ctx.in_unsafe_fn = prev_unsafe
 }
@@ -10403,6 +10437,10 @@ fn check_generic_fn(ctx: mut ref SemaCtx, fn_node: ref parser.Node, filename: re
 
     sema_validate_fn_types(ctx, fn_node, filename)
 
+    val prev_const_env: ref SemaConstEnv = ctx.const_env
+    val prev_fn_name: ref u8 = ctx.current_fn_name
+    ctx.const_env = sema_const_env_new(ctx)
+    ctx.current_fn_name = parser.node_str_raw(fn_node.d2)
     push_scope(ctx)
     val params: ref void = fn_node.d3 as ref void
     if params != none {
@@ -10439,7 +10477,6 @@ fn check_generic_fn(ctx: mut ref SemaCtx, fn_node: ref parser.Node, filename: re
     ctx.current_ret_is_ref = prev_ret_is_ref
     ctx.argspack_params = prev_argspack
     val fn_name: ref u8 = parser.node_str_raw(fn_node.d2)
-    sema_check_static_contracts(ctx, body, filename, fn_name)
     if ret_ty != none && ret_ty.kind != parser.TY_VOID && !stmts_guarantee_return(ctx, body) {
         val buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, (512) as usize) as ref u8
         @snprintf(
@@ -10452,6 +10489,8 @@ fn check_generic_fn(ctx: mut ref SemaCtx, fn_node: ref parser.Node, filename: re
     }
     pop_scope(ctx, filename, 0)
 
+    ctx.const_env = prev_const_env
+    ctx.current_fn_name = prev_fn_name
     ctx.type_params = prev_type_params
     ctx.type_param_constraints = prev_type_param_constraints
     ctx.in_unsafe_fn = prev_unsafe
