@@ -7246,9 +7246,9 @@ fn sema_const_env_lookup(env: ref SemaConstEnv, name: ref u8) SemaConstVal = tru
         return sema_const_unknown()
     }
     val flen: i64 = @len(env.names) as i64
-    val fi: mut i64 = 0
+    val fi: mut i64 = flen - 1
     for {
-        if fi >= flen {
+        if fi < 0 {
             break
         }
         val fn_opt = @get(env.names, fi as usize)
@@ -7274,7 +7274,7 @@ fn sema_const_env_lookup(env: ref SemaConstEnv, name: ref u8) SemaConstVal = tru
                 return out
             }
         }
-        fi++
+        fi--
     }
     return sema_const_unknown()
 }
@@ -8333,6 +8333,112 @@ fn sema_check_call_preconditions(
                 )
             }
             add_error(ctx, buf)
+        }
+    }
+}
+
+/// Report pre/postconditions that can never hold because they evaluate to a
+/// constant false.  Only straight-line, immutable constant bindings are
+/// tracked; control flow stops the scan so this stays conservative.
+fn sema_check_static_contracts(
+    ctx: mut ref SemaCtx,
+    stmts: ref void,
+    filename: ref u8,
+    fn_name: ref u8
+) void = trust {
+    if stmts == none {
+        return
+    }
+    val env: mut ref SemaConstEnv = sema_const_env_new(ctx)
+    for stmt in stmts as list[ref parser.Node] {
+        if stmt == none {
+            continue
+        }
+        val k: i64 = stmt.kind
+        if k == parser.NK_VAL {
+            val name: ref u8 = parser.node_str_raw(stmt.d0)
+            val mutable: i64 = stmt.d1 as i64
+            val init: ref parser.Node = stmt.d3 as ref parser.Node
+            if mutable == 0 && init != none {
+                sema_const_env_push(env, name, sema_const_eval(init, env))
+            } else {
+                sema_const_env_push(env, name, sema_const_unknown())
+            }
+            continue
+        }
+        if k == parser.NK_ASSIGN || k == parser.NK_ADD_ASSIGN || k == parser.NK_SUB_ASSIGN {
+            val target: ref parser.Node = stmt.d0 as ref parser.Node
+            if target != none && target.kind == parser.NK_IDENT {
+                sema_const_env_push(
+                    env,
+                    parser.node_str_raw(target.d0),
+                    sema_const_unknown()
+                )
+            }
+            continue
+        }
+        if k == parser.NK_INCREMENT || k == parser.NK_DECREMENT {
+            val target: ref parser.Node = stmt.d0 as ref parser.Node
+            if target != none && target.kind == parser.NK_IDENT {
+                sema_const_env_push(
+                    env,
+                    parser.node_str_raw(target.d0),
+                    sema_const_unknown()
+                )
+            }
+            continue
+        }
+        if k == parser.NK_PRE || k == parser.NK_POST
+        || k == parser.NK_GUARDED_PRE || k == parser.NK_GUARDED_POST {
+            val is_pre: bool = k == parser.NK_PRE || k == parser.NK_GUARDED_PRE
+            val kind_str: mut ref u8 = c"precondition"
+            if !is_pre {
+                kind_str = c"postcondition"
+            }
+            val clist: ref void = stmt.d0 as ref void
+            if clist != none {
+                for c in clist as list[ref parser.Node] {
+                    if c == none {
+                        continue
+                    }
+                    val label: ref u8 = parser.node_str_raw(c.d0)
+                    val cexpr: ref parser.Node = c.d1 as ref parser.Node
+                    val result: SemaConstVal = sema_const_eval(cexpr, env)
+                    if !result.known || !sema_const_is_false(result) {
+                        continue
+                    }
+                    val buf: ref u8 = allocators.ScopedArena.alloc_or_none(
+                        ctx.arena,
+                        512 as usize
+                    ) as ref u8
+                    if label != none {
+                        @snprintf(
+                            buf,
+                            512,
+                            "{s}:{lld}: {s} '{s}' of function '{s}' can never be satisfied",
+                            {filename, c.line, kind_str, label, fn_name}
+                        )
+                    } else {
+                        @snprintf(
+                            buf,
+                            512,
+                            "{s}:{lld}: {s} of function '{s}' can never be satisfied",
+                            {filename, c.line, kind_str, fn_name}
+                        )
+                    }
+                    add_error(ctx, buf)
+                }
+            }
+            continue
+        }
+        if k == parser.NK_IF || k == parser.NK_FOR || k == parser.NK_FORIN ||
+        k == parser.NK_MATCH_OPT || k == parser.NK_MATCH_RES ||
+        k == parser.NK_MATCH_ENUM || k == parser.NK_MATCH_VALUE ||
+        k == parser.NK_MATCH_STR || k == parser.NK_MATCH_UNION ||
+        k == parser.NK_MATCH_TAGGED_UNION || k == parser.NK_WHEN_STMT ||
+        k == parser.NK_GUARD || k == parser.NK_TRUST_BLOCK ||
+        k == parser.NK_DEFER || k == parser.NK_RETURN {
+            return
         }
     }
 }
@@ -10107,6 +10213,7 @@ fn check_fn(ctx: mut ref SemaCtx, fn_node: ref parser.Node, filename: ref u8) vo
     ctx.current_ret_ty = ret_ty
     ctx.current_ret_is_ref = sema_ty_is_ref(ret_ty)
     check_stmts(ctx, body, filename)
+    sema_check_static_contracts(ctx, body, filename, fn_name)
     ctx.current_ret_ty = prev_ret_ty
     ctx.current_ret_is_ref = prev_ret_is_ref
     ctx.argspack_params = prev_argspack
@@ -10332,6 +10439,7 @@ fn check_generic_fn(ctx: mut ref SemaCtx, fn_node: ref parser.Node, filename: re
     ctx.current_ret_is_ref = prev_ret_is_ref
     ctx.argspack_params = prev_argspack
     val fn_name: ref u8 = parser.node_str_raw(fn_node.d2)
+    sema_check_static_contracts(ctx, body, filename, fn_name)
     if ret_ty != none && ret_ty.kind != parser.TY_VOID && !stmts_guarantee_return(ctx, body) {
         val buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, (512) as usize) as ref u8
         @snprintf(

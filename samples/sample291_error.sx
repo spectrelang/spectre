@@ -1,0 +1,14 @@
+fn get_value() i32 = {
+    val result: i32 = 60
+
+    post {
+        result > 100
+        result < 50
+    }
+
+    return result
+}
+
+pub fn main() void = {
+    trust @print("{d}\n", {get_value()})
+}
