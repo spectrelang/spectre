@@ -25,6 +25,24 @@ extern (C) fn __sx_sys_clone_thread(flags: i64, stack: ref void, entry: ref void
 extern (C) fn __sx_sys_create_thread(entry: ref void, arg: ref void) i64 = "__sx_sys_create_thread"
 extern (C) fn __sx_sys_wait_thread(handle: i64) i64 = "__sx_sys_wait_thread"
 extern (C) fn __sx_sys_detach_thread(handle: i64) i64 = "__sx_sys_detach_thread"
+extern (C) fn __sx_sys_getenv(name: ref u8, out: ref u8, cap: usize) i64 = "__sx_sys_getenv"
+extern (C) fn __sx_sys_getcwd(buf: ref u8, cap: usize) i64 = "__sx_sys_getcwd"
+extern (C) fn __sx_sys_chdir(path: ref u8) i64 = "__sx_sys_chdir"
+extern (C) fn __sx_sys_access(path: ref u8, mode: i64) i64 = "__sx_sys_access"
+extern (C) fn __sx_sys_mkdir(path: ref u8, mode: i64) i64 = "__sx_sys_mkdir"
+extern (C) fn __sx_sys_rmdir(path: ref u8) i64 = "__sx_sys_rmdir"
+extern (C) fn __sx_sys_remove(path: ref u8) i64 = "__sx_sys_remove"
+extern (C) fn __sx_sys_rename(oldpath: ref u8, newpath: ref u8) i64 = "__sx_sys_rename"
+extern (C) fn __sx_sys_readlink(path: ref u8, buf: ref u8, cap: usize) i64 = "__sx_sys_readlink"
+extern (C) fn __sx_sys_isatty(fd: i64) i64 = "__sx_sys_isatty"
+extern (C) fn __sx_sys_realpath(path: ref u8, out: ref u8, cap: usize) i64 = "__sx_sys_realpath"
+extern (C) fn __sx_sys_stat(path: ref u8, buf: ref void) i64 = "__sx_sys_stat"
+extern (C) fn __sx_sys_opendir(path: ref u8) ref void = "__sx_sys_opendir"
+extern (C) fn __sx_sys_readdir(dir: ref void) ref void = "__sx_sys_readdir"
+extern (C) fn __sx_sys_closedir(dir: ref void) i64 = "__sx_sys_closedir"
+extern (C) fn __sx_sys_exit(code: i64) void = "__sx_sys_exit"
+extern (C) fn __sx_sys_getrandom(buf: ref void, n: usize) i64 = "__sx_sys_getrandom"
+extern (C) fn __sx_sys_uname(buf: ref void) i64 = "__sx_sys_uname"
 
 val heap_base: mut ref u8 = none
 val heap_used: mut usize = 0
@@ -1308,6 +1326,110 @@ pub fn sx_snprintf(buf: ref u8, cap: usize, fmt: ref u8, ...) i32 = trust {
     return pos as i32
 }
 
+// ---------------------------------------------------------------------------
+// Environment / filesystem metadata layer
+// ---------------------------------------------------------------------------
+
+fn r_getenv(name: ref u8) ref u8 = trust {
+    if name == none { return none }
+    val buf: ref u8 = r_alloc(4096) as ref u8
+    if buf == none { return none }
+    val n: i64 = __sx_sys_getenv(name, buf, 4096)
+    if n < 0 { return none }
+    return buf
+}
+
+fn r_getcwd(buf: ref u8, size: usize) ref u8 = trust {
+    if buf == none { return none }
+    if __sx_sys_getcwd(buf, size) < 0 { return none }
+    return buf
+}
+
+fn r_chdir(path: ref u8) i32 = trust {
+    return __sx_sys_chdir(path) as i32
+}
+
+fn r_access(path: ref u8, mode: i32) i32 = trust {
+    return __sx_sys_access(path, mode as i64) as i32
+}
+
+fn r_mkdir(path: ref u8, mode: u32) i32 = trust {
+    return __sx_sys_mkdir(path, mode as i64) as i32
+}
+
+fn r_rmdir(path: ref u8) i32 = trust {
+    return __sx_sys_rmdir(path) as i32
+}
+
+fn r_remove(path: ref u8) i32 = trust {
+    return __sx_sys_remove(path) as i32
+}
+
+fn r_rename(old: ref u8, new: ref u8) i32 = trust {
+    return __sx_sys_rename(old, new) as i32
+}
+
+fn r_unlink(path: ref u8) i32 = trust {
+    return __sx_sys_remove(path) as i32
+}
+
+fn r_realpath(path: ref u8, out: ref u8) ref u8 = trust {
+    val buf: mut ref u8 = out
+    if buf == none {
+        buf = r_alloc(4096) as ref u8
+        if buf == none { return none }
+    }
+    if __sx_sys_realpath(path, buf, 4096) < 0 { return none }
+    return buf
+}
+
+fn r_readlink(path: ref u8, buf: ref u8, n: usize) i64 = trust {
+    return __sx_sys_readlink(path, buf, n)
+}
+
+fn r_isatty(fd: i32) i32 = trust {
+    return __sx_sys_isatty(fd as i64) as i32
+}
+
+fn r_stat(path: ref u8, buf: ref void) i32 = trust {
+    return __sx_sys_stat(path, buf) as i32
+}
+
+fn r_opendir(path: ref u8) ref void = trust {
+    return __sx_sys_opendir(path)
+}
+
+fn r_readdir(dir: ref void) ref void = trust {
+    return __sx_sys_readdir(dir)
+}
+
+fn r_closedir(dir: ref void) i32 = trust {
+    return __sx_sys_closedir(dir) as i32
+}
+
+fn r_uname(buf: ref void) i32 = trust {
+    return __sx_sys_uname(buf) as i32
+}
+
+fn r_exit(code: i32) void = trust {
+    __sx_sys_exit(code as i64)
+}
+
+fn r_getrandom(buf: ref void, n: usize, _: u32) i64 = trust {
+    return __sx_sys_getrandom(buf, n)
+}
+
+fn r_arc4random_buf(buf: ref void, n: usize) void = trust {
+    val p: ref u8 = buf as ref u8
+    val done: mut usize = 0
+    for {
+        if done >= n { break }
+        val r: i64 = __sx_sys_getrandom(@ptradd(p, done as i64) as ref void, n - done)
+        if r <= 0 { break }
+        done = done + r as usize
+    }
+}
+
 // Exported ABI wrappers.
 pub fn sx_alloc(n: usize) ref void = trust { return r_alloc(n) }
 pub fn sx_calloc(count: usize, size: usize) ref void = trust { return r_calloc(count, size) }
@@ -1366,3 +1488,23 @@ pub fn sx_mutex_init(m: ref void) i32 = trust { return r_mutex_init(m) }
 pub fn sx_mutex_destroy(m: ref void) i32 = trust { return r_mutex_destroy(m) }
 pub fn sx_mutex_lock(m: ref void) i32 = trust { return r_mutex_lock(m) }
 pub fn sx_mutex_unlock(m: ref void) i32 = trust { return r_mutex_unlock(m) }
+pub fn sx_getenv(name: ref u8) ref u8 = trust { return r_getenv(name) }
+pub fn sx_getcwd(buf: ref u8, size: usize) ref u8 = trust { return r_getcwd(buf, size) }
+pub fn sx_chdir(path: ref u8) i32 = trust { return r_chdir(path) }
+pub fn sx_access(path: ref u8, mode: i32) i32 = trust { return r_access(path, mode) }
+pub fn sx_mkdir(path: ref u8, mode: u32) i32 = trust { return r_mkdir(path, mode) }
+pub fn sx_rmdir(path: ref u8) i32 = trust { return r_rmdir(path) }
+pub fn sx_remove(path: ref u8) i32 = trust { return r_remove(path) }
+pub fn sx_rename(old: ref u8, new: ref u8) i32 = trust { return r_rename(old, new) }
+pub fn sx_unlink(path: ref u8) i32 = trust { return r_unlink(path) }
+pub fn sx_realpath(path: ref u8, out: ref u8) ref u8 = trust { return r_realpath(path, out) }
+pub fn sx_readlink(path: ref u8, buf: ref u8, n: usize) i64 = trust { return r_readlink(path, buf, n) }
+pub fn sx_isatty(fd: i32) i32 = trust { return r_isatty(fd) }
+pub fn sx_stat(path: ref u8, buf: ref void) i32 = trust { return r_stat(path, buf) }
+pub fn sx_opendir(path: ref u8) ref void = trust { return r_opendir(path) }
+pub fn sx_readdir(dir: ref void) ref void = trust { return r_readdir(dir) }
+pub fn sx_closedir(dir: ref void) i32 = trust { return r_closedir(dir) }
+pub fn sx_uname(buf: ref void) i32 = trust { return r_uname(buf) }
+pub fn sx_exit(code: i32) void = trust { r_exit(code) }
+pub fn sx_getrandom(buf: ref void, n: usize, flags: u32) i64 = trust { return r_getrandom(buf, n, flags) }
+pub fn sx_arc4random_buf(buf: ref void, n: usize) void = trust { r_arc4random_buf(buf, n) }

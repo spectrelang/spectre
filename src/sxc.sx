@@ -1252,7 +1252,7 @@ pub fn main() i32 = trust {
                     _rt_size = 0
                 }
             }
-            val rt_cache_name: ref u8 = @fmtalloc("{s}_{lld}", {rt_name, _rt_size})
+            val rt_cache_name: ref u8 = @fmtalloc("{s}_{lld}_fs2", {rt_name, _rt_size})
             alt_runtime_obj = builds.freestanding_cache_path(
                 target_platform,
                 target_arch,
@@ -2101,7 +2101,7 @@ pub fn main() i32 = trust {
                 }
             }
             val cached_name: ref u8 = @fmtalloc(
-                "{s}_{lld}",
+                "{s}_{lld}_fs2",
                 {runtime_obj_name, rt_source_size}
             )
             runtime_obj_x = builds.freestanding_cache_path(
@@ -2489,7 +2489,7 @@ pub fn main() i32 = trust {
                     win_libs = builds.freestanding_windows_import_libs()
                     win_lib_paths = builds.xwin_lib_path_flags(xwin_root, target_arch)
                 }
-                entry_flag = c"/nodefaultlib /entry:mainCRTStartup"
+                entry_flag = c"/nodefaultlib /entry:mainCRTStartup /opt:ref"
             } else {
                 win_libs = builds.xwin_default_libs()
                 val win_env_libs: ref u8 = os.getenv(c"SPECTRE_WIN_LIBS")
@@ -2530,7 +2530,7 @@ pub fn main() i32 = trust {
                 link_flags_x = @fmtalloc("{s} {s}", {link_flags_x, shim_obj_x})
             }
             if freestanding_runtime {
-                val fs_link_flags: mut ref u8 = c" -nostdlib -static"
+                val fs_link_flags: mut ref u8 = c" -nostdlib -static -Wl,--gc-sections"
                 if cstr.len(runtime_obj_x) > 0 {
                     fs_link_flags = @fmtalloc("{s} {s}", {fs_link_flags, runtime_obj_x})
                 }

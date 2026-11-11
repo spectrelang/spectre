@@ -372,7 +372,7 @@ pub fn freestanding_start_source(exe_dir: ref u8, platform: ref u8, arch: ref u8
 
 /// Compiler flags shared by freestanding runtime/translation-unit compiles.
 pub fn freestanding_c_flags() ref u8 = {
-    return c"-ffreestanding -nostdinc -fno-builtin -fno-stack-protector -fno-common -fno-asynchronous-unwind-tables"
+    return c"-ffreestanding -nostdinc -fno-builtin -fno-stack-protector -fno-common -fno-asynchronous-unwind-tables -ffunction-sections -fdata-sections"
 }
 
 /// Optional architecture flags for freestanding compiles.

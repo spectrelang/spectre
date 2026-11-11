@@ -11038,6 +11038,8 @@ fn emit_forward_decls(ctx: ref CCtx) void = trust {
                 @snprintf(sig, 1024, "{s} {s}(", {ret_ct, mangled})
             } elif is_inline {
                 @snprintf(sig, 1024, "static inline {s} {s}(", {ret_ct, mangled})
+            } elif (cstr.starts_with(mangled, c"sx_") && !cstr.starts_with(mangled, c"sx__")) || cstr.starts_with(mangled, c"__sx_") {
+                @snprintf(sig, 1024, "{s} {s}(", {ret_ct, mangled})
             } else {
                 @snprintf(sig, 1024, "static {s} {s}(", {ret_ct, mangled})
             }
