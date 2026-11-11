@@ -3,11 +3,13 @@ val stdio = use("std/stdio")
 val str   = use("std/string")
 val time  = use("std/time")
 
-val WIDTH: i64 = 80
-val HEIGHT: i64 = 24
-val FRAMES: i64 = 180
-val FRAME_MS: i64 = 33
-val TAU: f64 = 6.283185307179586
+val (
+    WIDTH: i64    = 80
+    HEIGHT: i64   = 24
+    FRAMES: i64   = 180
+    FRAME_MS: i64 = 33
+    TAU: f64      = 6.283185307179586
+)
 
 fn shade(n: i64) u8 = trust {
     val lum = c".,-~:;=!*#$@"
