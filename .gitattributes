@@ -4,3 +4,4 @@
 *.ll linguist-generated
 *.ps1 linguist-generated
 *.s linguist-generated
+*.S linguist-generated
