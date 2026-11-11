@@ -1774,7 +1774,7 @@ fn doctor_row(field: ref u8, value: ref u8) void = trust {
             break
         }
         stdio.printv(" ")
-        pad = pad + 1
+        pad++
     }
     stdio.print("{s}\n", {value})
 }

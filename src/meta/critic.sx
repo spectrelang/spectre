@@ -2800,7 +2800,7 @@ fn apply_edits(
         return src
     }
     val pos: mut i64 = 0
-    val order: mut list[i64] = build_edit_order(edits)
+    val order: list[i64] = build_edit_order(edits)
     for idx in order {
         val edit_opt = @get(edits, idx as usize)
         val e: mut ref Edit = none

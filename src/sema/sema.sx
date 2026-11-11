@@ -6526,11 +6526,11 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
             val bai: mut i64 = 0
             for barg in bargs as list[ref parser.Node] {
                 if cstr.eql(bname, c"va_arg") && bai == 1 {
-                    bai = bai + 1
+                    bai++
                     continue
                 }
                 check_expr(ctx, barg, filename)
-                bai = bai + 1
+                bai++
             }
         }
 

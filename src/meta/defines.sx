@@ -32,7 +32,7 @@ fn dup_cstr(value: str.StringView) ref u8 = trust {
 
 fn free_cstr(value: ref u8) void = trust {
     if value != none {
-        allocators.HeapAllocator.free(cstr_heap(), value as ref void)
+        allocators.HeapAllocator.free(cstr_heap(), value)
     }
 }
 

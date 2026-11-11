@@ -821,12 +821,12 @@ fn cg_union_payload_size(ctx: mut ref CgCtx, variants: ref void) i64 = trust {
                     if f_opt is some f {
                         val fsize: i64 = cg_alloc_size_for_type(ctx, f as ref parser.Node)
                         if fsize <= 0 {
-                            psize = psize + 8
+                            psize += 8
                         } else {
                             psize = psize + align_to(fsize, 8)
                         }
                     } else {
-                        psize = psize + 8
+                        psize += 8
                     }
                     fi++
                 }
@@ -13226,7 +13226,7 @@ fn gen_builtin(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
                         builder.StringBuilder.append_cstr(scall_sb, spbuf2)
                     }
                 }
-                si = si + 1
+                si++
             }
         }
         builder.StringBuilder.append_cstr(scall_sb, c")\n")
