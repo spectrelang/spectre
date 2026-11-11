@@ -160,9 +160,40 @@ if (-not (Test-Path $BOOTSTRAP_OUT)) {
     Err "Bootstrap compilation failed"
 }
 
+$STAGE0 = "$SPECTRE_DIR\spectre-stage0.exe"
+$STAGE1 = "$SPECTRE_DIR\spectre-stage1.exe"
+$STAGE2 = "$SPECTRE_DIR\spectre-stage2.exe"
+
+Log "Building Spectre stage 1 from source..."
+
+Copy-Item $BOOTSTRAP_OUT $STAGE0 -Force
+
+Push-Location $SPECTRE_DIR
+try {
+    & .\spectre-stage0.exe .\src\sxc.sx -alt -runtime:hosted -o .\spectre-stage1.exe
+    if ($LASTEXITCODE -ne 0 -or -not (Test-Path .\spectre-stage1.exe)) {
+        Err "Stage 1 build failed"
+    }
+
+    $GitHash = "unknown"
+    try {
+        $GitHash = (git rev-parse --short HEAD).Trim()
+    } catch {
+    }
+
+    Log "Building Spectre stage 2 from source..."
+    & .\spectre-stage1.exe "-d:GIT_HASH=$GitHash" .\src\sxc.sx -alt -runtime:hosted -o .\spectre-stage2.exe
+    if ($LASTEXITCODE -ne 0 -or -not (Test-Path .\spectre-stage2.exe)) {
+        Err "Stage 2 build failed"
+    }
+} finally {
+    Pop-Location
+}
+
 Log "Installing Spectre binary..."
 
-Copy-Item $BOOTSTRAP_OUT "$BIN_DIR\spectre.exe" -Force
+Copy-Item $STAGE2 "$BIN_DIR\spectre.exe" -Force
+Remove-Item -Force $STAGE0, $STAGE1, $STAGE2 -ErrorAction SilentlyContinue
 
 $STDLIB_SRC  = "$SPECTRE_DIR\spectrelib"
 $STDLIB_DEST = "$BIN_DIR\spectrelib"

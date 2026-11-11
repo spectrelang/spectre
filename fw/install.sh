@@ -493,6 +493,10 @@ Darwin)
 	;;
 esac
 
+STAGE0="${SPECTRE_DIR}/spectre-stage0"
+STAGE1="${SPECTRE_DIR}/spectre-stage1"
+STAGE2="${SPECTRE_DIR}/spectre-stage2"
+
 if [ "$QBE_OK" -eq 1 ]; then
 	[ -f "$BOOTSTRAP_SSA" ] || err "Missing bootstrap SSA at ${BOOTSTRAP_SSA}"
 	[ -n "$QBE_BIN" ] || err "QBE was not found in PATH or installed."
@@ -511,11 +515,6 @@ if [ "$QBE_OK" -eq 1 ]; then
 		-L"${OTHER_PREFIX}/lib" \
 		-lyyjson \
 		-o "${BOOTSTRAP_OUT}"
-
-	log "Installing Spectre binary..."
-	/usr/bin/install -m 0755 \
-		"${BOOTSTRAP_OUT}" \
-		"${BIN_DIR}/spectre"
 else
 	[ -f "$POSIX_BOOTSTRAP_SRC" ] || err "Missing C bootstrap at ${POSIX_BOOTSTRAP_SRC}"
 
@@ -531,12 +530,35 @@ else
 		-Wno-everything \
 		-lyyjson \
 		-o "${POSIX_BOOTSTRAP_OUT}")
-
-	log "Installing Spectre binary (C bootstrap)..."
-	/usr/bin/install -m 0755 \
-		"${POSIX_BOOTSTRAP_OUT}" \
-		"${BIN_DIR}/spectre"
 fi
+
+log "Building Spectre stage 1 from source..."
+if [ "$QBE_OK" -eq 1 ]; then
+	/usr/bin/install -m 0755 "${BOOTSTRAP_OUT}" "$STAGE0"
+else
+	/usr/bin/install -m 0755 "${POSIX_BOOTSTRAP_OUT}" "$STAGE0"
+fi
+(cd "$SPECTRE_DIR" && ./spectre-stage0 ./src/sxc.sx -alt -runtime:hosted -o ./spectre-stage1)
+
+GIT_HASH="unknown"
+if command -v git >/dev/null 2>&1; then
+	GIT_HASH="$(git -C "$SPECTRE_DIR" rev-parse --short HEAD 2>/dev/null || echo unknown)"
+fi
+SPECTRE_MOD_VERSION="$(
+	sed -n 's/^[[:space:]]*version[[:space:]]*"\([^"]*\)".*/\1/p' \
+		"${SPECTRE_DIR}/sx.mod" | head -n 1
+)"
+STAGE_DEFINES="-d:GIT_HASH=${GIT_HASH}"
+if [ -n "$SPECTRE_MOD_VERSION" ]; then
+	STAGE_DEFINES="${STAGE_DEFINES} -d:SPECTRE_MOD_VERSION=${SPECTRE_MOD_VERSION}"
+fi
+
+log "Building Spectre stage 2 from source..."
+(cd "$SPECTRE_DIR" && ./spectre-stage1 $STAGE_DEFINES ./src/sxc.sx -alt -o ./spectre-stage2)
+
+log "Installing Spectre binary..."
+/usr/bin/install -m 0755 "${STAGE2}" "${BIN_DIR}/spectre"
+rm -f "$STAGE0" "$STAGE1" "$STAGE2"
 
 STDLIB_SRC="${SPECTRE_DIR}/spectrelib"
 STDLIB_DEST="${BIN_DIR}/spectrelib"
