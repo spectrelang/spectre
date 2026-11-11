@@ -2202,9 +2202,20 @@ fn cg_alloc_runtime_c_source() str.StringView = trust {
 /// C runtime used by -leak-check. This is only emitted when the flag is set.
 pub fn leak_runtime_c_source() str.StringView = trust {
     return \\
+    \\#ifdef SX_FREESTANDING
+    \\typedef __SIZE_TYPE__ size_t;
+    \\typedef __INTPTR_TYPE__ intptr_t;
+    \\void *malloc(size_t);
+    \\void *calloc(size_t, size_t);
+    \\void *realloc(void *, size_t);
+    \\void free(void *);
+    \\void *memcpy(void *, const void *, size_t);
+    \\void *memset(void *, int, size_t);
+    \\#else
     \\#include <stdint.h>
     \\#include <stdlib.h>
     \\#include <string.h>
+    \\#endif
     \\typedef struct sx_leak_block {
     \\    struct sx_leak_block* prev;
     \\    struct sx_leak_block* next;
