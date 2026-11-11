@@ -95,6 +95,7 @@ pub val (
     TY_VOID: i64                         = 109
     TY_ARGSPACK: i64                     = 110
     TY_INFER: i64                        = 111
+    TY_VA_LIST: i64                      = 112
     OP_ADD: i64                          = 1
     OP_SUB: i64                          = 2
     OP_MUL: i64                          = 3
@@ -119,7 +120,9 @@ pub val (
     FN_FLAG_UNSAFE: i64                  = 1
     FN_FLAG_INLINE: i64                  = 2
     FN_FLAG_SUPPRESS_UNUSED: i64         = 4
+    FN_FLAG_VARIADIC: i64                = 8
     GENERIC_FN_FLAG_SUPPRESS_UNUSED: i64 = 8
+    GENERIC_FN_FLAG_VARIADIC: i64        = 16
     EXTERN_FLAG_VARIADIC: i64            = 2
     EXTERN_FLAG_HEADER: i64              = 4
 )
@@ -362,6 +365,19 @@ pub fn fn_is_unsafe(n: ref Node) bool = {
         return ((n.d0 >> 1) & 1) != 0
     }
     return (n.d6 & FN_FLAG_UNSAFE) != 0
+}
+
+pub fn fn_is_variadic(n: ref Node) bool = {
+    if n == none {
+        return false
+    }
+    if n.kind == NK_EXTERN_FN {
+        return extern_fn_is_variadic(n)
+    }
+    if n.kind == NK_GENERIC_FN {
+        return (n.d0 & GENERIC_FN_FLAG_VARIADIC) != 0
+    }
+    return (n.d6 & FN_FLAG_VARIADIC) != 0
 }
 
 pub fn fn_is_inline(n: ref Node) bool = {
@@ -1646,6 +1662,9 @@ pub fn parse_type(p: mut ref Parser) result[ref Node, ref u8] = trust {
         }
         if cstr.eql(name, c"argspack") {
             return ok make_node(p.arena, TY_ARGSPACK, line)
+        }
+        if cstr.eql(name, c"va_list") {
+            return ok make_node(p.arena, TY_VA_LIST, line)
         }
         if cstr.eql(name, c"option") {
             p_expect_lbracket(p)?
@@ -3630,8 +3649,14 @@ fn parse_fn_item(
     }
     p_expect_lparen(p)?
     val params: mut list[ref Node] = mem.new[ref Node]()
+    val is_variadic: mut i64 = 0
     for {
         if lexer.kind_is_rparen(p_peek_kind(p)) {
+            break
+        }
+        if kind_is_dotdotdot(p_peek_kind(p)) {
+            p_advance(p)
+            is_variadic = 1
             break
         }
         val pname = p_expect_ident(p)?
@@ -3685,7 +3710,7 @@ fn parse_fn_item(
     }
     if @len(type_params) as i64 > 0 {
         val nfn: mut ref Node = make_node(p.arena, NK_GENERIC_FN, line)
-        nfn.d0 = public | (is_unsafe << 1) | (is_inline << 2) | (suppress_flag << 3)
+        nfn.d0 = public | (is_unsafe << 1) | (is_inline << 2) | (suppress_flag << 3) | (is_variadic << 4)
         node_store_string_slot(@addr(nfn.d1), ns)
         node_store_string_slot(@addr(nfn.d2), name)
         val pl: list[ref Node] = params
@@ -3706,7 +3731,7 @@ fn parse_fn_item(
     node_store_slot[ref Node](@addr(nfn.d4), ret_ty)
     val bl: list[ref Node] = body
     node_store_slot[list[ref Node]](@addr(nfn.d5), bl)
-    nfn.d6 = (is_unsafe * FN_FLAG_UNSAFE) | (is_inline * FN_FLAG_INLINE) | (suppress_flag * FN_FLAG_SUPPRESS_UNUSED)
+    nfn.d6 = (is_unsafe * FN_FLAG_UNSAFE) | (is_inline * FN_FLAG_INLINE) | (suppress_flag * FN_FLAG_SUPPRESS_UNUSED) | (is_variadic * FN_FLAG_VARIADIC)
     return ok nfn
 }
 

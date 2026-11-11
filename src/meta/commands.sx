@@ -1764,18 +1764,26 @@ fn tool_version(cmd: ref u8) ref u8 = {
     }
 }
 
+fn doctor_row(field: ref u8, value: ref u8) void = trust {
+    stdio.print("{s}", {field})
+    val field_len: i64 = cstr.len(field)
+    val pad_to: i64 = 16
+    val pad: mut i64 = field_len
+    for {
+        if pad >= pad_to {
+            break
+        }
+        stdio.printv(" ")
+        pad = pad + 1
+    }
+    stdio.print("{s}\n", {value})
+}
+
 pub fn cmd_doctor() i32 = {
     trust stdio.print("Spectre Compiler {s}\n\n", {meta.get_spectre_version()})
 
-    val platform_res = trust os.exec(c"uname -srm 2>&1")
-    match platform_res {
-        ok v => {
-            trust stdio.print("os:      {s}", {ostr.as_cstr(v)})
-        }
-        err _ => {
-            stdio.puts("os:      unknown")
-        }
-    }
+    trust doctor_row(c"field", c"value")
+    trust doctor_row(c"os", tool_version(c"uname -srm 2>&1"))
 
     val qbe_ver: ref u8 = tool_version(c"qbe -h 2>&1 | head -1")
     val qbe_installed_str: mut ref u8 = c"installed"
@@ -1786,24 +1794,19 @@ pub fn cmd_doctor() i32 = {
         qbe_installed_str = c"not installed"
     }
     trust allocators.Arena.free(arena)
-    trust stdio.print("qbe:     {s}\n", {qbe_installed_str})
+    trust doctor_row(c"qbe", qbe_installed_str)
 
-    val cc_ver: ref u8 = tool_version(c"cc --version 2>&1 | head -1")
-    trust stdio.print("cc:      {s}\n", {cc_ver})
-
-    val clang_ver: ref u8 = tool_version(c"clang --version 2>&1 | head -1")
-    trust stdio.print("clang:   {s}\n", {clang_ver})
-
-    val lld_link_ver: ref u8 = tool_version(c"lld-link --version 2>&1 | head -1")
-    trust stdio.print("lld-link: {s}\n", {lld_link_ver})
+    trust doctor_row(c"cc", tool_version(c"cc --version 2>&1 | head -1"))
+    trust doctor_row(c"clang", tool_version(c"clang --version 2>&1 | head -1"))
+    trust doctor_row(c"lld-link", tool_version(c"lld-link --version 2>&1 | head -1"))
 
     val xwin_root: ref u8 = trust builds.xwin_find_root()
     if cstr.cmp(xwin_root, c"") == 0 {
-        stdio.puts("xwin:    not found")
+        trust doctor_row(c"xwin", c"not found")
     } else {
-        trust stdio.print("xwin:    {s}\n", {xwin_root})
+        trust doctor_row(c"xwin", xwin_root)
         val xwin_archs: ref u8 = trust builds.xwin_available_archs(xwin_root)
-        trust stdio.print("xwin arches: {s}\n", {xwin_archs})
+        trust doctor_row(c"xwin arches", xwin_archs)
     }
 
     val doctor_arena: allocators.Arena = trust allocators.Arena.new(4096 as usize)?
@@ -1811,37 +1814,37 @@ pub fn cmd_doctor() i32 = {
     val doctor_dir: ref u8 = trust path.dir_cstr(doctor_exe)
     val rt_source: ref u8 = trust builds.freestanding_runtime_source(doctor_dir)
     if os.exists(rt_source) {
-        trust stdio.print("runtime: freestanding available ({s})\n", {rt_source})
+        trust doctor_row(c"runtime", c"freestanding available")
+        trust doctor_row(c"runtime source", rt_source)
     } else {
-        stdio.puts("runtime: freestanding source not found")
+        trust doctor_row(c"runtime", c"freestanding source not found")
     }
     val import_map: ref u8 = trust path.join_cstr(
         doctor_dir,
         c"spectrelib/runtime/windows_imports.toml"
     )
     if os.exists(import_map) {
-        trust stdio.print("imports: {s}\n", {import_map})
+        trust doctor_row(c"imports", import_map)
     } else {
-        stdio.puts("imports: built-in Windows map")
+        trust doctor_row(c"imports", c"built-in Windows map")
     }
     trust allocators.Arena.free(doctor_arena)
 
-    val git_ver: ref u8 = tool_version(c"git --version 2>&1")
-    trust stdio.print("git:     {s}\n", {git_ver})
+    trust doctor_row(c"git", tool_version(c"git --version 2>&1"))
 
     val cwd_arena: allocators.Arena = trust allocators.Arena.new(4096 as usize)?
     val cwd_opt = trust fs.cwd[allocators.Arena](cwd_arena)
     if cwd_opt is some cwd {
-        trust stdio.print("cwd:     {s}\n", {cwd})
+        trust doctor_row(c"cwd", cwd)
     } else {
-        stdio.puts("cwd:     unknown")
+        trust doctor_row(c"cwd", c"unknown")
     }
     trust allocators.Arena.free(cwd_arena)
 
     if os.exists(c"sx.mod") {
-        stdio.puts("sx.mod:  found")
+        trust doctor_row(c"sx.mod", c"found")
     } else {
-        stdio.puts("sx.mod:  not found")
+        trust doctor_row(c"sx.mod", c"not found")
     }
 
     return 0

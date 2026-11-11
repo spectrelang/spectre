@@ -924,6 +924,390 @@ fn r_mutex_unlock(m: ref void) i32 = trust {
     return 0
 }
 
+
+// ---------------------------------------------------------------------------
+// Formatting layer
+// ---------------------------------------------------------------------------
+
+fn fmt_putc(buf: ref u8, cap: i64, pos: ref i64, ch: u8) void = trust {
+    if @load(pos) + 1 < cap {
+        @store8(@ptradd(buf, @load(pos)), ch)
+    }
+    @store(pos, @load(pos) + 1)
+}
+
+fn fmt_puts(buf: ref u8, cap: i64, pos: ref i64, s: mut ref u8) void = trust {
+    if s == none {
+        s = c"(null)"
+    }
+    val i: mut i64 = 0
+    for {
+        val ch: u8 = @load8(@ptradd(s, i))
+        if ch == 0 {
+            break
+        }
+        fmt_putc(buf, cap, pos, ch)
+        i = i + 1
+    }
+}
+
+fn fmt_puts_n(buf: ref u8, cap: i64, pos: ref i64, s: ref u8, n: i64) void = trust {
+    val str: mut ref u8 = s
+    if str == none {
+        str = c"(null)"
+    }
+    val i: mut i64 = 0
+    for {
+        if i >= n {
+            break
+        }
+        val ch: u8 = @load8(@ptradd(str, i))
+        if ch == 0 {
+            break
+        }
+        fmt_putc(buf, cap, pos, ch)
+        i = i + 1
+    }
+}
+
+fn fmt_str(buf: ref u8, cap: i64, pos: ref i64, s: ref u8, width: i64, precision: i64, left: bool) void = trust {
+    val str: mut ref u8 = s
+    if str == none {
+        str = c"(null)"
+    }
+    val full: i64 = r_strlen(str)
+    val n: mut i64 = full
+    if precision >= 0 && precision < n {
+        n = precision
+    }
+    val pad: mut i64 = width - n
+    if pad < 0 {
+        pad = 0
+    }
+    if !left {
+        for k = 0, k < pad, k++ { fmt_putc(buf, cap, pos, 32) }
+    }
+    fmt_puts_n(buf, cap, pos, str, n)
+    if left {
+        for k = 0, k < pad, k++ { fmt_putc(buf, cap, pos, 32) }
+    }
+}
+
+fn udivmod_small(value: u64, base: u64, rem: ref u64) u64 = trust {
+    val hi: u64 = value >> 32
+    val lo: u64 = value & 0xffffffff
+    val qhi: u64 = hi / base
+    val r1: u64 = hi % base
+    val mid: u64 = (r1 << 32) | lo
+    val qlo: u64 = mid / base
+    @store(rem, mid % base)
+    return (qhi << 32) | qlo
+}
+
+fn fmt_uint_text(value: u64, base: u64, upper: bool, tmp: ref u8) i64 = trust {
+    val v: mut u64 = value
+    val lower = c"0123456789abcdef"
+    val upper_chars = c"0123456789ABCDEF"
+    val digits: mut ref u8 = lower
+    if upper {
+        digits = upper_chars
+    }
+    val n: mut i64 = 0
+    if v == 0 {
+        @store8(tmp, 48)
+        @store8(@ptradd(tmp, 1), 0)
+        return 1
+    }
+    val rev: mut [66]u8 = @zeroed
+    val rem: mut u64 = 0
+    for {
+        if v == 0 {
+            break
+        }
+        v = udivmod_small(v, base, @addr(rem))
+        @store8(@ptradd(@addr(rev) as ref u8, n), @load8(@ptradd(digits, rem as i64)))
+        n = n + 1
+    }
+    val i: mut i64 = 0
+    for {
+        if i >= n {
+            break
+        }
+        @store8(@ptradd(tmp, i), @load8(@ptradd(@addr(rev) as ref u8, n - 1 - i)))
+        i = i + 1
+    }
+    @store8(@ptradd(tmp, n), 0)
+    return n
+}
+
+fn fmt_int(buf: ref u8, cap: i64, pos: ref i64, value: i64, base: u64, upper: bool,
+    width: i64, precision: i64, zero: bool, left: bool, plus: bool, space: bool) void = trust {
+    val tmp: mut [80]u8 = @zeroed
+    val neg: bool = value < 0
+    val mag: mut u64 = value as u64
+    if neg {
+        mag = (0 - value) as u64
+    }
+    val n: i64 = fmt_uint_text(mag, base, upper, @addr(tmp) as ref u8)
+    val digits: i64 = n
+    val sign_len: mut i64 = 0
+    if neg || plus || space {
+        sign_len = 1
+    }
+    val total: i64 = sign_len + digits
+    val pad: mut i64 = width - total
+    if precision > digits {
+        pad = pad - (precision - digits)
+    }
+    if !left && pad > 0 && !zero {
+        val k: mut i64 = 0
+        for {
+            if k >= pad { break }
+            fmt_putc(buf, cap, pos, 32)
+            k = k + 1
+        }
+    }
+    if neg {
+        fmt_putc(buf, cap, pos, 45)
+    } elif plus {
+        fmt_putc(buf, cap, pos, 43)
+    } elif space {
+        fmt_putc(buf, cap, pos, 32)
+    }
+    if !left && pad > 0 && zero {
+        val k: mut i64 = 0
+        for {
+            if k >= pad { break }
+            fmt_putc(buf, cap, pos, 48)
+            k = k + 1
+        }
+    }
+    if precision > digits {
+        val k: mut i64 = 0
+        for {
+            if k >= precision - digits { break }
+            fmt_putc(buf, cap, pos, 48)
+            k = k + 1
+        }
+    }
+    val ti: mut i64 = 0
+    for {
+        if ti >= digits { break }
+        fmt_putc(buf, cap, pos, @load8(@ptradd(@addr(tmp) as ref u8, ti)))
+        ti = ti + 1
+    }
+    if left && pad > 0 {
+        val k: mut i64 = 0
+        for {
+            if k >= pad { break }
+            fmt_putc(buf, cap, pos, 32)
+            k = k + 1
+        }
+    }
+}
+
+fn fmt_float(buf: ref u8, cap: i64, pos: ref i64, value: f64,
+    precision: i64, width: i64, zero: bool, left: bool, plus: bool, space: bool, force_dec: bool) void = trust {
+    val p: mut i64 = precision
+    if p < 0 { p = 6 }
+    if p > 18 { p = 18 }
+    val neg: bool = value < 0.0
+    val v: mut f64 = value
+    if neg {
+        v = 0.0 - value
+    }
+    val s: mut u64 = 1
+    for k = 0, k < p, k++ { s = s * 10 }
+    val whole: u64 = v as u64
+    val frac_d: f64 = v - (whole as f64)
+    val frac: u64 = (frac_d * (s as f64) + 0.5) as u64
+    val w2: mut u64 = whole
+    val f2: mut u64 = frac
+    if f2 >= s {
+        w2 = w2 + 1
+        f2 = f2 - s
+    }
+    val tmp: mut [128]u8 = @zeroed
+    val t: ref u8 = @addr(tmp) as ref u8
+    val n1: i64 = fmt_uint_text(w2, 10, false, t)
+    val total0: mut i64 = n1
+    if neg || plus || space {
+        total0 = total0 + 1
+    }
+    if p > 0 || force_dec { total0 = total0 + 1 + p }
+    val pad0: i64 = width - total0
+    if !left && pad0 > 0 && !zero {
+        for k = 0, k < pad0, k++ { fmt_putc(buf, cap, pos, 32) }
+    }
+    if neg { fmt_putc(buf, cap, pos, 45) }
+    elif plus { fmt_putc(buf, cap, pos, 43) }
+    elif space { fmt_putc(buf, cap, pos, 32) }
+    if !left && pad0 > 0 && zero {
+        for k = 0, k < pad0, k++ { fmt_putc(buf, cap, pos, 48) }
+    }
+    for k = 0, k < n1, k++ { fmt_putc(buf, cap, pos, @load8(@ptradd(t, k))) }
+    if p > 0 || force_dec {
+        fmt_putc(buf, cap, pos, 46)
+        val ftmp: mut [80]u8 = @zeroed
+        val fn_: i64 = fmt_uint_text(f2, 10, false, @addr(ftmp) as ref u8)
+        for k = 0, k < p - fn_, k++ { fmt_putc(buf, cap, pos, 48) }
+        for k = 0, k < fn_, k++ { fmt_putc(buf, cap, pos, @load8(@ptradd(@addr(ftmp) as ref u8, k))) }
+    }
+    if left && pad0 > 0 {
+        for k = 0, k < pad0, k++ { fmt_putc(buf, cap, pos, 32) }
+    }
+}
+
+pub fn sx_snprintf(buf: ref u8, cap: usize, fmt: ref u8, ...) i32 = trust {
+    val ap: va_list = @va_start()
+    val out_cap: i64 = cap as i64
+    val pos: mut i64 = 0
+    val i: mut i64 = 0
+    for {
+        val ch: u8 = @load8(@ptradd(fmt, i))
+        if ch == 0 { break }
+        if ch != 37 {
+            fmt_putc(buf, out_cap, @addr(pos), ch)
+            i = i + 1
+            continue
+        }
+        i = i + 1
+        val next: u8 = @load8(@ptradd(fmt, i))
+        if next == 37 {
+            fmt_putc(buf, out_cap, @addr(pos), 37)
+            i = i + 1
+            continue
+        }
+        val left: mut bool = false
+        val zero: mut bool = false
+        val plus: mut bool = false
+        val space: mut bool = false
+        val alt: mut bool = false
+        for {
+            val fch: u8 = @load8(@ptradd(fmt, i))
+            if fch == 45 {
+                left = true
+                i = i + 1
+            } elif fch == 48 {
+                zero = true
+                i = i + 1
+            } elif fch == 43 {
+                plus = true
+                i = i + 1
+            } elif fch == 32 {
+                space = true
+                i = i + 1
+            } elif fch == 35 {
+                alt = true
+                i = i + 1
+            }
+            else { break }
+        }
+        val width: mut i64 = 0
+        for {
+            val wch: u8 = @load8(@ptradd(fmt, i))
+            if wch < 48 || wch > 57 { break }
+            width = width * 10 + ((wch as i64) - 48)
+            i = i + 1
+        }
+        val precision: mut i64 = -1
+        val pch: u8 = @load8(@ptradd(fmt, i))
+        if pch == 46 {
+            i = i + 1
+            precision = 0
+            if @load8(@ptradd(fmt, i)) == 42 {
+                precision = @va_arg(ap, i32) as i64
+                i = i + 1
+            } else {
+                for {
+                    val dch: u8 = @load8(@ptradd(fmt, i))
+                    if dch < 48 || dch > 57 { break }
+                    precision = precision * 10 + ((dch as i64) - 48)
+                    i = i + 1
+                }
+            }
+        }
+        val length: mut i64 = 0
+        val lch: u8 = @load8(@ptradd(fmt, i))
+        if lch == 104 {
+            i = i + 1
+            if @load8(@ptradd(fmt, i)) == 104 {
+                length = 1
+                i = i + 1
+            } else {
+                length = 2
+            }
+        } elif lch == 108 {
+            i = i + 1
+            if @load8(@ptradd(fmt, i)) == 108 {
+                length = 4
+                i = i + 1
+            } else {
+                length = 3
+            }
+        } elif lch == 122 || lch == 116 || lch == 106 {
+            length = 5
+            i = i + 1
+        }
+        val conv: u8 = @load8(@ptradd(fmt, i))
+        i = i + 1
+        if conv == 100 || conv == 105 {
+            val v: mut i64 = 0
+            if length == 4 || length == 5 || length == 6 || length == 7 {
+                v = @va_arg(ap, i64)
+            } else {
+                v = @va_arg(ap, i32) as i64
+            }
+            fmt_int(buf, out_cap, @addr(pos), v, 10, false, width, precision, zero, left, plus, space)
+        } elif conv == 117 || conv == 111 || conv == 120 || conv == 88 {
+            val v: mut u64 = 0
+            if length == 4 || length == 5 || length == 6 || length == 7 {
+                v = @va_arg(ap, u64)
+            } else {
+                v = @va_arg(ap, u32) as u64
+            }
+            val base: mut u64 = 10
+            if conv == 111 {
+                base = 8
+            } elif conv == 120 || conv == 88 {
+                base = 16
+            }
+            fmt_int(buf, out_cap, @addr(pos), v as i64, base, conv == 88, width, precision, zero, left, false, false)
+        } elif conv == 99 {
+            val c: i32 = @va_arg(ap, i32)
+            fmt_putc(buf, out_cap, @addr(pos), c as u8)
+        } elif conv == 115 {
+            val sp: usize = @va_arg(ap, usize)
+            fmt_str(buf, out_cap, @addr(pos), @bitcast(sp, ref u8), width, precision, left)
+        } elif conv == 112 {
+            val vp: usize = @va_arg(ap, usize)
+            val tmp: mut [80]u8 = @zeroed
+            val n: i64 = fmt_uint_text(vp as u64, 16, false, @addr(tmp) as ref u8)
+            fmt_putc(buf, out_cap, @addr(pos), 48)
+            fmt_putc(buf, out_cap, @addr(pos), 120)
+            for k = 0, k < n, k++ { fmt_putc(buf, out_cap, @addr(pos), @load8(@ptradd(@addr(tmp) as ref u8, k))) }
+        } elif conv == 102 || conv == 70 || conv == 103 || conv == 71 || conv == 101 || conv == 69 {
+            val v: f64 = @va_arg(ap, f64)
+            val p: mut i64 = precision
+            if p < 0 { p = 6 }
+            if conv == 103 || conv == 71 { if p == 0 { p = 1 } }
+            fmt_float(buf, out_cap, @addr(pos), v, p, width, zero, left, plus, space, alt)
+        } else {
+            fmt_putc(buf, out_cap, @addr(pos), 37)
+            fmt_putc(buf, out_cap, @addr(pos), conv)
+        }
+    }
+    @va_end(ap)
+    if out_cap > 0 {
+        val end: mut i64 = out_cap - 1
+        if pos < out_cap {
+            end = pos
+        }
+        @store8(@ptradd(buf, end), 0)
+    }
+    return pos as i32
+}
+
 // Exported ABI wrappers.
 pub fn sx_alloc(n: usize) ref void = trust { return r_alloc(n) }
 pub fn sx_calloc(count: usize, size: usize) ref void = trust { return r_calloc(count, size) }

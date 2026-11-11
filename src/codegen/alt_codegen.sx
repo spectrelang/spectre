@@ -1107,6 +1107,9 @@ fn c_type_of(ty: ref parser.Node) ref u8 = trust {
     if k == parser.TY_VOID {
         return c"void"
     }
+    if k == parser.TY_VA_LIST {
+        return c"va_list"
+    }
     if k == parser.TY_MUT {
         return c_type_of(ty.d0 as ref parser.Node)
     }
@@ -1937,6 +1940,9 @@ fn spectre_type_name_of(ty: ref parser.Node) ref u8 = trust {
     if k == parser.TY_NAMED {
         return parser.node_str_raw(ty.d0)
     }
+    if k == parser.TY_VA_LIST {
+        return c"va_list"
+    }
     return c"int64_t"
 }
 
@@ -2002,6 +2008,28 @@ fn cc_lookup_fn_name_by_node(ctx: ref CCtx, node: ref parser.Node) ref u8 = trus
         ni++
     }
     return none
+}
+
+fn cc_lookup_fn_is_variadic(ctx: ref CCtx, mangled: ref u8) bool = trust {
+    val nlen: i64 = @len(ctx.fn_names as list[ref u8]) as i64
+    val ni: mut i64 = 0
+    for {
+        if ni >= nlen {
+            break
+        }
+        val n_opt = @get(ctx.fn_names as list[ref u8], ni as usize)
+        if n_opt is some n {
+            if cstr.cmp(n as ref u8, mangled) == 0 {
+                val v_opt = @get(ctx.fn_variadics, ni as usize)
+                if v_opt is some v {
+                    return v as bool
+                }
+                return false
+            }
+        }
+        ni++
+    }
+    return false
 }
 
 fn cc_lookup_fn_params(ctx: ref CCtx, mangled: ref u8) ref void = trust {
@@ -5189,7 +5217,11 @@ fn gen_call(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
             ctx.arena,
             1024 as usize
         ) as ref u8
-        @snprintf(c_mangled, 1024, "sx__{s}", {mono_base})
+        if cstr.starts_with(mono_base, c"sx_") || cstr.starts_with(mono_base, c"__sx_") {
+            @snprintf(c_mangled, 1024, "{s}", {mono_base})
+        } else {
+            @snprintf(c_mangled, 1024, "sx__{s}", {mono_base})
+        }
         val arg_parts: mut list[ref u8] = mem.new[ref u8]()
         val gsrc_params: mut ref void = none
         if gfn_node != none {
@@ -5694,7 +5726,11 @@ fn cc_fn_prototype(ctx: mut ref CCtx, mangled: ref u8) ref u8 = trust {
     val ret_unboxed: bool = cc_is_unboxed_wrap(ctx, ret)
     val params: ref void = cc_lookup_fn_params(ctx, mangled)
     val sb: ref void = builder.StringBuilder.new()
-    builder.StringBuilder.append_cstr(sb, c"static ")
+    if cstr.starts_with(mangled, c"sx_") || cstr.starts_with(mangled, c"__sx_") {
+        // exported runtime symbol
+    } else {
+        builder.StringBuilder.append_cstr(sb, c"static ")
+    }
     builder.StringBuilder.append_cstr(sb, ret_ct)
     builder.StringBuilder.append_cstr(sb, c" ")
     builder.StringBuilder.append_cstr(sb, mangled)
@@ -5729,6 +5765,9 @@ fn cc_fn_prototype(ctx: mut ref CCtx, mangled: ref u8) ref u8 = trust {
         }
     } elif !ret_unboxed {
         builder.StringBuilder.append_cstr(sb, c"void")
+    }
+    if cc_lookup_fn_is_variadic(ctx, mangled) {
+        builder.StringBuilder.append_cstr(sb, c",...")
     }
     builder.StringBuilder.append_cstr(sb, c");\n")
     val built: ref u8 = cc_sb_build_cstr(ctx, sb)
@@ -6070,6 +6109,36 @@ fn gen_builtin(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
     if cstr.cmp(bname, c"embedlen") == 0 {
         val buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 64 as usize) as ref u8
         @snprintf(buf, 64, "INT64_C({lld})", {expr.d3})
+        return cc_expr_track(ctx, buf)
+    }
+    if cstr.cmp(bname, c"va_arg") == 0 {
+        val ap: ref u8 = get_arg(ctx, args, 0)
+        val type_name: mut ref u8 = c"int64_t"
+        val tnode_opt = @get(args as list[ref parser.Node], 1)
+        if tnode_opt is some tnode {
+            val tn: ref parser.Node = tnode as ref parser.Node
+            if tn.kind == parser.NK_IDENT {
+                type_name = parser.node_str_raw(tn.d0)
+            }
+        }
+        val ct: mut ref u8 = c"int64_t"
+        if cstr.cmp(type_name, c"i8") == 0 { ct = c"int8_t" }
+        elif cstr.cmp(type_name, c"u8") == 0 { ct = c"uint8_t" }
+        elif cstr.cmp(type_name, c"i16") == 0 { ct = c"int16_t" }
+        elif cstr.cmp(type_name, c"u16") == 0 { ct = c"uint16_t" }
+        elif cstr.cmp(type_name, c"i32") == 0 { ct = c"int32_t" }
+        elif cstr.cmp(type_name, c"u32") == 0 { ct = c"uint32_t" }
+        elif cstr.cmp(type_name, c"f32") == 0 { ct = c"double" }
+        elif cstr.cmp(type_name, c"f64") == 0 { ct = c"double" }
+        elif cstr.cmp(type_name, c"ref") == 0 { ct = c"int64_t" }
+        val buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 256 as usize) as ref u8
+        @snprintf(buf, 256, "va_arg({s}, {s})", {ap, ct})
+        return cc_expr_track(ctx, buf)
+    }
+    if cstr.cmp(bname, c"va_end") == 0 {
+        val ap: ref u8 = get_arg(ctx, args, 0)
+        val buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 256 as usize) as ref u8
+        @snprintf(buf, 256, "((void)va_end({s}), INT64_C(0))", {ap})
         return cc_expr_track(ctx, buf)
     }
     if cstr.cmp(bname, c"alloc") == 0 {
@@ -7764,6 +7833,22 @@ fn gen_stmt(ctx: mut ref CCtx, stmt: ref parser.Node) void = trust {
         val mutable: i64 = stmt.d1
         val ty_node: mut ref parser.Node = stmt.d2 as ref parser.Node
         val init_expr: ref parser.Node = stmt.d3 as ref parser.Node
+        if init_expr != none && init_expr.kind == parser.NK_BUILTIN
+        && cstr.cmp(parser.node_str_raw(init_expr.d0), c"va_start") == 0 {
+            val params: ref void = cc_lookup_fn_params(ctx, ctx.fn_name)
+            val last_name: mut ref u8 = c""
+            if params != none && @len(params as list[ref parser.Node]) > 0 {
+                val last_opt = @get(params as list[ref parser.Node], (@len(params as list[ref parser.Node]) - 1) as usize)
+                if last_opt is some last {
+                    last_name = parser.node_str_raw((last as ref parser.Node).d0)
+                }
+            }
+            val vbuf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 256 as usize) as ref u8
+            @snprintf(vbuf, 256, "va_list t_{s}; va_start(t_{s}, t_{s});\n", {name, name, last_name})
+            emit(ctx, vbuf)
+            cc_register_local(ctx, name, c"va_list", ty_node, 0)
+            return
+        }
         if ctx.autovec_plan != none {
             val plan: ref autovec.Plan = ctx.autovec_plan as ref autovec.Plan
             val vec_val: ref u8 = gen_expr(ctx, init_expr)
@@ -9483,7 +9568,9 @@ fn gen_fn_prefixed(ctx: mut ref CCtx, fn_node: ref parser.Node, mod_prefix: ref 
     }
     val is_std_child: bool = is_std_child_name(mod_prefix)
     val mangled: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 512 as usize) as ref u8
-    if cstr.cmp(mod_prefix, c"") == 0 {
+    if cstr.starts_with(name, c"sx_") || cstr.starts_with(name, c"__sx_") {
+        @snprintf(mangled, 512, "{s}", {name})
+    } elif cstr.cmp(mod_prefix, c"") == 0 {
         if cstr.cmp(base, c"main") == 0 {
             @snprintf(mangled, 512, "{s}", {base})
         } else {
@@ -9503,7 +9590,7 @@ fn gen_fn_prefixed(ctx: mut ref CCtx, fn_node: ref parser.Node, mod_prefix: ref 
         ctx.current_prefix = mod_prefix
     }
     if params != none {
-        cc_register_fn(ctx, fn_node, mangled, params, ret_ty, false, false)
+        cc_register_fn(ctx, fn_node, mangled, params, ret_ty, parser.fn_is_variadic(fn_node), false)
     }
     val ret_ct: ref u8 = c_ret_type_of(ctx, ret_ty)
     val ret_unboxed: bool = cc_is_unboxed_wrap(ctx, ret_ty)
@@ -9522,7 +9609,9 @@ fn gen_fn_prefixed(ctx: mut ref CCtx, fn_node: ref parser.Node, mod_prefix: ref 
             1024 as usize
         ) as ref u8
         val linkage: mut ref u8 = c"static "
-        if parser.fn_is_inline(fn_node) {
+        if cstr.starts_with(name, c"sx_") || cstr.starts_with(name, c"__sx_") {
+            linkage = c""
+        } elif parser.fn_is_inline(fn_node) {
             linkage = c"static inline "
         }
         @snprintf(
@@ -9577,6 +9666,9 @@ fn gen_fn_prefixed(ctx: mut ref CCtx, fn_node: ref parser.Node, mod_prefix: ref 
             }
         } elif !ret_unboxed {
             emit(ctx, c"void")
+        }
+        if parser.fn_is_variadic(fn_node) {
+            emit(ctx, c",...")
         }
         emitln(ctx, c"){")
     }
@@ -9857,7 +9949,9 @@ fn preregister_items(
                     ctx.arena,
                     512 as usize
                 ) as ref u8
-                if cstr.cmp(mod_prefix, c"") == 0 {
+                if cstr.starts_with(name, c"sx_") || cstr.starts_with(name, c"__sx_") {
+                    @snprintf(mangled, 512, "{s}", {name})
+                } elif cstr.cmp(mod_prefix, c"") == 0 {
                     if cstr.cmp(base, c"main") == 0 {
                         @snprintf(mangled, 512, "{s}", {base})
                     } else {
@@ -9869,7 +9963,7 @@ fn preregister_items(
                     @snprintf(mangled, 512, "{s}__{s}", {mod_prefix, base})
                 }
                 if params != none {
-                    cc_register_fn(ctx, node, mangled, params, ret_ty, false, false)
+                    cc_register_fn(ctx, node, mangled, params, ret_ty, parser.fn_is_variadic(node), false)
                 }
             } elif k == parser.NK_TAGGED_UNIONDEF {
                 gen_tagged_union_def(ctx, node, mod_prefix)
@@ -10375,6 +10469,10 @@ fn emit_c_preamble(ctx: ref CCtx) void = trust {
         emitln_fwd(ctx, c"typedef __INTPTR_TYPE__ isize;")
         emitln_fwd(ctx, c"typedef __UINTPTR_TYPE__ usize;")
         emitln_fwd(ctx, c"typedef _Bool bool;")
+        emitln_fwd(ctx, c"typedef __builtin_va_list va_list;")
+        emitln_fwd(ctx, c"#define va_start(ap,last) __builtin_va_start(ap,last)")
+        emitln_fwd(ctx, c"#define va_arg(ap,ty) __builtin_va_arg(ap,ty)")
+        emitln_fwd(ctx, c"#define va_end(ap) __builtin_va_end(ap)")
         emitln_fwd(ctx, c"#define true 1")
         emitln_fwd(ctx, c"#define false 0")
         emitln_fwd(ctx, c"#define NULL ((void*)0)")
@@ -10444,6 +10542,7 @@ fn emit_c_preamble(ctx: ref CCtx) void = trust {
     emitln_fwd(ctx, c"#include <stdlib.h>")
     emitln_fwd(ctx, c"#include <string.h>")
     emitln_fwd(ctx, c"#include <stdio.h>")
+    emitln_fwd(ctx, c"#include <stdarg.h>")
     emitln_fwd(ctx, c"#include <time.h>")
     emit_c_rewrite_fmt(ctx)
     if cc_platform_matches(ctx, c"posix") {

@@ -4828,6 +4828,9 @@ fn qbe_type_of(ty: ref parser.Node) ref u8 = trust {
     if k == parser.TY_VOID {
         return c"w"
     }
+    if k == parser.TY_VA_LIST {
+        return c"l"
+    }
     if k == parser.TY_MUT {
         return qbe_type_of(ty.d0 as ref parser.Node)
     }
@@ -8319,6 +8322,35 @@ fn expr_qbe_type(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
     if k == parser.NK_INT_LIT || k == parser.NK_STR_LIT || k == parser.NK_NONE {
         return c"l"
     }
+    if k == parser.NK_BUILTIN {
+        val bname: ref u8 = parser.node_str_raw(expr.d0)
+        if cstr.cmp(bname, c"va_start") == 0 || cstr.cmp(bname, c"va_end") == 0 {
+            return c"l"
+        }
+        if cstr.cmp(bname, c"va_arg") == 0 {
+            val bargs: ref void = expr.d1 as ref void
+            if bargs != none && @len(bargs as list[ref parser.Node]) > 1 {
+                val tn_opt = @get(bargs as list[ref parser.Node], 1)
+                if tn_opt is some tn_raw {
+                    val tn: ref parser.Node = tn_raw as ref parser.Node
+                    if tn.kind == parser.NK_IDENT {
+                        val tname: ref u8 = parser.node_str_raw(tn.d0)
+                        if cstr.cmp(tname, c"i32") == 0 || cstr.cmp(tname, c"u32") == 0
+                        || cstr.cmp(tname, c"i16") == 0 || cstr.cmp(tname, c"u16") == 0
+                        || cstr.cmp(tname, c"i8") == 0 || cstr.cmp(tname, c"u8") == 0
+                        || cstr.cmp(tname, c"bool") == 0 {
+                            return c"w"
+                        }
+                        if cstr.cmp(tname, c"f32") == 0 || cstr.cmp(tname, c"f64") == 0 {
+                            return c"d"
+                        }
+                        return c"l"
+                    }
+                }
+            }
+            return c"l"
+        }
+    }
     if k == parser.NK_FLOAT_LIT {
         if ctx.expected_ty != none {
             val expected_qt: ref u8 = qbe_type_of(ctx.expected_ty as ref parser.Node)
@@ -11785,7 +11817,21 @@ fn format_arg_pack_node(args: ref void, pack_idx: i64, elem_idx: i64) ref parser
     val pack_opt = @get(args, pack_idx)
     if pack_opt is some pack_raw {
         val pn: ref parser.Node = pack_raw as ref parser.Node
-        if pn == none || pn.kind != parser.NK_ARGS_PACK {
+        if pn == none {
+            return none
+        }
+        if pn.kind != parser.NK_ARGS_PACK {
+            // Builtins like `@snprintf` take variadic arguments flat rather
+            // than wrapping them in one `args` pack. Treat `pack_idx` as the
+            // index of the first variadic argument in that case.
+            val flat_idx: i64 = pack_idx + elem_idx
+            if elem_idx < 0 || flat_idx >= alen {
+                return none
+            }
+            val flat_opt = @get(args, flat_idx)
+            if flat_opt is some flat_raw {
+                return flat_raw as ref parser.Node
+            }
             return none
         }
         val pack: ref void = pn.d0 as ref void
@@ -11908,14 +11954,50 @@ fn rewrite_fmt_viewaware(
                         oi++
                     }
                 } else {
-                    val k: mut i64 = i + 1
+                    val spec_start: i64 = i + 1
+                    val spec_end: i64 = j - 1
+                    val conv: u8 = @load8(@ptradd(s, j - 1))
+                    val spec_has_l: mut bool = false
+                    val spec_has_dot: mut bool = false
+                    val scan: mut i64 = spec_start
                     for {
-                        if k >= j {
+                        if scan >= spec_end {
+                            break
+                        }
+                        val sc2: u8 = @load8(@ptradd(s, scan))
+                        if sc2 == 108 {
+                            spec_has_l = true
+                        } elif sc2 == 46 {
+                            spec_has_dot = true
+                        }
+                        scan++
+                    }
+                    val k: mut i64 = spec_start
+                    for {
+                        if k >= spec_end {
                             break
                         }
                         @store8(@ptradd(out, oi), @load8(@ptradd(s, k)))
                         oi++
                         k++
+                    }
+                    if is_view && conv == 115 {
+                        if !spec_has_dot {
+                            @store8(@ptradd(out, oi), 46)
+                            @store8(@ptradd(out, oi + 1), 42)
+                            oi += 2
+                        }
+                        @store8(@ptradd(out, oi), 115)
+                        oi++
+                    } elif (conv == 100 || conv == 105 || conv == 120 || conv == 88
+                        || conv == 111 || conv == 117) && !spec_has_l {
+                        @store8(@ptradd(out, oi), 108)
+                        @store8(@ptradd(out, oi + 1), 108)
+                        @store8(@ptradd(out, oi + 2), conv)
+                        oi += 3
+                    } else {
+                        @store8(@ptradd(out, oi), conv)
+                        oi++
                     }
                 }
                 i = j + 1
@@ -11945,7 +12027,24 @@ fn args_have_view_arg(ctx: mut ref CgCtx, args: ref void, pack_idx: i64) bool = 
     val pack_opt = @get(args, pack_idx)
     if pack_opt is some pack_raw {
         val pn: ref parser.Node = pack_raw as ref parser.Node
-        if pn == none || pn.kind != parser.NK_ARGS_PACK {
+        if pn == none {
+            return false
+        }
+        if pn.kind != parser.NK_ARGS_PACK {
+            // Flat variadic argument list (for example `@snprintf`).
+            val i: mut i64 = pack_idx
+            for {
+                if i >= alen {
+                    break
+                }
+                val node_opt = @get(args, i)
+                if node_opt is some node_raw {
+                    if format_arg_is_view(ctx, node_raw as ref parser.Node) {
+                        return true
+                    }
+                }
+                i++
+            }
             return false
         }
         val pack: ref void = pn.d0 as ref void
@@ -12716,6 +12815,30 @@ fn gen_builtin(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
     } elif cstr.cmp(name, c"embedlen") == 0 {
         @snprintf(buf, 512, "    %%t{lld} =l copy {lld}\n", {tmp, expr.d3})
         emit(ctx, buf)
+    } elif cstr.cmp(name, c"va_arg") == 0 {
+        val ap: ref u8 = get_arg(ctx, args, 0)
+        val type_name: mut ref u8 = c"i64"
+        val tnode_opt = @get(args, 1)
+        if tnode_opt is some tnode {
+            val tn: ref parser.Node = tnode as ref parser.Node
+            if tn.kind == parser.NK_IDENT {
+                type_name = parser.node_str_raw(tn.d0)
+            }
+        }
+        val qt: mut ref u8 = c"l"
+        if cstr.cmp(type_name, c"i8") == 0 || cstr.cmp(type_name, c"u8") == 0
+        || cstr.cmp(type_name, c"i16") == 0 || cstr.cmp(type_name, c"u16") == 0
+        || cstr.cmp(type_name, c"i32") == 0 || cstr.cmp(type_name, c"u32") == 0
+        || cstr.cmp(type_name, c"bool") == 0 {
+            qt = c"w"
+        } elif cstr.cmp(type_name, c"f32") == 0 || cstr.cmp(type_name, c"f64") == 0 {
+            qt = c"d"
+        }
+        @snprintf(buf, 512, "    %%t{lld} ={s} vaarg {s}\n", {tmp, qt, ap})
+        emit(ctx, buf)
+    } elif cstr.cmp(name, c"va_end") == 0 {
+        @snprintf(buf, 512, "    %%t{lld} =l copy 0\n", {tmp})
+        emit(ctx, buf)
     } elif cstr.cmp(name, c"alloc") == 0 {
         val sz: ref u8 = get_arg(ctx, args, 0)
         if ctx.leak_check {
@@ -13035,17 +13158,25 @@ fn gen_builtin(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
         val sfmt: ref u8 = get_format_arg_viewaware(ctx, args, 2, 3)
         val scall_sb: ref void = builder.StringBuilder.new()
         val shdr: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 256 as usize) as ref u8
+        val sn_sym: mut ref u8 = c"snprintf"
+        if runtime_is_freestanding() {
+            sn_sym = c"sx_snprintf"
+        }
         @snprintf(
             shdr,
             256,
-            "    %%t{lld} =w call $snprintf(l {s}, l {s}, l {s}, ...",
-            {tmp, sbuf, ssz_l, sfmt}
+            "    %%t{lld} =w call ${s}(l {s}, l {s}, l {s}, ...",
+            {tmp, sn_sym, sbuf, ssz_l, sfmt}
         )
         builder.StringBuilder.append_cstr(scall_sb, shdr)
         if args != none {
             val salen: i64 = @len(args) as i64
-            if salen > 3 {
-                val spack_opt = @get(args, 3)
+            val si: mut i64 = 3
+            for {
+                if si >= salen {
+                    break
+                }
+                val spack_opt = @get(args, si as usize)
                 if spack_opt is some spack_node {
                     val spn: ref parser.Node = spack_node as ref parser.Node
                     if spn.kind == parser.NK_ARGS_PACK {
@@ -13075,7 +13206,6 @@ fn gen_builtin(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
                         val expanded: ref u8 = cg_expand_argspack_pack_args(ctx, pack_val)
                         builder.StringBuilder.append_cstr(scall_sb, expanded)
                     } else {
-                        // Single non-pack argument (e.g. argspack parameter passthrough)
                         val svarg2: ref u8 = gen_print_arg(ctx, spn)
                         val spbuf2: ref u8 = allocators.ScopedArena.alloc_or_none(
                             ctx.arena,
@@ -13085,6 +13215,7 @@ fn gen_builtin(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
                         builder.StringBuilder.append_cstr(scall_sb, spbuf2)
                     }
                 }
+                si = si + 1
             }
         }
         builder.StringBuilder.append_cstr(scall_sb, c")\n")
@@ -14572,11 +14703,15 @@ fn gen_builtin(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
             ctx.arena,
             256 as usize
         ) as ref u8
+        val sn_sym2: mut ref u8 = c"snprintf"
+        if runtime_is_freestanding() {
+            sn_sym2 = c"sx_snprintf"
+        }
         @snprintf(
             snp_hdr,
             256,
-            "    %%t{lld} =w call $snprintf(l %%t{lld}, l 4096, l {s}",
-            {fmt_written_w, fmt_buf, fmt2}
+            "    %%t{lld} =w call ${s}(l %%t{lld}, l 4096, l {s}",
+            {fmt_written_w, sn_sym2, fmt_buf, fmt2}
         )
         builder.StringBuilder.append_cstr(fmt_call_sb, snp_hdr)
         if args != none {
@@ -15727,6 +15862,18 @@ fn gen_stmt(ctx: mut ref CgCtx, stmt: ref parser.Node) void = trust {
         val raw_ty_node: ref parser.Node = stmt.d2 as ref parser.Node
         val ty_node: ref parser.Node = cg_concrete_ty(ctx, raw_ty_node)
         val expr: ref parser.Node = stmt.d3 as ref parser.Node
+        if expr != none && expr.kind == parser.NK_BUILTIN
+        && cstr.cmp(parser.node_str_raw(expr.d0), c"va_start") == 0 {
+            val ap_tmp: i64 = fresh_tmp(ctx)
+            val ap_buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 128 as usize) as ref u8
+            @snprintf(ap_buf, 128, "    %%t{lld} =l alloc8 32\n    vastart %%t{lld}\n", {ap_tmp, ap_tmp})
+            emit(ctx, ap_buf)
+            val qname: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 32 as usize) as ref u8
+            @snprintf(qname, 32, "%%t{lld}", {ap_tmp})
+            cg_register_local_var(ctx, name, qname)
+            cg_register_local_type(ctx, name, c"va_list")
+            return
+        }
         val val_tmp: mut ref u8 = c"0"
         val use_fixed_arr_lit: mut bool = false
         if ty_node != none {
@@ -18547,6 +18694,9 @@ fn gen_fn_prefixed(ctx: mut ref CgCtx, fn_node: ref parser.Node, mod_prefix: ref
         }
     }
 
+    if parser.fn_is_variadic(fn_node) {
+        emit(ctx, c", ...")
+    }
     emitln(ctx, c") {")
     emitln(ctx, c"@start")
 

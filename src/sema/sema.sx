@@ -65,6 +65,7 @@ type SemaCtx = {
     src_target: mut ref u8
     in_unsafe_fn: mut i64
     in_trust: mut i64
+    in_variadic_fn: mut i64
     trust_used: mut i64
     type_params: mut list[ref u8]
     type_param_constraints: mut list[ref u8]
@@ -325,6 +326,15 @@ fn builtin_min_arity(name: ref u8) i64 = trust {
     if cstr.eql(name, c"bitcast") {
         return 2
     }
+    if cstr.eql(name, c"va_start") {
+        return 0
+    }
+    if cstr.eql(name, c"va_arg") {
+        return 2
+    }
+    if cstr.eql(name, c"va_end") {
+        return 1
+    }
     if cstr.eql(name, c"print") {
         return 1
     }
@@ -507,6 +517,9 @@ fn is_known_builtin(name: ref u8) bool = trust {
     @append(builtins, c"bitcast")
     @append(builtins, c"embed")
     @append(builtins, c"embedlen")
+    @append(builtins, c"va_start")
+    @append(builtins, c"va_arg")
+    @append(builtins, c"va_end")
 
     for builtin in builtins {
         if cstr.eql(name, builtin) {
@@ -1316,6 +1329,9 @@ fn extract_type_name(ty_node: ref parser.Node) ref u8 = trust {
         }
         if cur.kind == parser.TY_NAMED {
             return parser.node_str_raw(cur.d0)
+        }
+        if cur.kind == parser.TY_VA_LIST {
+            return c"va_list"
         }
         if cur.kind == parser.TY_MUT || cur.kind == parser.TY_REF {
             cur = cur.d0 as ref parser.Node
@@ -5883,7 +5899,11 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
                     arg_len = @len(cargs) as i64
                 }
                 val param_len: i64 = @len(params) as i64
-                if arg_len != param_len {
+                val arity_bad: mut bool = arg_len != param_len
+                if parser.fn_is_variadic(fn_found) {
+                    arity_bad = arg_len < param_len
+                }
+                if arity_bad {
                     val fn_name: mut ref u8 = none
                     if base_callee != none {
                         if base_callee.kind == parser.NK_IDENT {
@@ -6497,8 +6517,14 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
         val bname: ref u8 = parser.node_str_raw(expr.d0)
         val bargs: ref void = expr.d1 as ref void
         if bargs != none {
+            val bai: mut i64 = 0
             for barg in bargs as list[ref parser.Node] {
+                if cstr.eql(bname, c"va_arg") && bai == 1 {
+                    bai = bai + 1
+                    continue
+                }
                 check_expr(ctx, barg, filename)
+                bai = bai + 1
             }
         }
 
@@ -6510,6 +6536,28 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
             @snprintf(ebuf, 512, "{s}:{lld}: unknown intrinsic '@{s}'", {filename, line, bname})
             add_error(ctx, ebuf)
             return
+        }
+
+        if cstr.eql(bname, c"va_start") || cstr.eql(bname, c"va_arg")
+        || cstr.eql(bname, c"va_end") {
+            if ctx.in_variadic_fn == 0 {
+                val ebuf: ref u8 = allocators.ScopedArena.alloc_or_none(
+                    ctx.arena,
+                    (512) as usize
+                ) as ref u8
+                @snprintf(ebuf, 512, "{s}:{lld}: '@{s}' is only valid in a C variadic function", {filename, line, bname})
+                add_error(ctx, ebuf)
+            }
+            if ctx.in_unsafe_fn == 0 && ctx.in_trust == 0 {
+                val ebuf: ref u8 = allocators.ScopedArena.alloc_or_none(
+                    ctx.arena,
+                    (512) as usize
+                ) as ref u8
+                @snprintf(ebuf, 512, "{s}:{lld}: '@{s}' can only be used in an unsafe context", {filename, line, bname})
+                add_error(ctx, ebuf)
+            } else {
+                ctx.trust_used = 1
+            }
         }
 
         val btype_args: list[ref parser.Node] = parser.builtin_type_args(expr)
@@ -9974,8 +10022,24 @@ fn check_fn(ctx: mut ref SemaCtx, fn_node: ref parser.Node, filename: ref u8) vo
     if parser.fn_is_unsafe(fn_node) {
         is_unsafe = 1
     }
+    val is_variadic: mut i64 = 0
+    if parser.fn_is_variadic(fn_node) {
+        is_variadic = 1
+    }
+    if is_variadic != 0 && is_unsafe == 0 {
+        val vbuf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, (512) as usize) as ref u8
+        @snprintf(vbuf, 512, "{s}:{lld}: C variadic function '{s}' must be marked as trust", {filename, fn_node.line, fn_name})
+        add_error(ctx, vbuf)
+    }
+    if is_variadic != 0 && (params == none || @len(params as list[ref parser.Node]) == 0) {
+        val vbuf2: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, (512) as usize) as ref u8
+        @snprintf(vbuf2, 512, "{s}:{lld}: C variadic function '{s}' needs at least one named parameter", {filename, fn_node.line, fn_name})
+        add_error(ctx, vbuf2)
+    }
     val prev_unsafe: i64 = ctx.in_unsafe_fn
     ctx.in_unsafe_fn = is_unsafe
+    val prev_variadic: i64 = ctx.in_variadic_fn
+    ctx.in_variadic_fn = is_variadic
     val prev_argspack: list[ref u8] = ctx.argspack_params
     ctx.argspack_params = mem.new[ref u8]()
 
@@ -10026,6 +10090,7 @@ fn check_fn(ctx: mut ref SemaCtx, fn_node: ref parser.Node, filename: ref u8) vo
     }
     pop_scope(ctx, filename, 0)
 
+    ctx.in_variadic_fn = prev_variadic
     ctx.in_unsafe_fn = prev_unsafe
 }
 

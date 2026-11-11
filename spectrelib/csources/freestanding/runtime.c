@@ -2472,13 +2472,6 @@ int sx_dprintf(int fd, const char *fmt, ...) {
     if (n > 0) write(fd, buf, (sx_size_t)n < sizeof(buf) ? (sx_size_t)n : sizeof(buf) - 1);
     return n;
 }
-int sx_snprintf(char *buf, sx_size_t cap, const char *fmt, ...) {
-    sx_va_list ap;
-    __builtin_va_start(ap, fmt);
-    int n = sx_vformat(buf, cap, fmt, ap);
-    __builtin_va_end(ap);
-    return n;
-}
 int sx_puts(const char *s) { return puts(s); }
 
 char *sx_getenv(const char *name) { return getenv(name); }
