@@ -34,9 +34,6 @@ type (HasValue) T0 = {
     }
 }
 
-// (In a real stress generator you would emit T1..T79 the same way.
-//  For a hand-written file we keep a few and rely on the other axes.)
-
 type (HasValue) T1 = {
     b0: i32
     b1: i32

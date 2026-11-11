@@ -833,9 +833,3 @@ The plan is complete when all of the following hold:
    entry only.
 . Tests cover Linux x86_64/AArch64 and Windows x86_64/AArch64.
 . Documentation and `doctor` explain how to select each mode.
-
-== Immediate next step
-
-Start with Phase 0. It is independent of the runtime work, fixes the current
-Windows cross-link failure, and gives a working baseline for validating the
-rest of the plan.

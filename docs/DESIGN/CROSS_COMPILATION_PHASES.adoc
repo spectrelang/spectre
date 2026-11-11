@@ -1,0 +1,32 @@
+= Cross-Compilation Phases
+:author: Navid M
+:revdate: 2026-11-10
+
+This file tracks the staged cross-compilation work.  The runtime details for
+freestanding builds are in `FREESTANDING_RUNTIME.adoc`; the full plan is in
+`CC_PLAN.adoc`.
+
+== Landed
+
+* `-target:<os>.<arch>` for `linux`/`windows` on x86_64 and AArch64.
+* xwin discovery and validation for hosted Windows cross builds.
+* Freestanding Linux entry and syscall runtime (x86_64/AArch64).
+* Freestanding Windows entry and Win32 runtime (x86_64/AArch64).
+* Synthesized Windows import libraries from a checked-in symbol map.
+* Freestanding C99 output (`-alt -runtime:freestanding`).
+* `-runtime:hosted|freestanding`, with freestanding as the default for
+  Linux and Windows targets.
+* `spectre doctor` reports the runtime source and Windows import map.
+
+== Deferred
+
+* QBE `.pdata`/`.xdata` unwind records and full stack-probe coverage.
+* CI matrix and installer changes.
+* Additional runtime conformance runners for AArch64.
+* Full source-level library annotations for external `extern` declarations.
+
+== Validation
+
+The local validation matrix covers native Linux x86_64, Wine x86_64, and
+compile/link checks for Linux AArch64 and Windows AArch64.  Hosted Windows
+builds require xwin; freestanding Windows builds do not.

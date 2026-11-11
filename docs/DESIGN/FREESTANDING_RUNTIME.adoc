@@ -1,0 +1,198 @@
+= Spectre Freestanding Runtime
+:author: Navid M
+:revdate: 2026-11-11
+:toc:
+
+== Overview
+
+Spectre targets Linux and Windows with a self-contained runtime by default:
+no system libc, no CRT, and no Linux sysroot.  The compiler itself is also
+built and linked against this runtime on supported hosts.
+
+Most of the runtime is now written in Spectre.  `spectrelib/runtime/sys.sx`
+implements allocation, byte and string operations, formatting, file I/O,
+time, and threading.  The remaining C code in
+`spectrelib/csources/freestanding/runtime.c` is a thin boundary for process
+startup, raw system calls, Win32 entry points, and the low-level process,
+socket, signal, environment, directory, stat, and random surfaces that have
+no platform-neutral Spectre replacement yet.
+
+Hosted mode remains available for programs that need to interoperate with a
+system C library or a third-party static library.
+
+== Selecting a runtime
+
+[source,sh]
+----
+spectre app.sx -runtime:freestanding -o app                 # Linux
+spectre app.sx -target:windows.x86_64 -runtime:freestanding -o app.exe
+spectre app.sx -target:windows.x86_64 -runtime:hosted \
+  -xwin:$HOME/.xwin -o app.exe
+----
+
+`freestanding` is the default for `linux` and `windows` targets.  The
+following force hosted mode:
+
+* `-dynamic`
+* `-dll`
+* linking a non-system C library (for example `-lyyjson`, `-lcurl`,
+  `-lcrypto`, or SDL3)
+
+Use `-runtime:hosted` explicitly when a project needs the system C library
+even though it does not link an obvious external library.
+
+The freestanding runtime uses the QBE backend by default and does not require
+`-alt`.  The C99 (`-alt`) backend remains supported for bootstrap and
+cross-compilation environments; it links against the same runtime ABI.
+
+== Linux
+
+The Linux runtime enters through `_start`, reads `argc`, `argv`, and `envp`
+from the initial stack, and calls `main`.  Linux interaction uses direct
+syscalls:
+
+* memory: `mmap` / `munmap`
+* files: `openat`, `read`, `write`, `lseek`, `getdents64`
+* processes: `clone`, `execve`, `wait4`, `pipe2`
+* time and entropy: `clock_gettime`, `nanosleep`, `getrandom`
+* threads and synchronization: `clone`, `futex`
+* sockets: `socket`, `bind`, `listen`, `accept`, `connect`, `sendto`,
+  `recvfrom`, `setsockopt`, `poll`
+
+The resulting ELF is static and has no interpreter or dynamic section.
+
+== Windows
+
+The Windows runtime enters through `mainCRTStartup`, obtains the command line
+from `GetCommandLineW`, converts UTF-16 to UTF-8, and calls `main`.  Windows
+interaction uses documented DLL entry points:
+
+* `kernel32.dll` for memory, files, processes, threads, and console I/O
+* `shell32.dll` for `CommandLineToArgvW`
+* `bcrypt.dll` for `BCryptGenRandom`
+* `ws2_32.dll` for sockets
+
+No `libcmt`, `libucrt`, `msvcrt`, or `oldnames` is linked.  Import libraries
+are synthesized from the checked-in map in
+`spectrelib/runtime/windows_imports.toml` with `llvm-dlltool`; xwin is used
+only for hosted Windows builds.
+
+== C99 backend
+
+`-alt -runtime:freestanding` emits C with no system headers.  The generated
+translation unit declares the runtime ABI and links against the same
+freestanding runtime and entry objects as the QBE backend.
+
+[source,sh]
+----
+spectre app.sx -alt -runtime:freestanding -o app
+spectre app.sx -alt -target:windows.x86_64 -runtime:freestanding -o app.exe
+----
+
+== Using the runtime API
+
+User code and migrated standard-library modules go through `std/runtime`:
+
+[source,spectre]
+----
+val rt = use("std/runtime")
+
+val p = rt.alloc(64)
+if p != none {
+    rt.memset(p, 0, 64)
+    rt.free(p)
+}
+----
+
+The public names are namespaced and carry no ABI prefix.  In hosted mode the
+same functions call the platform C library; in freestanding mode they call the
+`sx_*` runtime ABI.
+
+The compiler's source audit (`fw/audit_freestanding.sh`) fails if a
+freestanding standard-library module declares a host libc symbol directly.
+Hosted compatibility branches and Win32/Darwin-only declarations are exempt.
+
+== Formatting
+
+Freestanding `@snprintf`, `@fmt`, and `@fmtalloc` use the Spectre formatter in
+`spectrelib/runtime/sys.sx` (`sx_snprintf`).  Spectre format strings are
+rewritten to C form before the call:
+
+* `{d}`, `{x}`, and `{s}` are accepted, along with width, flags, and
+  precision such as `{08x}`, `{5d}`, `{-5s}`, and `{lld}`.
+* `StringView` arguments are passed as a `(length, pointer)` pair and formatted
+  with `%.*s`, so embedded NUL bytes and non-terminated slices print safely.
+* Integers are widened to 64-bit at the call boundary and formatted with
+  `ll` modifiers.
+* Literal braces are escaped as `\{` and `\}` in the Spectre format string.
+
+`@print` and `@printf`-style convenience entry points still use the C
+boundary's `printf` implementation.  They are the only common formatting path
+that is not yet implemented in Spectre.
+
+== C varargs
+
+Spectre functions can declare C-style variadic parameters:
+
+[source,spectre]
+----
+pub fn my_printf(format: ref u8, ...) i32 = trust {
+    val ap: va_list = @va_start()
+    val first: i64 = @va_arg(ap, i64)
+    @va_end(ap)
+    return first as i32
+}
+----
+
+Rules enforced by the compiler:
+
+* A variadic function must have at least one named parameter and must be
+  declared unsafe (`= trust { ... }`).
+* `@va_start` takes no arguments and initializes a local `va_list`.
+* `@va_arg(ap, T)` reads the next argument as type `T`; supported types are
+  integers, pointers, and floating-point types.
+* `@va_end(ap)` finishes the list.
+* `@va_start`, `@va_arg`, and `@va_end` are only valid inside a variadic
+  function and only in an unsafe context.  Misuse is a compile-time error.
+* On QBE the implementation lowers to `vastart` / `vaarg`; the C99 backend
+  emits the equivalent `va_list` operations.
+
+== Runtime layout
+
+[source,text]
+----
+spectrelib/runtime/
+  api.sx                 runtime ABI declarations and ownership rules
+  core.sx                public std/runtime wrappers
+  sys.sx                 Spectre runtime core (alloc, strings, format, files,
+                         time, threads, exported sx_* symbols)
+  freestanding.h         freestanding C ABI shape
+  windows_imports.toml   symbol-to-DLL map
+spectrelib/csources/freestanding/
+  runtime.c              C boundary: startup helpers, raw syscalls, process,
+                         sockets, signals, env/dirs/stat/random, printf entry
+  start_linux_x86_64.S
+  start_linux_aarch64.S
+  start_windows_x86_64.S
+  start_windows_aarch64.S
+----
+
+`sys.sx` is compiled per target and cached alongside the C runtime objects.
+Its exported `sx_*` symbols are the runtime ABI used by generated code; the
+compiler does not need `-alt` to build or use them.  The C boundary is kept
+small and is audited by `fw/audit_freestanding.sh` so new standard-library
+code cannot quietly depend on host libc symbols.
+
+== Diagnostics
+
+Use `spectre doctor` to inspect a two-column, borderless table of:
+
+* the QBE, Clang, and lld-link paths
+* the xwin root and available architectures
+* freestanding runtime availability
+* the Windows import map path
+
+The table is plain ASCII with a fixed-width field column, so it stays readable
+when piped or pasted into an issue.
+
+`-show-cmd` prints every runtime, start-object, C-shim, and link command.

@@ -1,0 +1,6 @@
+Add a std/rt or std/runtime Spectre module.
+Replace extern (C, header) libc declarations in the standard library with __sx_* runtime calls.
+Keep those changes behind when freestanding / runtime-mode selection.
+Move allocator, string, formatting, file, time, and thread implementations from C into Spectre where practical.
+Add a symbol/source audit that fails if a freestanding standard-library module reaches a libc-shaped symbol.
+Make auto-hosted fallback explicit and visible rather than silent.
