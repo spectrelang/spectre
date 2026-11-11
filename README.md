@@ -71,4 +71,4 @@ pub fn main() void = {
 
 ## License
 
-GPL-3.0-only - (C) Navid M - 2026
+GPL-3.0-only - (C) Navid M. - 2026
