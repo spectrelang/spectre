@@ -136,7 +136,7 @@ fn poll_events_from_platform(events: i32) i32 = {
 /// Put a socket into non-blocking mode.
 pub fn (TcpServer) set_non_blocking(fd: i64) bool = trust {
     when posix {
-        val flags: i32 = fcntl(fd as i32, F_GETFL)
+        val flags: i32 = fcntl(fd as i32, F_GETFL, 0)
         if flags < 0 {
             return false
         }
