@@ -3,3 +3,4 @@
 *.sh linguist-generated
 *.ll linguist-generated
 *.ps1 linguist-generated
+*.s linguist-generated
