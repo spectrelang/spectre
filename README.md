@@ -43,15 +43,17 @@ Then run to confirm installation:
 spectre -v
 ```
 
-Linux and Windows targets use a self-contained freestanding runtime by
-default, this means no system libc, CRT, or Linux sysroot. Hosted builds remain
-available with `-runtime:hosted`. Cross compilation from Linux to Windows, for example, is as simple as:
+> [!NOTE]
+> Linux and Windows targets use a self-contained freestanding runtime by
+> default, this means no system libc, CRT, or Linux sysroot. Hosted builds remain
+> available with `-runtime:hosted`. Cross compilation from Linux to Windows, for example, is as simple as:
+> ```
+> spectre app.sx -target:windows.x86_64 -o app.exe
+> ```
 
-```
-spectre app.sx -target:windows.x86_64 -o app.exe
-```
+## Example
 
-An example program:
+An example program is as follows:
 
 ```spectre
 val stdio = use("std/stdio")
