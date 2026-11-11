@@ -1230,10 +1230,6 @@ pub fn main() i32 = trust {
                 target_arch
             )
         }
-        if freestanding_runtime {
-            simd_backend = 2
-        }
-
         val alt_runtime_obj: mut ref u8 = c""
         val alt_start_obj: mut ref u8 = c""
         if freestanding_runtime && !compile_obj {

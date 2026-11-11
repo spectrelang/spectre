@@ -8752,8 +8752,11 @@ fn gen_for_stmt(ctx: mut ref CCtx, stmt: ref parser.Node) void = trust {
         trailing_increment: false
     }
     if autovec.detect(stmt, @addr(plan)) {
-        val can_vectorize: bool = ctx.simd_backend == 0
-        || (ctx.simd_backend == 1 && plan.elem_size == 4)
+        val platform_supports_simd: bool = cc_platform_matches(ctx, c"linux")
+        || cc_platform_matches(ctx, c"windows")
+        || cc_platform_matches(ctx, c"darwin")
+        val can_vectorize: bool = platform_supports_simd
+        && (ctx.simd_backend == 0 || (ctx.simd_backend == 1 && plan.elem_size == 4))
         if can_vectorize {
             cc_gen_autovec_vector(ctx, @addr(plan), stmt)
         }
@@ -10484,6 +10487,7 @@ fn emit_c_rewrite_fmt(ctx: ref CCtx) void = trust {
 
 fn emit_c_preamble(ctx: ref CCtx) void = trust {
     if runtime_is_freestanding() {
+        emitln_fwd(ctx, c"#define SX_FREESTANDING 1")
         emitln_fwd(ctx, c"typedef __SIZE_TYPE__ size_t;")
         emitln_fwd(ctx, c"typedef __PTRDIFF_TYPE__ ptrdiff_t;")
         emitln_fwd(ctx, c"typedef __PTRDIFF_TYPE__ sx_ssize_t;")
@@ -10569,6 +10573,16 @@ fn emit_c_preamble(ctx: ref CCtx) void = trust {
         if cc_platform_matches(ctx, c"posix") {
             emitln_fwd(ctx, c"#define _POSIX_C_SOURCE 200809L")
         }
+        if cc_platform_matches(ctx, c"windows") {
+            // This needs to be done because of UCRT defining some stdio
+            // headers inline.
+            emitln_fwd(ctx, c"#ifndef _NO_CRT_STDIO_INLINE")
+            emitln_fwd(ctx, c"#define _NO_CRT_STDIO_INLINE")
+            emitln_fwd(ctx, c"#endif")
+            emitln_fwd(ctx, c"#ifndef _CRT_SECURE_NO_WARNINGS")
+            emitln_fwd(ctx, c"#define _CRT_SECURE_NO_WARNINGS")
+            emitln_fwd(ctx, c"#endif")
+        }
         emitln_fwd(ctx, c"#include <stdint.h>")
         emitln_fwd(ctx, c"#include <stdlib.h>")
         emitln_fwd(ctx, c"#include <string.h>")
@@ -10577,11 +10591,29 @@ fn emit_c_preamble(ctx: ref CCtx) void = trust {
         emitln_fwd(ctx, c"#include <time.h>")
         emit_c_rewrite_fmt(ctx)
         if cc_platform_matches(ctx, c"posix") {
+            emitln_fwd(ctx, c"#include <ctype.h>")
+            emitln_fwd(ctx, c"#include <poll.h>")
+            emitln_fwd(ctx, c"#include <pthread.h>")
+            emitln_fwd(ctx, c"#include <sched.h>")
             emitln_fwd(ctx, c"#include <sys/time.h>")
             emitln_fwd(ctx, c"#include <sys/types.h>")
             emitln_fwd(ctx, c"#include <sys/stat.h>")
+            emitln_fwd(ctx, c"#include <sys/utsname.h>")
+            emitln_fwd(ctx, c"#include <sys/socket.h>")
+            emitln_fwd(ctx, c"#include <netinet/in.h>")
+            emitln_fwd(ctx, c"#include <arpa/inet.h>")
             emitln_fwd(ctx, c"#include <unistd.h>")
             emitln_fwd(ctx, c"#include <dirent.h>")
+        }
+        if cc_platform_matches(ctx, c"linux") {
+            emitln_fwd(ctx, c"#include <sys/random.h>")
+        }
+        if cc_platform_matches(ctx, c"darwin") {
+            // macOS has arc4random_buf but not getrandom.
+            emitln_fwd(
+                ctx,
+                c"static int sx__darwin_getrandom(void*buf,size_t n,unsigned flags){(void)flags;arc4random_buf(buf,n);return(int)n;}\n#define getrandom sx__darwin_getrandom"
+            )
         }
         if cc_platform_matches(ctx, c"windows") {
             emitln_fwd(ctx, c"#ifndef WIN32_LEAN_AND_MEAN")
@@ -10720,7 +10752,7 @@ fn emit_c_preamble(ctx: ref CCtx) void = trust {
     )
     emitln_fwd(
         ctx,
-        c"#if defined(_WIN32) && !defined(SX_FREESTANDING)\nstatic int sx__dprintf(int fd,const char*fmt,...){char buf[4096];__builtin_va_list ap;__builtin_va_start(ap,fmt);int n=vsnprintf(buf,(int)(sizeof(buf)-1),fmt,ap);__builtin_va_end(ap);if(n>0)_write(fd,buf,(unsigned)n);return n;}\n#else\n#define sx__dprintf dprintf\n#endif"
+        c"#if defined(_WIN32) && !defined(SX_FREESTANDING)\nstatic int sx__dprintf(int fd,const char*fmt,...){char buf[4096];__builtin_va_list ap;__builtin_va_start(ap,fmt);int n=vsnprintf(buf,(int)(sizeof(buf)-1),fmt,ap);__builtin_va_end(ap);if(n>0){FILE*f=fd==2?stderr:stdout;fwrite(buf,1,(size_t)n,f);fflush(f);}return n;}\n#else\n#define sx__dprintf dprintf\n#endif"
     )
     emitln_fwd(
         ctx,
