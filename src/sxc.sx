@@ -1573,9 +1573,10 @@ pub fn main() i32 = trust {
         if freestanding_runtime && !compile_obj {
             if cstr.cmp(target_platform, c"windows") == 0 {
                 link_flags_alt = @fmtalloc(
-                    "{s} -nostdlib -Wl,/nodefaultlib,/entry:mainCRTStartup {s} {s} {s} {s}",
+                    "{s} {s} {s} {s} {s} {s}",
                     {
                         link_flags_alt,
+                        builds.freestanding_windows_link_flags(compiler_kind),
                         builds.freestanding_windows_import_flags(target_arch),
                         alt_runtime_obj,
                         alt_sys_rt_obj,
@@ -1637,6 +1638,9 @@ pub fn main() i32 = trust {
                     perf_flags
                 }
             )
+            if freestanding_runtime {
+                cc_flags_alt = @fmtalloc("{s} /GS-", {cc_flags_alt})
+            }
             if cstr.cmp(compiler_kind, c"clang-cl") == 0 {
                 cc_flags_alt = @fmtalloc(
                     "{s} -Wno-error=int-conversion",

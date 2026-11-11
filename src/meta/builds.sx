@@ -381,6 +381,14 @@ pub fn freestanding_c_flags() ref u8 = {
     return c"-ffreestanding -nostdinc -fno-builtin -fno-stack-protector -fno-common -fno-asynchronous-unwind-tables -ffunction-sections -fdata-sections"
 }
 
+/// Link flags for the freestanding Windows runtime.
+pub fn freestanding_windows_link_flags(kind: ref u8) ref u8 = {
+    if cstr.cmp(kind, c"msvc") == 0 {
+        return c"/link /nodefaultlib /entry:mainCRTStartup /opt:ref"
+    }
+    return c"-nostdlib -Wl,/nodefaultlib,/entry:mainCRTStartup"
+}
+
 /// Optional architecture flags for freestanding compiles.
 pub fn freestanding_arch_flags(arch: ref u8) ref u8 = {
     if cstr.cmp(arch, c"aarch64") == 0 {
