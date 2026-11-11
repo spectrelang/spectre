@@ -47,9 +47,12 @@ spectre -v
 > Linux and Windows targets use a self-contained freestanding runtime by
 > default, meaning no system libc, CRT, or Linux sysroot. Hosted builds remain
 > available with `-runtime:hosted`. Cross compilation from Linux to Windows, for example, is as simple as:
+>
 > ```
 > spectre app.sx -target:windows.x86_64 -o app.exe
 > ```
+>
+> This will produce `app.exe`, a 64-bit executable for Windows.
 
 ## Example
 
