@@ -1,10 +1,10 @@
 val net        = use("std/net")
 val allocators = use("std/allocators")
 val stdio      = use("std/stdio")
-val str     = use("std/string")
-val cstr = use("std/string/cstr")
-val ostr = use("std/string/owned")
-val builder = use("std/string/builder")
+val str        = use("std/string")
+val cstr       = use("std/string/cstr")
+val ostr       = use("std/string/owned")
+val builder    = use("std/string/builder")
 
 /// Write a complete HTTP response and close the connection.
 fn respond(client: i64, status: ref u8, content_type: ref u8, body: ref u8) void = trust {

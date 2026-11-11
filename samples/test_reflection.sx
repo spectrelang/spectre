@@ -1,7 +1,7 @@
 val reflection = use("std/reflection")
 val stdio      = use("std/stdio")
 val allocators = use("std/allocators")
-val str = use("std/string")
+val str        = use("std/string")
 
 pub fn main() void = {
     val alc = trust allocators.Arena.new(1024 as usize)?

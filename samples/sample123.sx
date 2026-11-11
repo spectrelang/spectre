@@ -16,7 +16,7 @@ fn area(s: Shape) f64 = {
         }
         Triangle a, b, c => {
             val sp = (a + b + c) / 2.0
-            return math.sqrt(sp * (sp-a) * (sp-b) * (sp-c))
+            return math.sqrt(sp * (sp - a) * (sp - b) * (sp - c))
         }
     }
 }

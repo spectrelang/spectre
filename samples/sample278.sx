@@ -1,9 +1,9 @@
-val stdio = use("std/stdio")
+val stdio      = use("std/stdio")
 val allocators = use("std/allocators")
 
 type Node = {
-    value: mut u32,
-    next: mut ref Node,
+    value: mut u32
+    next: mut ref Node
 }
 
 pub fn push_front[A: allocators.Allocator](ac: A, head: ref Node, value: u32) ref Node = {

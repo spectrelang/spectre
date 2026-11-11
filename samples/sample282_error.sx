@@ -1,18 +1,18 @@
-val stdio = use("std/stdio")
+val stdio      = use("std/stdio")
 val allocators = use("std/allocators")
 
 type Node = {
-    value: mut i32,
-    left: mut ref Node,
-    right: mut ref Node,
+    value: mut i32
+    left: mut ref Node
+    right: mut ref Node
 }
 
 type BinarySearchTree = {
-    root: mut ref Node,
+    root: mut ref Node
 }
 
 enum BSTError = {
-    AllocationFailed,
+    AllocationFailed
 }
 
 pub fn create_node[A: allocators.Allocator](

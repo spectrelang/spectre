@@ -1,5 +1,5 @@
 val str   = use("std/string")
-val ostr = use("std/string/owned")
+val ostr  = use("std/string/owned")
 val alloc = use("std/allocators")
 val stdio = use("std/stdio")
 

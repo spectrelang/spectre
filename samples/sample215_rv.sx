@@ -1,6 +1,6 @@
 val stdio      = use("std/stdio")
-val cstr = use("std/string/cstr")
-val ostr = use("std/string/owned")
+val cstr       = use("std/string/cstr")
+val ostr       = use("std/string/owned")
 val fmt        = use("std/fmt")
 val allocators = use("std/allocators")
 

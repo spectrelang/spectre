@@ -1,5 +1,5 @@
 val stdio = use("std/stdio")
-val str = use("std/string")
+val str   = use("std/string")
 
 pub fn test_platform_name() ref u8 = {
     return c"linux"

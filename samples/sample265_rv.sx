@@ -2,228 +2,627 @@ val stdio = use("std/stdio")
 
 fn deep_add(x: i32) i32 = {
     return ((((((((((((((((((((((((((((((((((((((((((((((((((
-        ((((((((((((((((((((((((((((((((((((((((((((((((((
-        ((((((((((((((((((((((((((((((((((((((((((((((((((
-        ((((((((((((((((((((((((((((((((((((((((((((((((((
-        x + 1) + 1) + 1) + 1) + 1) + 1) + 1) + 1) + 1) + 1)
-        + 1) + 1) + 1) + 1) + 1) + 1) + 1) + 1) + 1) + 1)
-        + 1) + 1) + 1) + 1) + 1) + 1) + 1) + 1) + 1) + 1)
-        + 1) + 1) + 1) + 1) + 1) + 1) + 1) + 1) + 1) + 1)
-        + 1) + 1) + 1) + 1) + 1) + 1) + 1) + 1) + 1) + 1)
-        + 1) + 1) + 1) + 1) + 1) + 1) + 1) + 1) + 1) + 1)
-        + 1) + 1) + 1) + 1) + 1) + 1) + 1) + 1) + 1) + 1)
-        + 1) + 1) + 1) + 1) + 1) + 1) + 1) + 1) + 1) + 1)
-        + 1) + 1) + 1) + 1) + 1) + 1) + 1) + 1) + 1) + 1)
-        + 1) + 1) + 1) + 1) + 1) + 1) + 1) + 1) + 1) + 1)
-        + 1) + 1) + 1) + 1) + 1) + 1) + 1) + 1) + 1) + 1)
-        + 1) + 1) + 1) + 1) + 1) + 1) + 1) + 1) + 1) + 1)
-        + 1) + 1) + 1) + 1) + 1) + 1) + 1) + 1) + 1) + 1)
-        + 1) + 1) + 1) + 1) + 1) + 1) + 1) + 1) + 1) + 1)
-        + 1) + 1) + 1) + 1) + 1) + 1) + 1) + 1) + 1)
-        )))))))))))))))))))))))))))))))))))))))))))))))))))
+                                                                                                                                                                                                            ((((((((((((((((((((((((((((((((((((((((((((((((((
+                                                                                                                                                                                                                                                                                                                                                                                                                    ((((((((((((((((((((((((((((((((((((((((((((((((((
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            ((((((((((((((((((((((((((((((((((((((((((((((((((
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    x + 1) + 1) + 1) + 1) + 1) + 1) + 1) + 1) + 1) + 1)
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            + 1) + 1) + 1) + 1) + 1) + 1) + 1) + 1) + 1) + 1)
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    + 1) + 1) + 1) + 1) + 1) + 1) + 1) + 1) + 1) + 1)
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            + 1) + 1) + 1) + 1) + 1) + 1) + 1) + 1) + 1) + 1)
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    + 1) + 1) + 1) + 1) + 1) + 1) + 1) + 1) + 1) + 1)
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            + 1) + 1) + 1) + 1) + 1) + 1) + 1) + 1) + 1) + 1)
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    + 1) + 1) + 1) + 1) + 1) + 1) + 1) + 1) + 1) + 1)
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            + 1) + 1) + 1) + 1) + 1) + 1) + 1) + 1) + 1) + 1)
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    + 1) + 1) + 1) + 1) + 1) + 1) + 1) + 1) + 1) + 1)
+                                                                                                                                                                                                                                                                                                                                                                                                                                                            + 1) + 1) + 1) + 1) + 1) + 1) + 1) + 1) + 1) + 1)
+                                                                                                                                                                                                                                                                                                                                                                                                                    + 1) + 1) + 1) + 1) + 1) + 1) + 1) + 1) + 1) + 1)
+                                                                                                                                                                                                                                                                                                                                                                            + 1) + 1) + 1) + 1) + 1) + 1) + 1) + 1) + 1) + 1)
+                                                                                                                                                                                                                                                                                                                                    + 1) + 1) + 1) + 1) + 1) + 1) + 1) + 1) + 1) + 1)
+                                                                                                                                                                                                                                                                                            + 1) + 1) + 1) + 1) + 1) + 1) + 1) + 1) + 1) + 1)
+                                                                                                                                                                                                                                                    + 1) + 1) + 1) + 1) + 1) + 1) + 1) + 1) + 1)
+                                                                                                                                                                                                            )))))))))))))))))))))))))))))))))))))))))))))))))))
 }
 
-type (Val) A00 = { v: i32  invariant { v >= 0  v <= 100000 } }
-type (Val) A01 = { v: i32  invariant { v >= 0  v <= 100000 } }
-type (Val) A02 = { v: i32  invariant { v >= 0  v <= 100000 } }
-type (Val) A03 = { v: i32  invariant { v >= 0  v <= 100000 } }
-type (Val) A04 = { v: i32  invariant { v >= 0  v <= 100000 } }
-type (Val) A05 = { v: i32  invariant { v >= 0  v <= 100000 } }
-type (Val) A06 = { v: i32  invariant { v >= 0  v <= 100000 } }
-type (Val) A07 = { v: i32  invariant { v >= 0  v <= 100000 } }
-type (Val) A08 = { v: i32  invariant { v >= 0  v <= 100000 } }
-type (Val) A09 = { v: i32  invariant { v >= 0  v <= 100000 } }
-type (Val) A10 = { v: i32  invariant { v >= 0  v <= 100000 } }
-type (Val) A11 = { v: i32  invariant { v >= 0  v <= 100000 } }
-type (Val) A12 = { v: i32  invariant { v >= 0  v <= 100000 } }
-type (Val) A13 = { v: i32  invariant { v >= 0  v <= 100000 } }
-type (Val) A14 = { v: i32  invariant { v >= 0  v <= 100000 } }
-type (Val) A15 = { v: i32  invariant { v >= 0  v <= 100000 } }
-type (Val) A16 = { v: i32  invariant { v >= 0  v <= 100000 } }
-type (Val) A17 = { v: i32  invariant { v >= 0  v <= 100000 } }
-type (Val) A18 = { v: i32  invariant { v >= 0  v <= 100000 } }
-type (Val) A19 = { v: i32  invariant { v >= 0  v <= 100000 } }
-type (Val) A20 = { v: i32  invariant { v >= 0  v <= 100000 } }
-type (Val) A21 = { v: i32  invariant { v >= 0  v <= 100000 } }
-type (Val) A22 = { v: i32  invariant { v >= 0  v <= 100000 } }
-type (Val) A23 = { v: i32  invariant { v >= 0  v <= 100000 } }
-type (Val) A24 = { v: i32  invariant { v >= 0  v <= 100000 } }
-type (Val) A25 = { v: i32  invariant { v >= 0  v <= 100000 } }
-type (Val) A26 = { v: i32  invariant { v >= 0  v <= 100000 } }
-type (Val) A27 = { v: i32  invariant { v >= 0  v <= 100000 } }
-type (Val) A28 = { v: i32  invariant { v >= 0  v <= 100000 } }
-type (Val) A29 = { v: i32  invariant { v >= 0  v <= 100000 } }
-type (Val) A30 = { v: i32  invariant { v >= 0  v <= 100000 } }
-type (Val) A31 = { v: i32  invariant { v >= 0  v <= 100000 } }
-type (Val) A32 = { v: i32  invariant { v >= 0  v <= 100000 } }
-type (Val) A33 = { v: i32  invariant { v >= 0  v <= 100000 } }
-type (Val) A34 = { v: i32  invariant { v >= 0  v <= 100000 } }
-type (Val) A35 = { v: i32  invariant { v >= 0  v <= 100000 } }
-type (Val) A36 = { v: i32  invariant { v >= 0  v <= 100000 } }
-type (Val) A37 = { v: i32  invariant { v >= 0  v <= 100000 } }
-type (Val) A38 = { v: i32  invariant { v >= 0  v <= 100000 } }
-type (Val) A39 = { v: i32  invariant { v >= 0  v <= 100000 } }
-type (Val) A40 = { v: i32  invariant { v >= 0  v <= 100000 } }
-type (Val) A41 = { v: i32  invariant { v >= 0  v <= 100000 } }
-type (Val) A42 = { v: i32  invariant { v >= 0  v <= 100000 } }
-type (Val) A43 = { v: i32  invariant { v >= 0  v <= 100000 } }
-type (Val) A44 = { v: i32  invariant { v >= 0  v <= 100000 } }
-type (Val) A45 = { v: i32  invariant { v >= 0  v <= 100000 } }
-type (Val) A46 = { v: i32  invariant { v >= 0  v <= 100000 } }
-type (Val) A47 = { v: i32  invariant { v >= 0  v <= 100000 } }
-type (Val) A48 = { v: i32  invariant { v >= 0  v <= 100000 } }
-type (Val) A49 = { v: i32  invariant { v >= 0  v <= 100000 } }
+type (Val) A00 = {
+    v: i32  invariant {
+        v >= 0
+        v <= 100000
+    }
+}
+
+type (Val) A01 = {
+    v: i32  invariant {
+        v >= 0
+        v <= 100000
+    }
+}
+
+type (Val) A02 = {
+    v: i32  invariant {
+        v >= 0
+        v <= 100000
+    }
+}
+
+type (Val) A03 = {
+    v: i32  invariant {
+        v >= 0
+        v <= 100000
+    }
+}
+
+type (Val) A04 = {
+    v: i32  invariant {
+        v >= 0
+        v <= 100000
+    }
+}
+
+type (Val) A05 = {
+    v: i32  invariant {
+        v >= 0
+        v <= 100000
+    }
+}
+
+type (Val) A06 = {
+    v: i32  invariant {
+        v >= 0
+        v <= 100000
+    }
+}
+
+type (Val) A07 = {
+    v: i32  invariant {
+        v >= 0
+        v <= 100000
+    }
+}
+
+type (Val) A08 = {
+    v: i32  invariant {
+        v >= 0
+        v <= 100000
+    }
+}
+
+type (Val) A09 = {
+    v: i32  invariant {
+        v >= 0
+        v <= 100000
+    }
+}
+
+type (Val) A10 = {
+    v: i32  invariant {
+        v >= 0
+        v <= 100000
+    }
+}
+
+type (Val) A11 = {
+    v: i32  invariant {
+        v >= 0
+        v <= 100000
+    }
+}
+
+type (Val) A12 = {
+    v: i32  invariant {
+        v >= 0
+        v <= 100000
+    }
+}
+
+type (Val) A13 = {
+    v: i32  invariant {
+        v >= 0
+        v <= 100000
+    }
+}
+
+type (Val) A14 = {
+    v: i32  invariant {
+        v >= 0
+        v <= 100000
+    }
+}
+
+type (Val) A15 = {
+    v: i32  invariant {
+        v >= 0
+        v <= 100000
+    }
+}
+
+type (Val) A16 = {
+    v: i32  invariant {
+        v >= 0
+        v <= 100000
+    }
+}
+
+type (Val) A17 = {
+    v: i32  invariant {
+        v >= 0
+        v <= 100000
+    }
+}
+
+type (Val) A18 = {
+    v: i32  invariant {
+        v >= 0
+        v <= 100000
+    }
+}
+
+type (Val) A19 = {
+    v: i32  invariant {
+        v >= 0
+        v <= 100000
+    }
+}
+
+type (Val) A20 = {
+    v: i32  invariant {
+        v >= 0
+        v <= 100000
+    }
+}
+
+type (Val) A21 = {
+    v: i32  invariant {
+        v >= 0
+        v <= 100000
+    }
+}
+
+type (Val) A22 = {
+    v: i32  invariant {
+        v >= 0
+        v <= 100000
+    }
+}
+
+type (Val) A23 = {
+    v: i32  invariant {
+        v >= 0
+        v <= 100000
+    }
+}
+
+type (Val) A24 = {
+    v: i32  invariant {
+        v >= 0
+        v <= 100000
+    }
+}
+
+type (Val) A25 = {
+    v: i32  invariant {
+        v >= 0
+        v <= 100000
+    }
+}
+
+type (Val) A26 = {
+    v: i32  invariant {
+        v >= 0
+        v <= 100000
+    }
+}
+
+type (Val) A27 = {
+    v: i32  invariant {
+        v >= 0
+        v <= 100000
+    }
+}
+
+type (Val) A28 = {
+    v: i32  invariant {
+        v >= 0
+        v <= 100000
+    }
+}
+
+type (Val) A29 = {
+    v: i32  invariant {
+        v >= 0
+        v <= 100000
+    }
+}
+
+type (Val) A30 = {
+    v: i32  invariant {
+        v >= 0
+        v <= 100000
+    }
+}
+
+type (Val) A31 = {
+    v: i32  invariant {
+        v >= 0
+        v <= 100000
+    }
+}
+
+type (Val) A32 = {
+    v: i32  invariant {
+        v >= 0
+        v <= 100000
+    }
+}
+
+type (Val) A33 = {
+    v: i32  invariant {
+        v >= 0
+        v <= 100000
+    }
+}
+
+type (Val) A34 = {
+    v: i32  invariant {
+        v >= 0
+        v <= 100000
+    }
+}
+
+type (Val) A35 = {
+    v: i32  invariant {
+        v >= 0
+        v <= 100000
+    }
+}
+
+type (Val) A36 = {
+    v: i32  invariant {
+        v >= 0
+        v <= 100000
+    }
+}
+
+type (Val) A37 = {
+    v: i32  invariant {
+        v >= 0
+        v <= 100000
+    }
+}
+
+type (Val) A38 = {
+    v: i32  invariant {
+        v >= 0
+        v <= 100000
+    }
+}
+
+type (Val) A39 = {
+    v: i32  invariant {
+        v >= 0
+        v <= 100000
+    }
+}
+
+type (Val) A40 = {
+    v: i32  invariant {
+        v >= 0
+        v <= 100000
+    }
+}
+
+type (Val) A41 = {
+    v: i32  invariant {
+        v >= 0
+        v <= 100000
+    }
+}
+
+type (Val) A42 = {
+    v: i32  invariant {
+        v >= 0
+        v <= 100000
+    }
+}
+
+type (Val) A43 = {
+    v: i32  invariant {
+        v >= 0
+        v <= 100000
+    }
+}
+
+type (Val) A44 = {
+    v: i32  invariant {
+        v >= 0
+        v <= 100000
+    }
+}
+
+type (Val) A45 = {
+    v: i32  invariant {
+        v >= 0
+        v <= 100000
+    }
+}
+
+type (Val) A46 = {
+    v: i32  invariant {
+        v >= 0
+        v <= 100000
+    }
+}
+
+type (Val) A47 = {
+    v: i32  invariant {
+        v >= 0
+        v <= 100000
+    }
+}
+
+type (Val) A48 = {
+    v: i32  invariant {
+        v >= 0
+        v <= 100000
+    }
+}
+
+type (Val) A49 = {
+    v: i32  invariant {
+        v >= 0
+        v <= 100000
+    }
+}
+
+
+
+fn (A00) get(s: self) i32 = {
+    return s.v
+}
+
+
+fn (A01) get(s: self) i32 = {
+    return s.v
+}
+
+
+fn (A02) get(s: self) i32 = {
+    return s.v
+}
+
+
+fn (A03) get(s: self) i32 = {
+    return s.v
+}
+
+
+fn (A04) get(s: self) i32 = {
+    return s.v
+}
+
+
+fn (A05) get(s: self) i32 = {
+    return s.v
+}
+
+
+fn (A06) get(s: self) i32 = {
+    return s.v
+}
+
+
+fn (A07) get(s: self) i32 = {
+    return s.v
+}
+
+
+fn (A08) get(s: self) i32 = {
+    return s.v
+}
+
+
+fn (A09) get(s: self) i32 = {
+    return s.v
+}
+
+
+fn (A10) get(s: self) i32 = {
+    return s.v
+}
+
+
+fn (A11) get(s: self) i32 = {
+    return s.v
+}
+
+
+fn (A12) get(s: self) i32 = {
+    return s.v
+}
+
+
+fn (A13) get(s: self) i32 = {
+    return s.v
+}
+
+
+fn (A14) get(s: self) i32 = {
+    return s.v
+}
+
 
+fn (A15) get(s: self) i32 = {
+    return s.v
+}
 
 
-fn (A00) get(s: self) i32 = { return s.v }
+fn (A16) get(s: self) i32 = {
+    return s.v
+}
 
 
-fn (A01) get(s: self) i32 = { return s.v }
+fn (A17) get(s: self) i32 = {
+    return s.v
+}
 
 
-fn (A02) get(s: self) i32 = { return s.v }
+fn (A18) get(s: self) i32 = {
+    return s.v
+}
 
 
-fn (A03) get(s: self) i32 = { return s.v }
+fn (A19) get(s: self) i32 = {
+    return s.v
+}
 
 
-fn (A04) get(s: self) i32 = { return s.v }
+fn (A20) get(s: self) i32 = {
+    return s.v
+}
 
 
-fn (A05) get(s: self) i32 = { return s.v }
+fn (A21) get(s: self) i32 = {
+    return s.v
+}
 
 
-fn (A06) get(s: self) i32 = { return s.v }
+fn (A22) get(s: self) i32 = {
+    return s.v
+}
 
 
-fn (A07) get(s: self) i32 = { return s.v }
+fn (A23) get(s: self) i32 = {
+    return s.v
+}
 
 
-fn (A08) get(s: self) i32 = { return s.v }
+fn (A24) get(s: self) i32 = {
+    return s.v
+}
 
 
-fn (A09) get(s: self) i32 = { return s.v }
+fn (A25) get(s: self) i32 = {
+    return s.v
+}
 
 
-fn (A10) get(s: self) i32 = { return s.v }
+fn (A26) get(s: self) i32 = {
+    return s.v
+}
 
 
-fn (A11) get(s: self) i32 = { return s.v }
+fn (A27) get(s: self) i32 = {
+    return s.v
+}
 
 
-fn (A12) get(s: self) i32 = { return s.v }
+fn (A28) get(s: self) i32 = {
+    return s.v
+}
 
 
-fn (A13) get(s: self) i32 = { return s.v }
+fn (A29) get(s: self) i32 = {
+    return s.v
+}
 
 
-fn (A14) get(s: self) i32 = { return s.v }
+fn (A30) get(s: self) i32 = {
+    return s.v
+}
 
 
-fn (A15) get(s: self) i32 = { return s.v }
+fn (A31) get(s: self) i32 = {
+    return s.v
+}
 
 
-fn (A16) get(s: self) i32 = { return s.v }
+fn (A32) get(s: self) i32 = {
+    return s.v
+}
 
 
-fn (A17) get(s: self) i32 = { return s.v }
+fn (A33) get(s: self) i32 = {
+    return s.v
+}
 
 
-fn (A18) get(s: self) i32 = { return s.v }
+fn (A34) get(s: self) i32 = {
+    return s.v
+}
 
 
-fn (A19) get(s: self) i32 = { return s.v }
+fn (A35) get(s: self) i32 = {
+    return s.v
+}
 
 
-fn (A20) get(s: self) i32 = { return s.v }
+fn (A36) get(s: self) i32 = {
+    return s.v
+}
 
 
-fn (A21) get(s: self) i32 = { return s.v }
+fn (A37) get(s: self) i32 = {
+    return s.v
+}
 
 
-fn (A22) get(s: self) i32 = { return s.v }
+fn (A38) get(s: self) i32 = {
+    return s.v
+}
 
 
-fn (A23) get(s: self) i32 = { return s.v }
+fn (A39) get(s: self) i32 = {
+    return s.v
+}
 
 
-fn (A24) get(s: self) i32 = { return s.v }
+fn (A40) get(s: self) i32 = {
+    return s.v
+}
 
 
-fn (A25) get(s: self) i32 = { return s.v }
+fn (A41) get(s: self) i32 = {
+    return s.v
+}
 
 
-fn (A26) get(s: self) i32 = { return s.v }
+fn (A42) get(s: self) i32 = {
+    return s.v
+}
 
 
-fn (A27) get(s: self) i32 = { return s.v }
+fn (A43) get(s: self) i32 = {
+    return s.v
+}
 
 
-fn (A28) get(s: self) i32 = { return s.v }
+fn (A44) get(s: self) i32 = {
+    return s.v
+}
 
 
-fn (A29) get(s: self) i32 = { return s.v }
+fn (A45) get(s: self) i32 = {
+    return s.v
+}
 
 
-fn (A30) get(s: self) i32 = { return s.v }
+fn (A46) get(s: self) i32 = {
+    return s.v
+}
 
 
-fn (A31) get(s: self) i32 = { return s.v }
+fn (A47) get(s: self) i32 = {
+    return s.v
+}
 
 
-fn (A32) get(s: self) i32 = { return s.v }
+fn (A48) get(s: self) i32 = {
+    return s.v
+}
 
 
-fn (A33) get(s: self) i32 = { return s.v }
-
-
-fn (A34) get(s: self) i32 = { return s.v }
-
-
-fn (A35) get(s: self) i32 = { return s.v }
-
-
-fn (A36) get(s: self) i32 = { return s.v }
-
-
-fn (A37) get(s: self) i32 = { return s.v }
-
-
-fn (A38) get(s: self) i32 = { return s.v }
-
-
-fn (A39) get(s: self) i32 = { return s.v }
-
-
-fn (A40) get(s: self) i32 = { return s.v }
-
-
-fn (A41) get(s: self) i32 = { return s.v }
-
-
-fn (A42) get(s: self) i32 = { return s.v }
-
-
-fn (A43) get(s: self) i32 = { return s.v }
-
-
-fn (A44) get(s: self) i32 = { return s.v }
-
-
-fn (A45) get(s: self) i32 = { return s.v }
-
-
-fn (A46) get(s: self) i32 = { return s.v }
-
-
-fn (A47) get(s: self) i32 = { return s.v }
-
-
-fn (A48) get(s: self) i32 = { return s.v }
-
-
-fn (A49) get(s: self) i32 = { return s.v }
+fn (A49) get(s: self) i32 = {
+    return s.v
+}
 
 
 
@@ -234,43 +633,49 @@ fn nested_hell(x: i32) i32 = trust {
     }
 
     if x > 0 {
-        
-            match some x {
-                some a => {
-                    if a > 1 {
-                        
-                            match some a {
-                                some b => {
-                                    if b > 2 {
-                                        
-                                            match some b {
-                                                some c => {
-                                                    if c > 3 {
-                                                        pre {
-                                                            deeper: c > 3
-                                                        }
-                                                        return nested_hell(c - 1) + 1
-                                                    } else {
-                                                        return c
-                                                    }
-                                                }
-                                                none => { return 0 }
+
+        match some x {
+            some a => {
+                if a > 1 {
+
+                    match some a {
+                        some b => {
+                            if b > 2 {
+
+                                match some b {
+                                    some c => {
+                                        if c > 3 {
+                                            pre {
+                                                deeper: c > 3
                                             }
-                                        
-                                    } else {
-                                        return b
+                                            return nested_hell(c - 1) + 1
+                                        } else {
+                                            return c
+                                        }
+                                    }
+                                    none => {
+                                        return 0
                                     }
                                 }
-                                none => { return 0 }
+
+                            } else {
+                                return b
                             }
-                        
-                    } else {
-                        return a
+                        }
+                        none => {
+                            return 0
+                        }
                     }
+
+                } else {
+                    return a
                 }
-                none => { return 0 }
             }
-        
+            none => {
+                return 0
+            }
+        }
+
     } else {
         return 0
     }

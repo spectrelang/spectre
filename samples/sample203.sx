@@ -1,10 +1,10 @@
 val net        = use("std/net")
 val allocators = use("std/allocators")
 val stdio      = use("std/stdio")
-val str     = use("std/string")
-val cstr = use("std/string/cstr")
-val ostr = use("std/string/owned")
-val builder = use("std/string/builder")
+val str        = use("std/string")
+val cstr       = use("std/string/cstr")
+val ostr       = use("std/string/owned")
+val builder    = use("std/string/builder")
 
 val REQUEST_CAP: i64 = 4096
 

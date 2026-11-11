@@ -1,10 +1,10 @@
-val stdio = use("std/stdio")
+val stdio      = use("std/stdio")
 val allocators = use("std/allocators")
 
 type Node = {
-    value: mut i32,
-    left: mut ref Node,
-    right: mut ref Node,
+    value: mut i32
+    left: mut ref Node
+    right: mut ref Node
 }
 
 pub fn create_node[A: allocators.Allocator](ac: A, value: i32) ref Node = {

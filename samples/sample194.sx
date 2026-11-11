@@ -26,5 +26,5 @@ pub fn main() void = trust {
 
     val elapsed = time.now_ns() - start
     stdio.print("Spectre: {d} ns\n", {elapsed})
-    stdio.print("Spectre: {d} ns/op\n", {elapsed/iterations})
+    stdio.print("Spectre: {d} ns/op\n", {elapsed / iterations})
 }

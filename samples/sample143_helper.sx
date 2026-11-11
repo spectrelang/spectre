@@ -1,6 +1,6 @@
 val allocators = use("std/allocators")
 val fs         = use("std/fs")
-val cstr = use("std/string/cstr")
+val cstr       = use("std/string/cstr")
 
 pub fn read_len[A: allocators.Allocator](ac: A, path: ref u8) i64 = trust {
     if fs.read_all_cstr[A](ac, path) is some text {

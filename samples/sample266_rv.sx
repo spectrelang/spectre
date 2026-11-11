@@ -1,5 +1,5 @@
-val str     = use("std/string")
-val cstr = use("std/string/cstr")
+val str        = use("std/string")
+val cstr       = use("std/string/cstr")
 val allocators = use("std/allocators")
 
 pub fn main() void = trust {

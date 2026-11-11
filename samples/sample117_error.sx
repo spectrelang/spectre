@@ -65,7 +65,7 @@ when netbsd {
 }
 
 val stdio      = use("std/stdio")
-val cstr = use("std/string/cstr")
+val cstr       = use("std/string/cstr")
 val allocators = use("std/allocators")
 
 when posix {
