@@ -2367,29 +2367,29 @@ fn cg_build_c_shim(ctx: ref CgCtx) ref u8 = trust {
     }
     if runtime_is_freestanding() {
         builder.StringBuilder.append(sb, \\
-        \\#ifndef INT_MAX
-        \\#define INT_MAX 2147483647
-        \\#define INT_MIN (-2147483647 - 1)
-        \\#define UINT_MAX 4294967295U
-        \\#define LONG_MAX 9223372036854775807L
-        \\#define LONG_MIN (-9223372036854775807L - 1)
-        \\#define ULONG_MAX 18446744073709551615UL
-        \\#define LLONG_MAX 9223372036854775807LL
-        \\#define LLONG_MIN (-9223372036854775807LL - 1)
-        \\#define ULLONG_MAX 18446744073709551615ULL
-        \\#define CHAR_BIT 8
-        \\#define SCHAR_MAX 127
-        \\#define SCHAR_MIN (-128)
-        \\#define UCHAR_MAX 255
-        \\#define SHRT_MAX 32767
-        \\#define SHRT_MIN (-32768)
-        \\#define USHRT_MAX 65535
-        \\#define EOF (-1)
-        \\#define SEEK_SET 0
-        \\#define SEEK_CUR 1
-        \\#define SEEK_END 2
-        \\#endif
-        \\
+            \\#ifndef INT_MAX
+            \\#define INT_MAX 2147483647
+            \\#define INT_MIN (-2147483647 - 1)
+            \\#define UINT_MAX 4294967295U
+            \\#define LONG_MAX 9223372036854775807L
+            \\#define LONG_MIN (-9223372036854775807L - 1)
+            \\#define ULONG_MAX 18446744073709551615UL
+            \\#define LLONG_MAX 9223372036854775807LL
+            \\#define LLONG_MIN (-9223372036854775807LL - 1)
+            \\#define ULLONG_MAX 18446744073709551615ULL
+            \\#define CHAR_BIT 8
+            \\#define SCHAR_MAX 127
+            \\#define SCHAR_MIN (-128)
+            \\#define UCHAR_MAX 255
+            \\#define SHRT_MAX 32767
+            \\#define SHRT_MIN (-32768)
+            \\#define USHRT_MAX 65535
+            \\#define EOF (-1)
+            \\#define SEEK_SET 0
+            \\#define SEEK_CUR 1
+            \\#define SEEK_END 2
+            \\#endif
+            \\
         )
     }
 
@@ -15865,10 +15865,21 @@ fn gen_stmt(ctx: mut ref CgCtx, stmt: ref parser.Node) void = trust {
         if expr != none && expr.kind == parser.NK_BUILTIN
         && cstr.cmp(parser.node_str_raw(expr.d0), c"va_start") == 0 {
             val ap_tmp: i64 = fresh_tmp(ctx)
-            val ap_buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 128 as usize) as ref u8
-            @snprintf(ap_buf, 128, "    %%t{lld} =l alloc8 32\n    vastart %%t{lld}\n", {ap_tmp, ap_tmp})
+            val ap_buf: ref u8 = allocators.ScopedArena.alloc_or_none(
+                ctx.arena,
+                128 as usize
+            ) as ref u8
+            @snprintf(
+                ap_buf,
+                128,
+                "    %%t{lld} =l alloc8 32\n    vastart %%t{lld}\n",
+                {ap_tmp, ap_tmp}
+            )
             emit(ctx, ap_buf)
-            val qname: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 32 as usize) as ref u8
+            val qname: ref u8 = allocators.ScopedArena.alloc_or_none(
+                ctx.arena,
+                32 as usize
+            ) as ref u8
             @snprintf(qname, 32, "%%t{lld}", {ap_tmp})
             cg_register_local_var(ctx, name, qname)
             cg_register_local_type(ctx, name, c"va_list")

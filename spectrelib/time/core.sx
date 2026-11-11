@@ -3,7 +3,7 @@ val rt    = use("../runtime")
 
 
 when posix {
-    }
+}
 
 when windows {
     extern (C, header) fn Sleep(ms: u32) void = "Sleep"

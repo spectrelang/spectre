@@ -358,9 +358,15 @@ pub fn freestanding_start_source(exe_dir: ref u8, platform: ref u8, arch: ref u8
     if cstr.cmp(platform, c"linux") != 0 {
         if cstr.cmp(platform, c"windows") == 0 {
             if cstr.cmp(arch, c"aarch64") == 0 {
-                return path.join_cstr(exe_dir, c"spectrelib/csources/freestanding/start_windows_aarch64.S")
+                return path.join_cstr(
+                    exe_dir,
+                    c"spectrelib/csources/freestanding/start_windows_aarch64.S"
+                )
             }
-            return path.join_cstr(exe_dir, c"spectrelib/csources/freestanding/start_windows_x86_64.S")
+            return path.join_cstr(
+                exe_dir,
+                c"spectrelib/csources/freestanding/start_windows_x86_64.S"
+            )
         }
         return c""
     }

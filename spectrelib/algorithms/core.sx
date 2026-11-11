@@ -1,6 +1,6 @@
 val cstr       = use("std/string/cstr")
 val allocators = use("../allocators")
-val rt = use("../runtime")
+val rt         = use("../runtime")
 
 
 /// Generic sort (radix for numeric integers, insertion sort otherwise).

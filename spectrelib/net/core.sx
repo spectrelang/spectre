@@ -15,10 +15,17 @@ when posix {
         extern (C) fn recv(fd: i32, buf: ref void, len: i64, flags: i32) i64 = "sx_recv"
         extern (C) fn close(fd: i32) i32 = "sx_close"
         extern (C) fn htons(port: i32) i32 = "sx_htons"
-        extern (C) fn setsockopt(fd: i32, level: i32, opt: i32, vl: ref void, len: i32) i32 = "sx_setsockopt"
+        extern (C) fn setsockopt(
+            fd: i32,
+            level: i32,
+            opt: i32,
+            vl: ref void,
+            len: i32
+        ) i32 = "sx_setsockopt"
         extern (C) fn fcntl(fd: i32, cmd: i32, arg: i32) i32 = "sx_fcntl"
         extern (C) fn poll(fds: ref void, count: usize, timeout: i32) i32 = "sx_poll"
-    } otherwise {
+    }
+    otherwise {
         extern "sys/socket.h"
         extern "netinet/in.h"
         extern "arpa/inet.h"
@@ -32,7 +39,13 @@ when posix {
         extern (C, header) fn recv(fd: i32, buf: ref void, len: i64, flags: i32) i64 = "recv"
         extern (C, header) fn close(fd: i32) i32 = "close"
         extern (C, header) fn htons(port: i32) i32 = "htons"
-        extern (C, header) fn setsockopt(fd: i32, level: i32, opt: i32, vl: ref void, len: i32) i32 = "setsockopt"
+        extern (C, header) fn setsockopt(
+            fd: i32,
+            level: i32,
+            opt: i32,
+            vl: ref void,
+            len: i32
+        ) i32 = "setsockopt"
         extern (C, header) fn fcntl(fd: i32, cmd: i32, ...) i32 = "fcntl"
         extern (C, header) fn poll(fds: ref void, count: usize, timeout: i32) i32 = "poll"
     }

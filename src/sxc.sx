@@ -2140,7 +2140,10 @@ pub fn main() i32 = trust {
                     }
                 }
                 if !rt_ok {
-                    stdio.print("error: freestanding runtime compilation failed for '{s}'\n", {runtime_c})
+                    stdio.print(
+                        "error: freestanding runtime compilation failed for '{s}'\n",
+                        {runtime_c}
+                    )
                     os.delete(rt_tmp)
                     os.delete(qbe_file)
                     os.delete(asm_file)
@@ -2209,7 +2212,10 @@ pub fn main() i32 = trust {
                         }
                     }
                     if !start_ok {
-                        stdio.print("error: freestanding entry compilation failed for '{s}'\n", {start_source})
+                        stdio.print(
+                            "error: freestanding entry compilation failed for '{s}'\n",
+                            {start_source}
+                        )
                         os.delete(start_tmp)
                         if !runtime_obj_cached {
                             os.delete(runtime_obj_x)
@@ -2282,7 +2288,10 @@ pub fn main() i32 = trust {
                         }
                     }
                     if !sys_ok {
-                        stdio.print("error: Spectre runtime compilation failed for '{s}'\n", {sys_src})
+                        stdio.print(
+                            "error: Spectre runtime compilation failed for '{s}'\n",
+                            {sys_src}
+                        )
                         allocators.Arena.free(arena)
                         return 1
                     }
@@ -2602,10 +2611,10 @@ pub fn main() i32 = trust {
         }
         if !quiet {
             stdio.print("Compiled ({s}.{s}): {s}\n", {
-                target_platform,
-                target_arch,
-                final_output_x
-            })
+                    target_platform,
+                    target_arch,
+                    final_output_x
+                })
         }
         allocators.Arena.free(arena)
         return 0

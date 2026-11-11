@@ -6545,7 +6545,12 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
                     ctx.arena,
                     (512) as usize
                 ) as ref u8
-                @snprintf(ebuf, 512, "{s}:{lld}: '@{s}' is only valid in a C variadic function", {filename, line, bname})
+                @snprintf(
+                    ebuf,
+                    512,
+                    "{s}:{lld}: '@{s}' is only valid in a C variadic function",
+                    {filename, line, bname}
+                )
                 add_error(ctx, ebuf)
             }
             if ctx.in_unsafe_fn == 0 && ctx.in_trust == 0 {
@@ -6553,7 +6558,12 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
                     ctx.arena,
                     (512) as usize
                 ) as ref u8
-                @snprintf(ebuf, 512, "{s}:{lld}: '@{s}' can only be used in an unsafe context", {filename, line, bname})
+                @snprintf(
+                    ebuf,
+                    512,
+                    "{s}:{lld}: '@{s}' can only be used in an unsafe context",
+                    {filename, line, bname}
+                )
                 add_error(ctx, ebuf)
             } else {
                 ctx.trust_used = 1
@@ -10028,12 +10038,25 @@ fn check_fn(ctx: mut ref SemaCtx, fn_node: ref parser.Node, filename: ref u8) vo
     }
     if is_variadic != 0 && is_unsafe == 0 {
         val vbuf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, (512) as usize) as ref u8
-        @snprintf(vbuf, 512, "{s}:{lld}: C variadic function '{s}' must be marked as trust", {filename, fn_node.line, fn_name})
+        @snprintf(
+            vbuf,
+            512,
+            "{s}:{lld}: C variadic function '{s}' must be marked as trust",
+            {filename, fn_node.line, fn_name}
+        )
         add_error(ctx, vbuf)
     }
     if is_variadic != 0 && (params == none || @len(params as list[ref parser.Node]) == 0) {
-        val vbuf2: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, (512) as usize) as ref u8
-        @snprintf(vbuf2, 512, "{s}:{lld}: C variadic function '{s}' needs at least one named parameter", {filename, fn_node.line, fn_name})
+        val vbuf2: ref u8 = allocators.ScopedArena.alloc_or_none(
+            ctx.arena,
+            (512) as usize
+        ) as ref u8
+        @snprintf(
+            vbuf2,
+            512,
+            "{s}:{lld}: C variadic function '{s}' needs at least one named parameter",
+            {filename, fn_node.line, fn_name}
+        )
         add_error(ctx, vbuf2)
     }
     val prev_unsafe: i64 = ctx.in_unsafe_fn

@@ -5726,7 +5726,10 @@ fn cc_fn_prototype(ctx: mut ref CCtx, mangled: ref u8) ref u8 = trust {
     val ret_unboxed: bool = cc_is_unboxed_wrap(ctx, ret)
     val params: ref void = cc_lookup_fn_params(ctx, mangled)
     val sb: ref void = builder.StringBuilder.new()
-    val is_exported_runtime: bool = (cstr.starts_with(mangled, c"sx_") && !cstr.starts_with(mangled, c"sx__")) || cstr.starts_with(mangled, c"__sx_")
+    val is_exported_runtime: bool = (cstr.starts_with(
+            mangled,
+            c"sx_"
+        ) && !cstr.starts_with(mangled, c"sx__")) || cstr.starts_with(mangled, c"__sx_")
     if !is_exported_runtime {
         builder.StringBuilder.append_cstr(sb, c"static ")
     }
@@ -6121,15 +6124,25 @@ fn gen_builtin(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
             }
         }
         val ct: mut ref u8 = c"int64_t"
-        if cstr.cmp(type_name, c"i8") == 0 { ct = c"int8_t" }
-        elif cstr.cmp(type_name, c"u8") == 0 { ct = c"uint8_t" }
-        elif cstr.cmp(type_name, c"i16") == 0 { ct = c"int16_t" }
-        elif cstr.cmp(type_name, c"u16") == 0 { ct = c"uint16_t" }
-        elif cstr.cmp(type_name, c"i32") == 0 { ct = c"int32_t" }
-        elif cstr.cmp(type_name, c"u32") == 0 { ct = c"uint32_t" }
-        elif cstr.cmp(type_name, c"f32") == 0 { ct = c"double" }
-        elif cstr.cmp(type_name, c"f64") == 0 { ct = c"double" }
-        elif cstr.cmp(type_name, c"ref") == 0 { ct = c"int64_t" }
+        if cstr.cmp(type_name, c"i8") == 0 {
+            ct = c"int8_t"
+        } elif cstr.cmp(type_name, c"u8") == 0 {
+            ct = c"uint8_t"
+        } elif cstr.cmp(type_name, c"i16") == 0 {
+            ct = c"int16_t"
+        } elif cstr.cmp(type_name, c"u16") == 0 {
+            ct = c"uint16_t"
+        } elif cstr.cmp(type_name, c"i32") == 0 {
+            ct = c"int32_t"
+        } elif cstr.cmp(type_name, c"u32") == 0 {
+            ct = c"uint32_t"
+        } elif cstr.cmp(type_name, c"f32") == 0 {
+            ct = c"double"
+        } elif cstr.cmp(type_name, c"f64") == 0 {
+            ct = c"double"
+        } elif cstr.cmp(type_name, c"ref") == 0 {
+            ct = c"int64_t"
+        }
         val buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 256 as usize) as ref u8
         @snprintf(buf, 256, "va_arg({s}, {s})", {ap, ct})
         return cc_expr_track(ctx, buf)
@@ -7837,13 +7850,24 @@ fn gen_stmt(ctx: mut ref CCtx, stmt: ref parser.Node) void = trust {
             val params: ref void = cc_lookup_fn_params(ctx, ctx.fn_name)
             val last_name: mut ref u8 = c""
             if params != none && @len(params as list[ref parser.Node]) > 0 {
-                val last_opt = @get(params as list[ref parser.Node], (@len(params as list[ref parser.Node]) - 1) as usize)
+                val last_opt = @get(
+                    params as list[ref parser.Node],
+                    (@len(params as list[ref parser.Node]) - 1) as usize
+                )
                 if last_opt is some last {
                     last_name = parser.node_str_raw((last as ref parser.Node).d0)
                 }
             }
-            val vbuf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 256 as usize) as ref u8
-            @snprintf(vbuf, 256, "va_list t_{s}; va_start(t_{s}, t_{s});\n", {name, name, last_name})
+            val vbuf: ref u8 = allocators.ScopedArena.alloc_or_none(
+                ctx.arena,
+                256 as usize
+            ) as ref u8
+            @snprintf(
+                vbuf,
+                256,
+                "va_list t_{s}; va_start(t_{s}, t_{s});\n",
+                {name, name, last_name}
+            )
             emit(ctx, vbuf)
             cc_register_local(ctx, name, c"va_list", ty_node, 0)
             return
@@ -9962,7 +9986,15 @@ fn preregister_items(
                     @snprintf(mangled, 512, "{s}__{s}", {mod_prefix, base})
                 }
                 if params != none {
-                    cc_register_fn(ctx, node, mangled, params, ret_ty, parser.fn_is_variadic(node), false)
+                    cc_register_fn(
+                        ctx,
+                        node,
+                        mangled,
+                        params,
+                        ret_ty,
+                        parser.fn_is_variadic(node),
+                        false
+                    )
                 }
             } elif k == parser.NK_TAGGED_UNIONDEF {
                 gen_tagged_union_def(ctx, node, mod_prefix)
@@ -10534,89 +10566,89 @@ fn emit_c_preamble(ctx: ref CCtx) void = trust {
         emitln_fwd(ctx, c"extern FILE *stderr;")
         emit_c_rewrite_fmt(ctx)
     } else {
-    if cc_platform_matches(ctx, c"posix") {
-        emitln_fwd(ctx, c"#define _POSIX_C_SOURCE 200809L")
-    }
-    emitln_fwd(ctx, c"#include <stdint.h>")
-    emitln_fwd(ctx, c"#include <stdlib.h>")
-    emitln_fwd(ctx, c"#include <string.h>")
-    emitln_fwd(ctx, c"#include <stdio.h>")
-    emitln_fwd(ctx, c"#include <stdarg.h>")
-    emitln_fwd(ctx, c"#include <time.h>")
-    emit_c_rewrite_fmt(ctx)
-    if cc_platform_matches(ctx, c"posix") {
-        emitln_fwd(ctx, c"#include <sys/time.h>")
-        emitln_fwd(ctx, c"#include <sys/types.h>")
-        emitln_fwd(ctx, c"#include <sys/stat.h>")
-        emitln_fwd(ctx, c"#include <unistd.h>")
-        emitln_fwd(ctx, c"#include <dirent.h>")
-    }
-    if cc_platform_matches(ctx, c"windows") {
-        emitln_fwd(ctx, c"#ifndef WIN32_LEAN_AND_MEAN")
-        emitln_fwd(ctx, c"#define WIN32_LEAN_AND_MEAN")
-        emitln_fwd(ctx, c"#endif")
-        emitln_fwd(ctx, c"#include <windows.h>")
-        emitln_fwd(ctx, c"#include <io.h>")
-        emitln_fwd(ctx, c"#include <direct.h>")
-        emitln_fwd(ctx, c"#ifdef __MINGW32__")
-        emitln_fwd(ctx, c"#include <dirent.h>")
-        emitln_fwd(ctx, c"#include <sys/time.h>")
-        emitln_fwd(ctx, c"#endif")
-        emitln_fwd(ctx, c"#if defined(_WIN32) && !defined(__MINGW32__)")
-        emitln_fwd(ctx, c"#include <io.h>")
-        emitln_fwd(ctx, c"#include <direct.h>")
-        emitln_fwd(ctx, c"#include <fcntl.h>")
-        emitln_fwd(ctx, c"#include <sys/stat.h>")
-        emitln_fwd(
-            ctx,
-            c"static int sx__win_access(int64_t path,int32_t mode){return _access((const char*)(intptr_t)path,(int)mode);}"
-        )
-        emitln_fwd(ctx, c"#define access sx__win_access")
-        emitln_fwd(
-            ctx,
-            c"static void* sx__win_getcwd(int64_t buf,int64_t size){return (void*)_getcwd((char*)(intptr_t)buf,(int)size);}"
-        )
-        emitln_fwd(ctx, c"#define getcwd sx__win_getcwd")
-        emitln_fwd(
-            ctx,
-            c"typedef struct sx__win_dirent { int32_t d_ino; uint16_t d_reclen; uint16_t d_namlen; char d_name[260]; } sx__win_dirent;"
-        )
-        emitln_fwd(
-            ctx,
-            c"typedef struct sx__win_dir { HANDLE h; WIN32_FIND_DATAA data; int first; sx__win_dirent ent; } sx__win_dir;"
-        )
-        emitln_fwd(
-            ctx,
-            c"static void* sx__win_opendir(int64_t path){sx__win_dir*d=(sx__win_dir*)calloc(1,sizeof(sx__win_dir));if(!d)return 0;char pattern[1024];snprintf(pattern,sizeof(pattern),\"%s%c*\",(const char*)(intptr_t)path,92);d->h=FindFirstFileA(pattern,&d->data);if(d->h==INVALID_HANDLE_VALUE){free(d);return 0;}d->first=1;return d;}"
-        )
-        emitln_fwd(
-            ctx,
-            c"static void* sx__win_readdir(int64_t dir){sx__win_dir*d=(sx__win_dir*)(intptr_t)dir;if(!d)return 0;if(!d->first){if(!FindNextFileA(d->h,&d->data))return 0;}d->first=0;d->ent.d_ino=0;d->ent.d_reclen=(uint16_t)sizeof(sx__win_dirent);d->ent.d_namlen=(uint16_t)strlen(d->data.cFileName);strncpy(d->ent.d_name,d->data.cFileName,259);d->ent.d_name[259]=0;return &d->ent;}"
-        )
-        emitln_fwd(
-            ctx,
-            c"static int sx__win_closedir(int64_t dir){sx__win_dir*d=(sx__win_dir*)(intptr_t)dir;if(!d)return -1;FindClose(d->h);free(d);return 0;}"
-        )
-        emitln_fwd(ctx, c"#define opendir sx__win_opendir")
-        emitln_fwd(ctx, c"#define readdir sx__win_readdir")
-        emitln_fwd(ctx, c"#define closedir sx__win_closedir")
-        emitln_fwd(
-            ctx,
-            c"static void* sx__win_popen(int64_t cmd,int64_t mode){return (void*)_popen((const char*)(intptr_t)cmd,(const char*)(intptr_t)mode);}"
-        )
-        emitln_fwd(
-            ctx,
-            c"static int sx__win_pclose(int64_t pipe){return _pclose((FILE*)(intptr_t)pipe);}"
-        )
-        emitln_fwd(ctx, c"#define popen sx__win_popen")
-        emitln_fwd(ctx, c"#define pclose sx__win_pclose")
-        emitln_fwd(
-            ctx,
-            c"static int sx__win_gettimeofday(int64_t tv,int64_t tz){(void)tz;FILETIME ft;GetSystemTimeAsFileTime(&ft);ULARGE_INTEGER u;u.LowPart=ft.dwLowDateTime;u.HighPart=ft.dwHighDateTime;uint64_t us=(u.QuadPart-UINT64_C(116444736000000000))/UINT64_C(10);int64_t*p=(int64_t*)(intptr_t)tv;if(p){p[0]=(int64_t)(us/1000000);p[1]=(int64_t)(us%1000000);}return 0;}"
-        )
-        emitln_fwd(ctx, c"#define gettimeofday sx__win_gettimeofday")
-        emitln_fwd(ctx, c"#endif")
-    }
+        if cc_platform_matches(ctx, c"posix") {
+            emitln_fwd(ctx, c"#define _POSIX_C_SOURCE 200809L")
+        }
+        emitln_fwd(ctx, c"#include <stdint.h>")
+        emitln_fwd(ctx, c"#include <stdlib.h>")
+        emitln_fwd(ctx, c"#include <string.h>")
+        emitln_fwd(ctx, c"#include <stdio.h>")
+        emitln_fwd(ctx, c"#include <stdarg.h>")
+        emitln_fwd(ctx, c"#include <time.h>")
+        emit_c_rewrite_fmt(ctx)
+        if cc_platform_matches(ctx, c"posix") {
+            emitln_fwd(ctx, c"#include <sys/time.h>")
+            emitln_fwd(ctx, c"#include <sys/types.h>")
+            emitln_fwd(ctx, c"#include <sys/stat.h>")
+            emitln_fwd(ctx, c"#include <unistd.h>")
+            emitln_fwd(ctx, c"#include <dirent.h>")
+        }
+        if cc_platform_matches(ctx, c"windows") {
+            emitln_fwd(ctx, c"#ifndef WIN32_LEAN_AND_MEAN")
+            emitln_fwd(ctx, c"#define WIN32_LEAN_AND_MEAN")
+            emitln_fwd(ctx, c"#endif")
+            emitln_fwd(ctx, c"#include <windows.h>")
+            emitln_fwd(ctx, c"#include <io.h>")
+            emitln_fwd(ctx, c"#include <direct.h>")
+            emitln_fwd(ctx, c"#ifdef __MINGW32__")
+            emitln_fwd(ctx, c"#include <dirent.h>")
+            emitln_fwd(ctx, c"#include <sys/time.h>")
+            emitln_fwd(ctx, c"#endif")
+            emitln_fwd(ctx, c"#if defined(_WIN32) && !defined(__MINGW32__)")
+            emitln_fwd(ctx, c"#include <io.h>")
+            emitln_fwd(ctx, c"#include <direct.h>")
+            emitln_fwd(ctx, c"#include <fcntl.h>")
+            emitln_fwd(ctx, c"#include <sys/stat.h>")
+            emitln_fwd(
+                ctx,
+                c"static int sx__win_access(int64_t path,int32_t mode){return _access((const char*)(intptr_t)path,(int)mode);}"
+            )
+            emitln_fwd(ctx, c"#define access sx__win_access")
+            emitln_fwd(
+                ctx,
+                c"static void* sx__win_getcwd(int64_t buf,int64_t size){return (void*)_getcwd((char*)(intptr_t)buf,(int)size);}"
+            )
+            emitln_fwd(ctx, c"#define getcwd sx__win_getcwd")
+            emitln_fwd(
+                ctx,
+                c"typedef struct sx__win_dirent { int32_t d_ino; uint16_t d_reclen; uint16_t d_namlen; char d_name[260]; } sx__win_dirent;"
+            )
+            emitln_fwd(
+                ctx,
+                c"typedef struct sx__win_dir { HANDLE h; WIN32_FIND_DATAA data; int first; sx__win_dirent ent; } sx__win_dir;"
+            )
+            emitln_fwd(
+                ctx,
+                c"static void* sx__win_opendir(int64_t path){sx__win_dir*d=(sx__win_dir*)calloc(1,sizeof(sx__win_dir));if(!d)return 0;char pattern[1024];snprintf(pattern,sizeof(pattern),\"%s%c*\",(const char*)(intptr_t)path,92);d->h=FindFirstFileA(pattern,&d->data);if(d->h==INVALID_HANDLE_VALUE){free(d);return 0;}d->first=1;return d;}"
+            )
+            emitln_fwd(
+                ctx,
+                c"static void* sx__win_readdir(int64_t dir){sx__win_dir*d=(sx__win_dir*)(intptr_t)dir;if(!d)return 0;if(!d->first){if(!FindNextFileA(d->h,&d->data))return 0;}d->first=0;d->ent.d_ino=0;d->ent.d_reclen=(uint16_t)sizeof(sx__win_dirent);d->ent.d_namlen=(uint16_t)strlen(d->data.cFileName);strncpy(d->ent.d_name,d->data.cFileName,259);d->ent.d_name[259]=0;return &d->ent;}"
+            )
+            emitln_fwd(
+                ctx,
+                c"static int sx__win_closedir(int64_t dir){sx__win_dir*d=(sx__win_dir*)(intptr_t)dir;if(!d)return -1;FindClose(d->h);free(d);return 0;}"
+            )
+            emitln_fwd(ctx, c"#define opendir sx__win_opendir")
+            emitln_fwd(ctx, c"#define readdir sx__win_readdir")
+            emitln_fwd(ctx, c"#define closedir sx__win_closedir")
+            emitln_fwd(
+                ctx,
+                c"static void* sx__win_popen(int64_t cmd,int64_t mode){return (void*)_popen((const char*)(intptr_t)cmd,(const char*)(intptr_t)mode);}"
+            )
+            emitln_fwd(
+                ctx,
+                c"static int sx__win_pclose(int64_t pipe){return _pclose((FILE*)(intptr_t)pipe);}"
+            )
+            emitln_fwd(ctx, c"#define popen sx__win_popen")
+            emitln_fwd(ctx, c"#define pclose sx__win_pclose")
+            emitln_fwd(
+                ctx,
+                c"static int sx__win_gettimeofday(int64_t tv,int64_t tz){(void)tz;FILETIME ft;GetSystemTimeAsFileTime(&ft);ULARGE_INTEGER u;u.LowPart=ft.dwLowDateTime;u.HighPart=ft.dwHighDateTime;uint64_t us=(u.QuadPart-UINT64_C(116444736000000000))/UINT64_C(10);int64_t*p=(int64_t*)(intptr_t)tv;if(p){p[0]=(int64_t)(us/1000000);p[1]=(int64_t)(us%1000000);}return 0;}"
+            )
+            emitln_fwd(ctx, c"#define gettimeofday sx__win_gettimeofday")
+            emitln_fwd(ctx, c"#endif")
+        }
     }
     emitln_fwd(
         ctx,
@@ -11038,7 +11070,10 @@ fn emit_forward_decls(ctx: ref CCtx) void = trust {
                 @snprintf(sig, 1024, "{s} {s}(", {ret_ct, mangled})
             } elif is_inline {
                 @snprintf(sig, 1024, "static inline {s} {s}(", {ret_ct, mangled})
-            } elif (cstr.starts_with(mangled, c"sx_") && !cstr.starts_with(mangled, c"sx__")) || cstr.starts_with(mangled, c"__sx_") {
+            } elif (cstr.starts_with(
+                    mangled,
+                    c"sx_"
+                ) && !cstr.starts_with(mangled, c"sx__")) || cstr.starts_with(mangled, c"__sx_") {
                 @snprintf(sig, 1024, "{s} {s}(", {ret_ct, mangled})
             } else {
                 @snprintf(sig, 1024, "static {s} {s}(", {ret_ct, mangled})
