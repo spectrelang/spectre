@@ -158,6 +158,17 @@ if [ $BOOTSTRAP_ONLY -eq 0 ]; then
 		((failed++))
 	fi
 
+	((total++))
+	help_graph_out=$("$COMPILER" help graph 2>&1)
+	if printf '%s' "$help_graph_out" | grep -q '^graph - Visualize the project dependency tree'; then
+		echo "[PASS] help graph"
+		((passed++))
+	else
+		echo "[FAIL] help graph"
+		echo "$help_graph_out" | sed 's/^/  /'
+		((failed++))
+	fi
+
 	"$COMPILER" ./src/ast/lexer.sx -l -test
 	"$COMPILER" ./src/ast/parser.sx -l -test
 	"$COMPILER" ./src/sema/sema.sx -l -test
