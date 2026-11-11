@@ -1,0 +1,10 @@
+fn impossible(value: i32) void = {
+    pre {
+        value > 100
+        value < 50
+    }
+}
+
+pub fn main() void = {
+    impossible(10)
+}

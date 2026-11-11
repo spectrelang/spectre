@@ -1,0 +1,10 @@
+fn bounded(value: i32) void = {
+    pre {
+        value >= 0
+        value <= 100
+    }
+}
+
+pub fn main() void = {
+    bounded(101)
+}

@@ -1,0 +1,9 @@
+fn positive_only(value: i32) void = {
+    pre {
+        value > 0
+    }
+}
+
+pub fn main() void = {
+    positive_only(-1)
+}
