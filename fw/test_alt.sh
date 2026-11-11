@@ -120,7 +120,16 @@ run_std_tests() {
 
         ((total++))
 
-        "$COMPILER" "$file" -test -alt ${LINK_ARGS[@]+"${LINK_ARGS[@]}"} >"$log_file" 2>&1 < /dev/null
+        std_link_args=("${LINK_ARGS[@]+"${LINK_ARGS[@]}"}")
+        std_extra_args=()
+        # runtime/sys.sx implements the freestanding syscall layer and cannot be
+        # linked against the hosted C runtime.
+        if [[ "$file" == *"runtime/sys.sx" ]]; then
+            std_link_args=()
+            std_extra_args+=(-runtime:freestanding)
+        fi
+
+        "$COMPILER" "$file" -test -alt ${std_link_args[@]+"${std_link_args[@]}"} ${std_extra_args[@]+"${std_extra_args[@]}"} >"$log_file" 2>&1 < /dev/null
         status=$?
 
         if [ $status -eq 0 ]; then
@@ -128,7 +137,7 @@ run_std_tests() {
             ((passed++))
         else
             echo "[FAIL] $file"
-            echo "  command: $COMPILER $file -test -alt ${LINK_ARGS[*]+"${LINK_ARGS[*]}"}"
+            echo "  command: $COMPILER $file -test -alt ${std_link_args[*]+"${std_link_args[*]}"} ${std_extra_args[*]+"${std_extra_args[*]}"}"
             echo "  log: $log_file"
             sed 's/^/  /' "$log_file" | sed -n '1,240p'
             log_lines=$(wc -l < "$log_file")

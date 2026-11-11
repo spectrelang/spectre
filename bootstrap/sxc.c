@@ -10,6 +10,7 @@ static char* sx__rt_rewrite_fmt(const char* s){if(!s)return(char*)"";size_t n=st
 #include <poll.h>
 #include <pthread.h>
 #include <sched.h>
+#include <signal.h>
 #include <sys/time.h>
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -648,7 +649,7 @@ static char sx__str273[]="could not resolve library '%.*s' with pkg-config";
 static char sx__str274[]="could not find library '%.*s' on this system";
 static char sx__str275[]="v0.0.16";
 static char sx__str276[]="VERSION";
-static char sx__str277[]="fe6160a";
+static char sx__str277[]="00cdb9e";
 static char sx__str278[]="unknown";
 static char sx__str279[]="usage:";
 static char sx__str280[]="  spectre <command> [args] | <input.sx> [options]";
@@ -2558,30 +2559,30 @@ static char sx__str2183[]="extern FILE *stdin;";
 static char sx__str2184[]="extern FILE *stdout;";
 static char sx__str2185[]="extern FILE *stderr;";
 static char sx__str2186[]="#define _POSIX_C_SOURCE 200809L";
-static char sx__str2187[]="#ifndef _NO_CRT_STDIO_INLINE";
-static char sx__str2188[]="#define _NO_CRT_STDIO_INLINE";
-static char sx__str2189[]="#ifndef _CRT_SECURE_NO_WARNINGS";
-static char sx__str2190[]="#define _CRT_SECURE_NO_WARNINGS";
-static char sx__str2191[]="#include <stdint.h>";
-static char sx__str2192[]="#include <stdlib.h>";
-static char sx__str2193[]="#include <string.h>";
-static char sx__str2194[]="#include <stdio.h>";
-static char sx__str2195[]="#include <stdarg.h>";
-static char sx__str2196[]="#include <time.h>";
-static char sx__str2197[]="#include <ctype.h>";
-static char sx__str2198[]="#include <poll.h>";
-static char sx__str2199[]="#include <pthread.h>";
-static char sx__str2200[]="#include <sched.h>";
-static char sx__str2201[]="#include <sys/time.h>";
-static char sx__str2202[]="#include <sys/types.h>";
-static char sx__str2203[]="#include <sys/stat.h>";
-static char sx__str2204[]="#include <sys/utsname.h>";
-static char sx__str2205[]="#include <sys/socket.h>";
-static char sx__str2206[]="#include <netinet/in.h>";
-static char sx__str2207[]="#include <arpa/inet.h>";
-static char sx__str2208[]="#include <unistd.h>";
-static char sx__str2209[]="#include <dirent.h>";
-static char sx__str2210[]="#include <sys/random.h>";
+static char sx__str2187[]="#ifndef _CRT_SECURE_NO_WARNINGS";
+static char sx__str2188[]="#define _CRT_SECURE_NO_WARNINGS";
+static char sx__str2189[]="#include <stdint.h>";
+static char sx__str2190[]="#include <stdlib.h>";
+static char sx__str2191[]="#include <string.h>";
+static char sx__str2192[]="#include <stdio.h>";
+static char sx__str2193[]="#include <stdarg.h>";
+static char sx__str2194[]="#include <time.h>";
+static char sx__str2195[]="#include <ctype.h>";
+static char sx__str2196[]="#include <poll.h>";
+static char sx__str2197[]="#include <pthread.h>";
+static char sx__str2198[]="#include <sched.h>";
+static char sx__str2199[]="#include <signal.h>";
+static char sx__str2200[]="#include <sys/time.h>";
+static char sx__str2201[]="#include <sys/types.h>";
+static char sx__str2202[]="#include <sys/stat.h>";
+static char sx__str2203[]="#include <sys/utsname.h>";
+static char sx__str2204[]="#include <sys/socket.h>";
+static char sx__str2205[]="#include <netinet/in.h>";
+static char sx__str2206[]="#include <arpa/inet.h>";
+static char sx__str2207[]="#include <unistd.h>";
+static char sx__str2208[]="#include <dirent.h>";
+static char sx__str2209[]="#include <sys/random.h>";
+static char sx__str2210[]="extern void arc4random_buf(void*,size_t);";
 static char sx__str2211[]="static int sx__darwin_getrandom(void*buf,size_t n,unsigned flags){(void)flags;arc4random_buf(buf,n);return(int)n;}\n#define getrandom sx__darwin_getrandom";
 static char sx__str2212[]="#ifndef WIN32_LEAN_AND_MEAN";
 static char sx__str2213[]="#define WIN32_LEAN_AND_MEAN";
@@ -9438,7 +9439,7 @@ return 0;
 }
 
 static int32_t rt__mutex_init(int64_t t_m){
-return(int32_t)(pthread_mutex_init(t_m));
+return(int32_t)(pthread_mutex_init(t_m,0));
 return 0;
 }
 
@@ -78306,19 +78307,18 @@ if(alt_codegen__cc_platform_matches(t_ctx,((int64_t)(intptr_t)sx__str242)))
 (void)(alt_codegen__emitln_fwd(t_ctx,((int64_t)(intptr_t)sx__str2187)));
 (void)(alt_codegen__emitln_fwd(t_ctx,((int64_t)(intptr_t)sx__str2188)));
 (void)(alt_codegen__emitln_fwd(t_ctx,((int64_t)(intptr_t)sx__str2037)));
+}
 (void)(alt_codegen__emitln_fwd(t_ctx,((int64_t)(intptr_t)sx__str2189)));
 (void)(alt_codegen__emitln_fwd(t_ctx,((int64_t)(intptr_t)sx__str2190)));
-(void)(alt_codegen__emitln_fwd(t_ctx,((int64_t)(intptr_t)sx__str2037)));
-}
 (void)(alt_codegen__emitln_fwd(t_ctx,((int64_t)(intptr_t)sx__str2191)));
 (void)(alt_codegen__emitln_fwd(t_ctx,((int64_t)(intptr_t)sx__str2192)));
 (void)(alt_codegen__emitln_fwd(t_ctx,((int64_t)(intptr_t)sx__str2193)));
 (void)(alt_codegen__emitln_fwd(t_ctx,((int64_t)(intptr_t)sx__str2194)));
-(void)(alt_codegen__emitln_fwd(t_ctx,((int64_t)(intptr_t)sx__str2195)));
-(void)(alt_codegen__emitln_fwd(t_ctx,((int64_t)(intptr_t)sx__str2196)));
 (void)(alt_codegen__emit_c_rewrite_fmt(t_ctx));
 if(alt_codegen__cc_platform_matches(t_ctx,((int64_t)(intptr_t)sx__str790)))
 {
+(void)(alt_codegen__emitln_fwd(t_ctx,((int64_t)(intptr_t)sx__str2195)));
+(void)(alt_codegen__emitln_fwd(t_ctx,((int64_t)(intptr_t)sx__str2196)));
 (void)(alt_codegen__emitln_fwd(t_ctx,((int64_t)(intptr_t)sx__str2197)));
 (void)(alt_codegen__emitln_fwd(t_ctx,((int64_t)(intptr_t)sx__str2198)));
 (void)(alt_codegen__emitln_fwd(t_ctx,((int64_t)(intptr_t)sx__str2199)));
@@ -78331,14 +78331,14 @@ if(alt_codegen__cc_platform_matches(t_ctx,((int64_t)(intptr_t)sx__str790)))
 (void)(alt_codegen__emitln_fwd(t_ctx,((int64_t)(intptr_t)sx__str2206)));
 (void)(alt_codegen__emitln_fwd(t_ctx,((int64_t)(intptr_t)sx__str2207)));
 (void)(alt_codegen__emitln_fwd(t_ctx,((int64_t)(intptr_t)sx__str2208)));
-(void)(alt_codegen__emitln_fwd(t_ctx,((int64_t)(intptr_t)sx__str2209)));
 }
 if(alt_codegen__cc_platform_matches(t_ctx,((int64_t)(intptr_t)sx__str252)))
 {
-(void)(alt_codegen__emitln_fwd(t_ctx,((int64_t)(intptr_t)sx__str2210)));
+(void)(alt_codegen__emitln_fwd(t_ctx,((int64_t)(intptr_t)sx__str2209)));
 }
 if(alt_codegen__cc_platform_matches(t_ctx,((int64_t)(intptr_t)sx__str245)))
 {
+(void)(alt_codegen__emitln_fwd(t_ctx,((int64_t)(intptr_t)sx__str2210)));
 (void)(alt_codegen__emitln_fwd(t_ctx,((int64_t)(intptr_t)sx__str2211)));
 }
 if(alt_codegen__cc_platform_matches(t_ctx,((int64_t)(intptr_t)sx__str242)))
@@ -78350,14 +78350,14 @@ if(alt_codegen__cc_platform_matches(t_ctx,((int64_t)(intptr_t)sx__str242)))
 (void)(alt_codegen__emitln_fwd(t_ctx,((int64_t)(intptr_t)sx__str2215)));
 (void)(alt_codegen__emitln_fwd(t_ctx,((int64_t)(intptr_t)sx__str2216)));
 (void)(alt_codegen__emitln_fwd(t_ctx,((int64_t)(intptr_t)sx__str2217)));
-(void)(alt_codegen__emitln_fwd(t_ctx,((int64_t)(intptr_t)sx__str2209)));
-(void)(alt_codegen__emitln_fwd(t_ctx,((int64_t)(intptr_t)sx__str2201)));
+(void)(alt_codegen__emitln_fwd(t_ctx,((int64_t)(intptr_t)sx__str2208)));
+(void)(alt_codegen__emitln_fwd(t_ctx,((int64_t)(intptr_t)sx__str2200)));
 (void)(alt_codegen__emitln_fwd(t_ctx,((int64_t)(intptr_t)sx__str2037)));
 (void)(alt_codegen__emitln_fwd(t_ctx,((int64_t)(intptr_t)sx__str2218)));
 (void)(alt_codegen__emitln_fwd(t_ctx,((int64_t)(intptr_t)sx__str2215)));
 (void)(alt_codegen__emitln_fwd(t_ctx,((int64_t)(intptr_t)sx__str2216)));
 (void)(alt_codegen__emitln_fwd(t_ctx,((int64_t)(intptr_t)sx__str2219)));
-(void)(alt_codegen__emitln_fwd(t_ctx,((int64_t)(intptr_t)sx__str2203)));
+(void)(alt_codegen__emitln_fwd(t_ctx,((int64_t)(intptr_t)sx__str2202)));
 (void)(alt_codegen__emitln_fwd(t_ctx,((int64_t)(intptr_t)sx__str2220)));
 (void)(alt_codegen__emitln_fwd(t_ctx,((int64_t)(intptr_t)sx__str2221)));
 (void)(alt_codegen__emitln_fwd(t_ctx,((int64_t)(intptr_t)sx__str2222)));

@@ -263,7 +263,7 @@ otherwise {
     extern (C, header) fn c_pthread_detach(thread: ref void) i32 = "pthread_detach"
     extern (C, header) fn c_pthread_self() ref void = "pthread_self"
     extern (C, header) fn c_sched_yield() i32 = "sched_yield"
-    extern (C, header) fn c_mutex_init(m: ref void) i32 = "pthread_mutex_init"
+    extern (C, header) fn c_mutex_init(m: ref void, attr: ref void) i32 = "pthread_mutex_init"
     extern (C, header) fn c_mutex_destroy(m: ref void) i32 = "pthread_mutex_destroy"
     extern (C, header) fn c_mutex_lock(m: ref void) i32 = "pthread_mutex_lock"
     extern (C, header) fn c_mutex_unlock(m: ref void) i32 = "pthread_mutex_unlock"
@@ -1055,7 +1055,7 @@ pub fn mutex_init(m: ref void) i32 = trust {
         return sx_mutex_init(m)
     }
     otherwise {
-        return c_mutex_init(m)
+        return c_mutex_init(m, none)
     }
 }
 

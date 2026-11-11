@@ -1904,8 +1904,9 @@ export function w $rt__sched_yield() {
 
 export function w $rt__mutex_init(l %m) {
 @start
-    %t0 =w call $pthread_mutex_init(l %m)
-    ret %t0
+    %t0 =l copy 0
+    %t1 =w call $pthread_mutex_init(l %m, l %t0)
+    ret %t1
 }
 
 export function w $rt__mutex_destroy(l %m) {
@@ -247857,197 +247858,195 @@ function w $alt_codegen__emit_c_preamble(l %ctx) {
     %t173 =w call $alt_codegen__emitln_fwd(l %ctx, l %t172)
     %t174 =l copy $__str2156
     %t175 =w call $alt_codegen__emitln_fwd(l %ctx, l %t174)
+    jmp @lbl44145
+@lbl44145
     %t176 =l copy $__str2308
     %t177 =w call $alt_codegen__emitln_fwd(l %ctx, l %t176)
     %t178 =l copy $__str2309
     %t179 =w call $alt_codegen__emitln_fwd(l %ctx, l %t178)
-    %t180 =l copy $__str2156
+    %t180 =l copy $__str2310
     %t181 =w call $alt_codegen__emitln_fwd(l %ctx, l %t180)
-    jmp @lbl44145
-@lbl44145
-    %t182 =l copy $__str2310
+    %t182 =l copy $__str2311
     %t183 =w call $alt_codegen__emitln_fwd(l %ctx, l %t182)
-    %t184 =l copy $__str2311
+    %t184 =l copy $__str2312
     %t185 =w call $alt_codegen__emitln_fwd(l %ctx, l %t184)
-    %t186 =l copy $__str2312
+    %t186 =l copy $__str2313
     %t187 =w call $alt_codegen__emitln_fwd(l %ctx, l %t186)
-    %t188 =l copy $__str2313
-    %t189 =w call $alt_codegen__emitln_fwd(l %ctx, l %t188)
-    %t190 =l copy $__str2314
-    %t191 =w call $alt_codegen__emitln_fwd(l %ctx, l %t190)
-    %t192 =l copy $__str2315
-    %t193 =w call $alt_codegen__emitln_fwd(l %ctx, l %t192)
-    %t194 =w call $alt_codegen__emit_c_rewrite_fmt(l %ctx)
-    %t195 =l copy $__str886
-    %t196 =w call $alt_codegen__cc_platform_matches(l %ctx, l %t195)
-    jnz %t196, @lbl44147, @lbl44148
+    %t188 =w call $alt_codegen__emit_c_rewrite_fmt(l %ctx)
+    %t189 =l copy $__str886
+    %t190 =w call $alt_codegen__cc_platform_matches(l %ctx, l %t189)
+    jnz %t190, @lbl44147, @lbl44148
 @lbl44147
-    %t197 =l copy $__str2316
+    %t191 =l copy $__str2314
+    %t192 =w call $alt_codegen__emitln_fwd(l %ctx, l %t191)
+    %t193 =l copy $__str2315
+    %t194 =w call $alt_codegen__emitln_fwd(l %ctx, l %t193)
+    %t195 =l copy $__str2316
+    %t196 =w call $alt_codegen__emitln_fwd(l %ctx, l %t195)
+    %t197 =l copy $__str2317
     %t198 =w call $alt_codegen__emitln_fwd(l %ctx, l %t197)
-    %t199 =l copy $__str2317
+    %t199 =l copy $__str2318
     %t200 =w call $alt_codegen__emitln_fwd(l %ctx, l %t199)
-    %t201 =l copy $__str2318
+    %t201 =l copy $__str2319
     %t202 =w call $alt_codegen__emitln_fwd(l %ctx, l %t201)
-    %t203 =l copy $__str2319
+    %t203 =l copy $__str2320
     %t204 =w call $alt_codegen__emitln_fwd(l %ctx, l %t203)
-    %t205 =l copy $__str2320
+    %t205 =l copy $__str2321
     %t206 =w call $alt_codegen__emitln_fwd(l %ctx, l %t205)
-    %t207 =l copy $__str2321
+    %t207 =l copy $__str2322
     %t208 =w call $alt_codegen__emitln_fwd(l %ctx, l %t207)
-    %t209 =l copy $__str2322
+    %t209 =l copy $__str2323
     %t210 =w call $alt_codegen__emitln_fwd(l %ctx, l %t209)
-    %t211 =l copy $__str2323
+    %t211 =l copy $__str2324
     %t212 =w call $alt_codegen__emitln_fwd(l %ctx, l %t211)
-    %t213 =l copy $__str2324
+    %t213 =l copy $__str2325
     %t214 =w call $alt_codegen__emitln_fwd(l %ctx, l %t213)
-    %t215 =l copy $__str2325
+    %t215 =l copy $__str2326
     %t216 =w call $alt_codegen__emitln_fwd(l %ctx, l %t215)
-    %t217 =l copy $__str2326
+    %t217 =l copy $__str2327
     %t218 =w call $alt_codegen__emitln_fwd(l %ctx, l %t217)
-    %t219 =l copy $__str2327
-    %t220 =w call $alt_codegen__emitln_fwd(l %ctx, l %t219)
-    %t221 =l copy $__str2328
-    %t222 =w call $alt_codegen__emitln_fwd(l %ctx, l %t221)
     jmp @lbl44148
 @lbl44148
-    %t223 =l copy $__str340
-    %t224 =w call $alt_codegen__cc_platform_matches(l %ctx, l %t223)
-    jnz %t224, @lbl44150, @lbl44151
+    %t219 =l copy $__str340
+    %t220 =w call $alt_codegen__cc_platform_matches(l %ctx, l %t219)
+    jnz %t220, @lbl44150, @lbl44151
 @lbl44150
-    %t225 =l copy $__str2329
-    %t226 =w call $alt_codegen__emitln_fwd(l %ctx, l %t225)
+    %t221 =l copy $__str2328
+    %t222 =w call $alt_codegen__emitln_fwd(l %ctx, l %t221)
     jmp @lbl44151
 @lbl44151
-    %t227 =l copy $__str333
-    %t228 =w call $alt_codegen__cc_platform_matches(l %ctx, l %t227)
-    jnz %t228, @lbl44153, @lbl44154
+    %t223 =l copy $__str333
+    %t224 =w call $alt_codegen__cc_platform_matches(l %ctx, l %t223)
+    jnz %t224, @lbl44153, @lbl44154
 @lbl44153
-    %t229 =l copy $__str2330
-    %t230 =w call $alt_codegen__emitln_fwd(l %ctx, l %t229)
+    %t225 =l copy $__str2329
+    %t226 =w call $alt_codegen__emitln_fwd(l %ctx, l %t225)
+    %t227 =l copy $__str2330
+    %t228 =w call $alt_codegen__emitln_fwd(l %ctx, l %t227)
     jmp @lbl44154
 @lbl44154
-    %t231 =l copy $__str330
-    %t232 =w call $alt_codegen__cc_platform_matches(l %ctx, l %t231)
-    jnz %t232, @lbl44156, @lbl44157
+    %t229 =l copy $__str330
+    %t230 =w call $alt_codegen__cc_platform_matches(l %ctx, l %t229)
+    jnz %t230, @lbl44156, @lbl44157
 @lbl44156
-    %t233 =l copy $__str2331
+    %t231 =l copy $__str2331
+    %t232 =w call $alt_codegen__emitln_fwd(l %ctx, l %t231)
+    %t233 =l copy $__str2332
     %t234 =w call $alt_codegen__emitln_fwd(l %ctx, l %t233)
-    %t235 =l copy $__str2332
+    %t235 =l copy $__str2156
     %t236 =w call $alt_codegen__emitln_fwd(l %ctx, l %t235)
-    %t237 =l copy $__str2156
+    %t237 =l copy $__str2333
     %t238 =w call $alt_codegen__emitln_fwd(l %ctx, l %t237)
-    %t239 =l copy $__str2333
+    %t239 =l copy $__str2334
     %t240 =w call $alt_codegen__emitln_fwd(l %ctx, l %t239)
-    %t241 =l copy $__str2334
+    %t241 =l copy $__str2335
     %t242 =w call $alt_codegen__emitln_fwd(l %ctx, l %t241)
-    %t243 =l copy $__str2335
+    %t243 =l copy $__str2336
     %t244 =w call $alt_codegen__emitln_fwd(l %ctx, l %t243)
-    %t245 =l copy $__str2336
+    %t245 =l copy $__str2327
     %t246 =w call $alt_codegen__emitln_fwd(l %ctx, l %t245)
-    %t247 =l copy $__str2328
+    %t247 =l copy $__str2319
     %t248 =w call $alt_codegen__emitln_fwd(l %ctx, l %t247)
-    %t249 =l copy $__str2320
+    %t249 =l copy $__str2156
     %t250 =w call $alt_codegen__emitln_fwd(l %ctx, l %t249)
-    %t251 =l copy $__str2156
+    %t251 =l copy $__str2337
     %t252 =w call $alt_codegen__emitln_fwd(l %ctx, l %t251)
-    %t253 =l copy $__str2337
+    %t253 =l copy $__str2334
     %t254 =w call $alt_codegen__emitln_fwd(l %ctx, l %t253)
-    %t255 =l copy $__str2334
+    %t255 =l copy $__str2335
     %t256 =w call $alt_codegen__emitln_fwd(l %ctx, l %t255)
-    %t257 =l copy $__str2335
+    %t257 =l copy $__str2338
     %t258 =w call $alt_codegen__emitln_fwd(l %ctx, l %t257)
-    %t259 =l copy $__str2338
+    %t259 =l copy $__str2321
     %t260 =w call $alt_codegen__emitln_fwd(l %ctx, l %t259)
-    %t261 =l copy $__str2322
+    %t261 =l copy $__str2339
     %t262 =w call $alt_codegen__emitln_fwd(l %ctx, l %t261)
-    %t263 =l copy $__str2339
+    %t263 =l copy $__str2340
     %t264 =w call $alt_codegen__emitln_fwd(l %ctx, l %t263)
-    %t265 =l copy $__str2340
+    %t265 =l copy $__str2341
     %t266 =w call $alt_codegen__emitln_fwd(l %ctx, l %t265)
-    %t267 =l copy $__str2341
+    %t267 =l copy $__str2342
     %t268 =w call $alt_codegen__emitln_fwd(l %ctx, l %t267)
-    %t269 =l copy $__str2342
+    %t269 =l copy $__str2343
     %t270 =w call $alt_codegen__emitln_fwd(l %ctx, l %t269)
-    %t271 =l copy $__str2343
+    %t271 =l copy $__str2344
     %t272 =w call $alt_codegen__emitln_fwd(l %ctx, l %t271)
-    %t273 =l copy $__str2344
+    %t273 =l copy $__str2345
     %t274 =w call $alt_codegen__emitln_fwd(l %ctx, l %t273)
-    %t275 =l copy $__str2345
+    %t275 =l copy $__str2346
     %t276 =w call $alt_codegen__emitln_fwd(l %ctx, l %t275)
-    %t277 =l copy $__str2346
+    %t277 =l copy $__str2347
     %t278 =w call $alt_codegen__emitln_fwd(l %ctx, l %t277)
-    %t279 =l copy $__str2347
+    %t279 =l copy $__str2348
     %t280 =w call $alt_codegen__emitln_fwd(l %ctx, l %t279)
-    %t281 =l copy $__str2348
+    %t281 =l copy $__str2349
     %t282 =w call $alt_codegen__emitln_fwd(l %ctx, l %t281)
-    %t283 =l copy $__str2349
+    %t283 =l copy $__str2350
     %t284 =w call $alt_codegen__emitln_fwd(l %ctx, l %t283)
-    %t285 =l copy $__str2350
+    %t285 =l copy $__str2351
     %t286 =w call $alt_codegen__emitln_fwd(l %ctx, l %t285)
-    %t287 =l copy $__str2351
+    %t287 =l copy $__str2352
     %t288 =w call $alt_codegen__emitln_fwd(l %ctx, l %t287)
-    %t289 =l copy $__str2352
+    %t289 =l copy $__str2353
     %t290 =w call $alt_codegen__emitln_fwd(l %ctx, l %t289)
-    %t291 =l copy $__str2353
+    %t291 =l copy $__str2354
     %t292 =w call $alt_codegen__emitln_fwd(l %ctx, l %t291)
-    %t293 =l copy $__str2354
+    %t293 =l copy $__str2355
     %t294 =w call $alt_codegen__emitln_fwd(l %ctx, l %t293)
-    %t295 =l copy $__str2355
+    %t295 =l copy $__str2356
     %t296 =w call $alt_codegen__emitln_fwd(l %ctx, l %t295)
-    %t297 =l copy $__str2356
+    %t297 =l copy $__str2156
     %t298 =w call $alt_codegen__emitln_fwd(l %ctx, l %t297)
-    %t299 =l copy $__str2156
-    %t300 =w call $alt_codegen__emitln_fwd(l %ctx, l %t299)
     jmp @lbl44157
 @lbl44157
     jmp @lbl44139
 @lbl44139
-    %t301 =l copy $__str2357
+    %t299 =l copy $__str2357
+    %t300 =w call $alt_codegen__emitln_fwd(l %ctx, l %t299)
+    %t301 =l copy $__str2358
     %t302 =w call $alt_codegen__emitln_fwd(l %ctx, l %t301)
-    %t303 =l copy $__str2358
+    %t303 =l copy $__str2359
     %t304 =w call $alt_codegen__emitln_fwd(l %ctx, l %t303)
-    %t305 =l copy $__str2359
+    %t305 =l copy $__str2360
     %t306 =w call $alt_codegen__emitln_fwd(l %ctx, l %t305)
-    %t307 =l copy $__str2360
+    %t307 =l copy $__str2361
     %t308 =w call $alt_codegen__emitln_fwd(l %ctx, l %t307)
-    %t309 =l copy $__str2361
+    %t309 =l copy $__str2362
     %t310 =w call $alt_codegen__emitln_fwd(l %ctx, l %t309)
-    %t311 =l copy $__str2362
+    %t311 =l copy $__str2363
     %t312 =w call $alt_codegen__emitln_fwd(l %ctx, l %t311)
-    %t313 =l copy $__str2363
+    %t313 =l copy $__str2364
     %t314 =w call $alt_codegen__emitln_fwd(l %ctx, l %t313)
-    %t315 =l copy $__str2364
+    %t315 =l copy $__str2365
     %t316 =w call $alt_codegen__emitln_fwd(l %ctx, l %t315)
-    %t317 =l copy $__str2365
+    %t317 =l copy $__str2366
     %t318 =w call $alt_codegen__emitln_fwd(l %ctx, l %t317)
-    %t319 =l copy $__str2366
+    %t319 =l copy $__str2367
     %t320 =w call $alt_codegen__emitln_fwd(l %ctx, l %t319)
-    %t321 =l copy $__str2367
+    %t321 =l copy $__str2368
     %t322 =w call $alt_codegen__emitln_fwd(l %ctx, l %t321)
-    %t323 =l copy $__str2368
+    %t323 =l copy $__str2369
     %t324 =w call $alt_codegen__emitln_fwd(l %ctx, l %t323)
-    %t325 =l copy $__str2369
+    %t325 =l copy $__str2370
     %t326 =w call $alt_codegen__emitln_fwd(l %ctx, l %t325)
-    %t327 =l copy $__str2370
+    %t327 =l copy $__str2371
     %t328 =w call $alt_codegen__emitln_fwd(l %ctx, l %t327)
-    %t329 =l copy $__str2371
+    %t329 =l copy $__str2372
     %t330 =w call $alt_codegen__emitln_fwd(l %ctx, l %t329)
-    %t331 =l copy $__str2372
+    %t331 =l copy $__str2373
     %t332 =w call $alt_codegen__emitln_fwd(l %ctx, l %t331)
-    %t333 =l copy $__str2373
+    %t333 =l copy $__str2374
     %t334 =w call $alt_codegen__emitln_fwd(l %ctx, l %t333)
-    %t335 =l copy $__str2374
+    %t335 =l copy $__str2375
     %t336 =w call $alt_codegen__emitln_fwd(l %ctx, l %t335)
-    %t337 =l copy $__str2375
+    %t337 =l copy $__str2376
     %t338 =w call $alt_codegen__emitln_fwd(l %ctx, l %t337)
-    %t339 =l copy $__str2376
-    %t340 =w call $alt_codegen__emitln_fwd(l %ctx, l %t339)
-    %t342 =l add %ctx, 348
-    %t341 =l loadub %t342
-    jnz %t341, @lbl44159, @lbl44160
+    %t340 =l add %ctx, 348
+    %t339 =l loadub %t340
+    jnz %t339, @lbl44159, @lbl44160
 @lbl44159
-    %t343 =l call $codegen__leak_runtime_c_source()
-    %t344 =w call $alt_codegen__emitln_view_fwd(l %ctx, l %t343)
+    %t341 =l call $codegen__leak_runtime_c_source()
+    %t342 =w call $alt_codegen__emitln_view_fwd(l %ctx, l %t341)
     jmp @lbl44160
 @lbl44160
     ret 0
@@ -337479,7 +337478,7 @@ data $__str368 = { b "spectre: precondition 'valid_millis' violated in function 
 data $__str369 = { b "spectre: precondition 'non_negative' violated in function 'std__time__sleep_millis'\n", b 0 }
 data $__str370 = { b "v0.0.16", b 0 }
 data $__str371 = { b "VERSION", b 0 }
-data $__str372 = { b "fe6160a", b 0 }
+data $__str372 = { b "00cdb9e", b 0 }
 data $__str373 = { b "unknown", b 0 }
 data $__str374 = { b "usage:", b 0 }
 data $__str375 = { b "  spectre <command> [args] | <input.sx> [options]", b 0 }
@@ -339413,30 +339412,30 @@ data $__str2302 = { b "extern FILE *stdin;", b 0 }
 data $__str2303 = { b "extern FILE *stdout;", b 0 }
 data $__str2304 = { b "extern FILE *stderr;", b 0 }
 data $__str2305 = { b "#define _POSIX_C_SOURCE 200809L", b 0 }
-data $__str2306 = { b "#ifndef _NO_CRT_STDIO_INLINE", b 0 }
-data $__str2307 = { b "#define _NO_CRT_STDIO_INLINE", b 0 }
-data $__str2308 = { b "#ifndef _CRT_SECURE_NO_WARNINGS", b 0 }
-data $__str2309 = { b "#define _CRT_SECURE_NO_WARNINGS", b 0 }
-data $__str2310 = { b "#include <stdint.h>", b 0 }
-data $__str2311 = { b "#include <stdlib.h>", b 0 }
-data $__str2312 = { b "#include <string.h>", b 0 }
-data $__str2313 = { b "#include <stdio.h>", b 0 }
-data $__str2314 = { b "#include <stdarg.h>", b 0 }
-data $__str2315 = { b "#include <time.h>", b 0 }
-data $__str2316 = { b "#include <ctype.h>", b 0 }
-data $__str2317 = { b "#include <poll.h>", b 0 }
-data $__str2318 = { b "#include <pthread.h>", b 0 }
-data $__str2319 = { b "#include <sched.h>", b 0 }
-data $__str2320 = { b "#include <sys/time.h>", b 0 }
-data $__str2321 = { b "#include <sys/types.h>", b 0 }
-data $__str2322 = { b "#include <sys/stat.h>", b 0 }
-data $__str2323 = { b "#include <sys/utsname.h>", b 0 }
-data $__str2324 = { b "#include <sys/socket.h>", b 0 }
-data $__str2325 = { b "#include <netinet/in.h>", b 0 }
-data $__str2326 = { b "#include <arpa/inet.h>", b 0 }
-data $__str2327 = { b "#include <unistd.h>", b 0 }
-data $__str2328 = { b "#include <dirent.h>", b 0 }
-data $__str2329 = { b "#include <sys/random.h>", b 0 }
+data $__str2306 = { b "#ifndef _CRT_SECURE_NO_WARNINGS", b 0 }
+data $__str2307 = { b "#define _CRT_SECURE_NO_WARNINGS", b 0 }
+data $__str2308 = { b "#include <stdint.h>", b 0 }
+data $__str2309 = { b "#include <stdlib.h>", b 0 }
+data $__str2310 = { b "#include <string.h>", b 0 }
+data $__str2311 = { b "#include <stdio.h>", b 0 }
+data $__str2312 = { b "#include <stdarg.h>", b 0 }
+data $__str2313 = { b "#include <time.h>", b 0 }
+data $__str2314 = { b "#include <ctype.h>", b 0 }
+data $__str2315 = { b "#include <poll.h>", b 0 }
+data $__str2316 = { b "#include <pthread.h>", b 0 }
+data $__str2317 = { b "#include <sched.h>", b 0 }
+data $__str2318 = { b "#include <signal.h>", b 0 }
+data $__str2319 = { b "#include <sys/time.h>", b 0 }
+data $__str2320 = { b "#include <sys/types.h>", b 0 }
+data $__str2321 = { b "#include <sys/stat.h>", b 0 }
+data $__str2322 = { b "#include <sys/utsname.h>", b 0 }
+data $__str2323 = { b "#include <sys/socket.h>", b 0 }
+data $__str2324 = { b "#include <netinet/in.h>", b 0 }
+data $__str2325 = { b "#include <arpa/inet.h>", b 0 }
+data $__str2326 = { b "#include <unistd.h>", b 0 }
+data $__str2327 = { b "#include <dirent.h>", b 0 }
+data $__str2328 = { b "#include <sys/random.h>", b 0 }
+data $__str2329 = { b "extern void arc4random_buf(void*,size_t);", b 0 }
 data $__str2330 = { b "static int sx__darwin_getrandom(void*buf,size_t n,unsigned flags){(void)flags;arc4random_buf(buf,n);return(int)n;}\n#define getrandom sx__darwin_getrandom", b 0 }
 data $__str2331 = { b "#ifndef WIN32_LEAN_AND_MEAN", b 0 }
 data $__str2332 = { b "#define WIN32_LEAN_AND_MEAN", b 0 }

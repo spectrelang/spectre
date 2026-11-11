@@ -10574,11 +10574,6 @@ fn emit_c_preamble(ctx: ref CCtx) void = trust {
             emitln_fwd(ctx, c"#define _POSIX_C_SOURCE 200809L")
         }
         if cc_platform_matches(ctx, c"windows") {
-            // This needs to be done because of UCRT defining some stdio
-            // headers inline.
-            emitln_fwd(ctx, c"#ifndef _NO_CRT_STDIO_INLINE")
-            emitln_fwd(ctx, c"#define _NO_CRT_STDIO_INLINE")
-            emitln_fwd(ctx, c"#endif")
             emitln_fwd(ctx, c"#ifndef _CRT_SECURE_NO_WARNINGS")
             emitln_fwd(ctx, c"#define _CRT_SECURE_NO_WARNINGS")
             emitln_fwd(ctx, c"#endif")
@@ -10595,6 +10590,7 @@ fn emit_c_preamble(ctx: ref CCtx) void = trust {
             emitln_fwd(ctx, c"#include <poll.h>")
             emitln_fwd(ctx, c"#include <pthread.h>")
             emitln_fwd(ctx, c"#include <sched.h>")
+            emitln_fwd(ctx, c"#include <signal.h>")
             emitln_fwd(ctx, c"#include <sys/time.h>")
             emitln_fwd(ctx, c"#include <sys/types.h>")
             emitln_fwd(ctx, c"#include <sys/stat.h>")
@@ -10609,7 +10605,10 @@ fn emit_c_preamble(ctx: ref CCtx) void = trust {
             emitln_fwd(ctx, c"#include <sys/random.h>")
         }
         if cc_platform_matches(ctx, c"darwin") {
-            // macOS has arc4random_buf but not getrandom.
+            // macOS has arc4random_buf but not getrandom.  The prototype is
+            // emitted explicitly because _POSIX_C_SOURCE hides the one in
+            // <stdlib.h>.
+            emitln_fwd(ctx, c"extern void arc4random_buf(void*,size_t);")
             emitln_fwd(
                 ctx,
                 c"static int sx__darwin_getrandom(void*buf,size_t n,unsigned flags){(void)flags;arc4random_buf(buf,n);return(int)n;}\n#define getrandom sx__darwin_getrandom"
