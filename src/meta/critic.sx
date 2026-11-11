@@ -550,42 +550,12 @@ fn add_mut_var(
     @append(ctx.mut_vars, v)
 }
 
-fn is_refish_type_name(name: ref u8) bool = trust {
-    if name == none {
-        return false
-    }
-    return cstr.starts_with(name, c"ref ") || cstr.starts_with(name, c"mut ref ")
-    || cstr.starts_with(name, c"list[") || cstr.starts_with(name, c"mut list[")
-}
-
-fn mut_var_is_refish(ctx: ref Ctx, name: ref u8) bool = trust {
-    val n: i64 = @len(ctx.mut_vars) as i64
-    val i: mut i64 = 0
-    for {
-        if i >= n {
-            break
-        }
-        val v_opt = @get(ctx.mut_vars, i as usize)
-        if v_opt is some v_val {
-            val v: ref MutVar = v_val as ref MutVar
-            if cstr.cmp(v.name, name) == 0 && is_refish_type_name(v.type_name) {
-                return true
-            }
-        }
-        i++
-    }
-    return false
-}
-
-fn mark_refish_call_args(ctx: ref Ctx, args: list[ref parser.Node]) void = trust {
+fn mark_call_arg_roots(ctx: ref Ctx, args: list[ref parser.Node]) void = trust {
     if args == none {
         return
     }
     for arg in args {
-        val root: ref u8 = find_root_ident_name(arg)
-        if root != none && mut_var_is_refish(ctx, root) {
-            mark_mut_var(ctx, root)
-        }
+        mark_mut_var(ctx, find_root_ident_name(arg))
     }
 }
 
@@ -679,6 +649,9 @@ fn param_is_mutating(ty: ref parser.Node) bool = trust {
         val ik: i64 = inner.kind
         return ik == parser.TY_REF || ik == parser.TY_LIST || ik == parser.TY_NAMED
     }
+    if k == parser.TY_NAMED {
+        return cstr.cmp(parser.node_str_raw(ty.d0), c"self") == 0
+    }
     return false
 }
 
@@ -701,34 +674,38 @@ fn lookup_fn_sig(ctx: ref Ctx, name: ref u8) ref FnSig = trust {
     return none
 }
 
-fn mark_call_mutations(ctx: mut ref Ctx, call: ref parser.Node) void = trust {
-    val callee: ref parser.Node = parser.call_callee(call)
-    val args: list[ref parser.Node] = parser.call_args(call)
-    if callee == none {
-        return
+fn call_callee_base(callee: ref parser.Node) ref parser.Node = trust {
+    val cur: mut ref parser.Node = callee
+    for {
+        if cur != none && cur.kind == parser.NK_GENERIC_INST {
+            cur = parser.generic_inst_base(cur)
+        } else {
+            break
+        }
     }
+    return cur
+}
 
-    if callee.kind == parser.NK_FIELD {
-        mark_root_mutated(ctx, parser.field_base(callee))
-        mark_refish_call_args(ctx, args)
-        return
+fn mark_sig_call_mutations(
+    ctx: mut ref Ctx,
+    name: ref u8,
+    args: list[ref parser.Node]
+) bool = trust {
+    if name == none || args == none {
+        return false
     }
-
-    if callee.kind != parser.NK_IDENT || args == none {
-        return
-    }
-
-    val sig: ref FnSig = lookup_fn_sig(ctx, parser.node_str_raw(callee.d0))
+    val sig: ref FnSig = lookup_fn_sig(ctx, name)
     if sig == none || sig.params == none {
-        mark_refish_call_args(ctx, args)
-        return
+        return false
     }
-
     val alen: i64 = @len(args) as i64
     val plen: i64 = @len(sig.params) as i64
+    if alen != plen {
+        return false
+    }
     val i: mut i64 = 0
     for {
-        if i >= alen || i >= plen {
+        if i >= alen {
             break
         }
         val arg_opt = @get(args, i as usize)
@@ -743,6 +720,32 @@ fn mark_call_mutations(ctx: mut ref Ctx, call: ref parser.Node) void = trust {
         }
         i++
     }
+    return true
+}
+
+fn mark_call_mutations(ctx: mut ref Ctx, call: ref parser.Node) void = trust {
+    val callee: ref parser.Node = call_callee_base(parser.call_callee(call))
+    val args: list[ref parser.Node] = parser.call_args(call)
+    if callee == none {
+        return
+    }
+
+    if callee.kind == parser.NK_FIELD {
+        mark_root_mutated(ctx, parser.field_base(callee))
+        if !mark_sig_call_mutations(ctx, parser.field_name_raw(callee), args) {
+            mark_call_arg_roots(ctx, args)
+        }
+        return
+    }
+
+    if callee.kind == parser.NK_IDENT {
+        if !mark_sig_call_mutations(ctx, parser.node_str_raw(callee.d0), args) {
+            mark_call_arg_roots(ctx, args)
+        }
+        return
+    }
+
+    mark_call_arg_roots(ctx, args)
 }
 
 fn finish_mut_vars(ctx: mut ref Ctx) void = trust {
@@ -2467,6 +2470,10 @@ fn walk_stmts(ctx: mut ref Ctx, stmts: list[ref parser.Node]) void = trust {
         }
         if k == parser.NK_WHEN_STMT {
             walk_when_stmts(ctx, stmt)
+            continue
+        }
+        if k == parser.NK_GENERIC_WHEN {
+            walk_stmts(ctx, stmt.d1 as list[ref parser.Node])
             continue
         }
         if k == parser.NK_EXPR_STMT {

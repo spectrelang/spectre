@@ -105,6 +105,38 @@ else
 	pass "mut fix mode"
 fi
 
+mut_calls_actual="$tmpdir/mut_calls_bad.sx"
+cp "$FIXTURES/mut_calls_bad.sx" "$mut_calls_actual"
+
+if ! "$COMPILER" critic -fix "$mut_calls_actual" >/dev/null 2>&1; then
+	fail "mut calls fix mode (expected zero exit code after fixes)"
+elif ! cmp -s "$mut_calls_actual" "$FIXTURES/mut_calls_good.sx"; then
+	echo "[FAIL] mut calls fix mode (output differs from mut_calls_good.sx)"
+	diff -u "$FIXTURES/mut_calls_good.sx" "$mut_calls_actual" | head -40 | sed 's/^/    /'
+	failed=$((failed + 1))
+elif ! "$COMPILER" "$mut_calls_actual" -syntax-check >/dev/null 2>&1; then
+	fail "mut calls fix mode (fixed file does not compile)"
+else
+	pass "mut calls fix mode"
+fi
+
+mut_regression="$tmpdir/mut_regression"
+mkdir -p "$mut_regression"
+cp ./spectrelib/collections/core.sx "$mut_regression/collections.sx"
+cp ./spectrelib/net/core.sx "$mut_regression/net.sx"
+cp ./spectrelib/algorithms/core.sx "$mut_regression/algorithms.sx"
+"$COMPILER" critic -fix "$mut_regression" >/dev/null 2>&1
+if ! grep -Fq "val m: mut Map" "$mut_regression/collections.sx" ||
+! grep -Fq "val big: mut Map" "$mut_regression/collections.sx" ||
+! grep -Fq "val list3: mut ref void" "$mut_regression/collections.sx" ||
+! grep -Fq "val free_loop: mut EventLoop" "$mut_regression/net.sx" ||
+! grep -Fq "val should_break: mut i32" "$mut_regression/algorithms.sx"; then
+	echo "[FAIL] mut regression (critic removed a required mut qualifier)"
+	failed=$((failed + 1))
+else
+	pass "mut regression"
+fi
+
 # Nested trust statements must be removed, including same-line nested trust.
 trust_actual="$tmpdir/trust_bad.sx"
 cp "$FIXTURES/trust_bad.sx" "$trust_actual"

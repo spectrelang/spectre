@@ -1,0 +1,19 @@
+type Box = {
+    value: mut i32
+}
+
+pub fn (Box) set[T](box: mut Box, value: T) void = {
+    box.value = value as i32
+}
+
+fn set_flag[T](target: mut i32, value: T) void = {
+    target = value as i32
+}
+
+pub fn main() void = {
+    val box: mut Box = Box{value: 0}
+    Box.set[i32](box, 7)
+    val target: mut i32 = 0
+    set_flag[i32](target, 3)
+    trust @print("{d} {d}\n", {box.value, target})
+}
