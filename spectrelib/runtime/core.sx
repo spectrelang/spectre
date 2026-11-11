@@ -309,6 +309,8 @@ otherwise {
     extern (C, header) fn c_htons(v: u16) u16 = "htons"
     extern (C, header) fn c_ntohs(v: u16) u16 = "ntohs"
     extern (C, header) fn c_close(fd: i32) i32 = "close"
+
+    //!suppress "unused-function"
     extern (C, header) fn c_closesocket(fd: i32) i32 = "closesocket"
 
     extern (C, header) fn c_signal(sig: i32, handler: fn(i32) void) fn(i32) void = "signal"
