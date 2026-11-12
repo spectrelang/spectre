@@ -1801,7 +1801,7 @@ pub fn cmd_doctor() i32 = {
     }
     trust allocators.Arena.free(arena)
     trust doctor_row(c"qbe", qbe_installed_str)
-    trust doctor_row(c"qbesx", qbe_spectre_str)
+    trust doctor_row(c"uqbe", qbe_spectre_str)
 
     trust doctor_row(c"cc", tool_version(c"cc --version 2>&1 | head -1"))
     trust doctor_row(c"clang", tool_version(c"clang --version 2>&1 | head -1"))
