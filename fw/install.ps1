@@ -102,7 +102,7 @@ function Install-Msvc {
             --accept-package-agreements --accept-source-agreements `
             --override ($workloadArgs -join " ")
 
-        if ($LASTEXITCODE -eq 0 -and (Find-Msvc)) {
+        if (Find-Msvc) {
             return
         }
 
@@ -171,7 +171,7 @@ function Ensure-Msvc {
     $script:MSVC_PATH = $vsPath
 
     if (-not (Get-Command cl -ErrorAction SilentlyContinue)) {
-        Err "cl.exe was not found after initializing the MSVC environment."
+        Log "MSVC was found, but cl.exe is not available after initialization."
     }
 }
 
@@ -185,17 +185,22 @@ function Ensure-Clang {
         Log "clang not found. Installing LLVM via winget..."
         winget install --id LLVM.LLVM -e --source winget `
             --accept-package-agreements --accept-source-agreements
+    } elseif (Get-Command scoop -ErrorAction SilentlyContinue) {
+        Log "clang not found. Installing LLVM via Scoop..."
+        scoop bucket add main 2>$null
+        scoop install llvm
+    }
 
-        $llvmCandidates = @(
-            "$env:ProgramFiles\LLVM\bin",
-            "$env:LOCALAPPDATA\Programs\LLVM\bin"
-        )
+    $llvmCandidates = @(
+        "$env:ProgramFiles\LLVM\bin",
+        "$env:LOCALAPPDATA\Programs\LLVM\bin",
+        "$env:USERPROFILE\scoop\apps\llvm\current\bin"
+    )
 
-        foreach ($llvmBin in $llvmCandidates) {
-            if ((Test-Path (Join-Path $llvmBin "clang.exe")) -and
-                ($env:PATH -notlike "*$llvmBin*")) {
-                $env:PATH = "$llvmBin;$env:PATH"
-            }
+    foreach ($llvmBin in $llvmCandidates) {
+        if ((Test-Path (Join-Path $llvmBin "clang.exe")) -and
+            ($env:PATH -notlike "*$llvmBin*")) {
+            $env:PATH = "$llvmBin;$env:PATH"
         }
     }
 
@@ -204,12 +209,7 @@ function Ensure-Clang {
         return
     }
 
-    if (Get-Command cl -ErrorAction SilentlyContinue) {
-        Log "clang is unavailable; the bootstrap will be built with MSVC cl.exe."
-        return
-    }
-
-    Err "Failed to install a C compiler (clang or cl)."
+    Err "Failed to install clang. Install LLVM manually, or install winget/Scoop first."
 }
 
 function Ensure-Tcc {
@@ -258,7 +258,7 @@ Ensure-Clang
 Ensure-Tcc
 
 Require-Cmd git
-Require-Cmd cl
+Require-Cmd clang
 
 Log "Preparing directories..."
 New-Item -ItemType Directory -Force -Path $BIN_DIR | Out-Null
@@ -289,36 +289,15 @@ $PANIC_HANDLER_SRC = "$CSOURCES_DIR\panic_handler.c"
 
 Log "Compiling bootstrap..."
 
-$compileOk = $false
-if (Get-Command clang -ErrorAction SilentlyContinue) {
-    clang -O3 -Wno-everything `
-        $BOOTSTRAP_SRC `
-        $PANIC_HANDLER_SRC `
-        -lDbghelp `
-        -lbcrypt `
-        -o $BOOTSTRAP_OUT
-    $compileOk = ($LASTEXITCODE -eq 0)
-} else {
-    Push-Location "$SPECTRE_DIR\bootstrap"
-    try {
-        cl /nologo /std:c11 /O2 /W0 `
-            $BOOTSTRAP_SRC `
-            $PANIC_HANDLER_SRC `
-            /link Dbghelp.lib bcrypt.lib `
-            "/OUT:$BOOTSTRAP_OUT"
-        $compileOk = ($LASTEXITCODE -eq 0)
-    } finally {
-        Pop-Location
-    }
+clang -O3 -Wno-everything `
+    $BOOTSTRAP_SRC `
+    $PANIC_HANDLER_SRC `
+    -lDbghelp `
+    -lbcrypt `
+    -o $BOOTSTRAP_OUT
 
-    Remove-Item -Force `
-        "$SPECTRE_DIR\bootstrap\sxcw.obj", `
-        "$SPECTRE_DIR\bootstrap\panic_handler.obj" `
-        -ErrorAction SilentlyContinue
-}
-
-if (-not $compileOk -or -not (Test-Path $BOOTSTRAP_OUT)) {
-    Err "Bootstrap compilation failed"
+if ($LASTEXITCODE -ne 0 -or -not (Test-Path $BOOTSTRAP_OUT)) {
+    Err "Bootstrap compilation failed. On Windows, clang requires the MSVC/Windows SDK headers and libraries."
 }
 
 $STAGE0 = "$SPECTRE_DIR\spectre-stage0.exe"
@@ -378,7 +357,7 @@ if ($env:PATH -notlike "*$BIN_DIR*") {
 
 Log "Installation complete."
 
-$ClangPath = "(not installed; using cl.exe)"
+$ClangPath = "(not installed)"
 $ClangCmd = Get-Command clang -ErrorAction SilentlyContinue
 if ($ClangCmd) {
     $ClangPath = $ClangCmd.Source
