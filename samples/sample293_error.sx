@@ -1,0 +1,4 @@
+pub fn main() void = {
+    _ = 1
+    return
+}

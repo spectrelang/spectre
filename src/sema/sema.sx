@@ -1256,6 +1256,61 @@ fn mark_name_mutated(ctx: ref SemaCtx, name: ref u8) void = trust {
     }
 }
 
+/// Returns true when `name` is a registered module-level value.
+fn is_global_name(ctx: ref SemaCtx, name: ref u8) bool = trust {
+    if name == none {
+        return false
+    }
+    for gname in ctx.global_names {
+        if cstr.eql(gname, name) {
+            return true
+        }
+    }
+    return false
+}
+
+/// Validate an identifier used as a mutation target. Reports an error for `_`
+/// and for names that are neither local bindings nor module-level values.
+fn check_mutation_target_ident(
+    ctx: ref SemaCtx,
+    name: ref u8,
+    filename: ref u8,
+    line: i64
+) bool = trust {
+    if name == none {
+        return true
+    }
+    if cstr.cmp(name, c"_") == 0 {
+        val buf: ref u8 = allocators.ScopedArena.alloc_or_none(
+            ctx.arena,
+            (512) as usize
+        ) as ref u8
+        @snprintf(
+            buf,
+            512,
+            "{s}:{lld}: cannot use '_' as an assignment target; use 'val _ = ...' to discard a value",
+            {filename, line}
+        )
+        add_error(ctx, buf)
+        return false
+    }
+    if scope_lookup(ctx, name) == -1 && !is_global_name(ctx, name) {
+        val buf: ref u8 = allocators.ScopedArena.alloc_or_none(
+            ctx.arena,
+            (256) as usize
+        ) as ref u8
+        @snprintf(
+            buf,
+            256,
+            "{s}:{lld}: undefined variable '{s}'",
+            {filename, line, name}
+        )
+        add_error(ctx, buf)
+        return false
+    }
+    return true
+}
+
 /// Checks if a field named field_name is mutable in the typedef named type_name.
 /// Returns 1 if mutable, 0 if immutable, -1 if not found.
 fn find_field_mutable(ctx: ref SemaCtx, type_name: ref u8, field_name: ref u8) i64 = trust {
@@ -9389,6 +9444,9 @@ fn check_stmt(ctx: mut ref SemaCtx, stmt: ref parser.Node, filename: ref u8) voi
         require_extern_val_trust(ctx, target, filename, line)
         if target.kind == parser.NK_IDENT {
             val tname: ref u8 = parser.node_str_raw(target.d0)
+            if !check_mutation_target_ident(ctx, tname, filename, line) {
+                return
+            }
             mark_name_mutated(ctx, tname)
             if scope_lookup(ctx, tname) == 0 {
                 val buf: ref u8 = allocators.ScopedArena.alloc_or_none(
@@ -9474,6 +9532,9 @@ fn check_stmt(ctx: mut ref SemaCtx, stmt: ref parser.Node, filename: ref u8) voi
             val root: ref parser.Node = find_root_ident(target)
             if root != none {
                 val tname: ref u8 = parser.node_str_raw(root.d0)
+                if !check_mutation_target_ident(ctx, tname, filename, line) {
+                    return
+                }
                 mark_name_mutated(ctx, tname)
                 val lkup: i64 = scope_lookup(ctx, tname)
                 if lkup == 0 {
@@ -9604,6 +9665,9 @@ fn check_stmt(ctx: mut ref SemaCtx, stmt: ref parser.Node, filename: ref u8) voi
             val inner_deref: ref parser.Node = target.d0 as ref parser.Node
             if inner_deref != none && inner_deref.kind == parser.NK_IDENT {
                 val dname: ref u8 = parser.node_str_raw(inner_deref.d0)
+                if !check_mutation_target_ident(ctx, dname, filename, line) {
+                    return
+                }
                 val dmut: i64 = scope_lookup(ctx, dname)
                 if dmut != -1 && dmut == 0 {
                     val ebuf: ref u8 = allocators.ScopedArena.alloc_or_none(
@@ -10078,6 +10142,9 @@ fn check_stmt(ctx: mut ref SemaCtx, stmt: ref parser.Node, filename: ref u8) voi
         require_extern_val_trust(ctx, target2, filename, line)
         if target2.kind == parser.NK_IDENT {
             val tname2: ref u8 = parser.node_str_raw(target2.d0)
+            if !check_mutation_target_ident(ctx, tname2, filename, line) {
+                return
+            }
             mark_name_mutated(ctx, tname2)
             if scope_lookup(ctx, tname2) == 0 {
                 val buf2: ref u8 = allocators.ScopedArena.alloc_or_none(
@@ -10096,6 +10163,9 @@ fn check_stmt(ctx: mut ref SemaCtx, stmt: ref parser.Node, filename: ref u8) voi
             val root2: ref parser.Node = find_root_ident(target2)
             if root2 != none {
                 val tname2: ref u8 = parser.node_str_raw(root2.d0)
+                if !check_mutation_target_ident(ctx, tname2, filename, line) {
+                    return
+                }
                 mark_name_mutated(ctx, tname2)
                 val lkup2: i64 = scope_lookup(ctx, tname2)
                 if lkup2 == 0 {
@@ -10141,6 +10211,9 @@ fn check_stmt(ctx: mut ref SemaCtx, stmt: ref parser.Node, filename: ref u8) voi
         require_extern_val_trust(ctx, target3, filename, line)
         if target3.kind == parser.NK_IDENT {
             val tname3: ref u8 = parser.node_str_raw(target3.d0)
+            if !check_mutation_target_ident(ctx, tname3, filename, line) {
+                return
+            }
             mark_name_mutated(ctx, tname3)
             if scope_lookup(ctx, tname3) == 0 {
                 val buf3: ref u8 = allocators.ScopedArena.alloc_or_none(
@@ -10159,6 +10232,9 @@ fn check_stmt(ctx: mut ref SemaCtx, stmt: ref parser.Node, filename: ref u8) voi
             val root3: ref parser.Node = find_root_ident(target3)
             if root3 != none {
                 val tname3: ref u8 = parser.node_str_raw(root3.d0)
+                if !check_mutation_target_ident(ctx, tname3, filename, line) {
+                    return
+                }
                 mark_name_mutated(ctx, tname3)
                 if scope_lookup(ctx, tname3) == 0 {
                     val buf3: ref u8 = allocators.ScopedArena.alloc_or_none(

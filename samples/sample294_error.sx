@@ -1,0 +1,4 @@
+pub fn main() void = {
+    missing_name = 2
+    return
+}

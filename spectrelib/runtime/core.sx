@@ -994,7 +994,14 @@ pub fn getrandom(buf: ref void, n: usize, flags: u32) i64 = trust {
         return sx_getrandom(buf, n, flags)
     }
     otherwise {
-        return c_getrandom(buf, n, flags)
+        when darwin {
+            val _ = flags
+            c_arc4random_buf(buf, n)
+            return n as i64
+        }
+        otherwise {
+            return c_getrandom(buf, n, flags)
+        }
     }
 }
 
