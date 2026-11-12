@@ -224,6 +224,52 @@ function Get-LatestLlvmArchive {
     return $null
 }
 
+function Expand-LlvmArchive($archive, $destination) {
+    Remove-Item -Recurse -Force $destination -ErrorAction SilentlyContinue
+    New-Item -ItemType Directory -Force -Path $destination | Out-Null
+
+    tar -xf $archive -C $destination --strip-components=1
+    if ($LASTEXITCODE -eq 0 -and (Test-Path (Join-Path $destination "bin\clang.exe"))) {
+        return
+    }
+
+    Log "Windows tar cannot extract .xz archives; using 7zr instead..."
+    Remove-Item -Recurse -Force $destination -ErrorAction SilentlyContinue
+    New-Item -ItemType Directory -Force -Path $destination | Out-Null
+
+    $sevenZip = Join-Path $env:TEMP "7zr.exe"
+    if (-not (Test-Path $sevenZip)) {
+        Invoke-WebRequest -Uri "https://www.7-zip.org/a/7zr.exe" `
+            -OutFile $sevenZip -UseBasicParsing
+        Unblock-File -Path $sevenZip
+    }
+
+    $tarDir = Join-Path $env:TEMP "llvm-tar"
+    Remove-Item -Recurse -Force $tarDir -ErrorAction SilentlyContinue
+    New-Item -ItemType Directory -Force -Path $tarDir | Out-Null
+
+    & $sevenZip x $archive "-o$tarDir" -y | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+        Remove-Item -Recurse -Force $tarDir -ErrorAction SilentlyContinue
+        Err "7zr failed to decompress the LLVM archive."
+    }
+
+    $tarFile = Get-ChildItem -Path $tarDir -Filter "*.tar" | Select-Object -First 1
+    if (-not $tarFile) {
+        Remove-Item -Recurse -Force $tarDir -ErrorAction SilentlyContinue
+        Err "Could not find the decompressed LLVM tar archive."
+    }
+
+    tar -xf $tarFile.FullName -C $destination --strip-components=1
+    Remove-Item -Recurse -Force $tarDir -ErrorAction SilentlyContinue
+
+    if ($LASTEXITCODE -ne 0 -or -not (Test-Path (Join-Path $destination "bin\clang.exe"))) {
+        Err "Failed to extract the LLVM archive."
+    }
+
+    Remove-Item -Force $sevenZip -ErrorAction SilentlyContinue
+}
+
 function Install-LlvmPortable {
     $asset = Get-LatestLlvmArchive
     if (-not $asset) {
@@ -243,14 +289,7 @@ function Install-LlvmPortable {
     }
 
     Log "Extracting LLVM..."
-    Remove-Item -Recurse -Force $stagingDir -ErrorAction SilentlyContinue
-    New-Item -ItemType Directory -Force -Path $stagingDir | Out-Null
-
-    tar -xf $archive -C $stagingDir --strip-components=1
-    if ($LASTEXITCODE -ne 0 -or -not (Test-Path (Join-Path $stagingDir "bin\clang.exe"))) {
-        Remove-Item -Recurse -Force $stagingDir -ErrorAction SilentlyContinue
-        Err "Failed to extract the LLVM archive."
-    }
+    Expand-LlvmArchive $archive $stagingDir
 
     Remove-Item -Recurse -Force $llvmDir -ErrorAction SilentlyContinue
     Move-Item $stagingDir $llvmDir
