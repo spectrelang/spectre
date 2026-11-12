@@ -4223,7 +4223,7 @@ fn gen_expr(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
             @snprintf(buf, 128, "((int64_t)(intptr_t)sx__str{lld})", {idx})
         } else {
             val idx: i64 = intern_string_view(ctx, parser.str_lit_text(expr))
-            @snprintf(buf, 128, "((int64_t)(intptr_t)sx__sv{lld})", {idx})
+            @snprintf(buf, 128, "((int64_t)(intptr_t)sx__svs{lld})", {idx})
         }
         return cc_expr_track(ctx, buf)
     }
@@ -5261,7 +5261,7 @@ fn gen_call(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
                                 @snprintf(
                                     sbuf,
                                     128,
-                                    "((int64_t)(intptr_t)sx__sv{lld})",
+                                    "((int64_t)(intptr_t)sx__svs{lld})",
                                     {idx}
                                 )
                             } else {
@@ -10236,7 +10236,7 @@ fn preregister_items(
                             @snprintf(sb, 128, "((int64_t)(intptr_t)sx__str{lld})", {sidx})
                         } else {
                             val sidx: i64 = intern_string_view(ctx, parser.str_lit_text(ce))
-                            @snprintf(sb, 128, "((int64_t)(intptr_t)sx__sv{lld})", {sidx})
+                            @snprintf(sb, 128, "((int64_t)(intptr_t)sx__svs{lld})", {sidx})
                         }
                         cv = sb
                     } elif ce.kind == parser.NK_CAST {
@@ -10995,7 +10995,7 @@ fn emit_string_data(ctx: ref CCtx) void = trust {
                     128 as usize
                 ) as ref u8
                 @snprintf(vbuf, 128,
-                    "static int64_t sx__sv{lld}[2] = \{(int64_t)(intptr_t)sx__str{lld}, {lld}\};\n",
+                    "static int64_t sx__svs{lld}[2] = \{(int64_t)(intptr_t)sx__str{lld}, {lld}\};\n",
                     {vi, idx as i64, l as i64})
                 emit_to_fwd(ctx, vbuf)
             }
