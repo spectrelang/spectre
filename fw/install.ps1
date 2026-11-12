@@ -30,8 +30,6 @@ function Ensure-Tool($cmd, $wingetId) {
     if (-not (Get-Command winget -ErrorAction SilentlyContinue)) {
         if (-not (Get-Command scoop -ErrorAction SilentlyContinue)) {
             Log "Scoop not found. Installing Scoop..."
-
-            Set-ExecutionPolicy RemoteSigned -Scope CurrentUser -Force
             Invoke-RestMethod get.scoop.sh | Invoke-Expression
         }
 
