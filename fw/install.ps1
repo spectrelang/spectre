@@ -175,41 +175,121 @@ function Ensure-Msvc {
     }
 }
 
+function Add-LlvmToPath {
+    $llvmCandidates = @(
+        "$PREFIX\llvm\bin",
+        "$env:ProgramFiles\LLVM\bin",
+        "$env:LOCALAPPDATA\Programs\LLVM\bin"
+    )
+
+    $paths = @()
+    foreach ($llvmBin in $llvmCandidates) {
+        if ((Test-Path (Join-Path $llvmBin "clang.exe")) -and
+            ($env:PATH -notlike "*$llvmBin*")) {
+            $paths += $llvmBin
+        }
+    }
+
+    if ($paths.Count -gt 0) {
+        $env:PATH = ($paths -join ";") + ";" + $env:PATH
+    }
+}
+
+function Get-LatestLlvmArchive {
+    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+
+    try {
+        $releases = Invoke-RestMethod `
+            -Uri "https://api.github.com/repos/llvm/llvm-project/releases?per_page=20" `
+            -Headers @{ "User-Agent" = "spectre-install" }
+    } catch {
+        Log "Could not query the LLVM release list: $($_.Exception.Message)"
+        return $null
+    }
+
+    foreach ($release in $releases) {
+        if ($release.draft -or $release.prerelease) {
+            continue
+        }
+
+        $asset = $release.assets |
+            Where-Object { $_.name -match '^clang\+llvm-.*-x86_64-pc-windows-msvc\.tar\.xz$' } |
+            Select-Object -First 1
+
+        if ($asset) {
+            return $asset
+        }
+    }
+
+    return $null
+}
+
+function Install-LlvmPortable {
+    $asset = Get-LatestLlvmArchive
+    if (-not $asset) {
+        Err "Could not find a portable LLVM Windows x64 archive."
+    }
+
+    $archive = Join-Path $env:TEMP $asset.name
+    $llvmDir = "$PREFIX\llvm"
+    $stagingDir = "$PREFIX\llvm.tmp"
+
+    Log "Downloading $($asset.name)..."
+    $ProgressPreference = "SilentlyContinue"
+    Invoke-WebRequest -Uri $asset.browser_download_url -OutFile $archive -UseBasicParsing
+
+    if (-not (Get-Command tar -ErrorAction SilentlyContinue)) {
+        Err "tar.exe is required to extract the LLVM archive."
+    }
+
+    Log "Extracting LLVM..."
+    Remove-Item -Recurse -Force $stagingDir -ErrorAction SilentlyContinue
+    New-Item -ItemType Directory -Force -Path $stagingDir | Out-Null
+
+    tar -xf $archive -C $stagingDir --strip-components=1
+    if ($LASTEXITCODE -ne 0 -or -not (Test-Path (Join-Path $stagingDir "bin\clang.exe"))) {
+        Remove-Item -Recurse -Force $stagingDir -ErrorAction SilentlyContinue
+        Err "Failed to extract the LLVM archive."
+    }
+
+    Remove-Item -Recurse -Force $llvmDir -ErrorAction SilentlyContinue
+    Move-Item $stagingDir $llvmDir
+    Remove-Item -Force $archive -ErrorAction SilentlyContinue
+
+    Log "LLVM installed to $llvmDir."
+}
+
+function Test-Clang {
+    $clang = Get-Command clang -ErrorAction SilentlyContinue
+    if (-not $clang) {
+        return $false
+    }
+
+    try {
+        & $clang.Source --version *> $null
+        return ($LASTEXITCODE -eq 0)
+    } catch {
+        return $false
+    }
+}
+
 function Ensure-Clang {
-    if (Get-Command clang -ErrorAction SilentlyContinue) {
+    Add-LlvmToPath
+    if (Test-Clang) {
         Log "clang already installed."
         return
     }
 
-    if (Get-Command winget -ErrorAction SilentlyContinue) {
-        Log "clang not found. Installing LLVM via winget..."
-        winget install --id LLVM.LLVM -e --source winget `
-            --accept-package-agreements --accept-source-agreements
-    } elseif (Get-Command scoop -ErrorAction SilentlyContinue) {
-        Log "clang not found. Installing LLVM via Scoop..."
-        scoop bucket add main 2>$null
-        scoop install llvm
-    }
+    Log "clang not found. Installing portable LLVM..."
+    Install-LlvmPortable
+    Add-LlvmToPath
 
-    $llvmCandidates = @(
-        "$env:ProgramFiles\LLVM\bin",
-        "$env:LOCALAPPDATA\Programs\LLVM\bin",
-        "$env:USERPROFILE\scoop\apps\llvm\current\bin"
-    )
-
-    foreach ($llvmBin in $llvmCandidates) {
-        if ((Test-Path (Join-Path $llvmBin "clang.exe")) -and
-            ($env:PATH -notlike "*$llvmBin*")) {
-            $env:PATH = "$llvmBin;$env:PATH"
-        }
-    }
-
-    if (Get-Command clang -ErrorAction SilentlyContinue) {
+    if (Test-Clang) {
         Log "clang installed."
         return
     }
 
-    Err "Failed to install clang. Install LLVM manually, or install winget/Scoop first."
+    Err "Failed to install clang."
 }
 
 function Ensure-Tcc {
@@ -347,11 +427,26 @@ Log "Installing standard library..."
 Remove-Item -Recurse -Force $STDLIB_DEST -ErrorAction SilentlyContinue
 Copy-Item $STDLIB_SRC $STDLIB_DEST -Recurse
 
-if ($env:PATH -notlike "*$BIN_DIR*") {
-    Log "IMPORTANT: $BIN_DIR is not in your PATH."
+$LlvmBin = "$PREFIX\llvm\bin"
+$UserPath = [Environment]::GetEnvironmentVariable("Path", "User")
+if (-not $UserPath) {
+    $UserPath = ""
+}
+
+$MissingPaths = @()
+if ($UserPath -notlike "*$BIN_DIR*") {
+    $MissingPaths += $BIN_DIR
+}
+if ((Test-Path (Join-Path $LlvmBin "clang.exe")) -and ($UserPath -notlike "*$LlvmBin*")) {
+    $MissingPaths += $LlvmBin
+}
+
+if ($MissingPaths.Count -gt 0) {
+    $PathPrefix = $MissingPaths -join ";"
+    Log "IMPORTANT: Some install directories are not in your user PATH."
     Write-Host ""
-    Write-Host "Add it with:"
-    Write-Host "  setx PATH `"$BIN_DIR;%PATH%`""
+    Write-Host "Add them with:"
+    Write-Host "  setx PATH `"$PathPrefix;%PATH%`""
     Write-Host ""
 }
 
