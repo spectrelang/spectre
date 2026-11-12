@@ -196,6 +196,48 @@ install_pkg() {
 	esac
 }
 
+uqbe_local_hash() {
+	UQBE_PATH="$1"
+	[ -n "$UQBE_PATH" ] || return 1
+	UQBE_VERSION_OUT="$("$UQBE_PATH" -v 2>/dev/null || true)"
+	case "$UQBE_VERSION_OUT" in
+	"uqbe (spectre) "*) printf '%s\n' "${UQBE_VERSION_OUT#uqbe (spectre) }" ;;
+	*) return 1 ;;
+	esac
+}
+
+uqbe_remote_hash() {
+	git ls-remote "$UQBE_REPO" HEAD 2>/dev/null | awk 'NR == 1 { print $1 }'
+}
+
+uqbe_backup() {
+	UQBE_SRC="$1"
+	UQBE_TMP="${TMPDIR:-/tmp}"
+	UQBE_DATE="$(date +%Y%m%d)"
+	UQBE_BACKUP="${UQBE_TMP}/uqbe-backup-${UQBE_DATE}"
+	UQBE_SUFFIX=1
+	while [ -e "$UQBE_BACKUP" ]; do
+		UQBE_BACKUP="${UQBE_TMP}/uqbe-backup-${UQBE_DATE}-${UQBE_SUFFIX}"
+		UQBE_SUFFIX=$((UQBE_SUFFIX + 1))
+	done
+	cp -p "$UQBE_SRC" "$UQBE_BACKUP"
+	log "Backed up old UQBE binary to ${UQBE_BACKUP}"
+}
+
+uqbe_build() {
+	UQBE_SOURCE_DIR="$1"
+	if [ -d "$UQBE_SOURCE_DIR/.git" ]; then
+		log "UQBE source already exists, updating..."
+		git -C "$UQBE_SOURCE_DIR" remote set-url origin "$UQBE_REPO" 2>/dev/null || true
+		git -C "$UQBE_SOURCE_DIR" pull --ff-only || return 1
+	else
+		git clone "$UQBE_REPO" "$UQBE_SOURCE_DIR" || return 1
+	fi
+	log "Building UQBE..."
+	(cd "$UQBE_SOURCE_DIR" && make) || return 1
+	[ -x "${UQBE_SOURCE_DIR}/qbe" ] || return 1
+}
+
 install_network_deps() {
 	if command -v pkg-config >/dev/null 2>&1 &&
 		pkg-config --exists libcurl libnghttp2 openssl zlib libbrotlidec libbrotlicommon; then
@@ -341,37 +383,65 @@ fi
 log "Preparing directories..."
 mkdir -p "$BIN_DIR" "$SRC_DIR"
 
+UQBE_DIR="${SRC_DIR}/uqbe"
+
 if [ "$FORCE_FALLBACK" -eq 1 ]; then
 	log "Skipping UQBE (forced fallback mode)."
 	QBE_OK=0
-elif command -v uqbe >/dev/null 2>&1; then
-	UQBE_BIN="$(command -v uqbe)"
-	log "UQBE already installed, skipping: ${UQBE_BIN}"
 else
-	log "Installing UQBE..."
-
-	UQBE_DIR="${SRC_DIR}/uqbe"
-
-	if [ -d "$UQBE_DIR" ]; then
-		log "UQBE source already exists, updating..."
-		git -C "$UQBE_DIR" remote set-url origin "$UQBE_REPO" 2>/dev/null || true
-		git -C "$UQBE_DIR" pull --ff-only || QBE_OK=0
-	else
-		git clone "$UQBE_REPO" "$UQBE_DIR" || QBE_OK=0
-	fi
-
-	if [ "$QBE_OK" -eq 1 ]; then
-		log "Building UQBE..."
-		(cd "$UQBE_DIR" && make) || QBE_OK=0
-	fi
-
-	if [ "$QBE_OK" -eq 1 ] && [ -x "${UQBE_DIR}/qbe" ]; then
-		log "Installing UQBE to ${BIN_DIR}..."
-		/usr/bin/install -m 0755 "${UQBE_DIR}/qbe" "$BIN_DIR/uqbe"
+	UQBE_BIN="$(command -v uqbe 2>/dev/null || true)"
+	if [ -z "$UQBE_BIN" ] && [ -x "${BIN_DIR}/uqbe" ]; then
 		UQBE_BIN="${BIN_DIR}/uqbe"
+	fi
+	UQBE_NEEDS_INSTALL=0
+
+	if [ -n "$UQBE_BIN" ]; then
+		UQBE_INSTALL_PATH="$UQBE_BIN"
+		UQBE_LOCAL_HASH="$(uqbe_local_hash "$UQBE_BIN" || true)"
+		UQBE_REMOTE_HASH="$(uqbe_remote_hash || true)"
+		if [ -z "$UQBE_REMOTE_HASH" ]; then
+			log "Could not check for UQBE updates; keeping ${UQBE_BIN}"
+		elif [ -z "$UQBE_LOCAL_HASH" ]; then
+			log "UQBE version is unknown; updating ${UQBE_BIN}"
+			UQBE_NEEDS_INSTALL=1
+		else
+			case "$UQBE_REMOTE_HASH" in
+			"$UQBE_LOCAL_HASH"*)
+				log "UQBE is up to date: ${UQBE_BIN}"
+				;;
+			*)
+				log "UQBE update available: ${UQBE_LOCAL_HASH} -> ${UQBE_REMOTE_HASH}"
+				UQBE_NEEDS_INSTALL=1
+				;;
+			esac
+		fi
 	else
-		log "UQBE setup failed — will use C bootstrap fallback."
-		QBE_OK=0
+		UQBE_INSTALL_PATH="${BIN_DIR}/uqbe"
+		UQBE_NEEDS_INSTALL=1
+	fi
+
+	if [ "$UQBE_NEEDS_INSTALL" -eq 1 ]; then
+		if uqbe_build "$UQBE_DIR"; then
+			if [ -n "$UQBE_BIN" ] && [ -x "$UQBE_BIN" ]; then
+				uqbe_backup "$UQBE_BIN"
+			fi
+			log "Installing UQBE to ${UQBE_INSTALL_PATH}..."
+			if ! /usr/bin/install -m 0755 "${UQBE_DIR}/qbe" "$UQBE_INSTALL_PATH" 2>/dev/null; then
+				if [ "$UQBE_INSTALL_PATH" != "${BIN_DIR}/uqbe" ]; then
+					log "Could not replace ${UQBE_INSTALL_PATH}, thus installing to ${BIN_DIR}/uqbe instead."
+					UQBE_INSTALL_PATH="${BIN_DIR}/uqbe"
+				fi
+				/usr/bin/install -m 0755 "${UQBE_DIR}/qbe" "$UQBE_INSTALL_PATH" || QBE_OK=0
+			fi
+			if [ "$QBE_OK" -eq 1 ]; then
+				UQBE_BIN="$UQBE_INSTALL_PATH"
+			fi
+		elif [ -n "$UQBE_BIN" ] && [ -x "$UQBE_BIN" ]; then
+			log "UQBE update failed - keeping existing ${UQBE_BIN}."
+		else
+			log "UQBE setup failed - will use C bootstrap fallback."
+			QBE_OK=0
+		fi
 	fi
 fi
 
