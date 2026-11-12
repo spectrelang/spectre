@@ -18,6 +18,8 @@ fn kind_to_name(kind: i64) ref u8 = {
         return c"EXTERN_FN"
     } elif kind == parser.NK_EXTERN_TYPE {
         return c"EXTERN_TYPE"
+    } elif kind == parser.NK_EXTERN_VAL {
+        return c"EXTERN_VAL"
     } elif kind == parser.NK_LINK {
         return c"LINK"
     } elif kind == parser.NK_LIB {
@@ -912,6 +914,10 @@ fn print_node_recursive(node: ref parser.Node, indent: i64, is_last: bool) void 
             }
         }
         print_node_recursive(ret_ty, indent + 1, true)
+    } elif kind == parser.NK_EXTERN_VAL {
+        val name: ref u8 = parser.node_str_raw(node.d1)
+        stdio.print("{s}{s} : {s}\n", {prefix, kind_name, name})
+        print_node_recursive(node.d3 as ref parser.Node, indent + 1, true)
     } elif kind == parser.NK_USE {
         val name: ref u8 = parser.node_str_raw(node.d1)
         stdio.print("{s}{s} : {s}\n", {prefix, kind_name, name})

@@ -1,0 +1,445 @@
+val stdio      = use("std/stdio")
+val mem        = use("../meta/mem.sx")
+val str        = use("std/string")
+val cstr       = use("std/string/cstr")
+val ostr       = use("std/string/owned")
+val builder    = use("std/string/builder")
+val path       = use("std/path")
+val os         = use("std/os")
+val fs         = use("std/fs")
+val allocators = use("std/allocators")
+val builds     = use("../meta/builds.sx")
+val arenafmt   = use("../meta/arenafmt.sx")
+val c_translate = use("c_translate.sx")
+
+pub type BindOptions = {
+    output_dir: mut str.StringView
+    link_name: mut str.StringView
+    target_platform: mut str.StringView
+    target_arch: mut str.StringView
+    normalize: mut bool
+    include_paths: mut list[ref u8]
+    defines: mut list[ref u8]
+    undefines: mut list[ref u8]
+}
+
+fn bfmt(format: str.StringView, args: argspack) ref u8 = trust {
+    return arenafmt.format(mem.allocator().arena, format, args).ptr
+}
+
+fn copy_view(value: str.StringView) ref u8 = trust {
+    val out: ref u8 = @alloc((value.len + 1) as usize) as ref u8
+    if out == none {
+        return c""
+    }
+    if value.len > 0 {
+        @memcpy(out, value.ptr, value.len as usize)
+    }
+    @store8(@ptradd(out, value.len), 0)
+    return out
+}
+
+fn quote_view(value: str.StringView) str.StringView = trust {
+    val sb: ref void = builder.StringBuilder.new()
+    builder.StringBuilder.append_char(sb, 39 as u8)
+    val i: mut i64 = 0
+    for {
+        if i >= value.len {
+            break
+        }
+        val c: u8 = @load8(@ptradd(value.ptr, i))
+        if c == 39 {
+            builder.StringBuilder.append_cstr(sb, c"'\\''")
+        } else {
+            builder.StringBuilder.append_char(sb, c)
+        }
+        i++
+    }
+    builder.StringBuilder.append_char(sb, 39 as u8)
+    val built: ref void = builder.StringBuilder.build(sb)
+    builder.StringBuilder.free(sb)
+    val owned: str.String = built as str.String
+    return str.view(ostr.as_cstr(owned), ostr.len(owned))
+}
+
+fn find_char(value: str.StringView, target: u8) i64 = trust {
+    val i: mut i64 = 0
+    for {
+        if i >= value.len {
+            break
+        }
+        if @load8(@ptradd(value.ptr, i)) == target {
+            return i
+        }
+        i++
+    }
+    return -1
+}
+
+fn line_marker_path(line: str.StringView) str.StringView = trust {
+    val trimmed: str.StringView = str.trim(line)
+    if trimmed.len == 0 || @load8(trimmed.ptr) != 35 {
+        return str.view(none, 0)
+    }
+    val j: mut i64 = 1
+    for {
+        if j >= trimmed.len {
+            return str.view(none, 0)
+        }
+        val c: u8 = @load8(@ptradd(trimmed.ptr, j))
+        if c != 32 && c != 9 {
+            break
+        }
+        j++
+    }
+    if j >= trimmed.len || @load8(@ptradd(trimmed.ptr, j)) < 48
+    || @load8(@ptradd(trimmed.ptr, j)) > 57 {
+        return str.view(none, 0)
+    }
+    for {
+        if j >= trimmed.len {
+            return str.view(none, 0)
+        }
+        val c: u8 = @load8(@ptradd(trimmed.ptr, j))
+        if c < 48 || c > 57 {
+            break
+        }
+        j++
+    }
+    for {
+        if j >= trimmed.len {
+            return str.view(none, 0)
+        }
+        val c: u8 = @load8(@ptradd(trimmed.ptr, j))
+        if c != 32 && c != 9 {
+            break
+        }
+        j++
+    }
+    if j >= trimmed.len || @load8(@ptradd(trimmed.ptr, j)) != 34 {
+        return str.view(none, 0)
+    }
+    val rest: str.StringView = str.slice(trimmed, j + 1, trimmed.len)
+    val second: i64 = find_char(rest, 34)
+    if second < 0 {
+        return str.view(none, 0)
+    }
+    return str.slice(rest, 0, second)
+}
+
+fn starts_with_angle(value: str.StringView) bool = trust {
+    if value.len == 0 {
+        return false
+    }
+    return @load8(value.ptr) == 60
+}
+
+fn line_marker_has_system(line: str.StringView) bool = trust {
+    val trimmed: str.StringView = str.trim(line)
+    val first: i64 = find_char(trimmed, 34)
+    if first < 0 {
+        return false
+    }
+    val rest: str.StringView = str.slice(trimmed, first + 1, trimmed.len)
+    val second: i64 = find_char(rest, 34)
+    if second < 0 {
+        return false
+    }
+    val flags: str.StringView = str.slice(rest, second + 1, rest.len)
+    val i: mut i64 = 0
+    for {
+        if i >= flags.len {
+            break
+        }
+        val c: u8 = @load8(@ptradd(flags.ptr, i))
+        if c == 51 {
+            val prev_ok: bool = i == 0 || @load8(@ptradd(flags.ptr, i - 1)) == 32
+            val next_ok: bool = i + 1 >= flags.len
+            || @load8(@ptradd(flags.ptr, i + 1)) == 32
+            if prev_ok && next_ok {
+                return true
+            }
+        }
+        i++
+    }
+    return false
+}
+
+fn should_emit(
+    current: str.StringView,
+    input: str.StringView,
+    is_system: bool
+) bool = trust {
+    if current.ptr == none || current.len == 0 || starts_with_angle(current) {
+        return false
+    }
+    if str.eql(current, input) {
+        return true
+    }
+    return !is_system
+}
+
+fn filter_preprocessed(
+    text: str.StringView,
+    input: str.StringView
+) str.StringView = trust {
+    val sb: ref void = builder.StringBuilder.new()
+    val current: mut str.StringView = str.view(none, 0)
+    val current_system: mut bool = false
+    val i: mut i64 = 0
+    for {
+        if i >= text.len {
+            break
+        }
+        val start: i64 = i
+        for {
+            if i >= text.len {
+                break
+            }
+            if @load8(@ptradd(text.ptr, i)) == 10 {
+                break
+            }
+            i++
+        }
+        val line: str.StringView = str.slice(text, start, i)
+        if i < text.len {
+            i++
+        }
+        val marker: str.StringView = line_marker_path(line)
+        if marker.ptr != none {
+            current = marker
+            current_system = line_marker_has_system(line)
+            continue
+        }
+        if !should_emit(current, input, current_system) {
+            continue
+        }
+        if str.contains(line, ": warning:")
+        || str.contains(line, ": error:")
+        || str.contains(line, ": note:")
+        || str.contains(line, "warning generated")
+        || str.contains(line, "error generated") {
+            continue
+        }
+        builder.StringBuilder.append(sb, line)
+        builder.StringBuilder.append_char(sb, 10 as u8)
+    }
+    val built: ref void = builder.StringBuilder.build(sb)
+    builder.StringBuilder.free(sb)
+    val owned: str.String = built as str.String
+    return str.view(ostr.as_cstr(owned), ostr.len(owned))
+}
+
+fn target_triple(platform: str.StringView, arch: str.StringView) str.StringView = trust {
+    if platform.len == 0 || arch.len == 0 {
+        return ""
+    }
+    val arch_text: mut str.StringView = arch
+    if str.eql(arch, "x86_64") {
+        arch_text = "x86_64"
+    } elif str.eql(arch, "aarch64") {
+        arch_text = "aarch64"
+    }
+    if str.eql(platform, "windows") {
+        val triple: ref u8 = bfmt("{s}-pc-windows-msvc", {copy_view(arch_text)})
+        return str.view(triple, cstr.len(triple))
+    }
+    if str.eql(platform, "linux") {
+        val triple: ref u8 = bfmt("{s}-unknown-linux-gnu", {copy_view(arch_text)})
+        return str.view(triple, cstr.len(triple))
+    }
+    val triple2: ref u8 = bfmt("{s}-unknown-{s}", {copy_view(arch_text), copy_view(platform)})
+    return str.view(triple2, cstr.len(triple2))
+}
+
+fn cpp_command(
+    input: str.StringView,
+    opts: ref BindOptions
+) ref u8 = trust {
+    val compiler: mut ref u8 = c"clang"
+    if !builds.is_compiler_available(c"clang") {
+        compiler = c"cc"
+    }
+    val sb: ref void = builder.StringBuilder.new()
+    builder.StringBuilder.append_cstr(sb, compiler)
+    builder.StringBuilder.append_cstr(sb, c" -E -dD -x c")
+    val triple: str.StringView = target_triple(
+        opts.target_platform,
+        opts.target_arch
+    )
+    if triple.len > 0 {
+        builder.StringBuilder.append_cstr(sb, c" --target=")
+        builder.StringBuilder.append(sb, triple)
+    }
+    for include_path in opts.include_paths {
+        builder.StringBuilder.append_cstr(sb, c" -I ")
+        builder.StringBuilder.append(sb, quote_view(str.from_cstr(include_path)))
+    }
+    for define in opts.defines {
+        builder.StringBuilder.append_cstr(sb, c" -D ")
+        builder.StringBuilder.append(sb, quote_view(str.from_cstr(define)))
+    }
+    for undefine in opts.undefines {
+        builder.StringBuilder.append_cstr(sb, c" -U ")
+        builder.StringBuilder.append(sb, quote_view(str.from_cstr(undefine)))
+    }
+    builder.StringBuilder.append_char(sb, 32)
+    builder.StringBuilder.append(sb, quote_view(input))
+    builder.StringBuilder.append_cstr(
+        sb,
+        c" 2>&1 || echo __SPECTRE_CPP_FAILED__"
+    )
+    val built: ref void = builder.StringBuilder.build(sb)
+    builder.StringBuilder.free(sb)
+    val owned: str.String = built as str.String
+    return copy_view(str.view(ostr.as_cstr(owned), ostr.len(owned)))
+}
+
+fn preprocess(
+    input: str.StringView,
+    opts: ref BindOptions
+) option[str.StringView] = trust {
+    val command: ref u8 = cpp_command(input, opts)
+    val result = os.exec(command)
+    match result {
+        err _ => {
+            return none
+        }
+        ok output => {
+            val text: str.StringView = str.from_cstr(ostr.as_cstr(output))
+            if str.contains(text, "__SPECTRE_CPP_FAILED__") {
+                stdio.print(
+                    "error: C preprocessor failed for '{s}'\n",
+                    {copy_view(input)}
+                )
+                stdio.print("{s}\n", {copy_view(text)})
+                return none
+            }
+            return some filter_preprocessed(text, input)
+        }
+    }
+}
+
+fn is_source_name(value: str.StringView) bool = trust {
+    return str.ends_with(value, ".h") || str.ends_with(value, ".c")
+}
+
+fn collect_dir(dir: str.StringView, out: mut list[str.StringView]) void = trust {
+    val heap: allocators.HeapAllocator = @zeroed
+    val entries_opt = fs.walk_dir_cstr[_](heap, copy_view(dir))
+    match entries_opt {
+        none => {}
+        some entries => {
+            for entry in entries {
+                val name: str.StringView = str.from_cstr(entry as ref u8)
+                if str.eql(name, ".") || str.eql(name, "..") {
+                    continue
+                }
+                val child: ref u8 = path.join(dir, name)
+                val child_view: str.StringView = str.from_cstr(child)
+                if fs.is_directory(child_view) {
+                    collect_dir(child_view, out)
+                } elif is_source_name(child_view) {
+                    @append(out, child_view)
+                }
+            }
+        }
+    }
+}
+
+fn collect_inputs(
+    inputs: list[ref u8],
+    out: mut list[str.StringView]
+) void = trust {
+    for raw in inputs {
+        val input: str.StringView = str.from_cstr(raw)
+        if fs.is_directory(input) {
+            collect_dir(input, out)
+        } else {
+            @append(out, input)
+        }
+    }
+}
+
+fn output_path_for(
+    input: str.StringView,
+    output_dir: str.StringView
+) str.StringView = trust {
+    val base: str.StringView = path.base_name(input)
+    val last_dot: mut i64 = -1
+    val i: mut i64 = 0
+    for {
+        if i >= base.len {
+            break
+        }
+        if @load8(@ptradd(base.ptr, i)) == 46 {
+            last_dot = i
+        }
+        i++
+    }
+    val stem: mut str.StringView = base
+    if last_dot > 0 {
+        stem = str.slice(base, 0, last_dot)
+    }
+    val out: ref u8 = bfmt("{s}/{s}.sx", {copy_view(output_dir), copy_view(stem)})
+    return str.view(out, cstr.len(out))
+}
+
+fn bind_one(
+    input: str.StringView,
+    opts: ref BindOptions
+) i32 = trust {
+    val preprocessed_opt = preprocess(input, opts)
+    match preprocessed_opt {
+        none => {
+            return 1
+        }
+        some content => {
+            val output: str.StringView = output_path_for(input, opts.output_dir)
+            val code: i32 = c_translate.translate_bind_text(
+                copy_view(input),
+                copy_view(content),
+                copy_view(output),
+                opts.normalize,
+                copy_view(opts.target_platform),
+                copy_view(opts.target_arch),
+                copy_view(opts.link_name)
+            )
+            if code == 0 {
+                stdio.print("wrote {s}\n", {copy_view(output)})
+            }
+            return code
+        }
+    }
+}
+
+/// Generate Spectre bindings for C headers using an external preprocessor.
+pub fn bind_c(inputs: list[ref u8], opts: mut BindOptions) i32 = trust {
+    if (@len(inputs) as i64) == 0 {
+        stdio.puts("error: bind-c requires at least one .h or .c input")
+        return 1
+    }
+    if opts.output_dir.len == 0 {
+        opts.output_dir = "./src-out"
+    }
+    if !fs.mkdir_path(opts.output_dir) {
+        stdio.print(
+            "error: could not create output directory '{s}'\n",
+            {copy_view(opts.output_dir)}
+        )
+        return 1
+    }
+    val files: mut list[str.StringView] = mem.new[str.StringView]()
+    collect_inputs(inputs, files)
+    if (@len(files) as i64) == 0 {
+        stdio.puts("error: no matching .h or .c files found")
+        return 1
+    }
+    for file in files {
+        val code: i32 = bind_one(file, @addr(opts))
+        if code != 0 {
+            return code
+        }
+    }
+    return 0
+}

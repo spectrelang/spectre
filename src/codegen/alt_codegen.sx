@@ -2210,6 +2210,97 @@ fn cc_lookup_extern_symbol(ctx: ref CCtx, name: ref u8) ref u8 = trust {
     return none
 }
 
+fn cc_register_extern_val(
+    ctx: ref CCtx,
+    item: ref parser.Node,
+    mod_prefix: ref u8
+) void = trust {
+    val name: ref u8 = parser.node_str_raw(item.d1)
+    val symbol: ref u8 = parser.node_str_raw(item.d2)
+    val ty: ref parser.Node = item.d3 as ref parser.Node
+    val mangled: ref u8 = allocators.ScopedArena.alloc_or_none(
+        ctx.arena,
+        512 as usize
+    ) as ref u8
+    if cstr.cmp(mod_prefix, c"") == 0 {
+        @snprintf(mangled, 512, "sx_ext_{s}", {name})
+    } else {
+        @snprintf(mangled, 512, "sx_ext_{s}_{s}", {mod_prefix, name})
+    }
+    val already_defined: mut bool = false
+    for existing in ctx.gsyms as list[ref u8] {
+        if cstr.cmp(existing as ref u8, mangled) == 0 {
+            already_defined = true
+            break
+        }
+    }
+    if !cc_has_module_val(ctx, name) {
+        cc_register_module_val(ctx, name, mangled, ty)
+    }
+    if item.d0 == 1 && cstr.cmp(mod_prefix, c"") != 0 {
+        val prefixed: ref u8 = allocators.ScopedArena.alloc_or_none(
+            ctx.arena,
+            512 as usize
+        ) as ref u8
+        @snprintf(prefixed, 512, "{s}__{s}", {mod_prefix, name})
+        if !cc_has_module_val(ctx, prefixed) {
+            cc_register_module_val(ctx, prefixed, mangled, ty)
+        }
+    }
+    if already_defined {
+        return
+    }
+    val decl_ty: mut ref parser.Node = ty
+    if decl_ty != none && decl_ty.kind == parser.TY_MUT {
+        decl_ty = decl_ty.d0 as ref parser.Node
+    }
+    val cty: mut ref u8 = c"int64_t"
+    if decl_ty != none && decl_ty.kind == parser.TY_NAMED {
+        val tname: ref u8 = parser.node_str_raw(decl_ty.d0)
+        if cstr.cmp(tname, c"i8") == 0 {
+            cty = c"int8_t"
+        } elif cstr.cmp(tname, c"u8") == 0 {
+            cty = c"uint8_t"
+        } elif cstr.cmp(tname, c"i16") == 0 {
+            cty = c"int16_t"
+        } elif cstr.cmp(tname, c"u16") == 0 {
+            cty = c"uint16_t"
+        } elif cstr.cmp(tname, c"i32") == 0 {
+            cty = c"int32_t"
+        } elif cstr.cmp(tname, c"u32") == 0 {
+            cty = c"uint32_t"
+        } elif cstr.cmp(tname, c"i64") == 0 || cstr.cmp(tname, c"isize") == 0 {
+            cty = c"int64_t"
+        } elif cstr.cmp(tname, c"usize") == 0 {
+            cty = c"uint64_t"
+        } elif cstr.cmp(tname, c"f32") == 0 {
+            cty = c"float"
+        } elif cstr.cmp(tname, c"f64") == 0 {
+            cty = c"double"
+        }
+    }
+    val buf: ref u8 = allocators.ScopedArena.alloc_or_none(
+        ctx.arena,
+        1024 as usize
+    ) as ref u8
+    when posix {
+        @snprintf(
+            buf,
+            1024,
+            "extern {s} {s} __asm__(\"{s}\");\n",
+            {cty, mangled, symbol}
+        )
+    } otherwise {
+        @snprintf(
+            buf,
+            1024,
+            "extern {s} {s};\n",
+            {cty, symbol}
+        )
+    }
+    emit_to_fwd(ctx, buf)
+}
+
 fn cc_register_struct(
     ctx: ref CCtx,
     tname: ref u8,
@@ -10089,6 +10180,8 @@ fn preregister_items(
                         cc_register_fn(ctx, node, sm, params, ret_ty, is_var, no_forward)
                     }
                 }
+            } elif k == parser.NK_EXTERN_VAL {
+                cc_register_extern_val(ctx, node, mod_prefix)
             } elif k == parser.NK_CONST {
                 val cn: ref u8 = parser.node_str_raw(node.d1)
                 val ce: ref parser.Node = node.d2 as ref parser.Node
@@ -10446,6 +10539,8 @@ fn gen_items_with_prefix(
                 }
             } elif k == parser.NK_EXTERN_FN {
                 gen_extern_fn_prefixed(ctx, node, mod_prefix)
+            } elif k == parser.NK_EXTERN_VAL {
+                cc_register_extern_val(ctx, node, mod_prefix)
             } elif k == parser.NK_EXTERN_HEADER {
                 gen_extern_header(ctx, node)
             } elif k == parser.NK_ENUMDEF {
@@ -11255,6 +11350,8 @@ fn gen_items_with_prefix_skip_main(
                 }
             } elif k == parser.NK_EXTERN_FN {
                 gen_extern_fn_prefixed(ctx, node, mod_prefix)
+            } elif k == parser.NK_EXTERN_VAL {
+                cc_register_extern_val(ctx, node, mod_prefix)
             } elif k == parser.NK_EXTERN_HEADER {
                 gen_extern_header(ctx, node)
             } elif k == parser.NK_ENUMDEF {

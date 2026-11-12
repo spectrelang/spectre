@@ -23,22 +23,24 @@ pub fn print_usage() void = {
     stdio.puts("  spectre <command> [args] | <input.sx> [options]")
     stdio.puts("")
     stdio.puts("commands:")
-    stdio.puts("  init    <name>       Initialize a new project")
-    stdio.puts("  fmt     <path>       Format .sx files or directories in place")
-    stdio.puts("  critic  <path>       Point out antipatterns in .sx files")
-    stdio.puts("  build   <config>     Build using a config from sx.mod")
-    stdio.puts("  run     <input.sx>   Compile and immediately run a program")
-    stdio.puts("  doc     <path>       Generate docs for a file or directory")
-    stdio.puts("  add     <git-url>    Clone a git dependency into ./lib/ and record it")
-    stdio.puts("  install <git-url>    Build and install a Spectre project from a repository")
-    stdio.puts("  remove  <dep-name>   Remove a dependency by repository name")
-    stdio.puts("  upgrade <dep-name>   Upgrade dependencies in ./lib/ to their latest HEAD")
-    stdio.puts("  help    <topic>      Show detailed help for a command or flag")
+    stdio.puts("  init     <name>      Initialize a new project")
+    stdio.puts("  fmt      <path>      Format .sx files or directories in place")
+    stdio.puts("  critic   <path>      Point out antipatterns in .sx files")
+    stdio.puts("  build    <config>    Build using a config from sx.mod")
+    stdio.puts("  run      <input.sx>  Compile and immediately run a program")
+    stdio.puts("  doc      <path>      Generate docs for a file or directory")
+    stdio.puts("  add      <git-url>   Clone a git dependency into ./lib/ and record it")
+    stdio.puts("  install  <git-url>   Build and install a Spectre project from a repository")
+    stdio.puts("  remove   <dep-name>  Remove a dependency by repository name")
+    stdio.puts("  upgrade  <dep-name>  Upgrade dependencies in ./lib/ to their latest HEAD")
+    stdio.puts("  help     <topic>     Show detailed help for a command or flag")
     stdio.puts("  restore              Restore all dependencies from sx.mod and sx.lock into ./lib/")
     stdio.puts("  graph                Visualize the project dependency tree")
     stdio.puts("  ref                  Generate the language reference in the current directory")
     stdio.puts("  clean                Remove build artifacts")
     stdio.puts("  doctor               Show system and Spectre installation information")
+    stdio.puts("  transl-c <file>      Translate C source into a single .sx file")
+    stdio.puts("  bind-c   <file|dir>  Generate C bindings from headers")
     stdio.puts("")
     stdio.puts("options:")
     stdio.puts("  -ast                 Print the AST in a unicode tree and exit")
@@ -57,7 +59,6 @@ pub fn print_usage() void = {
     stdio.puts("  -sysroot:<dir>       Target sysroot for hosted cross builds")
     stdio.puts("  -rt-lib:<file>       Explicit freestanding runtime archive/object")
     stdio.puts("  -src-target:<os>     Mock target OS for when-blocks in source output")
-    stdio.puts("  -translate-c         Translate C input into a single .sx file")
     stdio.puts("  -inc-path:<dir>      Add an include search path for the alt backend")
     stdio.puts("  -show-cmd            Show the command used for linking")
     stdio.puts("  -test                Run the unit tests in the current file")
@@ -300,6 +301,43 @@ pub fn print_help(topic: str.StringView) i32 = trust {
         return 0
     }
 
+    if str.eql_cstr(topic, c"transl-c") {
+        stdio.puts("transl-c - Translate C source into a single .sx file")
+        stdio.puts("")
+        stdio.puts("usage:")
+        stdio.puts("  spectre transl-c <input.c|input.h> [-o <file>]")
+        stdio.puts("")
+        stdio.puts("options:")
+        stdio.puts("  -o <file>   Write the translated file to <file>")
+        stdio.puts("  -h, -help   Show this help message")
+        stdio.puts("")
+        stdio.puts("Without -o, the result is written to ./src-out/<name>.sx.")
+        return 0
+    }
+
+    if str.eql_cstr(topic, c"bind-c") {
+        stdio.puts("bind-c - Generate Spectre bindings from C headers")
+        stdio.puts("")
+        stdio.puts("usage:")
+        stdio.puts("  spectre bind-c <file.h|file.c|directory>... [options]")
+        stdio.puts("")
+        stdio.puts("options:")
+        stdio.puts("  -o <dir>        Write generated .sx files to <dir> (default: ./src-out)")
+        stdio.puts("  -normalize      Convert PascalCase/camelCase names to snake_case")
+        stdio.puts("  -link <name>    Emit `lib \"<name>\"` in the generated module")
+        stdio.puts("  -target:<os>.<arch>  Select the target C ABI")
+        stdio.puts("  -I <dir>        Add a C include search path")
+        stdio.puts("  -D <name[=v]>   Define a C preprocessor macro")
+        stdio.puts("  -U <name>       Undefine a C preprocessor macro")
+        stdio.puts("  -h, -help       Show this help message")
+        stdio.puts("")
+        stdio.puts("Headers are preprocessed with the host C preprocessor (clang or cc)")
+        stdio.puts("using -E -dD. Declarations from the target file and its local includes")
+        stdio.puts("become public externs; system-header declarations are ignored.")
+        stdio.puts("Directories are searched recursively for .h and .c files.")
+        return 0
+    }
+
     if str.eql_cstr(topic, c"help") {
         stdio.puts("help - Show detailed help for a command or flag")
         stdio.puts("")
@@ -414,15 +452,6 @@ pub fn print_help(topic: str.StringView) i32 = trust {
         stdio.puts("Examples:")
         stdio.puts("    spectre app.sx -runtime:freestanding -o app")
         stdio.puts("    spectre app.sx -target:windows.x86_64 -runtime:hosted -xwin:$HOME/.xwin -o app.exe")
-        return 0
-    }
-
-    if str.eql_cstr(topic, c"-translate-c") {
-        print_flag_help(
-            "-translate-c",
-            "Translate C input into a single .sx file.",
-            "spectre -translate-c <input.c|input.h>"
-        )
         return 0
     }
 

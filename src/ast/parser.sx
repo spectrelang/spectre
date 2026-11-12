@@ -24,6 +24,7 @@ pub val (
     NK_SPEC: i64                         = 12
     NK_EXTERN_HEADER: i64                = 53
     NK_LIB: i64                          = 54
+    NK_EXTERN_VAL: i64                   = 55
     NK_VAL: i64                          = 20
     NK_ASSIGN: i64                       = 21
     NK_RETURN: i64                       = 22
@@ -409,6 +410,22 @@ pub fn extern_fn_is_variadic(n: ref Node) bool = {
 
 pub fn extern_fn_uses_header(n: ref Node) bool = {
     return (n.d6 & EXTERN_FLAG_HEADER) != 0
+}
+
+pub fn extern_val_is_mut(n: ref Node) bool = {
+    return n.d4 != 0
+}
+
+pub fn extern_val_name(n: ref Node) str.StringView = {
+    return node_str(n.d1)
+}
+
+pub fn extern_val_symbol(n: ref Node) str.StringView = {
+    return node_str(n.d2)
+}
+
+pub fn extern_val_type(n: ref Node) ref Node = {
+    return n.d3 as ref Node
 }
 
 fn make_field(
@@ -4011,6 +4028,50 @@ fn parse_extern_fn_item(p: mut ref Parser, public: i64) result[ref Node, ref u8]
     return ok nef
 }
 
+fn parse_extern_val_entry(p: mut ref Parser, public: i64) result[ref Node, ref u8] = trust {
+    val line: i64 = p_line(p)
+    val name = p_expect_ident(p)?
+    p_expect_colon(p)?
+    val is_mut: mut i64 = 0
+    if p_eat_fn(p, kind_is_mut) {
+        is_mut = 1
+    }
+    val ty = parse_type(p)?
+    val symbol: mut ref u8 = name
+    if p_eat_fn(p, kind_is_eq) {
+        symbol = p_expect_string(p)?
+    }
+    val nev: mut ref Node = make_node(p.arena, NK_EXTERN_VAL, line)
+    nev.d0 = public
+    node_store_string_slot(@addr(nev.d1), name)
+    node_store_string_slot(@addr(nev.d2), symbol)
+    node_store_slot[ref Node](@addr(nev.d3), ty)
+    nev.d4 = is_mut
+    return ok nev
+}
+
+fn parse_extern_val_item(p: mut ref Parser, public: i64) result[ref Node, ref u8] = trust {
+    val line: i64 = p_line(p)
+    if lexer.kind_is_lparen(p_peek_kind(p)) {
+        p_advance(p)
+        val entries: mut list[ref Node] = mem.new[ref Node]()
+        for {
+            if lexer.kind_is_rparen(p_peek_kind(p)) {
+                break
+            }
+            val entry = parse_extern_val_entry(p, public)?
+            @append(entries, entry)
+            p_eat_fn(p, lexer.kind_is_comma)
+        }
+        p_expect_rparen(p)?
+        val nb: mut ref Node = make_node(p.arena, NK_VAL_BULK, line)
+        val elist: list[ref Node] = entries
+        node_store_slot[list[ref Node]](@addr(nb.d0), elist)
+        return ok nb
+    }
+    return parse_extern_val_entry(p, public)
+}
+
 fn parse_extern_header_item(p: mut ref Parser) result[ref Node, ref u8] = trust {
     val line: i64 = p_line(p)
     val header = p_expect_string(p)?
@@ -4205,6 +4266,10 @@ pub fn parse_item(p: mut ref Parser) result[ref Node, ref u8] = trust {
         }
         if kind_is_type(p_peek_kind(p)) {
             return parse_type_def_item(p, public, 1)
+        }
+        if kind_is_val(p_peek_kind(p)) {
+            p_advance(p)
+            return parse_extern_val_item(p, public)
         }
         return parse_extern_fn_item(p, public)
     }

@@ -339,6 +339,10 @@ fn import_is_referenced(items: list[ref parser.Node], import_name: ref u8) bool 
                 if expr != none && expr_references_import_shallow(expr, import_name) {
                     return true
                 }
+            } elif item.kind == parser.NK_EXTERN_VAL {
+                if type_references_import_shallow(item.d3 as ref parser.Node, import_name) {
+                    return true
+                }
             }
         }
         ii++
@@ -3489,6 +3493,8 @@ fn collect_used_imports_item(
         collect_used_imports_expr(item.d3 as ref parser.Node, import_names, used)
     } elif item.kind == parser.NK_CONST {
         collect_used_imports_expr(item.d2 as ref parser.Node, import_names, used)
+    } elif item.kind == parser.NK_EXTERN_VAL {
+        collect_used_imports_type(item.d3 as ref parser.Node, import_names, used)
     } elif item.kind == parser.NK_TYPEDEF || item.kind == parser.NK_EXTERN_TYPE {
         val derived_spec_name: ref u8 = parser.node_str_raw(item.d4)
         if derived_spec_name != none {

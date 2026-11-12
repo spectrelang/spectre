@@ -27,6 +27,7 @@ val docs        = use("meta/docs.sx")
 val formatter   = use("meta/fmt.sx")
 val critic      = use("meta/critic.sx")
 val c_translate = use("translate/c_translate.sx")
+val c_bind      = use("translate/c_bind.sx")
 val builds      = use("meta/builds.sx")
 val install     = use("meta/install.sx")
 
@@ -208,8 +209,6 @@ pub fn main() i32 = trust {
         allocators.Arena.free(arena)
         return code
     }
-
-    val flag_first_translate_c: bool = cstr.cmp(input, c"-translate-c") == 0
 
     if cstr.cmp(input, c"-h") == 0 || cstr.cmp(input, c"-help") == 0 {
         meta.print_usage()
@@ -539,15 +538,194 @@ pub fn main() i32 = trust {
         return code
     }
 
-    if flag_first_translate_c {
-        val next_opt = @get(args, 2)
-        if next_opt is some next_arg {
-            input = next_arg as ref u8
-        } else {
-            stdio.puts("error: -translate-c requires an input .c or .h file")
+    if cstr.cmp(input, c"transl-c") == 0 {
+        val tc_input: mut ref u8 = c""
+        val tc_output: mut ref u8 = c""
+        val ti: mut i64 = input_arg_i + 1
+        for {
+            val opt = @get(args, ti)
+            if opt is some tv {
+                val arg: ref u8 = tv as ref u8
+                if cstr.cmp(arg, c"-h") == 0 || cstr.cmp(arg, c"-help") == 0 {
+                    val code: i32 = meta.print_help("transl-c")
+                    allocators.Arena.free(arena)
+                    return code
+                } elif cstr.cmp(arg, c"-o") == 0 || cstr.cmp(arg, c"-output") == 0 {
+                    ti++
+                    val next_opt = @get(args, ti)
+                    if next_opt is some ov {
+                        tc_output = ov as ref u8
+                    } else {
+                        stdio.puts("error: transl-c -o requires a value")
+                        allocators.Arena.free(arena)
+                        return 1
+                    }
+                } elif cstr.starts_with(arg, c"-") {
+                    stdio.print("error: unknown transl-c flag: {s}\n", {arg})
+                    allocators.Arena.free(arena)
+                    return 1
+                } else {
+                    tc_input = arg
+                }
+            } else {
+                break
+            }
+            ti++
+        }
+        if cstr.cmp(tc_input, c"") == 0 {
+            stdio.puts("error: transl-c requires an input .c or .h file")
             allocators.Arena.free(arena)
             return 1
         }
+        if cstr.cmp(tc_output, c"") == 0 {
+            tc_output = @fmtalloc(
+                "./src-out/{s}.sx",
+                {path.get_name_without_ext_cstr(arena, tc_input)}
+            )
+        }
+        val code: i32 = c_translate.translate_c(tc_input, tc_output)
+        allocators.Arena.free(arena)
+        return code
+    }
+
+    if cstr.cmp(input, c"bind-c") == 0 {
+        val bind_inputs: mut list[ref u8] = mem.new[ref u8]()
+        val bind_includes: mut list[ref u8] = mem.new[ref u8]()
+        val bind_defines: mut list[ref u8] = mem.new[ref u8]()
+        val bind_undefines: mut list[ref u8] = mem.new[ref u8]()
+        val bind_output_dir: mut ref u8 = c"./src-out"
+        val bind_link: mut ref u8 = c""
+        val bind_target: mut ref u8 = c""
+        val bind_normalize: mut bool = false
+        val bi: mut i64 = input_arg_i + 1
+        for {
+            val opt = @get(args, bi)
+            if opt is some bv {
+                val arg: ref u8 = bv as ref u8
+                if cstr.cmp(arg, c"-h") == 0 || cstr.cmp(arg, c"-help") == 0 {
+                    val code: i32 = meta.print_help("bind-c")
+                    allocators.Arena.free(arena)
+                    return code
+                } elif cstr.cmp(arg, c"-normalize") == 0 {
+                    bind_normalize = true
+                } elif cstr.cmp(arg, c"-o") == 0 || cstr.cmp(arg, c"-output") == 0 {
+                    bi++
+                    val next_opt = @get(args, bi)
+                    if next_opt is some ov {
+                        bind_output_dir = ov as ref u8
+                    } else {
+                        stdio.puts("error: bind-c -o requires a directory")
+                        allocators.Arena.free(arena)
+                        return 1
+                    }
+                } elif cstr.cmp(arg, c"-link") == 0 {
+                    bi++
+                    val next_opt = @get(args, bi)
+                    if next_opt is some lv {
+                        bind_link = lv as ref u8
+                    } else {
+                        stdio.puts("error: bind-c -link requires a library name")
+                        allocators.Arena.free(arena)
+                        return 1
+                    }
+                } elif cstr.cmp(arg, c"-target") == 0 {
+                    bi++
+                    val next_opt = @get(args, bi)
+                    if next_opt is some tv2 {
+                        bind_target = tv2 as ref u8
+                    } else {
+                        stdio.puts("error: bind-c -target requires <os>.<arch>")
+                        allocators.Arena.free(arena)
+                        return 1
+                    }
+                } elif cstr.starts_with(arg, c"-target:") {
+                    bind_target = cstr.substr(arg, 8, cstr.len(arg) - 8)
+                } elif cstr.cmp(arg, c"-I") == 0 {
+                    bi++
+                    val next_opt = @get(args, bi)
+                    if next_opt is some iv {
+                        @append(bind_includes, iv as ref u8)
+                    } else {
+                        stdio.puts("error: bind-c -I requires a directory")
+                        allocators.Arena.free(arena)
+                        return 1
+                    }
+                } elif cstr.starts_with(arg, c"-I:") {
+                    @append(bind_includes, cstr.substr(arg, 3, cstr.len(arg) - 3))
+                } elif cstr.starts_with(arg, c"-inc-path:") {
+                    @append(bind_includes, cstr.substr(arg, 10, cstr.len(arg) - 10))
+                } elif cstr.starts_with(arg, c"-I") && cstr.len(arg) > 2 {
+                    @append(bind_includes, cstr.substr(arg, 2, cstr.len(arg) - 2))
+                } elif cstr.cmp(arg, c"-D") == 0 {
+                    bi++
+                    val next_opt = @get(args, bi)
+                    if next_opt is some dv {
+                        @append(bind_defines, dv as ref u8)
+                    } else {
+                        stdio.puts("error: bind-c -D requires NAME or NAME=VALUE")
+                        allocators.Arena.free(arena)
+                        return 1
+                    }
+                } elif cstr.starts_with(arg, c"-D") && cstr.len(arg) > 2 {
+                    @append(bind_defines, cstr.substr(arg, 2, cstr.len(arg) - 2))
+                } elif cstr.starts_with(arg, c"-d:") {
+                    @append(bind_defines, cstr.substr(arg, 3, cstr.len(arg) - 3))
+                } elif cstr.cmp(arg, c"-U") == 0 {
+                    bi++
+                    val next_opt = @get(args, bi)
+                    if next_opt is some uv {
+                        @append(bind_undefines, uv as ref u8)
+                    } else {
+                        stdio.puts("error: bind-c -U requires a macro name")
+                        allocators.Arena.free(arena)
+                        return 1
+                    }
+                } elif cstr.starts_with(arg, c"-U") && cstr.len(arg) > 2 {
+                    @append(bind_undefines, cstr.substr(arg, 2, cstr.len(arg) - 2))
+                } elif cstr.starts_with(arg, c"-") {
+                    stdio.print("error: unknown bind-c flag: {s}\n", {arg})
+                    allocators.Arena.free(arena)
+                    return 1
+                } else {
+                    @append(bind_inputs, arg)
+                }
+            } else {
+                break
+            }
+            bi++
+        }
+        if (@len(bind_inputs) as i64) == 0 {
+            stdio.puts("error: bind-c requires at least one .h or .c input")
+            allocators.Arena.free(arena)
+            return 1
+        }
+        val bind_platform: mut ref u8 = reflection.current_platform_name[allocators.Arena](arena)
+        val bind_arch: mut ref u8 = reflection.current_arch_name[allocators.Arena](arena)
+        if cstr.len(bind_target) > 0 {
+            bind_platform = builds.target_platform_of(bind_target)
+            bind_arch = builds.target_arch_of(bind_target)
+            if cstr.cmp(bind_platform, c"") == 0 || cstr.cmp(bind_arch, c"") == 0 {
+                stdio.print(
+                    "error: invalid bind-c target '{s}', expected <os>.<arch>\n",
+                    {bind_target}
+                )
+                allocators.Arena.free(arena)
+                return 1
+            }
+        }
+        val bind_opts: mut c_bind.BindOptions = c_bind.BindOptions{
+            output_dir: str.from_cstr(bind_output_dir),
+            link_name: str.from_cstr(bind_link),
+            target_platform: str.from_cstr(bind_platform),
+            target_arch: str.from_cstr(bind_arch),
+            normalize: bind_normalize,
+            include_paths: bind_includes,
+            defines: bind_defines,
+            undefines: bind_undefines
+        }
+        val code: i32 = c_bind.bind_c(bind_inputs, bind_opts)
+        allocators.Arena.free(arena)
+        return code
     }
 
     if fs.is_directory_cstr(input) {
@@ -586,7 +764,6 @@ pub fn main() i32 = trust {
     val print_ast: mut bool = false
     val use_alt: mut bool = false
     val alt_compiler: mut ref u8 = c""
-    val translate_c_flag: mut bool = flag_first_translate_c
     val extra_includes: mut list[ref u8] = mem.new[ref u8]()
     val inc_paths: mut list[ref u8] = mem.new[ref u8]()
     val src_target: mut ref u8 = c""
@@ -600,10 +777,6 @@ pub fn main() i32 = trust {
     val shim_output: mut ref u8 = c""
     val bootstrap_mode: mut bool = false
     val arg_i: mut i64 = input_arg_i + 1
-
-    if flag_first_translate_c {
-        arg_i = input_arg_i + 2
-    }
 
     // Note on this:
     //
@@ -625,16 +798,14 @@ pub fn main() i32 = trust {
         scan_i++
     }
 
-    if !flag_first_translate_c {
-        val mod_version: ref u8 = commands.load_version_for(input)
-        if cstr.len(mod_version) > 0 {
-            defines.set("SPECTRE_MOD_VERSION", str.from_cstr(mod_version))
-        }
+    val mod_version: ref u8 = commands.load_version_for(input)
+    if cstr.len(mod_version) > 0 {
+        defines.set("SPECTRE_MOD_VERSION", str.from_cstr(mod_version))
     }
 
     val parse_args: mut list[ref u8] = args
     val parse_argc: mut i64 = argc
-    if !flag_first_translate_c && !no_single_flags {
+    if !no_single_flags {
         val single_flags_result = commands.load_single_flags_for(input)
         match single_flags_result {
             ok single_flags => {
@@ -739,9 +910,6 @@ pub fn main() i32 = trust {
                     allocators.Arena.free(arena)
                     return 1
                 }
-                arg_i++
-            } elif cstr.cmp(arg, c"-translate-c") == 0 {
-                translate_c_flag = true
                 arg_i++
             } elif cstr.cmp(arg, c"-emit-ssa") == 0 {
                 emit_qbe = true
@@ -979,7 +1147,6 @@ pub fn main() i32 = trust {
     && !emit_asm
     && !syntax_check
     && !print_ast
-    && !translate_c_flag
     val xwin_root: mut ref u8 = c""
     if cross_target && builds.target_is_windows(target_platform) {
         if cstr.len(xwin_dir) > 0 {
@@ -1019,22 +1186,10 @@ pub fn main() i32 = trust {
         return 1
     }
 
-    if run_mode && (translate_c_flag || emit_qbe || emit_ll || emit_asm || emit_alt || build_dll || compile_obj || syntax_check || print_ast) {
+    if run_mode && (emit_qbe || emit_ll || emit_asm || emit_alt || build_dll || compile_obj || syntax_check || print_ast) {
         stdio.puts("error: run requires flags that produce a runnable executable")
         allocators.Arena.free(arena)
         return 1
-    }
-
-    if translate_c_flag {
-        if cstr.cmp(output_name, c"") == 0 {
-            output_name = @fmtalloc(
-                "./src-out/{s}.sx",
-                {path.get_name_without_ext_cstr(arena, input)}
-            )
-        }
-        val code: i32 = c_translate.translate_c(input, output_name)
-        allocators.Arena.free(arena)
-        return code
     }
 
     val exe_path2: ref u8 = reflection.get_exe_path[allocators.Arena](arena)
@@ -1044,7 +1199,7 @@ pub fn main() i32 = trust {
     }
 
     if !use_alt && !emit_alt && !emit_qbe && !emit_ll && !emit_asm &&
-    !syntax_check && !print_ast && !translate_c_flag {
+    !syntax_check && !print_ast {
         if !builds.is_compiler_available(c"qbe") {
             use_alt = true
             if !quiet {
@@ -1102,7 +1257,7 @@ pub fn main() i32 = trust {
 
     if !freestanding_runtime && cross_target && builds.target_is_windows(target_platform)
     && !compile_obj && !emit_alt && !emit_qbe && !emit_ll && !emit_asm
-    && !syntax_check && !print_ast && !translate_c_flag {
+    && !syntax_check && !print_ast {
         if !builds.xwin_available_in(xwin_root, target_arch) {
             stdio.print(
                 "error: windows.{s} requires xwin or a compatible Windows SDK\n",

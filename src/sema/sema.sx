@@ -53,6 +53,7 @@ type SemaCtx = {
     spec_names: mut list[ref u8]
     spec_impls: mut list[ref u8]
     global_names: mut list[ref u8]
+    extern_val_names: mut list[ref u8]
     use_names: mut list[ref u8]
     use_lines: mut list[i64]
     scopes: mut list[ref void]
@@ -5560,6 +5561,92 @@ fn peel_mut_ref(ty: ref parser.Node) ref parser.Node = trust {
     return none
 }
 
+fn name_is_extern_val(ctx: ref SemaCtx, name: ref u8) bool = trust {
+    if name == none {
+        return false
+    }
+    for existing in ctx.extern_val_names {
+        if cstr.eql(existing as ref u8, name) {
+            return true
+        }
+    }
+    return false
+}
+
+fn module_has_extern_val(mod: ref modinfo.ResolvedModule, name: ref u8) bool = trust {
+    if mod == none || name == none {
+        return false
+    }
+    for item in modinfo.module_items(mod) {
+        if item.kind == parser.NK_EXTERN_VAL {
+            val iname: ref u8 = parser.node_str_raw(item.d1)
+            if iname != none && cstr.eql(iname, name) {
+                return true
+            }
+        }
+    }
+    return false
+}
+
+fn expr_is_extern_val(ctx: ref SemaCtx, node: ref parser.Node) bool = trust {
+    if node == none {
+        return false
+    }
+    if node.kind == parser.NK_IDENT {
+        return name_is_extern_val(ctx, parser.node_str_raw(node.d0))
+    }
+    if node.kind == parser.NK_FIELD {
+        val field: ref u8 = parser.field_name_raw(node)
+        if name_is_extern_val(ctx, field) {
+            return true
+        }
+        val base: ref parser.Node = parser.field_base(node)
+        if base != none && base.kind == parser.NK_IDENT {
+            val imported: ref modinfo.ResolvedModule = find_imported_mod(
+                ctx,
+                parser.node_str_raw(base.d0)
+            )
+            if module_has_extern_val(imported, field) {
+                return true
+            }
+        }
+        return expr_is_extern_val(ctx, base)
+    }
+    return false
+}
+
+fn require_extern_val_trust(
+    ctx: mut ref SemaCtx,
+    node: ref parser.Node,
+    filename: ref u8,
+    line: i64
+) void = trust {
+    if !expr_is_extern_val(ctx, node) {
+        return
+    }
+    if ctx.in_unsafe_fn != 0 || ctx.in_trust != 0 {
+        ctx.trust_used = 1
+        return
+    }
+    val name: mut ref u8 = c""
+    if node.kind == parser.NK_IDENT {
+        name = parser.node_str_raw(node.d0)
+    } elif node.kind == parser.NK_FIELD {
+        name = parser.field_name_raw(node)
+    }
+    val buf: ref u8 = allocators.ScopedArena.alloc_or_none(
+        ctx.arena,
+        (512) as usize
+    ) as ref u8
+    @snprintf(
+        buf,
+        512,
+        "{s}:{lld}: access to extern value '{s}' requires 'trust'; move it into a 'trust' block",
+        {filename, line, name}
+    )
+    add_error(ctx, buf)
+}
+
 fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) void = trust {
     if expr == none {
         return
@@ -5567,6 +5654,8 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
 
     val k: i64 = expr.kind
     val line: i64 = expr.line
+
+    require_extern_val_trust(ctx, expr, filename, line)
 
     if k == parser.NK_INT_LIT || k == parser.NK_FLOAT_LIT || k == parser.NK_STR_LIT ||
     k == parser.NK_BOOL || k == parser.NK_NONE || k == parser.NK_CHAR_LIT {
@@ -9297,6 +9386,7 @@ fn check_stmt(ctx: mut ref SemaCtx, stmt: ref parser.Node, filename: ref u8) voi
         val rhs: ref parser.Node = stmt.d1 as ref parser.Node
         check_expr(ctx, rhs, filename)
         val target: ref parser.Node = stmt.d0 as ref parser.Node
+        require_extern_val_trust(ctx, target, filename, line)
         if target.kind == parser.NK_IDENT {
             val tname: ref u8 = parser.node_str_raw(target.d0)
             mark_name_mutated(ctx, tname)
@@ -9985,6 +10075,7 @@ fn check_stmt(ctx: mut ref SemaCtx, stmt: ref parser.Node, filename: ref u8) voi
 
     if k == parser.NK_INCREMENT || k == parser.NK_DECREMENT {
         val target2: ref parser.Node = stmt.d0 as ref parser.Node
+        require_extern_val_trust(ctx, target2, filename, line)
         if target2.kind == parser.NK_IDENT {
             val tname2: ref u8 = parser.node_str_raw(target2.d0)
             mark_name_mutated(ctx, tname2)
@@ -10047,6 +10138,7 @@ fn check_stmt(ctx: mut ref SemaCtx, stmt: ref parser.Node, filename: ref u8) voi
     if k == parser.NK_ADD_ASSIGN || k == parser.NK_SUB_ASSIGN {
         check_expr(ctx, stmt.d1 as ref parser.Node, filename)
         val target3: ref parser.Node = stmt.d0 as ref parser.Node
+        require_extern_val_trust(ctx, target3, filename, line)
         if target3.kind == parser.NK_IDENT {
             val tname3: ref u8 = parser.node_str_raw(target3.d0)
             mark_name_mutated(ctx, tname3)
@@ -10346,6 +10438,13 @@ fn register_named_item(ctx: ref SemaCtx, item: ref parser.Node) void = trust {
             @append(ctx.global_names, parser.node_str_raw(item.d0))
         }
     }
+    if k == parser.NK_EXTERN_VAL {
+        if item.d1 != 0 as i64 {
+            val evname: ref u8 = parser.node_str_raw(item.d1)
+            @append(ctx.global_names, evname)
+            @append(ctx.extern_val_names, evname)
+        }
+    }
 }
 
 /// Register a single top-level item's name in the context.
@@ -10540,6 +10639,17 @@ fn check_top_item(ctx: mut ref SemaCtx, item: ref parser.Node, filename: ref u8)
         push_scope(ctx)
         check_stmts(ctx, item.d0 as ref void, filename)
         pop_scope(ctx, filename, item.line)
+    }
+    if k == parser.NK_EXTERN_VAL {
+        sema_validate_type_node(
+            ctx,
+            item.d3 as ref parser.Node,
+            filename,
+            item.line,
+            c"extern value",
+            c""
+        )
+        return
     }
     if k == parser.NK_VAL {
         val init_node: ref parser.Node = item.d3 as ref parser.Node
@@ -11093,6 +11203,10 @@ fn items_use_import_alias(items: list[ref parser.Node], import_name: ref u8) boo
             }
         } elif k == parser.NK_CONST {
             if expr_uses_import_alias(item.d2 as ref parser.Node, import_name) {
+                return true
+            }
+        } elif k == parser.NK_EXTERN_VAL {
+            if type_uses_import_alias(item.d3 as ref parser.Node, import_name) {
                 return true
             }
         } elif k == parser.NK_WHEN_ITEMS {

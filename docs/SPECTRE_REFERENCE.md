@@ -224,6 +224,8 @@ Generic instantiation is written after the function expression, as in `identity[
 
 An external function is declared with an extern convention, a name, a parameter list, a return type, and a symbol string, as in `extern (C) fn strlen(s: ref u8) i64 = "strlen"`. The convention identifier is not restricted by the parser, but `C` denotes the platform C ABI. An extern parameter list may end with `...` to denote a variadic function. The modifier `header` may appear as an additional convention modifier, as in `extern (C, header) fn ...`; it instructs the compiler to include the corresponding C header. Every extern function is trust-requiring, regardless of the declared signature.
 
+An external value is declared with `extern val`, a name, a type, and an optional symbol string, as in `extern val optind: mut i32 = "optind"`. The optional `mut` modifier makes the C global assignable from Spectre. When the symbol string is omitted, the C symbol is the declared name. The bulk form `extern val (a: T = "a", b: mut T = "b")` declares several external values at once. Reading or writing an external value requires `trust`, either as a `trust` expression or inside a `trust` block.
+
 An external type is declared as `extern type Name = { ... }`. Its fields use the same syntax as an ordinary type, and its layout follows the C ABI. The form `extern "header"` records a header dependency without declaring a function.
 
 The directives `link "name"` and `lib "name"` request linkage against an external library. They are top-level items and may appear inside a platform-conditional block. The exact library search and linker flags are implementation-defined and are handled by the toolchain.
@@ -698,7 +700,7 @@ A program that requires direct memory access uses the raw memory intrinsics from
 
 The reference compiler performs the following stages. The lexer converts source bytes into tokens. The parser constructs an abstract syntax tree. Module resolution loads imported modules, detects cycles, and assembles the module tree. Semantic analysis registers names, checks declarations and types where implemented, applies the contract and trust checks, and reports diagnostics. Code generation lowers the checked program to QBE intermediate representation, which is then lowered to the target assembly and linked. The alternative backend translates the intermediate representation to C or another target representation and invokes a platform C compiler.
 
-The compiler can print intermediate forms with `-ast`, `-syntax-check`, `-emit-ssa`, `-emit-alt`, and `-emit-asm`. The `-translate-c` mode translates C source into a single Spectre source file. The `-emit-shim` option writes the QBE runtime shim alongside `-emit-ssa`.
+The compiler can print intermediate forms with `-ast`, `-syntax-check`, `-emit-ssa`, `-emit-alt`, and `-emit-asm`. The `transl-c` command translates C source into a single Spectre source file. The `bind-c` command generates public Spectre extern bindings from C headers. The `-emit-shim` option writes the QBE runtime shim alongside `-emit-ssa`.
 
 ### 9.2 Target selection
 
@@ -706,7 +708,9 @@ The target platform for `when` selection is the host platform unless the compile
 
 ### 9.3 Command-line interface
 
-The compiler is invoked as `spectre <input.sx> [options]` for a single source file, or as `spectre <command> [arguments]` for a toolchain command. The principal commands are `init`, `fmt`, `critic`, `build`, `run`, `doc`, `add`, `remove`, `upgrade`, `restore`, `graph`, `ref`, `clean`, and `doctor`. The principal compilation options are `-ast`, `-syntax-check`, `-emit-ssa`, `-emit-alt`, `-emit-asm`, `-src-target=<os>`, `-translate-c`, `-inc-path=<dir>`, `-show-cmd`, `-test`, `-release`, `-dynamic`, `-dll`, `-a` or `-alt`, `-b` or `-bootstrap`, `-c` or `-compile`, `-d:<NAME>=<value>`, `-o <file>`, `-l` or `-loud`, `-v` or `-version`, and `-h` or `-help`. The option `-I:<headers>` is accepted only by the alternative backend.
+The compiler is invoked as `spectre <input.sx> [options]` for a single source file, or as `spectre <command> [arguments]` for a toolchain command. The principal commands are `init`, `fmt`, `critic`, `build`, `run`, `doc`, `add`, `remove`, `upgrade`, `restore`, `graph`, `ref`, `clean`, `doctor`, `transl-c`, and `bind-c`. The principal compilation options are `-ast`, `-syntax-check`, `-emit-ssa`, `-emit-alt`, `-emit-asm`, `-src-target=<os>`, `-inc-path=<dir>`, `-show-cmd`, `-test`, `-release`, `-dynamic`, `-dll`, `-a` or `-alt`, `-b` or `-bootstrap`, `-c` or `-compile`, `-d:<NAME>=<value>`, `-o <file>`, `-l` or `-loud`, `-v` or `-version`, and `-h` or `-help`. The option `-I:<headers>` is accepted only by the alternative backend.
+
+The `transl-c` command accepts `spectre translate-c <input.c|input.h> [-o <file>]`. The `bind-c` command accepts one or more files or directories and writes one `.sx` per input under `./src-out` by default. It uses the host C preprocessor, emits declarations from the target file and its local quoted includes, skips static functions, and can emit scalar object-like macros. Its options include `-o <dir>`, `-normalize`, `-link <name>`, `-target:<os>.<arch>`, `-I <dir>`, `-D <name[=value]>`, and `-U <name>`.
 
 The `-release` option selects release code generation, which omits ordinary pre- and postcondition checks and runtime invariant checks, but retains guarded contracts and assertions. The `-test` option selects the test runner described in Section 4.8. The `-dynamic` option requests dynamic linking instead of static linking where the platform supports it.
 
