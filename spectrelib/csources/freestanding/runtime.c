@@ -1190,6 +1190,14 @@ int fflush(FILE *f) {
   (void)f;
   return 0;
 }
+
+int setvbuf(FILE *f, char *buf, int mode, sx_size_t size) {
+  (void)f;
+  (void)buf;
+  (void)mode;
+  (void)size;
+  return 0;
+}
 int fgetc(FILE *f) {
   unsigned char c;
   if (!f)
@@ -2124,6 +2132,14 @@ void rewind(FILE *f) {
 int feof(FILE *f) { return f ? f->eof : 0; }
 int fflush(FILE *f) {
   (void)f;
+  return 0;
+}
+
+int setvbuf(FILE *f, char *buf, int mode, sx_size_t size) {
+  (void)f;
+  (void)buf;
+  (void)mode;
+  (void)size;
   return 0;
 }
 int fgetc(FILE *f) {
