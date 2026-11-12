@@ -26,18 +26,190 @@ function Ensure-Tool($cmd, $wingetId) {
         return
     }
 
-    Log "$cmd not found. Installing via winget..."
-    if (-not (Get-Command winget -ErrorAction SilentlyContinue)) {
-        if (-not (Get-Command scoop -ErrorAction SilentlyContinue)) {
-            Log "Scoop not found. Installing Scoop..."
-            Invoke-RestMethod get.scoop.sh | Invoke-Expression
+    if (Get-Command winget -ErrorAction SilentlyContinue) {
+        Log "$cmd not found. Installing via winget..."
+        winget install --id $wingetId -e --source winget `
+            --accept-package-agreements --accept-source-agreements
+        return
+    }
+
+    if (Get-Command scoop -ErrorAction SilentlyContinue) {
+        Log "$cmd not found. Installing via Scoop..."
+        scoop bucket add main 2>$null
+        scoop install $cmd
+        return
+    }
+
+    Err "Missing required command: $cmd (install winget or Scoop, or install it manually)"
+}
+
+function Get-VsWherePath {
+    $candidates = @(
+        "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe",
+        "$env:ProgramFiles\Microsoft Visual Studio\Installer\vswhere.exe"
+    )
+
+    foreach ($candidate in $candidates) {
+        if (Test-Path $candidate) {
+            return $candidate
+        }
+    }
+
+    $vswhere = Get-Command vswhere.exe -ErrorAction SilentlyContinue
+    if ($vswhere) {
+        return $vswhere.Source
+    }
+
+    return $null
+}
+
+function Find-Msvc {
+    $vswhere = Get-VsWherePath
+    if (-not $vswhere) {
+        return $null
+    }
+
+    $path = & $vswhere -latest -products '*' `
+        -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 `
+        -property installationPath 2>$null
+
+    if ($LASTEXITCODE -ne 0 -or -not $path) {
+        return $null
+    }
+
+    $path = ($path | Select-Object -First 1).Trim()
+    if (Test-Path (Join-Path $path "VC\Auxiliary\Build\vcvars64.bat")) {
+        return $path
+    }
+
+    return $null
+}
+
+function Install-Msvc {
+    $workloadArgs = @(
+        "--quiet",
+        "--wait",
+        "--norestart",
+        "--nocache",
+        "--add", "Microsoft.VisualStudio.Workload.VCTools",
+        "--includeRecommended"
+    )
+
+    if (Get-Command winget -ErrorAction SilentlyContinue) {
+        Log "Installing MSVC Build Tools via winget (this may take a while)..."
+        winget install --id Microsoft.VisualStudio.2022.BuildTools -e `
+            --source winget `
+            --accept-package-agreements --accept-source-agreements `
+            --override ($workloadArgs -join " ")
+
+        if ($LASTEXITCODE -eq 0 -and (Find-Msvc)) {
+            return
         }
 
-        scoop bucket add main 2>$null
-        scoop install llvm
-    } else {
-        winget install --id $wingetId -e --source winget
+        Log "winget could not install the MSVC workload; trying the Visual Studio bootstrapper..."
     }
+
+    $installer = Join-Path $env:TEMP "vs_buildtools.exe"
+    $url = "https://aka.ms/vs/17/release/vs_buildtools.exe"
+
+    Log "Downloading the Visual Studio Build Tools bootstrapper..."
+    Invoke-WebRequest -Uri $url -OutFile $installer -UseBasicParsing
+    Unblock-File -Path $installer
+
+    Log "Running the Visual Studio Build Tools installer (this may take a while)..."
+    $proc = Start-Process -FilePath $installer -ArgumentList $workloadArgs -Wait -PassThru
+    Remove-Item -Force $installer -ErrorAction SilentlyContinue
+
+    if ($proc.ExitCode -ne 0 -and $proc.ExitCode -ne 3010) {
+        Err "MSVC Build Tools installation failed (exit $($proc.ExitCode))."
+    }
+}
+
+function Import-MsvcEnvironment($vsPath) {
+    $vcvars = Join-Path $vsPath "VC\Auxiliary\Build\vcvars64.bat"
+    if (-not (Test-Path $vcvars)) {
+        Err "Could not find vcvars64.bat under $vsPath"
+    }
+
+    $envDump = cmd.exe /d /c "`"$vcvars`" >nul 2>&1 && set"
+    if ($LASTEXITCODE -ne 0) {
+        Err "Failed to initialize the MSVC environment."
+    }
+
+    foreach ($line in $envDump) {
+        $separator = $line.IndexOf("=")
+        if ($separator -lt 1) {
+            continue
+        }
+
+        $name = $line.Substring(0, $separator)
+        $value = $line.Substring($separator + 1)
+        Set-Item -Path "Env:$name" -Value $value
+    }
+
+    Log "MSVC environment initialized from $vsPath."
+}
+
+function Ensure-Msvc {
+    $vsPath = Find-Msvc
+
+    if ($vsPath) {
+        Log "MSVC toolchain already installed."
+    } else {
+        Log "MSVC toolchain not found."
+        Install-Msvc
+
+        $vsPath = Find-Msvc
+        if (-not $vsPath) {
+            Err "MSVC Build Tools were installed but could not be located."
+        }
+
+        Log "MSVC toolchain installed."
+    }
+
+    Import-MsvcEnvironment $vsPath
+    $script:MSVC_PATH = $vsPath
+
+    if (-not (Get-Command cl -ErrorAction SilentlyContinue)) {
+        Err "cl.exe was not found after initializing the MSVC environment."
+    }
+}
+
+function Ensure-Clang {
+    if (Get-Command clang -ErrorAction SilentlyContinue) {
+        Log "clang already installed."
+        return
+    }
+
+    if (Get-Command winget -ErrorAction SilentlyContinue) {
+        Log "clang not found. Installing LLVM via winget..."
+        winget install --id LLVM.LLVM -e --source winget `
+            --accept-package-agreements --accept-source-agreements
+
+        $llvmCandidates = @(
+            "$env:ProgramFiles\LLVM\bin",
+            "$env:LOCALAPPDATA\Programs\LLVM\bin"
+        )
+
+        foreach ($llvmBin in $llvmCandidates) {
+            if ((Test-Path (Join-Path $llvmBin "clang.exe")) -and
+                ($env:PATH -notlike "*$llvmBin*")) {
+                $env:PATH = "$llvmBin;$env:PATH"
+            }
+        }
+    }
+
+    if (Get-Command clang -ErrorAction SilentlyContinue) {
+        Log "clang installed."
+        return
+    }
+
+    if (Get-Command cl -ErrorAction SilentlyContinue) {
+        Log "clang is unavailable; the bootstrap will be built with MSVC cl.exe."
+        return
+    }
+
+    Err "Failed to install a C compiler (clang or cl)."
 }
 
 function Ensure-Tcc {
@@ -50,7 +222,8 @@ function Ensure-Tcc {
 
     if (Get-Command winget -ErrorAction SilentlyContinue) {
         try {
-            winget install --id TinyCC.TinyCC -e --source winget
+            winget install --id TinyCC.TinyCC -e --source winget `
+                --accept-package-agreements --accept-source-agreements
         } catch {
             Log "winget install failed or package unavailable."
         }
@@ -61,33 +234,31 @@ function Ensure-Tcc {
         return
     }
 
-    Log "Falling back to Scoop..."
-
-    if (-not (Get-Command scoop -ErrorAction SilentlyContinue)) {
-        Log "Scoop not found. Installing Scoop..."
-
-        Set-ExecutionPolicy RemoteSigned -Scope CurrentUser -Force
-        Invoke-RestMethod get.scoop.sh | Invoke-Expression
+    if (Get-Command scoop -ErrorAction SilentlyContinue) {
+        Log "Trying Scoop..."
+        scoop bucket add main 2>$null
+        scoop install tcc
+    } else {
+        Log "Scoop not found; skipping optional tcc installation."
     }
 
-    scoop bucket add main 2>$null
-    scoop install tcc
-
-    if (-not (Get-Command tcc -ErrorAction SilentlyContinue)) {
-        Err "Failed to install tcc via Scoop."
+    if (Get-Command tcc -ErrorAction SilentlyContinue) {
+        Log "tcc installed via Scoop."
+        return
     }
 
-    Log "tcc installed via Scoop."
+    Log "tcc unavailable; clang or MSVC will be used as the alternate backend."
 }
 
 Log "Checking required tools..."
 
 Ensure-Tool git Git.Git
-
-Ensure-Tool clang LLVM.LLVM
+Ensure-Msvc
+Ensure-Clang
 Ensure-Tcc
 
 Require-Cmd git
+Require-Cmd cl
 
 Log "Preparing directories..."
 New-Item -ItemType Directory -Force -Path $BIN_DIR | Out-Null
@@ -104,7 +275,7 @@ if (Test-Path $SPECTRE_DIR) {
     git clone $SPECTRE_REPO $SPECTRE_DIR
 }
 
-Log "Bootstrapping Spectre with clang..."
+Log "Bootstrapping Spectre..."
 
 $BOOTSTRAP_SRC = "$SPECTRE_DIR\bootstrap\sxcw.c"
 $BOOTSTRAP_OUT = "$SPECTRE_DIR\bootstrap\spectre.exe"
@@ -118,13 +289,35 @@ $PANIC_HANDLER_SRC = "$CSOURCES_DIR\panic_handler.c"
 
 Log "Compiling bootstrap..."
 
-clang -O3 -Wno-everything `
-    $BOOTSTRAP_SRC `
-    $PANIC_HANDLER_SRC `
-    -lDbghelp `
-    -o $BOOTSTRAP_OUT
+$compileOk = $false
+if (Get-Command clang -ErrorAction SilentlyContinue) {
+    clang -O3 -Wno-everything `
+        $BOOTSTRAP_SRC `
+        $PANIC_HANDLER_SRC `
+        -lDbghelp `
+        -lbcrypt `
+        -o $BOOTSTRAP_OUT
+    $compileOk = ($LASTEXITCODE -eq 0)
+} else {
+    Push-Location "$SPECTRE_DIR\bootstrap"
+    try {
+        cl /nologo /std:c11 /O2 /W0 `
+            $BOOTSTRAP_SRC `
+            $PANIC_HANDLER_SRC `
+            /link Dbghelp.lib bcrypt.lib `
+            "/OUT:$BOOTSTRAP_OUT"
+        $compileOk = ($LASTEXITCODE -eq 0)
+    } finally {
+        Pop-Location
+    }
 
-if (-not (Test-Path $BOOTSTRAP_OUT)) {
+    Remove-Item -Force `
+        "$SPECTRE_DIR\bootstrap\sxcw.obj", `
+        "$SPECTRE_DIR\bootstrap\panic_handler.obj" `
+        -ErrorAction SilentlyContinue
+}
+
+if (-not $compileOk -or -not (Test-Path $BOOTSTRAP_OUT)) {
     Err "Bootstrap compilation failed"
 }
 
@@ -185,12 +378,25 @@ if ($env:PATH -notlike "*$BIN_DIR*") {
 
 Log "Installation complete."
 
+$ClangPath = "(not installed; using cl.exe)"
+$ClangCmd = Get-Command clang -ErrorAction SilentlyContinue
+if ($ClangCmd) {
+    $ClangPath = $ClangCmd.Source
+}
+
+$TccPath = "(not installed)"
+$TccCmd = Get-Command tcc -ErrorAction SilentlyContinue
+if ($TccCmd) {
+    $TccPath = $TccCmd.Source
+}
+
 Write-Host ""
 Write-Host "Installed:"
 Write-Host "  - spectre -> $BIN_DIR\spectre.exe"
 Write-Host "  - stdlib  -> $BIN_DIR\spectrelib"
-Write-Host "  - clang   -> (system)"
-Write-Host "  - tcc     -> (system)"
+Write-Host "  - clang   -> $ClangPath"
+Write-Host "  - msvc    -> $script:MSVC_PATH"
+Write-Host "  - tcc     -> $TccPath"
 Write-Host ""
 Write-Host "Verify with:"
 Write-Host "  spectre -v"
