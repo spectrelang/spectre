@@ -90,6 +90,41 @@ pub fn to_snake(value: str.StringView) str.StringView = trust {
 ///
 /// `audio_stream` and `AudioStream` both become `AudioStream`, while
 /// `SDL_Window` becomes `SdlWindow`.
+/// Convert identifiers to SCREAMING_SNAKE_CASE.
+pub fn to_screaming_snake(value: str.StringView) str.StringView = trust {
+    val already_upper: mut bool = true
+    val check_i: mut i64 = 0
+    for {
+        if check_i >= value.len {
+            break
+        }
+        val check_c: u8 = @load8(@ptradd(value.ptr, check_i))
+        if is_lower(check_c) {
+            already_upper = false
+            break
+        }
+        check_i++
+    }
+    if already_upper {
+        return value
+    }
+    val snake: str.StringView = to_snake(value)
+    val sb: ref void = builder.StringBuilder.new()
+    val i: mut i64 = 0
+    for {
+        if i >= snake.len {
+            break
+        }
+        val c: u8 = @load8(@ptradd(snake.ptr, i))
+        builder.StringBuilder.append_char(sb, upper(c))
+        i++
+    }
+    val built: ref void = builder.StringBuilder.build(sb)
+    builder.StringBuilder.free(sb)
+    val owned: str.String = built as str.String
+    return str.view(ostr.as_cstr(owned), ostr.len(owned))
+}
+
 pub fn to_pascal(value: str.StringView) str.StringView = trust {
     val snake: str.StringView = to_snake(value)
     val sb: ref void = builder.StringBuilder.new()

@@ -16,6 +16,8 @@ val bind_normalize_sources: mut list[ref u8] = none
 val bind_normalize_results: mut list[ref u8] = none
 val bind_normalize_type_sources: mut list[ref u8] = none
 val bind_normalize_type_results: mut list[ref u8] = none
+val bind_normalize_const_sources: mut list[ref u8] = none
+val bind_normalize_const_results: mut list[ref u8] = none
 
 fn talloc(size: usize) ref void = trust {
     return mem.alloc(size)
@@ -242,6 +244,8 @@ fn reset_bind_normalization(enabled: bool) void = trust {
     bind_normalize_results = mem.new[ref u8]()
     bind_normalize_type_sources = mem.new[ref u8]()
     bind_normalize_type_results = mem.new[ref u8]()
+    bind_normalize_const_sources = mem.new[ref u8]()
+    bind_normalize_const_results = mem.new[ref u8]()
 }
 
 fn view_to_cstr(value: str.StringView) ref u8 = trust {
@@ -260,7 +264,7 @@ fn bind_normalize_with(
     name: ref u8,
     sources: mut list[ref u8],
     results: mut list[ref u8],
-    pascal: bool
+    mode: i64
 ) ref u8 = trust {
     val nlen: i64 = @len(sources) as i64
     val i: mut i64 = 0
@@ -280,8 +284,10 @@ fn bind_normalize_with(
         i++
     }
     val normalized: mut str.StringView = naming.to_snake(str.from_cstr(name))
-    if pascal {
+    if mode == 1 {
         normalized = naming.to_pascal(str.from_cstr(name))
+    } elif mode == 2 {
+        normalized = naming.to_screaming_snake(str.from_cstr(name))
     }
     val base: ref u8 = view_to_cstr(normalized)
     val candidate: mut ref u8 = base
@@ -303,7 +309,7 @@ fn bind_normalize_identifier(name: ref u8) ref u8 = trust {
         name,
         bind_normalize_sources,
         bind_normalize_results,
-        false
+        0
     )
 }
 
@@ -312,13 +318,36 @@ fn bind_normalize_type_identifier(name: ref u8) ref u8 = trust {
         name,
         bind_normalize_type_sources,
         bind_normalize_type_results,
-        true
+        1
+    )
+}
+
+fn bind_normalize_const_identifier(name: ref u8) ref u8 = trust {
+    return bind_normalize_with(
+        name,
+        bind_normalize_const_sources,
+        bind_normalize_const_results,
+        2
     )
 }
 
 fn sanitize_type_identifier(name: ref u8) ref u8 = {
     if bind_normalize_enabled {
         return trust bind_normalize_type_identifier(name)
+    }
+    return sanitize_identifier(name)
+}
+
+fn sanitize_const_identifier(name: ref u8) ref u8 = {
+    if bind_normalize_enabled {
+        return trust bind_normalize_const_identifier(name)
+    }
+    return sanitize_identifier(name)
+}
+
+fn sanitize_expr_identifier(name: ref u8) ref u8 = {
+    if bind_normalize_enabled && list_contains(bind_normalize_const_sources, name) {
+        return sanitize_const_identifier(name)
     }
     return sanitize_identifier(name)
 }
@@ -2548,7 +2577,7 @@ fn qualify_enum_constants(ctx: ref TranslationCtx, text: ref u8) ref u8 = {
                 }
                 j--
             }
-            val sanitized_ident: ref u8 = sanitize_identifier(ident)
+            val sanitized_ident: ref u8 = sanitize_expr_identifier(ident)
             if prev_non_space != 46 {
                 if lookup_local_type(ctx, sanitized_ident) is some _ {
                 } else {
@@ -2627,7 +2656,7 @@ fn rewrite_identifiers(text: ref u8) ref u8 = {
                 trust builder.StringBuilder.append_cstr(sb, c"0")
                 continue
             }
-            trust builder.StringBuilder.append_cstr(sb, sanitize_identifier(ident))
+            trust builder.StringBuilder.append_cstr(sb, sanitize_expr_identifier(ident))
             continue
         }
         trust builder.StringBuilder.append_char(sb, c)
@@ -6956,7 +6985,7 @@ fn translate_enum_decl(
                         ))
                 )
             }
-            val member: ref u8 = sanitize_identifier(trim_cstr(name_src))
+            val member: ref u8 = sanitize_const_identifier(trim_cstr(name_src))
             if cstr.cmp(member, c"") == 0 {
                 continue
             }
@@ -6965,7 +6994,6 @@ fn translate_enum_decl(
                 indent,
                 trust tfmt("pub val {s}: i32 = {s}", {member, value_expr})
             )
-            remember_enum_constant(ctx, member, c"i32")
             next_value = trust tfmt("({s}) + 1", {value_expr})
         }
         append_blank_line(out)
@@ -8301,7 +8329,7 @@ fn emit_bind_macro(
         return true
     }
     val raw_name: ref u8 = trust tsubstr(rest, 0, name_end)
-    val name: ref u8 = sanitize_identifier(raw_name)
+    val name: ref u8 = sanitize_const_identifier(raw_name)
     if list_contains(ctx.bind_macro_names, name) {
         return true
     }
