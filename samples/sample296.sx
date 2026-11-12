@@ -1,0 +1,14 @@
+val deferred_value: mut i32 = 0
+
+fn some_function() i32 = {
+    defer {
+        deferred_value = 10
+    }
+    return 20
+}
+
+pub fn main() void = {
+    assert some_function() == 20
+    assert deferred_value == 10
+    @puts("it worked.")
+}
