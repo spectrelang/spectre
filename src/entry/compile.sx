@@ -82,6 +82,19 @@ fn resolve_runtime(ctx: mut ref context.Context) bool = trust {
     if ctx.opts.dynamic_linking || ctx.opts.build_dll || ctx.opts.bootstrap_mode {
         ctx.runtime_mode = c"hosted"
     }
+    if !ctx.cross_target
+    && builds.target_is_windows(ctx.target_platform)
+    && builds.runtime_is_freestanding(ctx.runtime_mode) {
+        val selected: ref u8 = builds.select_alt_compiler(ctx.opts.alt_compiler)
+        if cstr.cmp(builds.alt_compiler_kind(selected), c"tcc") == 0 {
+            if !ctx.opts.quiet {
+                stdio.puts(
+                    "warning: tcc on Windows cannot link COFF runtime objects, thus using the hosted runtime\n"
+                )
+            }
+            ctx.runtime_mode = c"hosted"
+        }
+    }
     ctx.freestanding_runtime = builds.runtime_is_freestanding(ctx.runtime_mode)
     module.set_runtime_mode(ctx.runtime_mode)
     codegen.set_runtime_mode(ctx.runtime_mode)
