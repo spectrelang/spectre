@@ -27,7 +27,7 @@ pub fn emit_ir(ctx: mut ref context.Context) i32 = trust {
         }
     }
     if cstr.len(ctx.opts.output_name) > 0 {
-        val out_f = os.open(ctx.opts.output_name, c"w")
+        val out_f = os.open(ctx.opts.output_name, c"wb")
         if out_f is some f {
             os.write(f, ctx.qbe_ir, cstr.len(ctx.qbe_ir) as i64)
             os.close(f)
@@ -50,7 +50,7 @@ pub fn assemble(ctx: mut ref context.Context) bool = trust {
     ctx.qbe_file = qbe_file
     ctx.asm_file = asm_file
 
-    val qbe_f = os.open(qbe_file, c"w")
+    val qbe_f = os.open(qbe_file, c"wb")
     if qbe_f is some f {
         os.write(f, ctx.qbe_ir, cstr.len(ctx.qbe_ir) as i64)
         os.close(f)
