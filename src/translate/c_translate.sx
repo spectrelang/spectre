@@ -7255,15 +7255,15 @@ fn parse_c_fnptr_type(
         return info
     }
     val name_src: ref u8 = trim_cstr(trust tsubstr(
-        text,
-        star_i + 1,
-        close_i - star_i - 1
-    ))
+            text,
+            star_i + 1,
+            close_i - star_i - 1
+        ))
     if cstr.cmp(name_src, c"") != 0 {
         info.name = sanitize_identifier(extract_identifier_before(
-            name_src,
-            cstr.len(name_src)
-        ))
+                name_src,
+                cstr.len(name_src)
+            ))
     }
     val params_open: mut i64 = close_i + 1
     for {
@@ -7283,10 +7283,10 @@ fn parse_c_fnptr_type(
         return info
     }
     val params_src: ref u8 = trim_cstr(trust tsubstr(
-        text,
-        params_open + 1,
-        params_close - params_open - 1
-    ))
+            text,
+            params_open + 1,
+            params_close - params_open - 1
+        ))
     val ret_src: ref u8 = trim_cstr(trust tsubstr(text, 0, open_i))
     val ret_ty: ref u8 = translate_c_type_ctx(ctx, ret_src, c"")
     val params_sb: ref void = builder.StringBuilder.new()
@@ -7793,10 +7793,10 @@ fn translate_top_level_decl(
     }
     if ctx.bind_mode && cstr.starts_with(stripped, c"extern ") {
         val after_extern: ref u8 = trim_cstr(trust tsubstr(
-            stripped,
-            7,
-            cstr.len(stripped) - 7
-        ))
+                stripped,
+                7,
+                cstr.len(stripped) - 7
+            ))
         val is_const: bool = text_uses_ident(after_extern, c"const")
         || text_uses_ident(after_extern, c"__const")
         val decl_ev: ref DeclInfo = parse_named_decl(ctx, after_extern, c"")
@@ -7819,10 +7819,10 @@ fn translate_top_level_decl(
     if ctx.bind_mode && cstr.starts_with(stripped, c"typedef ")
     && !str_contains(stripped, c"(") && !str_contains(stripped, c"{") {
         val after_typedef: ref u8 = trim_cstr(trust tsubstr(
-            stripped,
-            8,
-            cstr.len(stripped) - 8
-        ))
+                stripped,
+                8,
+                cstr.len(stripped) - 8
+            ))
         val alias_decl: ref DeclInfo = parse_named_decl(ctx, after_typedef, c"")
         if alias_decl.its_ok && cstr.cmp(alias_decl.name, c"") != 0
         && cstr.cmp(alias_decl.type_name, alias_decl.name) != 0 {
@@ -8307,10 +8307,10 @@ fn emit_bind_macro(
         return false
     }
     val rest: ref u8 = trim_cstr(trust tsubstr(
-        trimmed,
-        7,
-        cstr.len(trimmed) - 7
-    ))
+            trimmed,
+            7,
+            cstr.len(trimmed) - 7
+        ))
     val rest_len: i64 = cstr.len(rest)
     if rest_len == 0 {
         return true
@@ -8336,10 +8336,10 @@ fn emit_bind_macro(
     val function_like: bool = name_end < rest_len
     && (trust @load8(@ptradd(rest, name_end)) as u8) == 40
     val value: ref u8 = trim_cstr(trust tsubstr(
-        rest,
-        name_end,
-        rest_len - name_end
-    ))
+            rest,
+            name_end,
+            rest_len - name_end
+        ))
     if function_like {
         append_comment_line(
             out,
@@ -8673,10 +8673,10 @@ pub fn translate_top_level(
                     prefix_len = 5
                 }
                 val raw_name: ref u8 = trim_cstr(trust tsubstr(
-                    strip_trailing_semicolon(trimmed),
-                    prefix_len,
-                    cstr.len(strip_trailing_semicolon(trimmed)) - prefix_len
-                ))
+                        strip_trailing_semicolon(trimmed),
+                        prefix_len,
+                        cstr.len(strip_trailing_semicolon(trimmed)) - prefix_len
+                    ))
                 val opaque_name: ref u8 = sanitize_type_identifier(raw_name)
                 if cstr.cmp(opaque_name, c"") != 0
                 && !list_contains(ctx.translated_type_names, opaque_name) {

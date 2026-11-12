@@ -19124,9 +19124,13 @@ fn cg_register_extern_val(
     val symbol: ref u8 = parser.node_str_raw(item.d2)
     val ty: ref parser.Node = item.d3 as ref parser.Node
     val qtype: mut ref u8 = c"l"
-    if ty != none { qtype = qbe_type_of(ty) }
+    if ty != none {
+        qtype = qbe_type_of(ty)
+    }
     val ann: mut ref u8 = c""
-    if ty != none { ann = type_expr_to_annotation(ctx, ty) }
+    if ty != none {
+        ann = type_expr_to_annotation(ctx, ty)
+    }
     cg_register_global(ctx, name, symbol, qtype, ann)
     if item.d0 == 1 && cstr.cmp(mod_prefix, c"") != 0 {
         val prefixed: ref u8 = allocators.ScopedArena.alloc_or_none(

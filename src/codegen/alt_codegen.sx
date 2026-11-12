@@ -2290,7 +2290,8 @@ fn cc_register_extern_val(
             "extern {s} {s} __asm__(\"{s}\");\n",
             {cty, mangled, symbol}
         )
-    } otherwise {
+    }
+    otherwise {
         @snprintf(
             buf,
             1024,
