@@ -1,4 +1,8 @@
-fn needs_even(n: i32) void = { pre { n % 2 == 0 } }
+fn needs_even(n: i32) void = {
+    pre {
+        n % 2 == 0
+    }
+}
 
 // ERROR
 pub fn main() void = {

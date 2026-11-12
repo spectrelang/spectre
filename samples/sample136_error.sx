@@ -1,4 +1,4 @@
-val json  = use("std/json")
+val json = use("std/json")
 
 pub fn main() void = trust {
     val raw_str = \\{"Alice": "asdf"}

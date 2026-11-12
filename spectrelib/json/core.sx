@@ -14,7 +14,7 @@ extern (C) fn c_memchr(s: ref u8, c: i32, n: usize) ref u8 = "memchr"
 
 /// JSON value tags.
 val (
-    TAG_NULL: i64  = 0
+    TAG_NULL: i64   = 0
     TAG_FALSE: i64  = 1
     TAG_TRUE: i64   = 2
     TAG_INT: i64    = 3
@@ -1156,7 +1156,10 @@ fn p_scan_value(p: mut ref JsonParser) bool = trust {
         return true
     }
     if c == 116 {
-        if p_byte(p, p.pos + 1) == 114 && p_byte(p, p.pos + 2) == 117 && p_byte(p, p.pos + 3) == 101 {
+        if p_byte(
+            p,
+            p.pos + 1
+        ) == 114 && p_byte(p, p.pos + 2) == 117 && p_byte(p, p.pos + 3) == 101 {
             p.pos = p.pos + 4
             return true
         }
@@ -1164,7 +1167,13 @@ fn p_scan_value(p: mut ref JsonParser) bool = trust {
         return false
     }
     if c == 102 {
-        if p_byte(p, p.pos + 1) == 97 && p_byte(p, p.pos + 2) == 108 && p_byte(p, p.pos + 3) == 115 && p_byte(p, p.pos + 4) == 101 {
+        if p_byte(
+            p,
+            p.pos + 1
+        ) == 97 && p_byte(
+            p,
+            p.pos + 2
+        ) == 108 && p_byte(p, p.pos + 3) == 115 && p_byte(p, p.pos + 4) == 101 {
             p.pos = p.pos + 5
             return true
         }
@@ -1172,7 +1181,10 @@ fn p_scan_value(p: mut ref JsonParser) bool = trust {
         return false
     }
     if c == 110 {
-        if p_byte(p, p.pos + 1) == 117 && p_byte(p, p.pos + 2) == 108 && p_byte(p, p.pos + 3) == 108 {
+        if p_byte(
+            p,
+            p.pos + 1
+        ) == 117 && p_byte(p, p.pos + 2) == 108 && p_byte(p, p.pos + 3) == 108 {
             p.pos = p.pos + 4
             return true
         }
@@ -1406,7 +1418,10 @@ fn pc_scan_value(p: mut ref JsonParser) bool = inline trust {
         return pc_scan_number(p)
     }
     if kind == 4 {
-        if p_byte(p, p.pos + 1) == 114 && p_byte(p, p.pos + 2) == 117 && p_byte(p, p.pos + 3) == 101 {
+        if p_byte(
+            p,
+            p.pos + 1
+        ) == 114 && p_byte(p, p.pos + 2) == 117 && p_byte(p, p.pos + 3) == 101 {
             p.pos = p.pos + 4
             return true
         }
@@ -1414,7 +1429,13 @@ fn pc_scan_value(p: mut ref JsonParser) bool = inline trust {
         return false
     }
     if kind == 5 {
-        if p_byte(p, p.pos + 1) == 97 && p_byte(p, p.pos + 2) == 108 && p_byte(p, p.pos + 3) == 115 && p_byte(p, p.pos + 4) == 101 {
+        if p_byte(
+            p,
+            p.pos + 1
+        ) == 97 && p_byte(
+            p,
+            p.pos + 2
+        ) == 108 && p_byte(p, p.pos + 3) == 115 && p_byte(p, p.pos + 4) == 101 {
             p.pos = p.pos + 5
             return true
         }
@@ -1422,7 +1443,10 @@ fn pc_scan_value(p: mut ref JsonParser) bool = inline trust {
         return false
     }
     if kind == 6 {
-        if p_byte(p, p.pos + 1) == 117 && p_byte(p, p.pos + 2) == 108 && p_byte(p, p.pos + 3) == 108 {
+        if p_byte(
+            p,
+            p.pos + 1
+        ) == 117 && p_byte(p, p.pos + 2) == 108 && p_byte(p, p.pos + 3) == 108 {
             p.pos = p.pos + 4
             return true
         }
