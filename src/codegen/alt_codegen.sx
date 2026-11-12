@@ -2912,6 +2912,9 @@ fn cc_is_aggregate_storage(ctx: ref CCtx, ty: ref parser.Node) bool = trust {
     if concrete == none {
         return false
     }
+    if concrete.kind == parser.TY_MUT {
+        return cc_is_aggregate_storage(ctx, concrete.d0 as ref parser.Node)
+    }
     if concrete.kind == parser.TY_FIXED_ARR {
         return true
     }
@@ -8208,8 +8211,8 @@ fn gen_stmt(ctx: mut ref CCtx, stmt: ref parser.Node) void = trust {
     }
     if k == parser.NK_RETURN {
         val expr: ref parser.Node = stmt.d0 as ref parser.Node
-        cc_emit_defers(ctx)
         if expr == none {
+            cc_emit_defers(ctx)
             if cstr.cmp(ctx.current_ret_ctype, c"void") == 0 {
                 emitln(ctx, c"return;")
             } else {
@@ -8220,26 +8223,75 @@ fn gen_stmt(ctx: mut ref CCtx, stmt: ref parser.Node) void = trust {
             ctx.expected_ty = ctx.current_ret_ty
             val rv: ref u8 = gen_expr(ctx, expr)
             ctx.expected_ty = old_expected
-            val buf: ref u8 = allocators.ScopedArena.alloc_or_none(
-                ctx.arena,
-                8192 as usize
-            ) as ref u8
-            if ctx.current_ret_unboxed {
-                @snprintf(
-                    buf,
-                    8192,
-                    "memcpy(sx__ret,(void*)(intptr_t)({s}),24);return 0;\n",
-                    {rv}
-                )
+            val has_defers: bool = (@len(ctx.defer_stack) as i64) > 0
+            if !has_defers {
+                val direct: ref u8 = allocators.ScopedArena.alloc_or_none(
+                    ctx.arena,
+                    8192 as usize
+                ) as ref u8
+                if ctx.current_ret_unboxed {
+                    @snprintf(
+                        direct,
+                        8192,
+                        "memcpy(sx__ret,(void*)(intptr_t)({s}),24);return 0;\n",
+                        {rv}
+                    )
+                } else {
+                    @snprintf(
+                        direct,
+                        8192,
+                        "return({s})({s});\n",
+                        {ctx.current_ret_ctype, rv}
+                    )
+                }
+                emit(ctx, direct)
             } else {
-                @snprintf(
-                    buf,
-                    8192,
-                    "return({s})({s});\n",
-                    {ctx.current_ret_ctype, rv}
-                )
+                val t: i64 = fresh_tmp(ctx)
+                if ctx.current_ret_unboxed {
+                    val save_buf: ref u8 = allocators.ScopedArena.alloc_or_none(
+                        ctx.arena,
+                        8192 as usize
+                    ) as ref u8
+                    @snprintf(
+                        save_buf,
+                        8192,
+                        "int64_t sx__rv{lld}[3];\nmemcpy(sx__rv{lld},(void*)(intptr_t)({s}),24);\n",
+                        {t, t, rv}
+                    )
+                    emit(ctx, save_buf)
+                    cc_emit_defers(ctx)
+                    val buf: ref u8 = allocators.ScopedArena.alloc_or_none(
+                        ctx.arena,
+                        8192 as usize
+                    ) as ref u8
+                    @snprintf(buf, 8192, "memcpy(sx__ret,sx__rv{lld},24);return 0;\n", {t})
+                    emit(ctx, buf)
+                } else {
+                    val save_buf: ref u8 = allocators.ScopedArena.alloc_or_none(
+                        ctx.arena,
+                        8192 as usize
+                    ) as ref u8
+                    @snprintf(
+                        save_buf,
+                        8192,
+                        "{s} sx__rv{lld}=({s})({s});\n",
+                        {ctx.current_ret_ctype, t, ctx.current_ret_ctype, rv}
+                    )
+                    emit(ctx, save_buf)
+                    cc_emit_defers(ctx)
+                    val buf: ref u8 = allocators.ScopedArena.alloc_or_none(
+                        ctx.arena,
+                        8192 as usize
+                    ) as ref u8
+                    @snprintf(
+                        buf,
+                        8192,
+                        "return({s})(sx__rv{lld});\n",
+                        {ctx.current_ret_ctype, t}
+                    )
+                    emit(ctx, buf)
+                }
             }
-            emit(ctx, buf)
         }
         cc_expr_drain(ctx)
         return
