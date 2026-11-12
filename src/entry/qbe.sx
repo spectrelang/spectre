@@ -26,7 +26,19 @@ pub fn emit_ir(ctx: mut ref context.Context) i32 = trust {
             return 1
         }
     }
-    stdio.puts(str.from_cstr(ctx.qbe_ir))
+    if cstr.len(ctx.opts.output_name) > 0 {
+        val out_f = os.open(ctx.opts.output_name, c"w")
+        if out_f is some f {
+            os.write(f, ctx.qbe_ir, cstr.len(ctx.qbe_ir) as i64)
+            os.close(f)
+        } else {
+            stdio.print("error: could not write IR to '{s}'\n", {ctx.opts.output_name})
+            @free(ctx.qbe_ir)
+            return 1
+        }
+    } else {
+        stdio.puts(str.from_cstr(ctx.qbe_ir))
+    }
     @free(ctx.qbe_ir)
     return 0
 }
@@ -44,7 +56,7 @@ pub fn assemble(ctx: mut ref context.Context) bool = trust {
         os.close(f)
         @free(ctx.qbe_ir)
     } else {
-        stdio.puts("\nerror: could not write QBE IR")
+        stdio.puts("\nerror: could not write IR")
         return false
     }
 

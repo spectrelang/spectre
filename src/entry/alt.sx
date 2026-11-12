@@ -777,7 +777,22 @@ pub fn run(ctx: mut ref context.Context) i32 = trust {
     generate_c(ctx, st)
 
     if ctx.opts.emit_alt != false {
-        stdio.puts(str.from_cstr(st.c_ir))
+        if cstr.len(ctx.opts.output_name) > 0 {
+            val out_f = os.open(ctx.opts.output_name, c"w")
+            if out_f is some f {
+                os.write(f, st.c_ir, cstr.len(st.c_ir) as i64)
+                os.close(f)
+            } else {
+                stdio.print(
+                    "error: could not write C output to '{s}'\n",
+                    {ctx.opts.output_name}
+                )
+                @free(st.c_ir)
+                return 1
+            }
+        } else {
+            stdio.puts(str.from_cstr(st.c_ir))
+        }
         @free(st.c_ir)
         return 0
     }
