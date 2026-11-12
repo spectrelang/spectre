@@ -96,7 +96,7 @@ fn file_exists(path: ref u8) bool = trust {
 /// Walk up from `start_dir` looking for a directory containing "Cargo.toml".
 /// Returns the workspace root, or `start_dir` if not found.
 fn find_workspace_root(start_dir: ref u8) ref u8 = trust {
-    val cur: mut ref u8 = start_dir
+    val cur: mut ref u8 = path.canonicalize_path_cstr(start_dir)
     val limit: mut i64 = 32
     for {
         if limit <= 0 {
@@ -110,20 +110,23 @@ fn find_workspace_root(start_dir: ref u8) ref u8 = trust {
         if found_here {
             return cur
         }
-        val parent: mut ref u8 = path.dir_cstr(cur)
-        if cstr.cmp(parent, cur) == 0 {
-            if cstr.cmp(parent, c".") != 0 {
-                @free(parent)
-            }
-            break
+
+        val parent_raw: ref u8 = path.dir_cstr(cur)
+        val parent: ref u8 = path.canonicalize_path_cstr(parent_raw)
+        if cstr.cmp(parent_raw, c".") != 0 {
+            @free(parent_raw as ref void)
         }
-        if cstr.cmp(parent, c".") == 0 {
+        if cstr.cmp(parent, cur) == 0 {
+            @free(parent as ref void)
             break
         }
         if cur != start_dir {
-            @free(cur)
+            @free(cur as ref void)
         }
         cur = parent
+    }
+    if cur != start_dir {
+        @free(cur as ref void)
     }
     return start_dir
 }
@@ -194,7 +197,7 @@ pub fn resolve_use_path(
             break
         }
         val c: u8 = @load8(@ptradd(use_path, si))
-        if c == 47 {
+        if path.is_path_sep(c) {
             has_slash = true
             break
         }
@@ -216,6 +219,13 @@ pub fn resolve_use_path(
         if core_ws != none {
             return core_ws
         }
+        val core_file = resolve_existing_candidate(
+            file_dir,
+            @fmtalloc("{s}/core.sx", {use_path})
+        )
+        if core_file != none {
+            return core_file
+        }
 
         val candidate_exe = resolve_existing_candidate(
             exe_dir,
@@ -230,6 +240,13 @@ pub fn resolve_use_path(
         )
         if candidate_ws != none {
             return candidate_ws
+        }
+        val candidate_file = resolve_existing_candidate(
+            file_dir,
+            @fmtalloc("{s}.sx", {use_path})
+        )
+        if candidate_file != none {
+            return candidate_file
         }
         return canonical_candidate(workspace, @fmtalloc("{s}.sx", {use_path}))
     }
@@ -248,6 +265,13 @@ pub fn resolve_use_path(
     if core1_ws != none {
         return core1_ws
     }
+    val core1_file = resolve_existing_candidate(
+        file_dir,
+        @fmtalloc("{s}/core.sx", {use_path})
+    )
+    if core1_file != none {
+        return core1_file
+    }
 
     val candidate2_exe = resolve_existing_candidate(
         exe_dir,
@@ -262,6 +286,13 @@ pub fn resolve_use_path(
     )
     if candidate2_ws != none {
         return candidate2_ws
+    }
+    val candidate2_file = resolve_existing_candidate(
+        file_dir,
+        @fmtalloc("{s}/{s}.sx", {use_path, use_path})
+    )
+    if candidate2_file != none {
+        return candidate2_file
     }
     return canonical_candidate(workspace, @fmtalloc("{s}/{s}.sx", {use_path, use_path}))
 }
@@ -1765,7 +1796,7 @@ fn resolve_link_path(flag: ref u8, workspace: ref u8) ref u8 = trust {
         return flag
     }
     val name: mut ref u8 = flag
-    if n >= 2 && @load8(flag) == 46 && @load8(@ptradd(flag, 1)) == 47 {
+    if n >= 2 && @load8(flag) == 46 && path.is_path_sep(@load8(@ptradd(flag, 1))) {
         name = @ptradd(flag, 2) as ref u8
     }
     val candidate: ref u8 = path.join_cstr(workspace, name)

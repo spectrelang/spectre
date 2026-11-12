@@ -226,6 +226,19 @@ pub fn dir_cstr(path: ref u8) ref u8 = trust {
 }
 
 /// Returns the path with all .. or parent references resolved.
+fn has_unc_prefix(path: ref u8, len: i64) bool = trust {
+    val _ = path
+    if len < 0 {
+        return false
+    }
+    when windows {
+        return len >= 2 &&
+        is_path_sep(@load8(@ptradd(path, 0))) &&
+        is_path_sep(@load8(@ptradd(path, 1)))
+    }
+    return false
+}
+
 pub fn canonicalize_path_cstr(path: ref u8) ref u8 = trust {
     if path == none {
         return path
@@ -234,10 +247,51 @@ pub fn canonicalize_path_cstr(path: ref u8) ref u8 = trust {
     if len == 0 {
         return path
     }
-    val is_abs: bool = @load8(@ptradd(path, 0)) == 47
+
+    val first: u8 = @load8(@ptradd(path, 0))
+    val root_prefix: mut ref u8 = none
+    val root_floor: mut i64 = 0
+    val is_abs: mut bool = false
+    val i: mut i64 = 0
+
+    when windows {
+        if len >= 3 &&
+        @load8(@ptradd(path, 1)) == 58 &&
+        is_path_sep(@load8(@ptradd(path, 2))) {
+            val drive: ref u8 = @alloc(4) as ref u8
+            @store8(drive, first)
+            @store8(@ptradd(drive, 1), 58)
+            @store8(@ptradd(drive, 2), 47)
+            @store8(@ptradd(drive, 3), 0)
+            root_prefix = drive
+            is_abs = true
+            i = 3
+        }
+    }
+
+    if !is_abs && is_path_sep(first) {
+        if has_unc_prefix(path, len) {
+            val unc_root: ref u8 = @alloc(3) as ref u8
+            @store8(unc_root, 47)
+            @store8(@ptradd(unc_root, 1), 47)
+            @store8(@ptradd(unc_root, 2), 0)
+            root_prefix = unc_root
+            root_floor = 2
+            is_abs = true
+            i = 2
+        } else {
+            val abs_root: ref u8 = @alloc(2) as ref u8
+            @store8(abs_root, 47)
+            @store8(@ptradd(abs_root, 1), 0)
+            root_prefix = abs_root
+            is_abs = true
+            i = 1
+        }
+    }
+
     val keep_dot_prefix: bool = len >= 2 &&
     @load8(@ptradd(path, 0)) == 46 &&
-    @load8(@ptradd(path, 1)) == 47
+    is_path_sep(@load8(@ptradd(path, 1)))
     val list_arena: allocators.ScopedArenaAllocator = allocators.ScopedArena.new(
         (len * 16 + 1024) as usize
     )?
@@ -246,13 +300,13 @@ pub fn canonicalize_path_cstr(path: ref u8) ref u8 = trust {
     }
     val list_ac: allocators.ListArena = {arena: list_arena}
     val segs: mut list[ref u8] = @listalloc[allocators.ListArena, ref u8](list_ac)?
-    val i: mut i64 = 0
+
     for {
         if i >= len {
             break
         }
         val c: u8 = @load8(@ptradd(path, i))
-        if c == 47 {
+        if is_path_sep(c) {
             i++
             continue
         }
@@ -262,7 +316,7 @@ pub fn canonicalize_path_cstr(path: ref u8) ref u8 = trust {
                 break
             }
             val c2: u8 = @load8(@ptradd(path, i))
-            if c2 == 47 {
+            if is_path_sep(c2) {
                 break
             }
             i++
@@ -277,7 +331,7 @@ pub fn canonicalize_path_cstr(path: ref u8) ref u8 = trust {
         }
         if cstr.cmp(seg, c"..") == 0 {
             val segs_len: i64 = @len(segs) as i64
-            if segs_len > 0 {
+            if segs_len > root_floor {
                 val last_opt = @get(segs, (segs_len - 1) as usize)
                 match last_opt {
                     some last => {
@@ -308,40 +362,52 @@ pub fn canonicalize_path_cstr(path: ref u8) ref u8 = trust {
         }
         @append(segs, seg)
     }
-    if @len(segs) as i64 == 0 {
-        val leaf: ref u8 = @alloc(2) as ref u8
-        if is_abs {
-            @store8(leaf, 47)
-        } else {
-            @store8(leaf, 46)
-        }
-        @store8(@ptradd(leaf, 1), 0)
-        return leaf
-    }
+
     val sb: ref void = builder.StringBuilder.new()
-    if is_abs {
-        builder.StringBuilder.append_char(sb, 47 as u8)
+    if root_prefix != none {
+        builder.StringBuilder.append_cstr(sb, root_prefix as ref u8)
     }
-    val si: mut i64 = 0
-    for {
-        if si >= @len(segs) as i64 {
-            break
+
+    if @len(segs) as i64 == 0 {
+        if root_prefix == none {
+            builder.StringBuilder.append_char(sb, 46 as u8)
         }
-        val s_opt = @get(segs, si as usize)
-        if s_opt is some s {
-            if si > 0 {
-                builder.StringBuilder.append_char(sb, 47 as u8)
-            } elif keep_dot_prefix && !is_abs {
-                builder.StringBuilder.append_cstr(sb, c"./")
+    } else {
+        val root_needs_sep: mut bool = false
+        if root_prefix != none {
+            val rlen: i64 = cstr.len(root_prefix as ref u8)
+            if rlen > 0 && !is_path_sep(@load8(@ptradd(root_prefix as ref u8, rlen - 1))) {
+                root_needs_sep = true
             }
-            builder.StringBuilder.append_cstr(sb, s as ref u8)
         }
-        si++
+
+        val si: mut i64 = 0
+        for {
+            if si >= @len(segs) as i64 {
+                break
+            }
+            val s_opt = @get(segs, si as usize)
+            if s_opt is some s {
+                if si == 0 {
+                    if root_prefix == none && keep_dot_prefix {
+                        builder.StringBuilder.append_cstr(sb, c"./")
+                    } elif root_needs_sep {
+                        builder.StringBuilder.append_char(sb, 47 as u8)
+                    }
+                } else {
+                    builder.StringBuilder.append_char(sb, 47 as u8)
+                }
+                builder.StringBuilder.append_cstr(sb, s as ref u8)
+            }
+            si++
+        }
     }
+
     val built: ref void = builder.StringBuilder.build(sb)
     val out: ref u8 = ostr.as_cstr(built)
     builder.StringBuilder.free(sb)
     @free(built)
+
     val fi: mut i64 = 0
     for fi < @len(segs) as i64 {
         val seg_opt = @get(segs, fi as usize)
@@ -351,12 +417,8 @@ pub fn canonicalize_path_cstr(path: ref u8) ref u8 = trust {
         }
         fi++
     }
-    if cstr.len(out) == 0 {
-        @free(out as ref void)
-        if is_abs {
-            return c"/"
-        }
-        return c"."
+    if root_prefix != none {
+        @free(root_prefix as ref void)
     }
     return out
 }
@@ -679,4 +741,12 @@ test "path canonicalization normalizes segments" {
         c"samples/bigproj/mod1.sx"
     ) == 0
     assert cstr.cmp(trust canonicalize_path_cstr(c"../samples/../mod1.sx"), c"../mod1.sx") == 0
+    assert cstr.cmp(
+        trust canonicalize_path_cstr(c".\\src\\entry\\..\\meta\\defines.sx"),
+        c"./src/meta/defines.sx"
+    ) == 0
+    assert cstr.cmp(
+        trust canonicalize_path_cstr(c"src\\entry\\..\\meta\\defines.sx"),
+        c"src/meta/defines.sx"
+    ) == 0
 }

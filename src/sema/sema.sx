@@ -140,75 +140,23 @@ fn add_error(ctx: ref SemaCtx, msg: ref u8) void = trust {
     @append(ctx.errors, msg)
 }
 
-fn canonicalize_path(ctx: ref SemaCtx, path: ref u8) ref u8 = trust {
-    if path == none {
-        return path
+fn canonicalize_path(ctx: ref SemaCtx, raw_path: ref u8) ref u8 = trust {
+    if raw_path == none {
+        return raw_path
     }
-    val len: i64 = cstr.len(path)
-    val segs: mut list[ref u8] = mem.new[ref u8]()
-    val i: mut i64 = 0
-    for {
-        if i >= len {
-            break
-        }
-        val c: u8 = @load8(@ptradd(path, i))
-        if c == 47 {
-            i++
-            continue
-        }
-        val start: i64 = i
-        for {
-            if i >= len {
-                break
-            }
-            val c2: u8 = @load8(@ptradd(path, i))
-            if c2 == 47 {
-                break
-            }
-            i++
-        }
-        val seg_len: i64 = i - start
-        val seg: ref u8 = allocators.ScopedArena.alloc_or_none(
-            ctx.arena,
-            ((seg_len + 1) as usize) as usize
-        ) as ref u8
-        @memcpy(seg, @ptradd(path, start), seg_len as usize)
-        @store8(@ptradd(seg, seg_len), 0)
-        if cstr.cmp(seg, c"..") == 0 {
-            if @len(segs) as i64 > 0 {
-                @remove(segs, @len(segs) - 1)
-            }
-        } elif cstr.cmp(seg, c".") != 0 {
-            @append(segs, seg)
-        }
+
+    val canonical: ref u8 = path.canonicalize_path_cstr(raw_path)
+    if canonical == none || canonical == raw_path {
+        return canonical
     }
-    val sb: ref void = builder.StringBuilder.new()
-    val c0: u8 = @load8(@ptradd(path, 0))
-    if c0 == 47 {
-        builder.StringBuilder.append_char(sb, 47 as u8)
-    }
-    val si: mut i64 = 0
-    for {
-        if si >= @len(segs) as i64 {
-            break
-        }
-        val s_opt = @get(segs, si as usize)
-        if s_opt is some s {
-            if si > 0 {
-                builder.StringBuilder.append_char(sb, 47 as u8)
-            }
-            builder.StringBuilder.append_cstr(sb, s as ref u8)
-        }
-        si++
-    }
-    val built: ref void = builder.StringBuilder.build(sb)
-    val src_cstr: ref u8 = ostr.as_cstr(built)
-    val n: i64 = cstr.len(src_cstr) + 1
-    val out: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, (n) as usize) as ref u8
-    @memcpy(out, src_cstr, n as usize)
-    builder.StringBuilder.free(sb)
-    @free(@load(built))
-    @free(built)
+
+    val n: i64 = cstr.len(canonical) + 1
+    val out: ref u8 = allocators.ScopedArena.alloc_or_none(
+        ctx.arena,
+        n as usize
+    ) as ref u8
+    @memcpy(out, canonical, n as usize)
+    @free(canonical as ref void)
     return out
 }
 
