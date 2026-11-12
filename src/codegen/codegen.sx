@@ -2952,7 +2952,10 @@ fn cg_find_unique_fn_by_suffix(ctx: ref CgCtx, suffix: ref u8) ref u8 = trust {
                 return none
             }
             val index: usize = raw_index
-            val found: ref u8 = @load(cg_list_slot(ctx.fn_names as ref void, index as i64)) as ref u8
+            val found: ref u8 = @load(cg_list_slot(
+                    ctx.fn_names as ref void,
+                    index as i64
+                )) as ref u8
             return found
         }
         none => {
@@ -3293,8 +3296,8 @@ fn cg_node_table_rehash(ctx: mut ref CgCtx) void = trust {
             break
         }
         val node: ref parser.Node = @load(cg_list_slot(
-            ctx.fn_nodes as ref void, j
-        )) as ref parser.Node
+                ctx.fn_nodes as ref void, j
+            )) as ref parser.Node
         cg_node_table_insert(tbl, node, j)
         j++
     }
@@ -3318,8 +3321,8 @@ fn cg_node_index_lookup(ctx: ref CgCtx, node: ref parser.Node) i64 = trust {
         }
         val idx: i64 = cur - 1
         val cand: ref parser.Node = @load(cg_list_slot(
-            ctx.fn_nodes as ref void, idx
-        )) as ref parser.Node
+                ctx.fn_nodes as ref void, idx
+            )) as ref parser.Node
         if cand == node {
             return idx
         }

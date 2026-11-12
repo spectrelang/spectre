@@ -1,0 +1,347 @@
+/// Command-line options for compiling a single source file.
+///
+/// SPDX-License-Identifier: GPL-3.0-only
+/// (C) Navid Momtahen - 2026
+
+val str      = use("std/string")
+val cstr     = use("std/string/cstr")
+val stdio    = use("std/stdio")
+val mem      = use("../meta/mem.sx")
+val defines  = use("../meta/defines.sx")
+val commands = use("../meta/commands.sx")
+val builds   = use("../meta/builds.sx")
+
+pub type Options = {
+    quiet: mut bool
+    emit_qbe: mut bool
+    emit_ll: mut bool
+    emit_asm: mut bool
+    emit_alt: mut bool
+    show_cmd: mut bool
+    test_mode: mut bool
+    leak_check: mut bool
+    release_mode: mut bool
+    native_mode: mut bool
+    unroll_mode: mut bool
+    simd_disabled: mut bool
+    output_name: mut ref u8
+    build_dll: mut bool
+    compile_obj: mut bool
+    dynamic_linking: mut bool
+    syntax_check: mut bool
+    print_ast: mut bool
+    use_alt: mut bool
+    alt_compiler: mut ref u8
+    extra_includes: mut list[ref u8]
+    inc_paths: mut list[ref u8]
+    src_target: mut ref u8
+    target_spec: mut ref u8
+    runtime_spec: mut ref u8
+    xwin_dir: mut ref u8
+    no_xwin: mut bool
+    import_map_spec: mut ref u8
+    sysroot_spec: mut ref u8
+    rt_lib_spec: mut ref u8
+    shim_output: mut ref u8
+    bootstrap_mode: mut bool
+}
+
+pub fn new() ref Options = trust {
+    val o: mut ref Options = mem.alloc(@sizeof(Options) as usize) as mut ref Options
+    @memset(o, 0, @sizeof(Options) as usize)
+    o.quiet = true
+    o.output_name = c""
+    o.alt_compiler = c""
+    o.extra_includes = mem.new[ref u8]()
+    o.inc_paths = mem.new[ref u8]()
+    o.src_target = c""
+    o.target_spec = c""
+    o.runtime_spec = c""
+    o.xwin_dir = c""
+    o.import_map_spec = c""
+    o.sysroot_spec = c""
+    o.rt_lib_spec = c""
+    o.shim_output = c""
+    return o
+}
+
+/// Parse the flags that follow the input file.  Returns false after printing a
+/// diagnostic when an option is malformed or unknown.
+pub fn parse(
+    opts: mut ref Options,
+    args: list[ref u8],
+    argc: i64,
+    input_arg_i: i64,
+    input: ref u8
+) bool = trust {
+    val no_single_flags: mut bool = false
+    val scan_i: mut i64 = input_arg_i + 1
+    for {
+        if scan_i >= argc {
+            break
+        }
+        val scan_opt = @get(args, scan_i)
+        if scan_opt is some scan_arg {
+            if cstr.cmp(scan_arg as ref u8, c"-no-single-flags") == 0 {
+                no_single_flags = true
+                break
+            }
+        }
+        scan_i++
+    }
+
+    val mod_version: ref u8 = commands.load_version_for(input)
+    if cstr.len(mod_version) > 0 {
+        defines.set("SPECTRE_MOD_VERSION", str.from_cstr(mod_version))
+    }
+
+    val parse_args: mut list[ref u8] = args
+    val parse_argc: mut i64 = argc
+    if !no_single_flags {
+        val single_flags_result = commands.load_single_flags_for(input)
+        match single_flags_result {
+            ok single_flags => {
+                if cstr.len(single_flags) > 0 {
+                    val extra_flags: list[ref u8] = commands.split_single_flags(single_flags)
+                    val merged: mut list[ref u8] = mem.new[ref u8]()
+                    val mi: mut i64 = 0
+                    for {
+                        if mi > input_arg_i {
+                            break
+                        }
+                        val item = @get(args, mi)
+                        if item is some v {
+                            @append(merged, v as ref u8)
+                        }
+                        mi++
+                    }
+                    for extra in extra_flags {
+                        @append(merged, extra)
+                    }
+                    mi = input_arg_i + 1
+                    for {
+                        if mi >= argc {
+                            break
+                        }
+                        val item = @get(args, mi)
+                        if item is some v {
+                            @append(merged, v as ref u8)
+                        }
+                        mi++
+                    }
+                    parse_args = merged
+                    parse_argc = @len(merged) as i64
+                }
+            }
+            err e => {
+                if cstr.len(e) > 0 {
+                    stdio.print("error: {s}\n", {e})
+                }
+                return false
+            }
+        }
+    }
+
+    val arg_i: mut i64 = input_arg_i + 1
+    for {
+        if (arg_i >= parse_argc) {
+            break
+        }
+        val arg_opt = @get(parse_args, arg_i)
+        if arg_opt is some arg_val {
+            val arg: ref u8 = arg_val as ref u8
+
+            if cstr.cmp(arg, c"-o") == 0 || cstr.cmp(arg, c"-output") == 0 {
+                val next_i: i64 = arg_i + 1
+                if (next_i < parse_argc) {
+                    val next_opt = @get(parse_args, next_i)
+                    if next_opt is some v {
+                        opts.output_name = v as ref u8
+                    } else {
+                        stdio.puts("error: -o requires a value")
+                        return false
+                    }
+                    arg_i = next_i + 1
+                } else {
+                    stdio.puts("error: -o requires a value")
+                    return false
+                }
+            } elif cstr.cmp(arg, c"-d") == 0 {
+                val next_i: i64 = arg_i + 1
+                if next_i < parse_argc {
+                    val next_opt = @get(parse_args, next_i)
+                    if next_opt is some dv {
+                        val def_spec: ref u8 = dv as ref u8
+                        if !defines.add_spec(str.from_cstr(def_spec)) {
+                            stdio.print(
+                                "error: invalid define '{s}', expected NAME=VALUE\n",
+                                {def_spec}
+                            )
+                            return false
+                        }
+                    } else {
+                        stdio.puts("error: -d requires a NAME=VALUE argument")
+                        return false
+                    }
+                    arg_i = next_i + 1
+                } else {
+                    stdio.puts("error: -d requires a NAME=VALUE argument")
+                    return false
+                }
+            } elif cstr.starts_with(arg, c"-d:") {
+                val def_spec: ref u8 = cstr.substr(arg, 3, cstr.len(arg) - 3)
+                if !defines.add_spec(str.from_cstr(def_spec)) {
+                    stdio.print("error: invalid define '{s}', expected -d:NAME=VALUE\n", {arg})
+                    return false
+                }
+                arg_i++
+            } elif cstr.cmp(arg, c"-emit-ssa") == 0 {
+                opts.emit_qbe = true
+                arg_i++
+            } elif cstr.cmp(arg, c"-emit-ll") == 0 {
+                opts.emit_ll = true
+                arg_i++
+            } elif cstr.cmp(arg, c"-emit-asm") == 0 {
+                opts.emit_asm = true
+                arg_i++
+            } elif cstr.cmp(arg, c"-emit-alt") == 0 {
+                opts.emit_alt = true
+                arg_i++
+            } elif cstr.cmp(arg, c"-show-cmd") == 0 {
+                opts.show_cmd = true
+                arg_i++
+            } elif cstr.cmp(arg, c"-test") == 0 {
+                opts.test_mode = true
+                arg_i++
+            } elif cstr.cmp(arg, c"-leak-check") == 0 {
+                opts.leak_check = true
+                arg_i++
+            } elif cstr.cmp(arg, c"-loud") == 0 || cstr.cmp(arg, c"-l") == 0 {
+                opts.quiet = false
+                arg_i++
+            } elif cstr.cmp(arg, c"-release") == 0 {
+                opts.release_mode = true
+                arg_i++
+            } elif cstr.cmp(arg, c"-native") == 0 {
+                opts.native_mode = true
+                arg_i++
+            } elif cstr.cmp(arg, c"-unroll") == 0 {
+                opts.unroll_mode = true
+                arg_i++
+            } elif cstr.cmp(arg, c"-no-simd") == 0 {
+                opts.simd_disabled = true
+                arg_i++
+            } elif cstr.cmp(arg, c"-dynamic") == 0 {
+                opts.dynamic_linking = true
+                arg_i++
+            } elif cstr.cmp(arg, c"-no-single-flags") == 0 {
+                arg_i++
+            } elif cstr.cmp(arg, c"-dll") == 0 {
+                opts.build_dll = true
+                arg_i++
+            } elif cstr.cmp(arg, c"-c") == 0 || cstr.cmp(arg, c"-compile") == 0 {
+                opts.compile_obj = true
+                arg_i++
+            } elif cstr.cmp(arg, c"-syntax-check") == 0 {
+                opts.syntax_check = true
+                arg_i++
+            } elif cstr.cmp(arg, c"-ast") == 0 {
+                opts.print_ast = true
+                arg_i++
+            } elif cstr.cmp(arg, c"-b") == 0 || cstr.cmp(arg, c"-bootstrap") == 0 {
+                opts.bootstrap_mode = true
+                arg_i++
+            } elif cstr.cmp(arg, c"-alt") == 0 || cstr.cmp(arg, c"-a") == 0 {
+                opts.use_alt = true
+                arg_i++
+            } elif cstr.starts_with(arg, c"-alt:") {
+                opts.use_alt = true
+                val compiler_str = builds.parse_alt_compiler_arg(arg)
+                if cstr.cmp(compiler_str, c"") != 0 {
+                    opts.alt_compiler = compiler_str
+                }
+                arg_i++
+            } elif cstr.starts_with(arg, c"-target:") {
+                val tgt_len: i64 = cstr.len(arg) as i64 - 8
+                if tgt_len <= 0 {
+                    stdio.puts("error: -target requires <os>.<arch>, e.g. -target:windows.x86_64")
+                    return false
+                }
+                opts.target_spec = cstr.substr(arg, 8, tgt_len)
+                arg_i++
+            } elif cstr.starts_with(arg, c"-src-target:") {
+                val tgt_len: i64 = cstr.len(arg) as i64 - 12
+                if tgt_len > 0 {
+                    opts.src_target = cstr.substr(arg, 12, tgt_len)
+                }
+                arg_i++
+            } elif cstr.starts_with(arg, c"-runtime:") {
+                val rt_len: i64 = cstr.len(arg) as i64 - 9
+                if rt_len <= 0 {
+                    stdio.puts("error: -runtime requires hosted or freestanding")
+                    return false
+                }
+                opts.runtime_spec = cstr.substr(arg, 9, rt_len)
+                if cstr.cmp(opts.runtime_spec, c"hosted") != 0
+                && cstr.cmp(opts.runtime_spec, c"freestanding") != 0 {
+                    stdio.print(
+                        "error: unknown runtime mode '{s}'; expected hosted or freestanding\n",
+                        {opts.runtime_spec}
+                    )
+                    return false
+                }
+                arg_i++
+            } elif cstr.starts_with(arg, c"-xwin:") {
+                val xwin_len: i64 = cstr.len(arg) as i64 - 6
+                if xwin_len <= 0 {
+                    stdio.puts("error: -xwin requires a directory, e.g. -xwin:$HOME/.xwin")
+                    return false
+                }
+                opts.xwin_dir = cstr.substr(arg, 6, xwin_len)
+                arg_i++
+            } elif cstr.cmp(arg, c"-no-xwin") == 0 {
+                opts.no_xwin = true
+                arg_i++
+            } elif cstr.starts_with(arg, c"-import-map:") {
+                val n: i64 = cstr.len(arg) as i64 - 12
+                if n > 0 {
+                    opts.import_map_spec = cstr.substr(arg, 12, n)
+                }
+                arg_i++
+            } elif cstr.starts_with(arg, c"-sysroot:") {
+                val n: i64 = cstr.len(arg) as i64 - 9
+                if n > 0 {
+                    opts.sysroot_spec = cstr.substr(arg, 9, n)
+                }
+                arg_i++
+            } elif cstr.starts_with(arg, c"-rt-lib:") {
+                val n: i64 = cstr.len(arg) as i64 - 8
+                if n > 0 {
+                    opts.rt_lib_spec = cstr.substr(arg, 8, n)
+                }
+                arg_i++
+            } elif cstr.starts_with(arg, c"-emit-shim:") {
+                val shim_len: i64 = cstr.len(arg) as i64 - 11
+                if shim_len > 0 {
+                    opts.shim_output = cstr.substr(arg, 11, shim_len)
+                }
+                arg_i++
+            } elif cstr.starts_with(arg, c"-inc-path:") {
+                val path_str: ref u8 = cstr.substr(arg, 10, cstr.len(arg) - 10)
+                if cstr.cmp(path_str, c"") == 0 {
+                    stdio.puts("error: -inc-path requires a value")
+                    return false
+                }
+                @append(opts.inc_paths, path_str)
+                arg_i++
+            } else {
+                stdio.print("error: unknown flag: {s}\n", {arg})
+                return false
+            }
+        } else {
+            arg_i++
+        }
+    }
+
+    return true
+}

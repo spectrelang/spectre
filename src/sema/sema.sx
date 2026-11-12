@@ -1610,7 +1610,11 @@ fn ensure_import_cache(ctx: ref SemaCtx) void = trust {
         }
         val imported: ref modinfo.ResolvedModule = modinfo.import_module_at(rmod, j as usize)
         if imported != none {
-            import_cache_add(ctx, canonical_type_prefix_for_imported_module(ctx, imported), imported)
+            import_cache_add(
+                ctx,
+                canonical_type_prefix_for_imported_module(ctx, imported),
+                imported
+            )
             import_cache_add(ctx, emitted_type_prefix_for_imported_module(ctx, imported), imported)
         }
         j++

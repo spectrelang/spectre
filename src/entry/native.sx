@@ -1,0 +1,319 @@
+/// Native QBE backend: assemble and link with the host C compiler.
+///
+/// SPDX-License-Identifier: GPL-3.0-only
+/// (C) Navid Momtahen - 2026
+
+val cstr       = use("std/string/cstr")
+val ostr       = use("std/string/owned")
+val stdio      = use("std/stdio")
+val os         = use("std/os")
+val fs         = use("std/fs")
+val path       = use("std/path")
+val allocators = use("std/allocators")
+val mem        = use("../meta/mem.sx")
+val builds     = use("../meta/builds.sx")
+val module     = use("../module/module.sx")
+val context    = use("context.sx")
+
+type NativeState = {
+    links: mut list[ref u8]
+    static_link: mut ref u8
+    strip_link: mut ref u8
+    shim_c_file: mut ref u8
+    shim_obj: mut ref u8
+    link_flags: mut ref u8
+    cc_flags: mut ref u8
+    output_ext: mut ref u8
+    cc_cmd: mut ref u8
+    success_msg: mut ref u8
+    run_output: mut ref u8
+    exit_code: mut i32
+}
+
+fn new_state() mut ref NativeState = trust {
+    val st: mut ref NativeState = mem.alloc(@sizeof(NativeState) as usize) as mut ref NativeState
+    @memset(st, 0, @sizeof(NativeState) as usize)
+    st.links = mem.new[ref u8]()
+    st.static_link = c""
+    st.strip_link = c""
+    st.shim_c_file = c""
+    st.shim_obj = c""
+    st.link_flags = c""
+    st.cc_flags = c""
+    st.output_ext = c""
+    st.cc_cmd = c""
+    st.success_msg = c""
+    st.run_output = c""
+    st.exit_code = 0
+    return st
+}
+
+fn collect_links_native(ctx: mut ref context.Context, st: mut ref NativeState) bool = trust {
+    if !ctx.opts.compile_obj && !ctx.opts.build_dll {
+        st.static_link = builds.static_link_flag(ctx.host_platform, ctx.opts.dynamic_linking)
+        st.strip_link = builds.strip_link_flag(ctx.opts.release_mode)
+    }
+
+    val links_result = module.collect_used_links(
+        ctx.root_mod,
+        ctx.exe_dir,
+        cstr.cmp(st.static_link, c"") != 0
+    )
+    match links_result {
+        ok resolved => {
+            st.links = resolved
+        }
+        err e => {
+            stdio.print("error: {s}\n", {e})
+            os.delete(ctx.qbe_file)
+            os.delete(ctx.asm_file)
+            return false
+        }
+    }
+    if !ctx.opts.compile_obj && !ctx.freestanding_runtime {
+        builds.append_debug_runtime_links(
+            st.links,
+            ctx.exe_dir,
+            ctx.opts.quiet,
+            ctx.opts.release_mode,
+            c"cc",
+            ctx.host_platform
+        )
+    }
+    return true
+}
+
+fn compile_shim_native(ctx: mut ref context.Context, st: mut ref NativeState) bool = trust {
+    if cstr.len(ctx.c_shim_source) > 0 {
+        st.shim_c_file = builds.get_unique_tmp_path(c"spectre_c_shim.c")
+        val shim_f = os.open(st.shim_c_file, c"w")
+        if shim_f is some f {
+            os.write(f, ctx.c_shim_source, cstr.len(ctx.c_shim_source) as i64)
+            os.close(f)
+        } else {
+            stdio.puts("error: could not write C shim")
+            os.delete(ctx.qbe_file)
+            os.delete(ctx.asm_file)
+            return false
+        }
+
+        val include_flags: mut ref u8 = c" -I."
+        for inc_path in ctx.opts.inc_paths {
+            include_flags = @fmtalloc("{s} -I{s}", {include_flags, inc_path})
+        }
+
+        st.shim_obj = builds.get_unique_tmp_path(c"spectre_c_shim.o")
+        val shim_cmd = @fmtalloc(
+            "cc -std=c99 -Wno-error=int-conversion -c -o {s} {s}{s} 2>&1",
+            {st.shim_obj, st.shim_c_file, include_flags}
+        )
+        if ctx.opts.show_cmd {
+            stdio.print("{s}\n", {shim_cmd})
+        }
+        val shim_res = os.exec(shim_cmd)
+        match shim_res {
+            ok v => {
+                val vstr: ref u8 = ostr.as_cstr(v)
+                if cstr.len(vstr) > 0 {
+                    stdio.print("{s}", {vstr})
+                }
+                val shim_error_text = ostr.from_cstr[allocators.Arena](ctx.arena, c"error:")
+                if ostr.contains(v, shim_error_text) {
+                    stdio.puts("error: C shim compilation failed")
+                    os.delete(ctx.qbe_file)
+                    os.delete(ctx.asm_file)
+                    os.delete(st.shim_c_file)
+                    return false
+                }
+            }
+            err _ => {
+                stdio.puts("error: failed to run C compiler for C shim")
+                os.delete(ctx.qbe_file)
+                os.delete(ctx.asm_file)
+                os.delete(st.shim_c_file)
+                return false
+            }
+        }
+    }
+    return true
+}
+
+fn build_link_flags_native(ctx: ref context.Context, st: mut ref NativeState) void = trust {
+    if cstr.cmp(st.static_link, c"") != 0 {
+        st.link_flags = @fmtalloc(" {s}", {st.static_link})
+    }
+    if cstr.cmp(st.strip_link, c"") != 0 {
+        st.link_flags = @fmtalloc("{s} {s}", {st.link_flags, st.strip_link})
+    }
+    for link_flag in st.links {
+        st.link_flags = @fmtalloc("{s} {s}", {st.link_flags, link_flag})
+    }
+    if ctx.opts.compile_obj {
+        st.link_flags = c""
+    }
+
+    if cstr.len(st.shim_obj) > 0 && !ctx.opts.compile_obj {
+        st.link_flags = @fmtalloc("{s} {s}", {st.link_flags, st.shim_obj})
+    }
+}
+
+fn build_cc_flags_native(ctx: ref context.Context, st: mut ref NativeState) void = trust {
+    if !ctx.opts.release_mode {
+        st.cc_flags = c"-g"
+    }
+
+    val platform: ref u8 = ctx.host_platform
+    if ctx.opts.compile_obj {
+        st.cc_flags = @fmtalloc("{s} -c", {st.cc_flags})
+        if cstr.cmp(platform, c"windows") == 0 {
+            st.output_ext = c".obj"
+        } else {
+            st.output_ext = c".o"
+        }
+    } elif ctx.opts.build_dll {
+        if cstr.cmp(platform, c"macos") == 0 {
+            st.cc_flags = @fmtalloc("{s} -dynamiclib", {st.cc_flags})
+            st.output_ext = c".dylib"
+        } elif cstr.cmp(platform, c"windows") == 0 {
+            st.cc_flags = @fmtalloc("{s} -shared", {st.cc_flags})
+            st.output_ext = c".dll"
+        } else {
+            st.cc_flags = @fmtalloc("{s} -shared", {st.cc_flags})
+            st.output_ext = c".so"
+        }
+    } else {
+        st.output_ext = c""
+    }
+}
+
+fn execute_test(ctx: mut ref context.Context, st: mut ref NativeState) i32 = trust {
+    val test_bin: ref u8 = builds.get_unique_tmp_path(c"spectre_test_bin")
+    st.cc_cmd = @fmtalloc("cc -o {s} {s}{s}", {test_bin, ctx.asm_file, st.link_flags})
+    val cc_res2 = os.exec(st.cc_cmd)
+    match cc_res2 {
+        ok _ => {
+            val run_res = os.run(test_bin)
+            if run_res != 0 {
+                if !ctx.opts.quiet && !ctx.opts.emit_qbe {
+                    stdio.print("warning: test binary exited with: {s}\n", {"non-zero exit"})
+                }
+                st.exit_code = 1
+            }
+        }
+        err _ => {
+            stdio.puts("error: cc compilation failed")
+            st.exit_code = 1
+        }
+    }
+    os.delete(ctx.qbe_file)
+    os.delete(ctx.asm_file)
+    if cstr.len(st.shim_c_file) > 0 {
+        os.delete(st.shim_c_file)
+    }
+    if cstr.len(st.shim_obj) > 0 {
+        os.delete(st.shim_obj)
+    }
+    return st.exit_code
+}
+
+fn build_output(ctx: mut ref context.Context, st: mut ref NativeState) void = trust {
+    val binary_name: mut ref u8 = c""
+    if cstr.cmp(ctx.opts.output_name, c"") == 0 {
+        binary_name = path.get_name_without_ext_cstr(ctx.arena, ctx.input)
+    } else {
+        binary_name = ctx.opts.output_name
+    }
+
+    val output_specified: bool = cstr.cmp(ctx.opts.output_name, c"") != 0
+    if output_specified {
+        val final_output: mut ref u8 = binary_name
+        if cstr.cmp(st.output_ext, c"") != 0 {
+            final_output = @fmtalloc("{s}{s}", {binary_name, st.output_ext})
+        }
+        st.run_output = final_output
+        if cstr.cmp(st.cc_flags, c"") == 0 {
+            st.cc_cmd = @fmtalloc("cc -o {s} {s}{s}", {final_output, ctx.asm_file, st.link_flags})
+        } else {
+            st.cc_cmd = @fmtalloc(
+                "cc {s} -o {s} {s}{s}",
+                {st.cc_flags, final_output, ctx.asm_file, st.link_flags}
+            )
+        }
+        st.success_msg = @fmtalloc("Compiled: {s}\n", {final_output})
+    } else {
+        fs.mkdir_path_cstr(c"./s-out")
+        val final_output: mut ref u8 = @fmtalloc("./s-out/{s}", {binary_name})
+        if cstr.cmp(st.output_ext, c"") != 0 {
+            final_output = @fmtalloc("./s-out/{s}{s}", {binary_name, st.output_ext})
+        }
+        st.run_output = final_output
+        if cstr.cmp(st.cc_flags, c"") == 0 {
+            st.cc_cmd = @fmtalloc("cc -o {s} {s}{s}", {final_output, ctx.asm_file, st.link_flags})
+        } else {
+            st.cc_cmd = @fmtalloc(
+                "cc {s} -o {s} {s}{s}",
+                {st.cc_flags, final_output, ctx.asm_file, st.link_flags}
+            )
+        }
+        st.success_msg = @fmtalloc("Compiled: {s}\n", {final_output})
+    }
+}
+
+fn execute_native(ctx: mut ref context.Context, st: mut ref NativeState) i32 = trust {
+    if ctx.opts.show_cmd {
+        stdio.print("{s}\n", {st.cc_cmd})
+    }
+
+    val cc_res = os.exec(@fmtalloc("{s} {s}", {st.cc_cmd, c" 2>&1"}))
+    match cc_res {
+        ok v => {
+            val error_text = ostr.from_cstr[allocators.Arena](ctx.arena, c"error")
+            val has_error: bool = ostr.contains(v, error_text)
+            if has_error {
+                stdio.print("{s}\n", {ostr.as_cstr(v)})
+                stdio.puts("linking failed.")
+                st.exit_code = 1
+            } else {
+                if !ctx.opts.quiet && !ctx.opts.emit_qbe {
+                    stdio.print("{s}", {st.success_msg})
+                }
+                if ctx.run_mode {
+                    st.exit_code = os.run(st.run_output)
+                }
+            }
+        }
+        err _ => {
+            stdio.puts("\nerror: cc compilation failed")
+        }
+    }
+
+    os.delete(ctx.qbe_file)
+    os.delete(ctx.asm_file)
+    if cstr.len(st.shim_c_file) > 0 {
+        os.delete(st.shim_c_file)
+    }
+    if cstr.len(st.shim_obj) > 0 {
+        os.delete(st.shim_obj)
+    }
+
+    return st.exit_code
+}
+
+pub fn run(ctx: mut ref context.Context) i32 = trust {
+    val st: mut ref NativeState = new_state()
+    if !collect_links_native(ctx, st) {
+        return 1
+    }
+    if !compile_shim_native(ctx, st) {
+        return 1
+    }
+    build_link_flags_native(ctx, st)
+    build_cc_flags_native(ctx, st)
+
+    if ctx.opts.test_mode {
+        return execute_test(ctx, st)
+    }
+
+    build_output(ctx, st)
+    return execute_native(ctx, st)
+}

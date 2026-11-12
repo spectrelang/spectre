@@ -1,0 +1,778 @@
+/// Alternate backend.
+///
+/// SPDX-License-Identifier: GPL-3.0-only
+/// (C) Navid Momtahen - 2026
+
+val str         = use("std/string")
+val cstr        = use("std/string/cstr")
+val ostr        = use("std/string/owned")
+val stdio       = use("std/stdio")
+val os          = use("std/os")
+val fs          = use("std/fs")
+val path        = use("std/path")
+val allocators  = use("std/allocators")
+val reflection  = use("std/reflection")
+val mem         = use("../meta/mem.sx")
+val builds      = use("../meta/builds.sx")
+val module      = use("../module/module.sx")
+val alt_codegen = use("../codegen/alt_codegen.sx")
+val context     = use("context.sx")
+
+type AltState = {
+    selected_compiler: mut ref u8
+    compiler_kind: mut ref u8
+    static_flag: mut ref u8
+    strip_flag: mut ref u8
+    simd_backend: mut i64
+    runtime_obj: mut ref u8
+    start_obj: mut ref u8
+    sys_rt_obj: mut ref u8
+    win_compat: mut ref u8
+    c_ir: mut ref u8
+    c_file: mut ref u8
+    final_output: mut ref u8
+    test_output: mut ref u8
+    links: mut list[ref u8]
+    link_flags: mut ref u8
+    include_flags: mut ref u8
+    cc_flags: mut ref u8
+    cmd: mut ref u8
+}
+
+fn new_state() mut ref AltState = trust {
+    val st: mut ref AltState = mem.alloc(@sizeof(AltState) as usize) as mut ref AltState
+    @memset(st, 0, @sizeof(AltState) as usize)
+    st.selected_compiler = c""
+    st.compiler_kind = c""
+    st.static_flag = c""
+    st.strip_flag = c""
+    st.simd_backend = 2
+    st.runtime_obj = c""
+    st.start_obj = c""
+    st.sys_rt_obj = c""
+    st.win_compat = c""
+    st.c_ir = c""
+    st.c_file = c""
+    st.final_output = c""
+    st.test_output = c""
+    st.links = mem.new[ref u8]()
+    st.link_flags = c""
+    st.include_flags = c""
+    st.cc_flags = c""
+    st.cmd = c""
+    return st
+}
+
+fn prepare_compiler(ctx: mut ref context.Context, st: mut ref AltState) bool = trust {
+    if ctx.cross_target && !builds.cross_toolchain_available(ctx.target_platform) {
+        val linker_hint: mut ref u8 = c"ld.lld"
+        if cstr.cmp(ctx.target_platform, c"windows") == 0 {
+            linker_hint = c"lld-link"
+        }
+        stdio.print(
+            "error: cross compilation to {s}.{s} requires clang and {s}\n",
+            {ctx.target_platform, ctx.target_arch, linker_hint}
+        )
+        return false
+    }
+
+    if !ctx.opts.compile_obj && !ctx.opts.build_dll {
+        st.static_flag = builds.static_link_flag(ctx.target_platform, ctx.opts.dynamic_linking)
+    }
+
+    st.selected_compiler = builds.pick_alt_backend(
+        ctx.opts.alt_compiler,
+        ctx.opts.release_mode,
+        ctx.input,
+        ctx.root_mod.items,
+        ctx.arena
+    )
+    if ctx.cross_target && cstr.cmp(ctx.opts.alt_compiler, c"") == 0 {
+        st.selected_compiler = c"clang"
+    }
+    if cstr.cmp(
+        st.static_flag,
+        c""
+    ) != 0 && !builds.compiler_supports_static_linking(st.selected_compiler) {
+        if cstr.cmp(ctx.opts.alt_compiler, c"") == 0 {
+            if builds.is_compiler_available(c"clang") {
+                st.selected_compiler = c"clang"
+            } elif builds.is_compiler_available(c"cc") {
+                st.selected_compiler = c"cc"
+            } else {
+                st.static_flag = c""
+            }
+        } else {
+            if !ctx.opts.quiet {
+                stdio.puts("warning: tcc does not support static linking, thus, linking dynamically")
+            }
+            st.static_flag = c""
+        }
+    }
+
+    st.compiler_kind = builds.alt_compiler_kind(st.selected_compiler)
+    if builds.compiler_uses_msvc_flags(st.compiler_kind) {
+        st.static_flag = c""
+    }
+    if !ctx.opts.compile_obj && !ctx.opts.build_dll {
+        st.strip_flag = builds.compiler_strip_flag(st.compiler_kind, ctx.opts.release_mode)
+        if cstr.cmp(ctx.target_platform, c"windows") == 0 {
+            st.strip_flag = c""
+        }
+    }
+    if !ctx.opts.simd_disabled {
+        st.simd_backend = builds.alt_simd_backend(
+            st.selected_compiler,
+            ctx.target_platform,
+            ctx.target_arch
+        )
+    }
+    return true
+}
+
+fn prepare_freestanding(ctx: mut ref context.Context, st: mut ref AltState) bool = trust {
+    if ctx.freestanding_runtime && !ctx.opts.compile_obj {
+        val rt_c: ref u8 = builds.freestanding_runtime_source(ctx.exe_dir)
+        val rt_name: mut ref u8 = c"spectre_runtime.o"
+        if cstr.cmp(ctx.target_platform, c"windows") == 0 {
+            rt_name = c"spectre_runtime.obj"
+        }
+        val rt_size: mut i64 = 0
+        val rt_size_opt = fs.file_size_cstr(rt_c)
+        match rt_size_opt {
+            some sz => {
+                rt_size = sz as i64
+            }
+            none => {
+                rt_size = 0
+            }
+        }
+        val rt_cache_name: ref u8 = @fmtalloc("{s}_{lld}_fs2", {rt_name, rt_size})
+        st.runtime_obj = builds.freestanding_cache_path(
+            ctx.target_platform,
+            ctx.target_arch,
+            rt_cache_name
+        )
+        if !os.exists(st.runtime_obj) {
+            val alt_triple: ref u8 = builds.target_triple(ctx.target_platform, ctx.target_arch)
+            val rt_tmp: ref u8 = @fmtalloc("{s}.tmp", {st.runtime_obj})
+            val rt_cmd_alt: ref u8 = @fmtalloc(
+                "clang --target={s} {s} -c {s} -o {s} 2>&1",
+                {alt_triple, builds.freestanding_c_flags(), rt_c, rt_tmp}
+            )
+            if ctx.opts.show_cmd {
+                stdio.print("{s}\n", {rt_cmd_alt})
+            }
+            val rt_res_alt = os.exec(rt_cmd_alt)
+            match rt_res_alt {
+                ok v => {
+                    val vstr: ref u8 = ostr.as_cstr(v)
+                    if cstr.len(vstr) > 0 {
+                        stdio.print("{s}", {vstr})
+                    }
+                }
+                err _ => { }
+            }
+            if os.exists(st.runtime_obj) {
+                os.delete(st.runtime_obj)
+            }
+            fs.rename_path_cstr(rt_tmp, st.runtime_obj)
+        }
+        val start_src_alt: ref u8 = builds.freestanding_start_source(
+            ctx.exe_dir,
+            ctx.target_platform,
+            ctx.target_arch
+        )
+        if cstr.len(start_src_alt) > 0 {
+            val st_size: mut i64 = 0
+            val st_size_opt = fs.file_size_cstr(start_src_alt)
+            match st_size_opt {
+                some sz => {
+                    st_size = sz as i64
+                }
+                none => {
+                    st_size = 0
+                }
+            }
+            val st_cache_name: ref u8 = @fmtalloc("spectre_start_{lld}.o", {st_size})
+            st.start_obj = builds.freestanding_cache_path(
+                ctx.target_platform,
+                ctx.target_arch,
+                st_cache_name
+            )
+            if !os.exists(st.start_obj) {
+                val alt_triple2: ref u8 = builds.target_triple(ctx.target_platform, ctx.target_arch)
+                val st_tmp: ref u8 = @fmtalloc("{s}.tmp", {st.start_obj})
+                val st_cmd_alt: ref u8 = @fmtalloc(
+                    "clang --target={s} -c {s} -o {s} 2>&1",
+                    {alt_triple2, start_src_alt, st_tmp}
+                )
+                if ctx.opts.show_cmd {
+                    stdio.print("{s}\n", {st_cmd_alt})
+                }
+                val st_res_alt = os.exec(st_cmd_alt)
+                match st_res_alt {
+                    ok v => {
+                        val vstr: ref u8 = ostr.as_cstr(v)
+                        if cstr.len(vstr) > 0 {
+                            stdio.print("{s}", {vstr})
+                        }
+                    }
+                    err _ => { }
+                }
+                if os.exists(st.start_obj) {
+                    os.delete(st.start_obj)
+                }
+                fs.rename_path_cstr(st_tmp, st.start_obj)
+            }
+        }
+    }
+
+    if cstr.len(ctx.opts.rt_lib_spec) > 0 {
+        st.runtime_obj = ctx.opts.rt_lib_spec
+    }
+
+    if ctx.freestanding_runtime && !ctx.opts.compile_obj
+    && !cstr.ends_with(ctx.input, c"runtime/sys.sx") {
+        val sys_src_alt: ref u8 = path.join_cstr(
+            ctx.exe_dir,
+            c"spectrelib/runtime/sys.sx"
+        )
+        if os.exists(sys_src_alt) {
+            val sys_size_alt: mut i64 = 0
+            val sys_size_alt_opt = fs.file_size_cstr(sys_src_alt)
+            match sys_size_alt_opt {
+                some sz => {
+                    sys_size_alt = sz as i64
+                }
+                none => {
+                    sys_size_alt = 0
+                }
+            }
+            val sys_ext_alt: mut ref u8 = c".o"
+            if cstr.cmp(ctx.target_platform, c"windows") == 0 {
+                sys_ext_alt = c".obj"
+            }
+            val sys_base_alt: ref u8 = builds.freestanding_cache_path(
+                ctx.target_platform,
+                ctx.target_arch,
+                @fmtalloc("spectre_sys_runtime_fs_{lld}", {sys_size_alt})
+            )
+            st.sys_rt_obj = @fmtalloc("{s}{s}", {sys_base_alt, sys_ext_alt})
+            if !os.exists(st.sys_rt_obj) {
+                val self_exe: ref u8 = reflection.get_exe_path[allocators.Arena](ctx.arena)
+                val sys_cmd_alt: ref u8 = @fmtalloc(
+                    "{s} {s} -c -runtime:freestanding -target:{s}.{s} -o {s} 2>&1",
+                    {
+                        self_exe,
+                        sys_src_alt,
+                        ctx.target_platform,
+                        ctx.target_arch,
+                        sys_base_alt
+                    }
+                )
+                if ctx.opts.show_cmd {
+                    stdio.print("{s}\n", {sys_cmd_alt})
+                }
+                val sys_res_alt = os.exec(sys_cmd_alt)
+                match sys_res_alt {
+                    ok v => {
+                        val vstr: ref u8 = ostr.as_cstr(v)
+                        if cstr.len(vstr) > 0 {
+                            stdio.print("{s}", {vstr})
+                        }
+                    }
+                    err _ => { }
+                }
+            }
+        }
+    }
+    return true
+}
+
+fn prepare_win_compat(ctx: mut ref context.Context, st: mut ref AltState) void = trust {
+    if cstr.cmp(ctx.target_platform, c"windows") == 0
+    && !ctx.freestanding_runtime && !ctx.opts.compile_obj {
+        val compat_c: ref u8 = path.join_cstr(
+            ctx.exe_dir,
+            c"spectrelib/csources/hosted_windows_compat.c"
+        )
+        if os.exists(compat_c) {
+            val compat_obj: ref u8 = builds.get_unique_tmp_path(c"spectre_hosted_win_compat.obj")
+            val compat_cmd: ref u8 = @fmtalloc(
+                "clang --target={s} -std=c99 -c {s} -o {s}{s} 2>&1",
+                {
+                    builds.target_triple(ctx.target_platform, ctx.target_arch),
+                    compat_c,
+                    compat_obj,
+                    builds.xwin_include_flags(ctx.xwin_root, ctx.target_arch)
+                }
+            )
+            if ctx.opts.show_cmd {
+                stdio.print("{s}\n", {compat_cmd})
+            }
+            val compat_res = os.exec(compat_cmd)
+            match compat_res {
+                ok v => {
+                    val vstr: ref u8 = ostr.as_cstr(v)
+                    val err_mark = ostr.from_cstr[allocators.Arena](ctx.arena, c"error:")
+                    if ostr.contains(v, err_mark) {
+                        stdio.print("{s}", {vstr})
+                        os.delete(compat_obj)
+                    } else {
+                        st.win_compat = compat_obj
+                    }
+                }
+                err _ => { }
+            }
+        }
+    }
+}
+
+fn generate_c(ctx: mut ref context.Context, st: mut ref AltState) void = trust {
+    val emit_ld: bool = !ctx.opts.bootstrap_mode
+    if ctx.opts.test_mode {
+        st.c_ir = alt_codegen.gen_module_c_test(
+            ctx.root_mod,
+            ctx.opts.release_mode,
+            ctx.opts.extra_includes,
+            ctx.opts.src_target,
+            emit_ld,
+            st.simd_backend,
+            ctx.opts.leak_check
+        )
+    } else {
+        st.c_ir = alt_codegen.gen_module_c(
+            ctx.root_mod,
+            ctx.opts.release_mode,
+            ctx.opts.extra_includes,
+            ctx.opts.src_target,
+            emit_ld,
+            st.simd_backend,
+            ctx.opts.leak_check
+        )
+    }
+}
+
+fn write_c(ctx: mut ref context.Context, st: mut ref AltState) bool = trust {
+    val binary_name_alt: mut ref u8 = c""
+    if cstr.cmp(ctx.opts.output_name, c"") == 0 {
+        binary_name_alt = path.get_name_without_ext_cstr(ctx.arena, ctx.input)
+    } else {
+        binary_name_alt = ctx.opts.output_name
+    }
+
+    st.c_file = builds.get_unique_tmp_path(c"spectre_output.c")
+    val c_f = os.open(st.c_file, c"w")
+    if c_f is some f {
+        os.write(f, st.c_ir, cstr.len(st.c_ir) as i64)
+        os.close(f)
+        @free(st.c_ir)
+    } else {
+        stdio.puts("\nerror: could not write C code")
+        return false
+    }
+
+    val output_specified_alt: bool = cstr.cmp(ctx.opts.output_name, c"") != 0
+    if output_specified_alt {
+        st.final_output = binary_name_alt
+    } else {
+        fs.mkdir_path_cstr(c"./s-out")
+        if cstr.cmp(ctx.target_platform, c"windows") == 0
+        && !ctx.opts.compile_obj
+        && !ctx.opts.build_dll {
+            st.final_output = @fmtalloc("./s-out/{s}.exe", {binary_name_alt})
+        } else {
+            st.final_output = @fmtalloc("./s-out/{s}", {binary_name_alt})
+        }
+    }
+    if ctx.opts.compile_obj {
+        st.final_output = @fmtalloc(
+            "{s}{s}",
+            {st.final_output, builds.target_object_ext(ctx.target_platform)}
+        )
+    } elif ctx.opts.build_dll {
+        if cstr.cmp(ctx.target_platform, c"windows") == 0 {
+            st.final_output = @fmtalloc("{s}.dll", {st.final_output})
+        } else {
+            st.final_output = @fmtalloc("{s}.so", {st.final_output})
+        }
+    }
+    return true
+}
+
+fn collect_links_alt(ctx: mut ref context.Context, st: mut ref AltState) bool = trust {
+    val links_alt_result = module.collect_used_links(
+        ctx.root_mod,
+        ctx.exe_dir,
+        cstr.cmp(st.static_flag, c"") != 0
+    )
+    match links_alt_result {
+        ok resolved => {
+            st.links = resolved
+        }
+        err e => {
+            stdio.print("error: {s}\n", {e})
+            os.delete(st.c_file)
+            return false
+        }
+    }
+    if !ctx.opts.compile_obj && !ctx.freestanding_runtime {
+        builds.append_debug_runtime_links(
+            st.links,
+            ctx.exe_dir,
+            ctx.opts.quiet,
+            ctx.opts.release_mode,
+            st.selected_compiler,
+            ctx.target_platform
+        )
+    }
+    return true
+}
+
+fn build_link_flags_alt(ctx: mut ref context.Context, st: mut ref AltState) void = trust {
+    val windows_cross_link: bool = ctx.cross_target
+    && builds.target_is_windows(ctx.target_platform)
+    if cstr.cmp(st.static_flag, c"") != 0 {
+        st.link_flags = @fmtalloc(" {s}", {st.static_flag})
+    }
+    if cstr.cmp(st.strip_flag, c"") != 0 {
+        st.link_flags = @fmtalloc("{s} {s}", {st.link_flags, st.strip_flag})
+    }
+    for link_flag in st.links {
+        val translated_link: mut ref u8 = c""
+        if windows_cross_link {
+            if cstr.starts_with(link_flag, c"-l") {
+                translated_link = @fmtalloc(
+                    "-Wl,{s}",
+                    {builds.translate_lld_link_flag(link_flag)}
+                )
+            } elif cstr.ends_with(link_flag, c".lib") {
+                translated_link = @fmtalloc("-Wl,{s}", {link_flag})
+            } else {
+                translated_link = link_flag
+            }
+        } else {
+            translated_link = builds.translate_link_flag(
+                st.compiler_kind,
+                link_flag
+            )
+        }
+        if cstr.len(translated_link) > 0 {
+            st.link_flags = @fmtalloc("{s} {s}", {st.link_flags, translated_link})
+        }
+    }
+    if windows_cross_link && !ctx.freestanding_runtime {
+        st.link_flags = @fmtalloc(
+            "{s} {s} -Wl,/ignore:4099",
+            {
+                st.link_flags,
+                builds.xwin_lib_path_flags_clang(ctx.xwin_root, ctx.target_arch)
+            }
+        )
+        if cstr.len(st.win_compat) > 0 {
+            st.link_flags = @fmtalloc("{s} {s}", {st.link_flags, st.win_compat})
+        }
+    }
+    if ctx.freestanding_runtime && !ctx.opts.compile_obj {
+        if cstr.cmp(ctx.target_platform, c"windows") == 0 {
+            st.link_flags = @fmtalloc(
+                "{s} {s} {s} {s} {s} {s}",
+                {
+                    st.link_flags,
+                    builds.freestanding_windows_link_flags(st.compiler_kind),
+                    builds.freestanding_windows_import_flags(ctx.target_arch),
+                    st.runtime_obj,
+                    st.sys_rt_obj,
+                    st.start_obj
+                }
+            )
+        } else {
+            st.link_flags = @fmtalloc(
+                "{s} -nostdlib -static {s} {s} {s}",
+                {st.link_flags, st.runtime_obj, st.sys_rt_obj, st.start_obj}
+            )
+        }
+    }
+    if ctx.opts.compile_obj {
+        st.link_flags = c""
+    }
+}
+
+fn build_include_flags_alt(ctx: mut ref context.Context, st: mut ref AltState) void = trust {
+    for inc_path in ctx.opts.inc_paths {
+        st.include_flags = @fmtalloc(
+            "{s} {s}",
+            {st.include_flags, builds.compiler_include_flag(st.compiler_kind, inc_path)}
+        )
+    }
+    val windows_cross_link: bool = ctx.cross_target
+    && builds.target_is_windows(ctx.target_platform)
+    if windows_cross_link && !ctx.freestanding_runtime {
+        st.include_flags = @fmtalloc(
+            "{s} {s}",
+            {st.include_flags, builds.xwin_include_flags(ctx.xwin_root, ctx.target_arch)}
+        )
+    }
+}
+
+fn build_cc_flags_alt(ctx: mut ref context.Context, st: mut ref AltState) void = trust {
+    val warn_flag: ref u8 = builds.compiler_warn_flag(st.selected_compiler)
+    val perf_flags: mut ref u8 = c""
+    if cstr.cmp(st.selected_compiler, c"tcc") != 0 {
+        val native_flags: ref u8 = builds.compiler_native_flags(
+            st.compiler_kind,
+            ctx.target_platform,
+            ctx.target_arch,
+            ctx.opts.native_mode
+        )
+        if cstr.len(native_flags) > 0 {
+            perf_flags = @fmtalloc("{s} {s}", {perf_flags, native_flags})
+        }
+        val unroll_flags: ref u8 = builds.compiler_unroll_flag(
+            st.compiler_kind,
+            ctx.opts.unroll_mode
+        )
+        if cstr.len(unroll_flags) > 0 {
+            perf_flags = @fmtalloc("{s} {s}", {perf_flags, unroll_flags})
+        }
+    }
+    if builds.compiler_uses_msvc_flags(st.compiler_kind) {
+        st.cc_flags = @fmtalloc(
+            "/nologo {s} {s} {s}{s}",
+            {
+                builds.compiler_std_flag(st.compiler_kind),
+                warn_flag,
+                builds.compiler_opt_flag(st.compiler_kind, ctx.opts.release_mode),
+                perf_flags
+            }
+        )
+        if ctx.freestanding_runtime {
+            st.cc_flags = @fmtalloc("{s} /GS-", {st.cc_flags})
+        }
+        if cstr.cmp(st.compiler_kind, c"clang-cl") == 0 {
+            st.cc_flags = @fmtalloc(
+                "{s} -Wno-error=int-conversion",
+                {st.cc_flags}
+            )
+        }
+    } else {
+        st.cc_flags = @fmtalloc(
+            "{s} {s} {s} -Wno-error=int-conversion{s}",
+            {
+                builds.compiler_std_flag(st.compiler_kind),
+                warn_flag,
+                builds.compiler_opt_flag(st.compiler_kind, ctx.opts.release_mode),
+                perf_flags
+            }
+        )
+        if ctx.cross_target {
+            st.cc_flags = @fmtalloc(
+                "--target={s} -fuse-ld=lld {s}",
+                {builds.target_triple(ctx.target_platform, ctx.target_arch), st.cc_flags}
+            )
+        }
+        if ctx.freestanding_runtime {
+            st.cc_flags = @fmtalloc(
+                "{s} {s}",
+                {st.cc_flags, builds.freestanding_c_flags()}
+            )
+        }
+        val windows_cross_link: bool = ctx.cross_target
+        && builds.target_is_windows(ctx.target_platform)
+        if windows_cross_link {
+            st.cc_flags = @fmtalloc("{s} -g0", {st.cc_flags})
+        }
+        if ctx.opts.compile_obj {
+            st.cc_flags = @fmtalloc("{s} -c", {st.cc_flags})
+        }
+    }
+}
+
+fn build_cmd_alt(ctx: ref context.Context, st: mut ref AltState) void = trust {
+    st.test_output = builds.get_unique_tmp_path(c"spectre_test_bin_alt")
+    val compile_output: mut ref u8 = st.test_output
+    if !ctx.opts.test_mode {
+        compile_output = st.final_output
+    }
+
+    if cstr.cmp(st.selected_compiler, c"tcc") == 0 {
+        val tcc_compile: mut ref u8 = c""
+        if ctx.opts.compile_obj {
+            tcc_compile = c" -c"
+        }
+        if ctx.opts.test_mode {
+            st.cmd = @fmtalloc(
+                "tcc {s} -o {s} -w -std=c99{s}{s} {s} 2>&1",
+                {
+                    st.c_file,
+                    st.test_output,
+                    tcc_compile,
+                    st.include_flags,
+                    st.link_flags
+                }
+            )
+        } else {
+            st.cmd = @fmtalloc(
+                "tcc {s} -o {s} -w -std=c99{s}{s} {s} 2>&1",
+                {
+                    st.c_file,
+                    st.final_output,
+                    tcc_compile,
+                    st.include_flags,
+                    st.link_flags
+                }
+            )
+        }
+    } elif builds.compiler_uses_msvc_flags(st.compiler_kind) {
+        if ctx.opts.compile_obj {
+            st.cmd = @fmtalloc(
+                "{s} {s}{s} /c {s} /Fo:{s} 2>&1",
+                {
+                    st.selected_compiler,
+                    st.cc_flags,
+                    st.include_flags,
+                    st.c_file,
+                    compile_output
+                }
+            )
+        } else {
+            st.cmd = @fmtalloc(
+                "{s} {s}{s} {s} /Fe:{s} {s} 2>&1",
+                {
+                    st.selected_compiler,
+                    st.cc_flags,
+                    st.include_flags,
+                    st.c_file,
+                    compile_output,
+                    st.link_flags
+                }
+            )
+        }
+    } else {
+        if cstr.cmp(st.cc_flags, c"") == 0 {
+            st.cmd = @fmtalloc(
+                "{s}{s} -o {s} {s}{s} 2>&1",
+                {
+                    st.selected_compiler,
+                    st.include_flags,
+                    compile_output,
+                    st.c_file,
+                    st.link_flags
+                }
+            )
+        } else {
+            st.cmd = @fmtalloc(
+                "{s} {s}{s} -o {s} {s}{s} 2>&1",
+                {
+                    st.selected_compiler,
+                    st.cc_flags,
+                    st.include_flags,
+                    compile_output,
+                    st.c_file,
+                    st.link_flags
+                }
+            )
+        }
+    }
+}
+
+fn execute_alt(ctx: ref context.Context, st: mut ref AltState) i32 = trust {
+    if !ctx.opts.quiet {
+        stdio.puts("[IV ]│ AMCS")
+    }
+    if ctx.opts.show_cmd {
+        stdio.print("{s}\n", {st.cmd})
+    }
+
+    val alt_res = os.exec(st.cmd)
+    match alt_res {
+        ok v => {
+            val vstr: ref u8 = ostr.as_cstr(v)
+            val error_prefix = ostr.from_cstr[allocators.Arena](ctx.arena, c"error:")
+            val msvc_error = ostr.from_cstr[allocators.Arena](ctx.arena, c"error")
+            val has_error: bool = ostr.contains(v, error_prefix)
+            || (builds.compiler_uses_msvc_flags(st.compiler_kind)
+                && ostr.contains(v, msvc_error))
+            if has_error {
+                val display: mut ref u8 = vstr
+                if !ctx.opts.bootstrap_mode {
+                    display = builds.filter_c_diagnostics(vstr)
+                }
+                stdio.print("{s}", {display})
+                os.delete(st.c_file)
+                return 1
+            } else {
+                if cstr.len(vstr) > 0 {
+                    val display: mut ref u8 = vstr
+                    if !ctx.opts.bootstrap_mode {
+                        display = builds.filter_c_diagnostics(vstr)
+                    }
+                    stdio.print("{s}", {display})
+                }
+                if ctx.opts.test_mode {
+                    val run_res_alt = os.run(st.test_output)
+                    if run_res_alt != 0 {
+                        stdio.puts("Test binary failed.")
+                        os.delete(st.c_file)
+                        return 1
+                    }
+                    os.delete(st.test_output)
+                }
+                if ctx.run_mode {
+                    val run_res_alt: i32 = os.run(st.final_output)
+                    os.delete(st.c_file)
+                    return run_res_alt
+                }
+                if !ctx.opts.quiet {
+                    stdio.print("Compiled (ALT): {s}\n", {st.final_output})
+                }
+            }
+        }
+        err _ => {
+            stdio.print("error: {s} stage failed\n", {st.selected_compiler})
+            os.delete(st.c_file)
+            return 1
+        }
+    }
+
+    if cstr.len(st.win_compat) > 0 {
+        os.delete(st.win_compat)
+    }
+    os.delete(st.c_file)
+    return 0
+}
+
+pub fn run(ctx: mut ref context.Context) i32 = trust {
+    val st: mut ref AltState = new_state()
+
+    if !prepare_compiler(ctx, st) {
+        return 1
+    }
+    if !prepare_freestanding(ctx, st) {
+        return 1
+    }
+    prepare_win_compat(ctx, st)
+
+    generate_c(ctx, st)
+
+    if ctx.opts.emit_alt != false {
+        stdio.puts(str.from_cstr(st.c_ir))
+        @free(st.c_ir)
+        return 0
+    }
+
+    if !write_c(ctx, st) {
+        return 1
+    }
+    if !collect_links_alt(ctx, st) {
+        return 1
+    }
+
+    build_link_flags_alt(ctx, st)
+    build_include_flags_alt(ctx, st)
+    build_cc_flags_alt(ctx, st)
+    build_cmd_alt(ctx, st)
+
+    return execute_alt(ctx, st)
+}

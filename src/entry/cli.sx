@@ -1,0 +1,213 @@
+/// Top-level command-line dispatch for the Spectre compiler.
+///
+/// SPDX-License-Identifier: GPL-3.0-only
+/// (C) Navid Momtahen - 2026
+
+val str        = use("std/string")
+val cstr       = use("std/string/cstr")
+val stdio      = use("std/stdio")
+val allocators = use("std/allocators")
+val defines    = use("../meta/defines.sx")
+val meta       = use("../meta/meta.sx")
+val commands   = use("../meta/commands.sx")
+val tools      = use("tools.sx")
+val compile    = use("compile.sx")
+
+pub fn run(
+    args: list[ref u8],
+    argc: i64,
+    exe_path: ref u8,
+    arena: allocators.Arena,
+    frontend_arena: allocators.ScopedArenaAllocator
+) i32 = trust {
+    val run_mode: mut bool = false
+
+    if argc < 2 {
+        stdio.puts("error: no input file provided\n")
+        meta.print_usage()
+        return 1
+    }
+
+    val input_arg_i: mut i64 = 1
+    for {
+        val pre_opt = @get(args, input_arg_i)
+        if pre_opt is some pre_val {
+            val pre_arg: ref u8 = pre_val as ref u8
+            if cstr.cmp(pre_arg, c"-d") == 0 {
+                val spec_i: i64 = input_arg_i + 1
+                val spec_opt = @get(args, spec_i)
+                if spec_opt is some spec_val {
+                    val def_spec: ref u8 = spec_val as ref u8
+                    if !defines.add_spec(str.from_cstr(def_spec)) {
+                        stdio.print(
+                            "error: invalid define '{s}', expected NAME=VALUE\n",
+                            {def_spec}
+                        )
+                        return 1
+                    }
+                    input_arg_i = spec_i + 1
+                } else {
+                    stdio.puts("error: -d requires a NAME=VALUE argument")
+                    return 1
+                }
+            } elif cstr.starts_with(pre_arg, c"-d:") {
+                val def_spec: ref u8 = cstr.substr(pre_arg, 3, cstr.len(pre_arg) - 3)
+                if !defines.add_spec(str.from_cstr(def_spec)) {
+                    stdio.print("error: invalid define '{s}', expected -d:NAME=VALUE\n", {pre_arg})
+                    return 1
+                }
+                input_arg_i++
+            } else {
+                break
+            }
+        } else {
+            break
+        }
+    }
+    val input_opt = @get(args, input_arg_i)
+    val input: mut ref u8 = c""
+    if input_opt is some a {
+        input = a as ref u8
+    } else {
+        stdio.puts("error: no input file")
+        return 1
+    }
+
+    if cstr.cmp(input, c"run") == 0 {
+        run_mode = true
+        input_arg_i++
+        val run_input_opt = @get(args, input_arg_i)
+        if run_input_opt is some a {
+            input = a as ref u8
+        } else {
+            stdio.puts("error: run requires an input file\n")
+            meta.print_usage()
+            return 1
+        }
+    }
+
+    if cstr.cmp(input, c"-test-all") == 0 {
+        return tools.test_all(args, input_arg_i, exe_path)
+    }
+
+    if cstr.cmp(input, c"-h") == 0 || cstr.cmp(input, c"-help") == 0 {
+        meta.print_usage()
+        return 0
+    }
+
+    if cstr.cmp(input, c"-v") == 0 || cstr.cmp(input, c"-version") == 0 {
+        meta.print_version()
+        return 0
+    }
+
+    if cstr.cmp(input, c"help") == 0 {
+        val topic: mut ref u8 = c""
+        val topic_opt = @get(args, 2)
+        if topic_opt is some t {
+            topic = t as ref u8
+        }
+        return meta.print_help(str.from_cstr(topic))
+    }
+
+    if cstr.cmp(input, c"doctor") == 0 {
+        return commands.cmd_doctor()
+    }
+
+    if cstr.cmp(input, c"ref") == 0 {
+        return commands.cmd_ref()
+    }
+
+    if cstr.cmp(input, c"init") == 0 {
+        val name_arg: mut ref u8 = c""
+        val name_opt = @get(args, 2)
+        if name_opt is some v {
+            name_arg = v as ref u8
+        }
+        return commands.cmd_init(name_arg)
+    }
+
+    if cstr.cmp(input, c"fmt") == 0 {
+        return tools.fmt(args)
+    }
+
+    if cstr.cmp(input, c"critic") == 0 {
+        return tools.critic(args)
+    }
+
+    if cstr.cmp(input, c"build") == 0 {
+        val config_name: mut ref u8 = c"dev"
+        val cfg_opt = @get(args, 2)
+        if cfg_opt is some v {
+            config_name = v as ref u8
+        }
+        return commands.cmd_build(config_name, exe_path)
+    }
+
+    if cstr.cmp(input, c"install") == 0 {
+        return tools.install(args)
+    }
+
+    if cstr.cmp(input, c"doc") == 0 {
+        return tools.doc(args)
+    }
+
+    if cstr.cmp(input, c"add") == 0 {
+        val url_opt = @get(args, 2)
+        if url_opt is some v {
+            return commands.cmd_add(v as ref u8)
+        } else {
+            stdio.puts("error: add requires a git repository URL")
+            return 1
+        }
+    }
+
+    if cstr.cmp(input, c"remove") == 0 {
+        val dep_opt = @get(args, 2)
+        if dep_opt is some v {
+            return commands.cmd_remove(v as ref u8)
+        } else {
+            stdio.puts("error: remove requires a dependency name")
+            return 1
+        }
+    }
+
+    if cstr.cmp(input, c"upgrade") == 0 {
+        val dep_name: mut ref u8 = c""
+        val upgrade_opt = @get(args, 2)
+        if upgrade_opt is some v {
+            dep_name = v as ref u8
+        }
+        return commands.cmd_upgrade(dep_name)
+    }
+
+    if cstr.cmp(input, c"restore") == 0 {
+        return commands.cmd_restore()
+    }
+
+    if cstr.cmp(input, c"graph") == 0 {
+        return commands.cmd_graph()
+    }
+
+    if cstr.cmp(input, c"clean") == 0 {
+        return commands.cmd_clean()
+    }
+
+    if cstr.cmp(input, c"port-c") == 0 {
+        return tools.port_c(args, input_arg_i, arena)
+    }
+
+    if cstr.cmp(input, c"bind-c") == 0 {
+        return tools.bind_c(args, input_arg_i, arena)
+    }
+
+    return compile.run(
+        args,
+        argc,
+        input_arg_i,
+        input,
+        run_mode,
+        exe_path,
+        arena,
+        frontend_arena
+    )
+}

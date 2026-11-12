@@ -1,0 +1,390 @@
+/// Compilation pipeline orchestration for a single source file.
+///
+/// SPDX-License-Identifier: GPL-3.0-only
+/// (C) Navid Momtahen - 2026
+
+val cstr        = use("std/string/cstr")
+val stdio       = use("std/stdio")
+val fs          = use("std/fs")
+val path        = use("std/path")
+val allocators  = use("std/allocators")
+val reflection  = use("std/reflection")
+val mem         = use("../meta/mem.sx")
+val builds      = use("../meta/builds.sx")
+val module      = use("../module/module.sx")
+val sema        = use("../sema/sema.sx")
+val codegen     = use("../codegen/codegen.sx")
+val alt_codegen = use("../codegen/alt_codegen.sx")
+val ast_printer = use("../ast/ast_printer.sx")
+val parser      = use("../ast/parser.sx")
+val options     = use("options.sx")
+val context     = use("context.sx")
+val qbe         = use("qbe.sx")
+val alt         = use("alt.sx")
+val cross       = use("cross.sx")
+val native      = use("native.sx")
+
+fn resolve_target(ctx: mut ref context.Context) bool = trust {
+    ctx.host_platform = reflection.current_platform_name[allocators.Arena](ctx.arena)
+    ctx.host_arch = reflection.current_arch_name[allocators.Arena](ctx.arena)
+    ctx.target_platform = ctx.host_platform
+    ctx.target_arch = ctx.host_arch
+    ctx.explicit_target = cstr.cmp(ctx.opts.target_spec, c"") != 0
+    if ctx.explicit_target {
+        ctx.target_platform = builds.target_platform_of(ctx.opts.target_spec)
+        ctx.target_arch = builds.target_arch_of(ctx.opts.target_spec)
+        if cstr.cmp(ctx.target_platform, c"") == 0 || cstr.cmp(ctx.target_arch, c"") == 0 {
+            stdio.print(
+                "error: invalid target '{s}', expected <os>.<arch> (for example windows.x86_64)\n",
+                {ctx.opts.target_spec}
+            )
+            return false
+        }
+        if cstr.cmp(ctx.target_platform, c"darwin") == 0 {
+            stdio.puts("error: cross compilation to macOS is not supported")
+            return false
+        }
+        if !builds.target_is_supported(ctx.target_platform, ctx.target_arch) {
+            stdio.print(
+                "error: unsupported target '{s}'; supported: linux.x86_64, linux.aarch64, windows.x86_64, windows.aarch64\n",
+                {ctx.opts.target_spec}
+            )
+            return false
+        }
+        if cstr.cmp(ctx.opts.src_target, c"") == 0 {
+            ctx.opts.src_target = ctx.opts.target_spec
+        }
+    }
+    ctx.cross_target = builds.target_needs_cross(
+        ctx.target_platform,
+        ctx.target_arch,
+        ctx.host_platform,
+        ctx.host_arch
+    )
+    return true
+}
+
+fn resolve_runtime(ctx: mut ref context.Context) bool = trust {
+    ctx.runtime_mode = c"freestanding"
+    if cstr.len(ctx.opts.runtime_spec) > 0 {
+        ctx.runtime_mode = ctx.opts.runtime_spec
+    }
+    if !builds.runtime_supported(ctx.target_platform, ctx.target_arch, ctx.runtime_mode) {
+        if cstr.len(ctx.opts.runtime_spec) > 0 {
+            stdio.print(
+                "error: runtime mode '{s}' is not implemented for {s}.{s}\n",
+                {ctx.runtime_mode, ctx.target_platform, ctx.target_arch}
+            )
+            return false
+        }
+        ctx.runtime_mode = c"hosted"
+    }
+    if ctx.opts.dynamic_linking || ctx.opts.build_dll || ctx.opts.bootstrap_mode {
+        ctx.runtime_mode = c"hosted"
+    }
+    ctx.freestanding_runtime = builds.runtime_is_freestanding(ctx.runtime_mode)
+    module.set_runtime_mode(ctx.runtime_mode)
+    codegen.set_runtime_mode(ctx.runtime_mode)
+    alt_codegen.set_runtime_mode(ctx.runtime_mode)
+    return true
+}
+
+fn resolve_xwin(ctx: mut ref context.Context) bool = trust {
+    val wants_windows_link: bool = ctx.cross_target
+    && builds.target_is_windows(ctx.target_platform)
+    && !ctx.freestanding_runtime
+    && !ctx.opts.compile_obj
+    && !ctx.opts.emit_alt
+    && !ctx.opts.emit_qbe
+    && !ctx.opts.emit_ll
+    && !ctx.opts.emit_asm
+    && !ctx.opts.syntax_check
+    && !ctx.opts.print_ast
+    if ctx.cross_target && builds.target_is_windows(ctx.target_platform) {
+        if cstr.len(ctx.opts.xwin_dir) > 0 {
+            ctx.xwin_root = ctx.opts.xwin_dir
+        } elif !ctx.opts.no_xwin {
+            ctx.xwin_root = builds.xwin_find_root()
+        }
+        if wants_windows_link && !builds.xwin_available_in(ctx.xwin_root, ctx.target_arch) {
+            if cstr.len(ctx.xwin_root) > 0 {
+                stdio.print(
+                    "error: xwin at '{s}' is missing CRT/SDK libraries for {s}\n",
+                    {ctx.xwin_root, ctx.target_arch}
+                )
+            } else {
+                stdio.print(
+                    "error: windows.{s} requires xwin or a compatible Windows SDK\n",
+                    {ctx.target_arch}
+                )
+            }
+            stdio.print("  install: cargo install xwin --locked\n", {})
+            stdio.print(
+                "           xwin --arch {s} --accept-license splat --output ~/.xwin\n",
+                {ctx.target_arch}
+            )
+            stdio.print("  or pass: -xwin:<dir>\n", {})
+            return false
+        }
+        if wants_windows_link && !ctx.opts.quiet {
+            stdio.print("[I  ]│ xwin root: {s}\n", {ctx.xwin_root})
+        }
+    }
+    return true
+}
+
+fn validate_flags(ctx: mut ref context.Context) bool = trust {
+    if cstr.cmp(ctx.opts.src_target, c"") != 0 && !ctx.explicit_target
+    && !ctx.opts.emit_alt && !ctx.opts.emit_qbe && !ctx.opts.emit_asm {
+        stdio.puts("error: -src-target requires -emit-alt or -emit-ssa")
+        return false
+    }
+    if ctx.run_mode && (ctx.opts.emit_qbe || ctx.opts.emit_ll || ctx.opts.emit_asm
+        || ctx.opts.emit_alt || ctx.opts.build_dll || ctx.opts.compile_obj
+        || ctx.opts.syntax_check || ctx.opts.print_ast) {
+        stdio.puts("error: run requires flags that produce a runnable executable")
+        return false
+    }
+    return true
+}
+
+fn prepare_module(ctx: mut ref context.Context) bool = trust {
+    val exe_path2: ref u8 = reflection.get_exe_path[allocators.Arena](ctx.arena)
+    if cstr.cmp(exe_path2, c".") != 0 {
+        ctx.exe_dir = path.dir_cstr(exe_path2)
+    }
+
+    if !ctx.opts.use_alt && !ctx.opts.emit_alt && !ctx.opts.emit_qbe
+    && !ctx.opts.emit_ll && !ctx.opts.emit_asm
+    && !ctx.opts.syntax_check && !ctx.opts.print_ast {
+        if !builds.is_compiler_available(c"uqbe") {
+            ctx.opts.use_alt = true
+            if !ctx.opts.quiet {
+                stdio.puts("[I  ]│ UQBE not found - using fallback C backend")
+            }
+        }
+    }
+
+    if !ctx.opts.quiet && !ctx.opts.emit_qbe && !ctx.opts.emit_ll && !ctx.opts.emit_alt
+    && !ctx.opts.print_ast {
+        stdio.puts("[I  ]│ Resolving module")
+    }
+
+    val resolve_result = module.resolve_module(
+        ctx.frontend_arena,
+        ctx.input,
+        mem.new[ref u8](),
+        ctx.exe_dir,
+        none
+    )
+    match resolve_result {
+        ok m => {
+            ctx.root_mod = m
+        }
+        err e => {
+            stdio.print("error: {s}\n", {e})
+            return false
+        }
+    }
+    return true
+}
+
+fn apply_hosted_fallback(ctx: mut ref context.Context) void = trust {
+    if ctx.freestanding_runtime && cstr.len(ctx.opts.runtime_spec) == 0
+    && !ctx.opts.dynamic_linking && !ctx.opts.build_dll && !ctx.opts.compile_obj {
+        match module.collect_used_links(ctx.root_mod, ctx.exe_dir, true) {
+            ok detected_links => {
+                if builds.links_require_hosted(detected_links) {
+                    ctx.runtime_mode = c"hosted"
+                    ctx.freestanding_runtime = false
+                    module.set_runtime_mode(ctx.runtime_mode)
+                    codegen.set_runtime_mode(ctx.runtime_mode)
+                    alt_codegen.set_runtime_mode(ctx.runtime_mode)
+                    stdio.eprint(
+                        "warning: external C library detected; using hosted runtime (pass -runtime:freestanding to force)\n",
+                        {}
+                    )
+                }
+            }
+            err _ => { }
+        }
+    }
+}
+
+fn check_windows_link(ctx: mut ref context.Context) bool = trust {
+    if !ctx.freestanding_runtime && ctx.cross_target
+    && builds.target_is_windows(ctx.target_platform)
+    && !ctx.opts.compile_obj && !ctx.opts.emit_alt && !ctx.opts.emit_qbe
+    && !ctx.opts.emit_ll && !ctx.opts.emit_asm
+    && !ctx.opts.syntax_check && !ctx.opts.print_ast {
+        if !builds.xwin_available_in(ctx.xwin_root, ctx.target_arch) {
+            stdio.print(
+                "error: windows.{s} requires xwin or a compatible Windows SDK\n",
+                {ctx.target_arch}
+            )
+            stdio.print("  install: cargo install xwin --locked\n", {})
+            stdio.print("  or pass: -xwin:<dir>\n", {})
+            stdio.print("  or use:  -runtime:freestanding\n", {})
+            return false
+        }
+    }
+    return true
+}
+
+fn run_semantics(ctx: mut ref context.Context) bool = trust {
+    if !ctx.opts.quiet && !ctx.opts.emit_qbe && !ctx.opts.emit_ll && !ctx.opts.emit_alt {
+        stdio.puts("[II ]│ Semantic analysis")
+    }
+    val quiet_flag: mut bool = false
+    if ctx.opts.quiet {
+        quiet_flag = true
+    }
+    val errors: list[ref u8] = sema.check_module_tree(
+        ctx.frontend_arena,
+        ctx.root_mod,
+        quiet_flag,
+        ctx.opts.src_target
+    )
+    val nerrors: i64 = @len(errors) as i64
+    if nerrors > 0 {
+        for e in errors {
+            stdio.print("error: {s}\n", {e})
+        }
+        return false
+    }
+    return true
+}
+
+fn generate_qbe(ctx: mut ref context.Context) void = trust {
+    if ctx.opts.test_mode {
+        val cg_out = codegen.gen_module_resolved_test(
+            ctx.root_mod,
+            ctx.opts.release_mode,
+            ctx.opts.src_target,
+            ctx.opts.leak_check
+        )
+        ctx.qbe_ir = cg_out.qbe
+        ctx.c_shim_source = cg_out.shim
+    } else {
+        val cg_out = codegen.gen_module_resolved(
+            ctx.root_mod,
+            ctx.opts.release_mode,
+            ctx.opts.src_target,
+            ctx.opts.leak_check
+        )
+        ctx.qbe_ir = cg_out.qbe
+        ctx.c_shim_source = cg_out.shim
+    }
+}
+
+pub fn run(
+    args: list[ref u8],
+    argc: i64,
+    input_arg_i: i64,
+    input: ref u8,
+    run_mode: bool,
+    exe_path: ref u8,
+    arena: allocators.Arena,
+    frontend_arena: allocators.ScopedArenaAllocator
+) i32 = trust {
+    if fs.is_directory_cstr(input) {
+        stdio.print("error: '{s}' is a directory, not a source file\n", {input})
+        stdio.puts(
+            "-> run 'spectre build <config>' in a project with sx.mod, or compile a file with 'spectre <file.sx> -o <output>'"
+        )
+        return 1
+    }
+
+    val src_size_opt = fs.file_size_cstr(input)
+    if src_size_opt is some _ {
+    } else {
+        stdio.print("error: could not read '{s}'\n", {input})
+        return 1
+    }
+
+    val opts: mut ref options.Options = options.new()
+    if !options.parse(opts, args, argc, input_arg_i, input) {
+        return 1
+    }
+
+    val ctx: mut ref context.Context = context.new(
+        opts,
+        arena,
+        frontend_arena,
+        input,
+        exe_path,
+        run_mode
+    )
+
+    if !resolve_target(ctx) {
+        return 1
+    }
+    if !resolve_runtime(ctx) {
+        return 1
+    }
+    if !resolve_xwin(ctx) {
+        return 1
+    }
+    if !validate_flags(ctx) {
+        return 1
+    }
+    if !prepare_module(ctx) {
+        return 1
+    }
+    apply_hosted_fallback(ctx)
+    if !check_windows_link(ctx) {
+        return 1
+    }
+
+    if opts.print_ast {
+        val items: list[ref parser.Node] = module.module_items(ctx.root_mod)
+        ast_printer.print_ast_items(items)
+        return 0
+    }
+
+    if !run_semantics(ctx) {
+        return 1
+    }
+
+    if opts.syntax_check {
+        stdio.puts("Syntax OK")
+        return 0
+    }
+
+    if !ctx.opts.quiet && !ctx.opts.emit_qbe && !ctx.opts.emit_ll && !ctx.opts.emit_alt {
+        stdio.puts("[III]│ CG pass")
+    }
+
+    if ((@len(opts.extra_includes) as i64) > 0 && !opts.use_alt && !opts.emit_alt) {
+        stdio.puts("error: -I<headers> requires the alt backend (-alt)")
+        return 1
+    }
+
+    if opts.use_alt || opts.emit_alt {
+        return alt.run(ctx)
+    }
+
+    generate_qbe(ctx)
+
+    if !opts.quiet && !opts.emit_qbe && !opts.emit_ll {
+        stdio.puts("[IV ]│ Module used-links collection")
+    }
+
+    if opts.emit_qbe {
+        return qbe.emit_ir(ctx)
+    }
+
+    if !qbe.assemble(ctx) {
+        return 1
+    }
+
+    if opts.emit_asm {
+        return qbe.emit_asm(ctx)
+    }
+
+    if ctx.cross_target || ctx.freestanding_runtime {
+        return cross.run(ctx)
+    }
+
+    return native.run(ctx)
+}

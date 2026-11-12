@@ -1,0 +1,118 @@
+/// QBE intermediate generation and assembly helpers.
+///
+/// SPDX-License-Identifier: GPL-3.0-only
+/// (C) Navid Momtahen - 2026
+
+val str        = use("std/string")
+val cstr       = use("std/string/cstr")
+val ostr       = use("std/string/owned")
+val stdio      = use("std/stdio")
+val os         = use("std/os")
+val fs         = use("std/fs")
+val allocators = use("std/allocators")
+val builds     = use("../meta/builds.sx")
+val context    = use("context.sx")
+
+/// Emit the QBE IR directly with `-emit-ssa`.
+pub fn emit_ir(ctx: mut ref context.Context) i32 = trust {
+    if cstr.len(ctx.opts.shim_output) > 0 && cstr.len(ctx.c_shim_source) > 0 {
+        val shim_f = os.open(ctx.opts.shim_output, c"w")
+        if shim_f is some f {
+            os.write(f, ctx.c_shim_source, cstr.len(ctx.c_shim_source) as i64)
+            os.close(f)
+        } else {
+            stdio.print("error: could not write C shim to '{s}'\n", {ctx.opts.shim_output})
+            @free(ctx.qbe_ir)
+            return 1
+        }
+    }
+    stdio.puts(str.from_cstr(ctx.qbe_ir))
+    @free(ctx.qbe_ir)
+    return 0
+}
+
+/// Run uqbe and leave the generated assembly path in the context.
+pub fn assemble(ctx: mut ref context.Context) bool = trust {
+    val qbe_file = builds.get_unique_tmp_path(c"spectre_output.ssa")
+    val asm_file = builds.get_unique_tmp_path(c"spectre_output.s")
+    ctx.qbe_file = qbe_file
+    ctx.asm_file = asm_file
+
+    val qbe_f = os.open(qbe_file, c"w")
+    if qbe_f is some f {
+        os.write(f, ctx.qbe_ir, cstr.len(ctx.qbe_ir) as i64)
+        os.close(f)
+        @free(ctx.qbe_ir)
+    } else {
+        stdio.puts("\nerror: could not write QBE IR")
+        return false
+    }
+
+    val qbe_target_name: mut ref u8 = c""
+    if ctx.explicit_target {
+        qbe_target_name = builds.target_qbe_name(ctx.target_platform, ctx.target_arch)
+    } elif cstr.cmp(ctx.host_platform, c"windows") == 0 {
+        qbe_target_name = builds.target_qbe_name(ctx.host_platform, ctx.host_arch)
+    }
+    val qbe_cmd: mut ref u8 = c""
+    if cstr.cmp(qbe_target_name, c"") != 0 {
+        qbe_cmd = @fmtalloc(
+            "uqbe -t {s} -o {s} {s} 2>&1",
+            {qbe_target_name, asm_file, qbe_file}
+        )
+    } else {
+        qbe_cmd = @fmtalloc("uqbe -o {s} {s} 2>&1", {asm_file, qbe_file})
+    }
+    val qbe_res = os.exec(qbe_cmd)
+    if ctx.opts.show_cmd {
+        stdio.print("{s}\n", {qbe_cmd})
+    }
+    match qbe_res {
+        ok v => {
+            val vstr: ref u8 = ostr.as_cstr(v)
+            if cstr.len(vstr) > 0 {
+                stdio.print("{s}", {vstr})
+            }
+            if cstr.starts_with(vstr, c"qbe:") {
+                stdio.puts("error: uqbe stage failed")
+                os.delete(qbe_file)
+                return false
+            }
+        }
+        err _ => {
+            stdio.puts("\nerror: failed to run uqbe")
+            os.delete(qbe_file)
+            return false
+        }
+    }
+    return true
+}
+
+/// Print the generated assembly with `-emit-asm`.
+pub fn emit_asm(ctx: ref context.Context) i32 = trust {
+    val asm_file: ref u8 = ctx.asm_file
+    val qbe_file: ref u8 = ctx.qbe_file
+    val asm_size_opt = fs.file_size_cstr(asm_file)
+    val asm_arena_cap: mut i64 = 4096
+    if asm_size_opt is some sz {
+        if ((sz as i64) > asm_arena_cap) {
+            asm_arena_cap = sz as i64
+        }
+    } else {
+        stdio.puts("error: could not read assembly output")
+        os.delete(qbe_file)
+        os.delete(asm_file)
+        return 1
+    }
+    val asm_arena: allocators.Arena = allocators.Arena.new((asm_arena_cap + 8) as usize)?
+    val asm_opt = fs.read_all_cstr[allocators.Arena](asm_arena, asm_file)
+    if asm_opt is some asm_content {
+        stdio.puts(str.from_cstr(asm_content as ref u8))
+    } else {
+        stdio.puts("error: could not read assembly output")
+    }
+    allocators.Arena.free(asm_arena)
+    os.delete(qbe_file)
+    os.delete(asm_file)
+    return 0
+}

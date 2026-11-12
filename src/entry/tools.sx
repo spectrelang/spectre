@@ -1,0 +1,461 @@
+/// Helpers for the compiler's command-line subcommands.
+///
+/// SPDX-License-Identifier: GPL-3.0-only
+/// (C) Navid Momtahen - 2026
+
+val str         = use("std/string")
+val cstr        = use("std/string/cstr")
+val stdio       = use("std/stdio")
+val fmt_mod     = use("std/fmt")
+val allocators  = use("std/allocators")
+val reflection  = use("std/reflection")
+val mem         = use("../meta/mem.sx")
+val meta        = use("../meta/meta.sx")
+val commands    = use("../meta/commands.sx")
+val docs        = use("../meta/docs.sx")
+val formatter   = use("../meta/fmt.sx")
+val critic_mod  = use("../meta/critic.sx")
+val c_translate = use("../translate/c_translate.sx")
+val c_bind      = use("../translate/c_bind.sx")
+val path        = use("std/path")
+val builds      = use("../meta/builds.sx")
+val installer   = use("../meta/install.sx")
+
+pub fn test_all(
+    args: list[ref u8],
+    input_arg_i: i64,
+    exe_path: ref u8
+) i32 = trust {
+    val root: mut ref u8 = c"."
+    val max_depth: mut i64 = 25
+    val extra_flags: mut list[ref u8] = mem.new[ref u8]()
+    val ti: mut i64 = input_arg_i + 1
+    for {
+        val opt = @get(args, ti)
+        if opt is some av {
+            val a: ref u8 = av as ref u8
+            if cstr.cmp(a, c"-test-depth") == 0 {
+                ti++
+                val next_opt = @get(args, ti)
+                if next_opt is some nv {
+                    val next_val: ref u8 = nv as ref u8
+                    val parsed = fmt_mod.string_to_i64(next_val)
+                    match parsed {
+                        ok v => {
+                            max_depth = v
+                        }
+                        err _ => {
+                            stdio.print("error: invalid test depth '{s}'\n", {
+                                    next_val
+                                })
+                            return 1
+                        }
+                    }
+                } else {
+                    stdio.puts("error: -test-depth requires a number")
+                    return 1
+                }
+            } elif cstr.starts_with(a, c"-test-depth:") {
+                val text: ref u8 = cstr.substr(
+                    a,
+                    12,
+                    cstr.len(a) - 12
+                )
+                val parsed = fmt_mod.string_to_i64(text)
+                match parsed {
+                    ok v => {
+                        max_depth = v
+                    }
+                    err _ => {
+                        stdio.print("error: invalid test depth '{s}'\n", {text})
+                        return 1
+                    }
+                }
+            } elif cstr.starts_with(a, c"-") {
+                @append(extra_flags, a)
+            } else {
+                root = a
+            }
+        } else {
+            break
+        }
+        ti++
+    }
+    if max_depth < 0 {
+        stdio.puts("error: -test-depth must be zero or greater")
+        return 1
+    }
+    return commands.cmd_test_all(
+        exe_path,
+        root,
+        max_depth,
+        extra_flags
+    )
+}
+
+pub fn fmt(args: list[ref u8]) i32 = trust {
+    val fmt_paths: mut list[ref u8] = mem.new[ref u8]()
+    val fmt_stdout: mut bool = false
+    val fmt_arg_i: mut i64 = 2
+    for {
+        val fmt_arg_opt = @get(args, fmt_arg_i)
+        if fmt_arg_opt is some fv {
+            val arg: ref u8 = fv as ref u8
+            if cstr.cmp(arg, c"-h") == 0 || cstr.cmp(arg, c"-help") == 0 {
+                return meta.print_help("fmt")
+            } elif cstr.cmp(arg, c"-stdio") == 0 {
+                fmt_stdout = true
+            } else {
+                @append(fmt_paths, arg)
+            }
+        } else {
+            break
+        }
+        fmt_arg_i++
+    }
+    return formatter.cmd_fmt(fmt_paths, fmt_stdout)
+}
+
+pub fn critic(args: list[ref u8]) i32 = trust {
+    val critic_paths: mut list[ref u8] = mem.new[ref u8]()
+    val critic_fix: mut bool = false
+    val critic_arg_i: mut i64 = 2
+    for {
+        val critic_arg_opt = @get(args, critic_arg_i)
+        if critic_arg_opt is some cv {
+            val arg: ref u8 = cv as ref u8
+            if cstr.cmp(arg, c"-h") == 0 || cstr.cmp(arg, c"-help") == 0 {
+                return meta.print_help("critic")
+            } elif cstr.cmp(arg, c"-fix") == 0 {
+                critic_fix = true
+            } else {
+                @append(critic_paths, arg)
+            }
+        } else {
+            break
+        }
+        critic_arg_i++
+    }
+    return critic_mod.cmd_critic(critic_paths, critic_fix)
+}
+
+pub fn install(args: list[ref u8]) i32 = trust {
+    val install_url: mut ref u8 = c""
+    val install_config: mut ref u8 = c""
+    val install_shell: mut ref u8 = c""
+    val install_bin_dir: mut ref u8 = c""
+    val install_arg_i: mut i64 = 2
+    for {
+        val install_arg_opt = @get(args, install_arg_i)
+        if install_arg_opt is some iv {
+            val arg: ref u8 = iv as ref u8
+            if cstr.cmp(arg, c"-h") == 0 || cstr.cmp(arg, c"-help") == 0 {
+                return meta.print_help("install")
+            } elif cstr.cmp(arg, c"-config") == 0
+            || cstr.cmp(arg, c"--config") == 0
+            || cstr.cmp(arg, c"-build") == 0 {
+                val next_i: i64 = install_arg_i + 1
+                val next_opt = @get(args, next_i)
+                if next_opt is some nv {
+                    install_config = nv as ref u8
+                    install_arg_i = next_i
+                } else {
+                    stdio.puts("error: -config requires a build configuration name")
+                    return 1
+                }
+            } elif cstr.starts_with(arg, c"-config:") {
+                install_config = cstr.substr(arg, 8, cstr.len(arg) - 8)
+            } elif cstr.cmp(arg, c"-shell") == 0
+            || cstr.cmp(arg, c"--shell") == 0 {
+                val next_i: i64 = install_arg_i + 1
+                val next_opt = @get(args, next_i)
+                if next_opt is some nv {
+                    install_shell = nv as ref u8
+                    install_arg_i = next_i
+                } else {
+                    stdio.puts("error: -shell requires a shell name")
+                    return 1
+                }
+            } elif cstr.starts_with(arg, c"-shell:") {
+                install_shell = cstr.substr(arg, 7, cstr.len(arg) - 7)
+            } elif cstr.cmp(arg, c"-bin-dir") == 0
+            || cstr.cmp(arg, c"--bin-dir") == 0 {
+                val next_i: i64 = install_arg_i + 1
+                val next_opt = @get(args, next_i)
+                if next_opt is some nv {
+                    install_bin_dir = nv as ref u8
+                    install_arg_i = next_i
+                } else {
+                    stdio.puts("error: -bin-dir requires a directory")
+                    return 1
+                }
+            } elif cstr.starts_with(arg, c"-bin-dir:") {
+                install_bin_dir = cstr.substr(arg, 9, cstr.len(arg) - 9)
+            } elif cstr.starts_with(arg, c"-") {
+                stdio.print("error: unknown install option '{s}'\n", {arg})
+                return 1
+            } else {
+                if cstr.len(install_url) == 0 {
+                    install_url = arg
+                } else {
+                    stdio.puts("error: install accepts a single repository URL")
+                    return 1
+                }
+            }
+        } else {
+            break
+        }
+        install_arg_i++
+    }
+    if cstr.len(install_url) == 0 {
+        stdio.puts("error: install requires a git repository URL")
+        stdio.puts("usage: spectre install <git-url> [-config <name>] [-shell <shell>]")
+        return 1
+    }
+    return installer.cmd_install(
+        install_url,
+        install_config,
+        install_shell,
+        install_bin_dir
+    )
+}
+
+pub fn doc(args: list[ref u8]) i32 = trust {
+    val target_arg: mut ref u8 = c"."
+    val md_mode: mut bool = false
+    val output_arg: mut ref u8 = c""
+    val read_arg: mut ref u8 = c""
+    val doc_arg_i: mut i64 = 2
+    for {
+        val arg_opt = @get(args, doc_arg_i)
+        if arg_opt is some dv {
+            val arg: ref u8 = dv as ref u8
+            if cstr.cmp(arg, c"-md") == 0 {
+                md_mode = true
+            } elif cstr.cmp(arg, c"-h") == 0 || cstr.cmp(arg, c"-help") == 0 {
+                return meta.print_help("doc")
+            } elif cstr.cmp(arg, c"-o") == 0 || cstr.cmp(arg, c"-output") == 0 {
+                val next_i: i64 = doc_arg_i + 1
+                val next_opt = @get(args, next_i)
+                if next_opt is some ov {
+                    output_arg = ov as ref u8
+                    doc_arg_i = next_i
+                } else {
+                    stdio.puts("error: -o requires a directory")
+                    return 1
+                }
+            } elif cstr.starts_with(arg, c"-o:") {
+                val out_len: i64 = cstr.len(arg) as i64 - 3
+                if out_len <= 0 {
+                    stdio.puts("error: -o requires a directory")
+                    return 1
+                }
+                output_arg = cstr.substr(arg, 3, out_len)
+            } elif cstr.cmp(arg, c"-read") == 0 {
+                val next_i: i64 = doc_arg_i + 1
+                val next_opt = @get(args, next_i)
+                if next_opt is some rv {
+                    read_arg = rv as ref u8
+                    doc_arg_i = next_i
+                } else {
+                    stdio.puts("error: -read requires a markdown file")
+                    return 1
+                }
+            } elif cstr.starts_with(arg, c"-read:") {
+                val read_len: i64 = cstr.len(arg) as i64 - 6
+                if read_len <= 0 {
+                    stdio.puts("error: -read requires a markdown file")
+                    return 1
+                }
+                read_arg = cstr.substr(arg, 6, read_len)
+            } elif cstr.starts_with(arg, c"-") {
+                stdio.print("error: unknown doc option '{s}'\n", {arg})
+                return 1
+            } else {
+                target_arg = arg
+            }
+        } else {
+            break
+        }
+        doc_arg_i++
+    }
+    return docs.cmd_doc(target_arg, md_mode, output_arg, read_arg)
+}
+
+pub fn port_c(
+    args: list[ref u8],
+    input_arg_i: i64,
+    arena: allocators.Arena
+) i32 = trust {
+    val tc_input: mut ref u8 = c""
+    val tc_output: mut ref u8 = c""
+    val ti: mut i64 = input_arg_i + 1
+    for {
+        val opt = @get(args, ti)
+        if opt is some tv {
+            val arg: ref u8 = tv as ref u8
+            if cstr.cmp(arg, c"-h") == 0 || cstr.cmp(arg, c"-help") == 0 {
+                return meta.print_help("port-c")
+            } elif cstr.cmp(arg, c"-o") == 0 || cstr.cmp(arg, c"-output") == 0 {
+                ti++
+                val next_opt = @get(args, ti)
+                if next_opt is some ov {
+                    tc_output = ov as ref u8
+                } else {
+                    stdio.puts("error: port-c -o requires a value")
+                    return 1
+                }
+            } elif cstr.starts_with(arg, c"-") {
+                stdio.print("error: unknown port-c flag: {s}\n", {arg})
+                return 1
+            } else {
+                tc_input = arg
+            }
+        } else {
+            break
+        }
+        ti++
+    }
+    if cstr.cmp(tc_input, c"") == 0 {
+        stdio.puts("error: port-c requires an input .c or .h file")
+        return 1
+    }
+    if cstr.cmp(tc_output, c"") == 0 {
+        tc_output = @fmtalloc(
+            "./src-out/{s}.sx",
+            {path.get_name_without_ext_cstr(arena, tc_input)}
+        )
+    }
+    return c_translate.translate_c(tc_input, tc_output)
+}
+
+pub fn bind_c(
+    args: list[ref u8],
+    input_arg_i: i64,
+    arena: allocators.Arena
+) i32 = trust {
+    val bind_inputs: mut list[ref u8] = mem.new[ref u8]()
+    val bind_includes: mut list[ref u8] = mem.new[ref u8]()
+    val bind_defines: mut list[ref u8] = mem.new[ref u8]()
+    val bind_undefines: mut list[ref u8] = mem.new[ref u8]()
+    val bind_output_dir: mut ref u8 = c"./src-out"
+    val bind_link: mut ref u8 = c""
+    val bind_target: mut ref u8 = c""
+    val bind_normalize: mut bool = false
+    val bi: mut i64 = input_arg_i + 1
+    for {
+        val opt = @get(args, bi)
+        if opt is some bv {
+            val arg: ref u8 = bv as ref u8
+            if cstr.cmp(arg, c"-h") == 0 || cstr.cmp(arg, c"-help") == 0 {
+                return meta.print_help("bind-c")
+            } elif cstr.cmp(arg, c"-normalize") == 0 {
+                bind_normalize = true
+            } elif cstr.cmp(arg, c"-o") == 0 || cstr.cmp(arg, c"-output") == 0 {
+                bi++
+                val next_opt = @get(args, bi)
+                if next_opt is some ov {
+                    bind_output_dir = ov as ref u8
+                } else {
+                    stdio.puts("error: bind-c -o requires a directory")
+                    return 1
+                }
+            } elif cstr.cmp(arg, c"-link") == 0 {
+                bi++
+                val next_opt = @get(args, bi)
+                if next_opt is some lv {
+                    bind_link = lv as ref u8
+                } else {
+                    stdio.puts("error: bind-c -link requires a library name")
+                    return 1
+                }
+            } elif cstr.cmp(arg, c"-target") == 0 {
+                bi++
+                val next_opt = @get(args, bi)
+                if next_opt is some tv2 {
+                    bind_target = tv2 as ref u8
+                } else {
+                    stdio.puts("error: bind-c -target requires <os>.<arch>")
+                    return 1
+                }
+            } elif cstr.starts_with(arg, c"-target:") {
+                bind_target = cstr.substr(arg, 8, cstr.len(arg) - 8)
+            } elif cstr.cmp(arg, c"-I") == 0 {
+                bi++
+                val next_opt = @get(args, bi)
+                if next_opt is some iv {
+                    @append(bind_includes, iv as ref u8)
+                } else {
+                    stdio.puts("error: bind-c -I requires a directory")
+                    return 1
+                }
+            } elif cstr.starts_with(arg, c"-I:") {
+                @append(bind_includes, cstr.substr(arg, 3, cstr.len(arg) - 3))
+            } elif cstr.starts_with(arg, c"-inc-path:") {
+                @append(bind_includes, cstr.substr(arg, 10, cstr.len(arg) - 10))
+            } elif cstr.starts_with(arg, c"-I") && cstr.len(arg) > 2 {
+                @append(bind_includes, cstr.substr(arg, 2, cstr.len(arg) - 2))
+            } elif cstr.cmp(arg, c"-D") == 0 {
+                bi++
+                val next_opt = @get(args, bi)
+                if next_opt is some dv {
+                    @append(bind_defines, dv as ref u8)
+                } else {
+                    stdio.puts("error: bind-c -D requires NAME or NAME=VALUE")
+                    return 1
+                }
+            } elif cstr.starts_with(arg, c"-D") && cstr.len(arg) > 2 {
+                @append(bind_defines, cstr.substr(arg, 2, cstr.len(arg) - 2))
+            } elif cstr.starts_with(arg, c"-d:") {
+                @append(bind_defines, cstr.substr(arg, 3, cstr.len(arg) - 3))
+            } elif cstr.cmp(arg, c"-U") == 0 {
+                bi++
+                val next_opt = @get(args, bi)
+                if next_opt is some uv {
+                    @append(bind_undefines, uv as ref u8)
+                } else {
+                    stdio.puts("error: bind-c -U requires a macro name")
+                    return 1
+                }
+            } elif cstr.starts_with(arg, c"-U") && cstr.len(arg) > 2 {
+                @append(bind_undefines, cstr.substr(arg, 2, cstr.len(arg) - 2))
+            } elif cstr.starts_with(arg, c"-") {
+                stdio.print("error: unknown bind-c flag: {s}\n", {arg})
+                return 1
+            } else {
+                @append(bind_inputs, arg)
+            }
+        } else {
+            break
+        }
+        bi++
+    }
+    if (@len(bind_inputs) as i64) == 0 {
+        stdio.puts("error: bind-c requires at least one .h or .c input")
+        return 1
+    }
+    val bind_platform: mut ref u8 = reflection.current_platform_name[allocators.Arena](arena)
+    val bind_arch: mut ref u8 = reflection.current_arch_name[allocators.Arena](arena)
+    if cstr.len(bind_target) > 0 {
+        bind_platform = builds.target_platform_of(bind_target)
+        bind_arch = builds.target_arch_of(bind_target)
+        if cstr.cmp(bind_platform, c"") == 0 || cstr.cmp(bind_arch, c"") == 0 {
+            stdio.print(
+                "error: invalid bind-c target '{s}', expected <os>.<arch>\n",
+                {bind_target}
+            )
+            return 1
+        }
+    }
+    val bind_opts: mut c_bind.BindOptions = c_bind.BindOptions{
+        output_dir: str.from_cstr(bind_output_dir),
+        link_name: str.from_cstr(bind_link),
+        target_platform: str.from_cstr(bind_platform),
+        target_arch: str.from_cstr(bind_arch),
+        normalize: bind_normalize,
+        include_paths: bind_includes,
+        defines: bind_defines,
+        undefines: bind_undefines
+    }
+    return c_bind.bind_c(bind_inputs, bind_opts)
+}

@@ -1,0 +1,67 @@
+/// Shared state for the compiler entry point and its backends.
+///
+/// SPDX-License-Identifier: GPL-3.0-only
+/// (C) Navid Momtahen - 2026
+
+val allocators = use("std/allocators")
+val mem        = use("../meta/mem.sx")
+val module     = use("../module/module.sx")
+val options    = use("options.sx")
+
+pub type Context = {
+    opts: mut ref options.Options
+    arena: mut allocators.Arena
+    frontend_arena: mut allocators.ScopedArenaAllocator
+    input: mut ref u8
+    exe_path: mut ref u8
+    exe_dir: mut ref u8
+    run_mode: mut bool
+    host_platform: mut ref u8
+    host_arch: mut ref u8
+    target_platform: mut ref u8
+    target_arch: mut ref u8
+    explicit_target: mut bool
+    cross_target: mut bool
+    runtime_mode: mut ref u8
+    freestanding_runtime: mut bool
+    xwin_root: mut ref u8
+    root_mod: mut ref module.ResolvedModule
+    qbe_ir: mut ref u8
+    c_shim_source: mut ref u8
+    qbe_file: mut ref u8
+    asm_file: mut ref u8
+}
+
+pub fn new(
+    opts: ref options.Options,
+    arena: allocators.Arena,
+    frontend_arena: allocators.ScopedArenaAllocator,
+    input: ref u8,
+    exe_path: ref u8,
+    run_mode: bool
+) mut ref Context = trust {
+    val c: mut ref Context = mem.alloc(@sizeof(Context) as usize) as mut ref Context
+    @memset(c, 0, @sizeof(Context) as usize)
+    c.opts = opts
+    c.arena = arena
+    c.frontend_arena = frontend_arena
+    c.input = input
+    c.exe_path = exe_path
+    c.exe_dir = c"."
+    c.run_mode = run_mode
+    c.host_platform = c""
+    c.host_arch = c""
+    c.target_platform = c""
+    c.target_arch = c""
+    c.explicit_target = false
+    c.cross_target = false
+    c.runtime_mode = c""
+    c.freestanding_runtime = false
+    c.xwin_root = c""
+    c.root_mod = none
+    c.qbe_ir = c""
+    c.c_shim_source = c""
+    c.qbe_file = c""
+    c.asm_file = c""
+    return c
+}
