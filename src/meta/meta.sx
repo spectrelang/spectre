@@ -53,7 +53,7 @@ pub fn print_usage() void = {
     stdio.puts("  -emit-asm            Print assembly to stdout and exit")
     stdio.puts("  -target:<os>.<arch>  Cross-compile (linux/windows, x86_64/aarch64)")
     stdio.puts("  -runtime:<mode>      Runtime mode: freestanding (default) or hosted")
-    stdio.puts("  -xwin:<dir>          xwin root for hosted Windows cross builds")
+    stdio.puts("  -xwin:<dir>          Specify xwin root for hosted Windows cross builds")
     stdio.puts("  -no-xwin             Disable automatic xwin discovery")
     stdio.puts("  -import-map:<file>   Extra Windows symbol-to-DLL map")
     stdio.puts("  -sysroot:<dir>       Target sysroot for hosted cross builds")
