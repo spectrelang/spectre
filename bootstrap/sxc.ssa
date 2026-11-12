@@ -294423,7 +294423,7 @@ export function w $qbe__assemble(l %ctx) {
     %t11 =l alloc8 16
     %t33 =l alloc8 8
     %t59 =l alloc8 8
-    %t84 =l alloc8 16
+    %t88 =l alloc8 16
     storel %ctx, %t0
     %t1 =l copy $__str866
     %t2 =l call $builds__get_unique_tmp_path(l %t1)
@@ -294512,7 +294512,9 @@ export function w $qbe__assemble(l %ctx) {
     %t66 =l copy $__str3343
     %t67 =l call $malloc(l 4096)
     %t73 =l loadl %t33
-    %t68 =w call $snprintf(l %t67, l 4096, l %t66, ..., l %t73, l %t4, l %t2)
+    %t74 =l call $builds__quote_arg(l %t4)
+    %t75 =l call $builds__quote_arg(l %t2)
+    %t68 =w call $snprintf(l %t67, l 4096, l %t66, ..., l %t73, l %t74, l %t75)
     %t69 =l extsw %t68
     %t70 =l add %t69, 1
     %t71 =l call $malloc(l %t70)
@@ -294524,67 +294526,69 @@ export function w $qbe__assemble(l %ctx) {
     storel %t65, %t59
     jmp @lbl52878
 @lbl52879
-    %t75 =l copy $__str3344
-    %t76 =l call $malloc(l 4096)
-    %t77 =w call $snprintf(l %t76, l 4096, l %t75, ..., l %t4, l %t2)
-    %t78 =l extsw %t77
-    %t79 =l add %t78, 1
-    %t80 =l call $malloc(l %t79)
-    call $memcpy(l %t80, l %t76, l %t78)
-    %t81 =l add %t80, %t78
-    storeb 0, %t81
-    call $free(l %t76)
-    %t74 =l copy %t80
-    storel %t74, %t59
+    %t77 =l copy $__str3344
+    %t78 =l call $malloc(l 4096)
+    %t84 =l call $builds__quote_arg(l %t4)
+    %t85 =l call $builds__quote_arg(l %t2)
+    %t79 =w call $snprintf(l %t78, l 4096, l %t77, ..., l %t84, l %t85)
+    %t80 =l extsw %t79
+    %t81 =l add %t80, 1
+    %t82 =l call $malloc(l %t81)
+    call $memcpy(l %t82, l %t78, l %t80)
+    %t83 =l add %t82, %t80
+    storeb 0, %t83
+    call $free(l %t78)
+    %t76 =l copy %t82
+    storel %t76, %t59
     jmp @lbl52878
 @lbl52878
-    %t82 =l loadl %t59
-    %t83 =l call $std__os__exec(l %t84, l %t82)
-    %t85 =l loadl %t0
-    %t86 =l loadl %t85
-    %t88 =l add %t86, 20
-    %t87 =l loadub %t88
-    jnz %t87, @lbl52880, @lbl52881
+    %t86 =l loadl %t59
+    %t87 =l call $std__os__exec(l %t88, l %t86)
+    %t89 =l loadl %t0
+    %t90 =l loadl %t89
+    %t92 =l add %t90, 20
+    %t91 =l loadub %t92
+    jnz %t91, @lbl52880, @lbl52881
 @lbl52880
-    %t89 =l copy $__str872
-    %t90 =l loadl %t59
-    %t91 =l call $printf(l %t89, ..., l %t90)
+    %t93 =l copy $__str872
+    %t94 =l loadl %t59
+    %t95 =l call $printf(l %t93, ..., l %t94)
     jmp @lbl52881
 @lbl52881
-    %t92 =l loadl %t84
-    %t93 =w ceql %t92, 0
-    jnz %t93, @lbl52883, @lbl52884
+    %t96 =l loadl %t88
+    %t97 =w ceql %t96, 0
+    jnz %t97, @lbl52883, @lbl52884
 @lbl52883
-    %t95 =l add %t84, 8
-    %t94 =l loadl %t95
-    %t96 =l call $ostr__as_cstr(l %t94)
-    %t97 =l call $cstr__len(l %t96)
-    %t98 =l copy 0
-    %t99 =w csgtl %t97, %t98
-    jnz %t99, @lbl52886, @lbl52887
+    %t99 =l add %t88, 8
+    %t98 =l loadl %t99
+    %t100 =l call $ostr__as_cstr(l %t98)
+    %t101 =l call $cstr__len(l %t100)
+    %t102 =l copy 0
+    %t103 =w csgtl %t101, %t102
+    jnz %t103, @lbl52886, @lbl52887
 @lbl52886
-    %t100 =l copy $__str871
-    %t101 =l call $printf(l %t100, ..., l %t96)
+    %t104 =l copy $__str871
+    %t105 =l call $printf(l %t104, ..., l %t100)
     jmp @lbl52887
 @lbl52887
-    %t102 =l copy $__str3345
-    %t103 =w call $cstr__starts_with(l %t96, l %t102)
-    jnz %t103, @lbl52889, @lbl52890
+    %t106 =l copy $__str3345
+    %t107 =w call $cstr__starts_with(l %t100, l %t106)
+    jnz %t107, @lbl52889, @lbl52890
 @lbl52889
-    %t104 =w call $std__stdio__puts(l $__sv573)
-    %t105 =w call $std__os__delete(l %t2)
-    %t106 =l copy 0
-    ret %t106
+    %t108 =w call $std__stdio__puts(l $__sv573)
+    %t109 =w call $std__os__delete(l %t2)
+    %t110 =l copy 0
+    ret %t110
 @lbl52890
     jmp @lbl52885
 @lbl52884
-    %t107 =w call $std__stdio__puts(l $__sv574)
-    %t108 =w call $std__os__delete(l %t2)
-    %t109 =l copy 0
-    ret %t109
+    %t111 =w call $std__stdio__puts(l $__sv574)
+    %t112 =w call $std__os__delete(l %t2)
+    %t113 =l copy 0
+    ret %t113
 @lbl52885
-    %t110 =l copy 1
-    ret %t110
+    %t114 =l copy 1
+    ret %t114
 }
 
 export function w $qbe__emit_asm(l %ctx) {
@@ -300257,6 +300261,23 @@ function l $native__new_state() {
     ret %t46
 }
 
+function l $native__native_cc(l %ctx) {
+@start
+    %t1 =l add %ctx, 68
+    %t0 =l loadl %t1
+    %t2 =l copy $__str527
+    %t3 =l call $cstr__cmp(l %t0, l %t2)
+    %t4 =l copy 0
+    %t5 =w ceql %t3, %t4
+    jnz %t5, @lbl53601, @lbl53602
+@lbl53601
+    %t6 =l copy $__str515
+    ret %t6
+@lbl53602
+    %t7 =l copy $__str517
+    ret %t7
+}
+
 function w $native__collect_links_native(l %ctx, l %st) {
 @start
     %t0 =l alloc8 8
@@ -300272,19 +300293,19 @@ function w $native__collect_links_native(l %ctx, l %st) {
     %t4 =l loadub %t5
     %t6 =w ceqw %t4, 0
     storew %t6, %t7
-    jnz %t6, @lbl53604, @lbl53605
-@lbl53604
+    jnz %t6, @lbl53607, @lbl53608
+@lbl53607
     %t8 =l loadl %t0
     %t9 =l loadl %t8
     %t11 =l add %t9, 56
     %t10 =l loadub %t11
     %t12 =w ceqw %t10, 0
     storew %t12, %t7
-    jmp @lbl53605
-@lbl53605
+    jmp @lbl53608
+@lbl53608
     %t13 =w loadw %t7
-    jnz %t13, @lbl53601, @lbl53602
-@lbl53601
+    jnz %t13, @lbl53604, @lbl53605
+@lbl53604
     %t14 =l loadl %t0
     %t16 =l add %t14, 68
     %t15 =l loadl %t16
@@ -300304,8 +300325,8 @@ function w $native__collect_links_native(l %ctx, l %st) {
     %t29 =l loadl %t1
     %t30 =l add %t29, 16
     storel %t28, %t30
-    jmp @lbl53602
-@lbl53602
+    jmp @lbl53605
+@lbl53605
     %t31 =l loadl %t0
     %t33 =l add %t31, 128
     %t32 =l loadl %t33
@@ -300322,14 +300343,14 @@ function w $native__collect_links_native(l %ctx, l %st) {
     %t44 =l call $module__collect_used_links(l %t45, l %t32, l %t35, w %t43)
     %t46 =l loadl %t45
     %t47 =w ceql %t46, 0
-    jnz %t47, @lbl53606, @lbl53607
-@lbl53606
+    jnz %t47, @lbl53609, @lbl53610
+@lbl53609
     %t49 =l add %t45, 8
     %t48 =l loadl %t49
     %t50 =l loadl %t1
     storel %t48, %t50
-    jmp @lbl53608
-@lbl53607
+    jmp @lbl53611
+@lbl53610
     %t52 =l add %t45, 8
     %t51 =l loadl %t52
     %t53 =l copy $__str1040
@@ -300344,25 +300365,25 @@ function w $native__collect_links_native(l %ctx, l %st) {
     %t62 =w call $std__os__delete(l %t60)
     %t63 =l copy 0
     ret %t63
-@lbl53608
+@lbl53611
     %t64 =l loadl %t0
     %t65 =l loadl %t64
     %t67 =l add %t65, 60
     %t66 =l loadub %t67
     %t68 =w ceqw %t66, 0
     storew %t68, %t69
-    jnz %t68, @lbl53612, @lbl53613
-@lbl53612
+    jnz %t68, @lbl53615, @lbl53616
+@lbl53615
     %t70 =l loadl %t0
     %t72 =l add %t70, 116
     %t71 =l loadub %t72
     %t73 =w ceqw %t71, 0
     storew %t73, %t69
-    jmp @lbl53613
-@lbl53613
+    jmp @lbl53616
+@lbl53616
     %t74 =w loadw %t69
-    jnz %t74, @lbl53609, @lbl53610
-@lbl53609
+    jnz %t74, @lbl53612, @lbl53613
+@lbl53612
     %t75 =l loadl %t1
     %t76 =l loadl %t75
     %t77 =l loadl %t0
@@ -300375,15 +300396,16 @@ function w $native__collect_links_native(l %ctx, l %st) {
     %t84 =l loadl %t83
     %t86 =l add %t84, 32
     %t85 =l loadub %t86
-    %t87 =l copy $__str517
-    %t88 =l loadl %t0
-    %t90 =l add %t88, 68
-    %t89 =l loadl %t90
-    %t91 =w call $builds__append_debug_runtime_links(l %t76, l %t78, w %t82, w %t85, l %t87, l %t89)
-    jmp @lbl53610
-@lbl53610
-    %t92 =l copy 1
-    ret %t92
+    %t87 =l loadl %t0
+    %t88 =l call $native__native_cc(l %t87)
+    %t89 =l loadl %t0
+    %t91 =l add %t89, 68
+    %t90 =l loadl %t91
+    %t92 =w call $builds__append_debug_runtime_links(l %t76, l %t78, w %t82, w %t85, l %t88, l %t90)
+    jmp @lbl53613
+@lbl53613
+    %t93 =l copy 1
+    ret %t93
 }
 
 function w $native__compile_shim_native(l %ctx, l %st) {
@@ -300393,7 +300415,7 @@ function w $native__compile_shim_native(l %ctx, l %st) {
     %t17 =l alloc8 16
     %t43 =l alloc8 8
     %t48 =l alloc8 8
-    %t92 =l alloc8 16
+    %t96 =l alloc8 16
     storel %ctx, %t0
     storel %st, %t1
     %t2 =l loadl %t0
@@ -300402,8 +300424,8 @@ function w $native__compile_shim_native(l %ctx, l %st) {
     %t5 =l call $cstr__len(l %t3)
     %t6 =l copy 0
     %t7 =w csgtl %t5, %t6
-    jnz %t7, @lbl53614, @lbl53615
-@lbl53614
+    jnz %t7, @lbl53617, @lbl53618
+@lbl53617
     %t8 =l copy $__str3406
     %t9 =l call $builds__get_unique_tmp_path(l %t8)
     %t10 =l loadl %t1
@@ -300416,8 +300438,8 @@ function w $native__compile_shim_native(l %ctx, l %st) {
     %t16 =l call $std__os__open(l %t17, l %t13, l %t15)
     %t18 =l loadl %t17
     %t19 =w cnel %t18, 0
-    jnz %t19, @lbl53617, @lbl53618
-@lbl53617
+    jnz %t19, @lbl53620, @lbl53621
+@lbl53620
     %t21 =l add %t17, 8
     %t20 =l loadl %t21
     %t22 =l loadl %t0
@@ -300430,8 +300452,8 @@ function w $native__compile_shim_native(l %ctx, l %st) {
     %t29 =l copy %t28
     %t30 =l call $std__os__write(l %t20, l %t23, l %t29)
     %t31 =w call $std__os__close(l %t20)
-    jmp @lbl53619
-@lbl53618
+    jmp @lbl53622
+@lbl53621
     %t32 =w call $std__stdio__puts(l $__sv582)
     %t33 =l loadl %t0
     %t35 =l add %t33, 152
@@ -300443,7 +300465,7 @@ function w $native__compile_shim_native(l %ctx, l %st) {
     %t40 =w call $std__os__delete(l %t38)
     %t41 =l copy 0
     ret %t41
-@lbl53619
+@lbl53622
     %t42 =l copy $__str3408
     storel %t42, %t43
     %t44 =l loadl %t0
@@ -300452,16 +300474,16 @@ function w $native__compile_shim_native(l %ctx, l %st) {
     %t46 =l loadl %t47
     storel 0, %t48
     %t49 =l call $sxqbe_list_len(l %t46)
-@lbl53620
+@lbl53623
     %t50 =l loadl %t48
     %t51 =w csltl %t50, %t49
-    jnz %t51, @lbl53621, @lbl53622
-@lbl53621
+    jnz %t51, @lbl53624, @lbl53625
+@lbl53624
     %t52 =l call $sxqbe_list_buf(l %t46)
     %t53 =l mul %t50, 8
     %t54 =l add %t52, %t53
     %t55 =l loadl %t54
-    %t57 =l copy $__str3430
+    %t57 =l copy $__str3409
     %t58 =l call $malloc(l 4096)
     %t64 =l loadl %t43
     %t59 =w call $snprintf(l %t58, l 4096, l %t57, ..., l %t64, l %t55)
@@ -300474,26 +300496,30 @@ function w $native__compile_shim_native(l %ctx, l %st) {
     call $free(l %t58)
     %t56 =l copy %t62
     storel %t56, %t43
-@lbl53623
+@lbl53626
     %t65 =l add %t50, 1
     storel %t65, %t48
-    jmp @lbl53620
-@lbl53622
+    jmp @lbl53623
+@lbl53625
     %t66 =l copy $__str3410
     %t67 =l call $builds__get_unique_tmp_path(l %t66)
     %t68 =l loadl %t1
     %t69 =l add %t68, 32
     storel %t67, %t69
-    %t71 =l copy $__str3431
+    %t71 =l copy $__str3430
     %t72 =l call $malloc(l 4096)
-    %t78 =l loadl %t1
-    %t80 =l add %t78, 32
-    %t79 =l loadl %t80
-    %t81 =l loadl %t1
-    %t83 =l add %t81, 24
-    %t82 =l loadl %t83
-    %t84 =l loadl %t43
-    %t73 =w call $snprintf(l %t72, l 4096, l %t71, ..., l %t79, l %t82, l %t84)
+    %t78 =l loadl %t0
+    %t79 =l call $native__native_cc(l %t78)
+    %t80 =l loadl %t1
+    %t82 =l add %t80, 32
+    %t81 =l loadl %t82
+    %t83 =l call $builds__quote_arg(l %t81)
+    %t84 =l loadl %t1
+    %t86 =l add %t84, 24
+    %t85 =l loadl %t86
+    %t87 =l call $builds__quote_arg(l %t85)
+    %t88 =l loadl %t43
+    %t73 =w call $snprintf(l %t72, l 4096, l %t71, ..., l %t79, l %t83, l %t87, l %t88)
     %t74 =l extsw %t73
     %t75 =l add %t74, 1
     %t76 =l call $malloc(l %t75)
@@ -300502,86 +300528,88 @@ function w $native__compile_shim_native(l %ctx, l %st) {
     storeb 0, %t77
     call $free(l %t72)
     %t70 =l copy %t76
-    %t85 =l loadl %t0
-    %t86 =l loadl %t85
-    %t88 =l add %t86, 20
-    %t87 =l loadub %t88
-    jnz %t87, @lbl53624, @lbl53625
-@lbl53624
-    %t89 =l copy $__str872
-    %t90 =l call $printf(l %t89, ..., l %t70)
-    jmp @lbl53625
-@lbl53625
-    %t91 =l call $std__os__exec(l %t92, l %t70)
-    %t93 =l loadl %t92
-    %t94 =w ceql %t93, 0
-    jnz %t94, @lbl53627, @lbl53628
+    %t89 =l loadl %t0
+    %t90 =l loadl %t89
+    %t92 =l add %t90, 20
+    %t91 =l loadub %t92
+    jnz %t91, @lbl53627, @lbl53628
 @lbl53627
-    %t96 =l add %t92, 8
-    %t95 =l loadl %t96
-    %t97 =l call $ostr__as_cstr(l %t95)
-    %t98 =l call $cstr__len(l %t97)
-    %t99 =l copy 0
-    %t100 =w csgtl %t98, %t99
-    jnz %t100, @lbl53630, @lbl53631
+    %t93 =l copy $__str872
+    %t94 =l call $printf(l %t93, ..., l %t70)
+    jmp @lbl53628
+@lbl53628
+    %t95 =l call $std__os__exec(l %t96, l %t70)
+    %t97 =l loadl %t96
+    %t98 =w ceql %t97, 0
+    jnz %t98, @lbl53630, @lbl53631
 @lbl53630
-    %t101 =l copy $__str871
-    %t102 =l call $printf(l %t101, ..., l %t97)
-    jmp @lbl53631
-@lbl53631
-    %t103 =l loadl %t0
-    %t104 =l add %t103, 8
-    %t105 =l copy $__str3366
-    %t106 =l call $ostr__from_cstr__GENMONO__allocators__Arena(l %t104, l %t105)
-
-    %t107 =w call $ostr__contains(l %t95, l %t106)
-    jnz %t107, @lbl53633, @lbl53634
+    %t100 =l add %t96, 8
+    %t99 =l loadl %t100
+    %t101 =l call $ostr__as_cstr(l %t99)
+    %t102 =l call $cstr__len(l %t101)
+    %t103 =l copy 0
+    %t104 =w csgtl %t102, %t103
+    jnz %t104, @lbl53633, @lbl53634
 @lbl53633
-    %t108 =w call $std__stdio__puts(l $__sv586)
-    %t109 =l loadl %t0
-    %t111 =l add %t109, 152
-    %t110 =l loadl %t111
-    %t112 =w call $std__os__delete(l %t110)
+    %t105 =l copy $__str871
+    %t106 =l call $printf(l %t105, ..., l %t101)
+    jmp @lbl53634
+@lbl53634
+    %t107 =l loadl %t0
+    %t108 =l add %t107, 8
+    %t109 =l copy $__str3366
+    %t110 =l call $ostr__from_cstr__GENMONO__allocators__Arena(l %t108, l %t109)
+
+    %t111 =w call $ostr__contains(l %t99, l %t110)
+    jnz %t111, @lbl53636, @lbl53637
+@lbl53636
+    %t112 =w call $std__stdio__puts(l $__sv586)
     %t113 =l loadl %t0
-    %t115 =l add %t113, 160
+    %t115 =l add %t113, 152
     %t114 =l loadl %t115
     %t116 =w call $std__os__delete(l %t114)
-    %t117 =l loadl %t1
-    %t119 =l add %t117, 24
+    %t117 =l loadl %t0
+    %t119 =l add %t117, 160
     %t118 =l loadl %t119
     %t120 =w call $std__os__delete(l %t118)
-    %t121 =l copy 0
-    ret %t121
-@lbl53634
-    jmp @lbl53629
-@lbl53628
-    %t122 =w call $std__stdio__puts(l $__sv587)
-    %t123 =l loadl %t0
-    %t125 =l add %t123, 152
-    %t124 =l loadl %t125
-    %t126 =w call $std__os__delete(l %t124)
+    %t121 =l loadl %t1
+    %t123 =l add %t121, 24
+    %t122 =l loadl %t123
+    %t124 =w call $std__os__delete(l %t122)
+    %t125 =l copy 0
+    ret %t125
+@lbl53637
+    jmp @lbl53632
+@lbl53631
+    %t126 =w call $std__stdio__puts(l $__sv587)
     %t127 =l loadl %t0
-    %t129 =l add %t127, 160
+    %t129 =l add %t127, 152
     %t128 =l loadl %t129
     %t130 =w call $std__os__delete(l %t128)
-    %t131 =l loadl %t1
-    %t133 =l add %t131, 24
+    %t131 =l loadl %t0
+    %t133 =l add %t131, 160
     %t132 =l loadl %t133
     %t134 =w call $std__os__delete(l %t132)
-    %t135 =l copy 0
-    ret %t135
-@lbl53629
-    jmp @lbl53615
-@lbl53615
-    %t136 =l copy 1
-    ret %t136
+    %t135 =l loadl %t1
+    %t137 =l add %t135, 24
+    %t136 =l loadl %t137
+    %t138 =w call $std__os__delete(l %t136)
+    %t139 =l copy 0
+    ret %t139
+@lbl53632
+    jmp @lbl53618
+@lbl53618
+    %t140 =l copy 1
+    ret %t140
 }
 
 function w $native__build_link_flags_native(l %ctx, l %st) {
 @start
     %t0 =l alloc8 8
     %t46 =l alloc8 8
-    %t80 =l alloc4 1
+    %t54 =l alloc8 8
+    %t59 =l alloc4 1
+    %t94 =l alloc4 1
     storel %st, %t0
     %t1 =l loadl %t0
     %t3 =l add %t1, 8
@@ -300590,8 +300618,8 @@ function w $native__build_link_flags_native(l %ctx, l %st) {
     %t5 =l call $cstr__cmp(l %t2, l %t4)
     %t6 =l copy 0
     %t7 =w cnel %t5, %t6
-    jnz %t7, @lbl53636, @lbl53637
-@lbl53636
+    jnz %t7, @lbl53639, @lbl53640
+@lbl53639
     %t9 =l copy $__str3374
     %t10 =l call $malloc(l 4096)
     %t16 =l loadl %t0
@@ -300609,8 +300637,8 @@ function w $native__build_link_flags_native(l %ctx, l %st) {
     %t19 =l loadl %t0
     %t20 =l add %t19, 40
     storel %t8, %t20
-    jmp @lbl53637
-@lbl53637
+    jmp @lbl53640
+@lbl53640
     %t21 =l loadl %t0
     %t23 =l add %t21, 16
     %t22 =l loadl %t23
@@ -300618,8 +300646,8 @@ function w $native__build_link_flags_native(l %ctx, l %st) {
     %t25 =l call $cstr__cmp(l %t22, l %t24)
     %t26 =l copy 0
     %t27 =w cnel %t25, %t26
-    jnz %t27, @lbl53639, @lbl53640
-@lbl53639
+    jnz %t27, @lbl53642, @lbl53643
+@lbl53642
     %t29 =l copy $__str648
     %t30 =l call $malloc(l 4096)
     %t36 =l loadl %t0
@@ -300640,95 +300668,120 @@ function w $native__build_link_flags_native(l %ctx, l %st) {
     %t42 =l loadl %t0
     %t43 =l add %t42, 40
     storel %t28, %t43
-    jmp @lbl53640
-@lbl53640
+    jmp @lbl53643
+@lbl53643
     %t44 =l loadl %t0
     %t45 =l loadl %t44
     storel 0, %t46
     %t47 =l call $sxqbe_list_len(l %t45)
-@lbl53642
+@lbl53645
     %t48 =l loadl %t46
     %t49 =w csltl %t48, %t47
-    jnz %t49, @lbl53643, @lbl53644
-@lbl53643
+    jnz %t49, @lbl53646, @lbl53647
+@lbl53646
     %t50 =l call $sxqbe_list_buf(l %t45)
     %t51 =l mul %t48, 8
     %t52 =l add %t50, %t51
     %t53 =l loadl %t52
-    %t55 =l copy $__str648
-    %t56 =l call $malloc(l 4096)
-    %t62 =l loadl %t0
-    %t64 =l add %t62, 40
-    %t63 =l loadl %t64
-    %t57 =w call $snprintf(l %t56, l 4096, l %t55, ..., l %t63, l %t53)
-    %t58 =l extsw %t57
-    %t59 =l add %t58, 1
-    %t60 =l call $malloc(l %t59)
-    call $memcpy(l %t60, l %t56, l %t58)
-    %t61 =l add %t60, %t58
-    storeb 0, %t61
-    call $free(l %t56)
-    %t54 =l copy %t60
-    %t65 =l loadl %t0
-    %t66 =l add %t65, 40
-    storel %t54, %t66
-@lbl53645
-    %t67 =l add %t48, 1
-    storel %t67, %t46
-    jmp @lbl53642
-@lbl53644
-    %t68 =l loadl %ctx
-    %t70 =l add %t68, 60
-    %t69 =l loadub %t70
-    jnz %t69, @lbl53646, @lbl53647
-@lbl53646
-    %t71 =l copy $__str55
-    %t72 =l loadl %t0
-    %t73 =l add %t72, 40
-    storel %t71, %t73
-    jmp @lbl53647
-@lbl53647
-    %t74 =l loadl %t0
-    %t76 =l add %t74, 32
-    %t75 =l loadl %t76
-    %t77 =l call $cstr__len(l %t75)
-    %t78 =l copy 0
-    %t79 =w csgtl %t77, %t78
-    storew %t79, %t80
-    jnz %t79, @lbl53652, @lbl53653
+    storel %t53, %t54
+    %t55 =l loadl %t54
+    %t56 =l call $cstr__len(l %t55)
+    %t57 =l copy 0
+    %t58 =w csgtl %t56, %t57
+    storew %t58, %t59
+    jnz %t58, @lbl53652, @lbl53653
 @lbl53652
-    %t81 =l loadl %ctx
-    %t83 =l add %t81, 60
-    %t82 =l loadub %t83
-    %t84 =w ceqw %t82, 0
-    storew %t84, %t80
+    %t60 =l loadl %t54
+    %t61 =l copy $__str980
+    %t62 =w call $cstr__starts_with(l %t60, l %t61)
+    %t63 =w ceqw %t62, 0
+    storew %t63, %t59
     jmp @lbl53653
 @lbl53653
-    %t85 =w loadw %t80
-    jnz %t85, @lbl53649, @lbl53650
+    %t64 =w loadw %t59
+    jnz %t64, @lbl53649, @lbl53650
 @lbl53649
-    %t87 =l copy $__str648
-    %t88 =l call $malloc(l 4096)
-    %t94 =l loadl %t0
-    %t96 =l add %t94, 40
-    %t95 =l loadl %t96
-    %t97 =l loadl %t0
-    %t99 =l add %t97, 32
-    %t98 =l loadl %t99
-    %t89 =w call $snprintf(l %t88, l 4096, l %t87, ..., l %t95, l %t98)
-    %t90 =l extsw %t89
-    %t91 =l add %t90, 1
-    %t92 =l call $malloc(l %t91)
-    call $memcpy(l %t92, l %t88, l %t90)
-    %t93 =l add %t92, %t90
-    storeb 0, %t93
-    call $free(l %t88)
-    %t86 =l copy %t92
-    %t100 =l loadl %t0
-    %t101 =l add %t100, 40
-    storel %t86, %t101
+    %t65 =l loadl %t54
+    %t66 =l call $builds__quote_arg(l %t65)
+    storel %t66, %t54
     jmp @lbl53650
 @lbl53650
+    %t68 =l copy $__str648
+    %t69 =l call $malloc(l 4096)
+    %t75 =l loadl %t0
+    %t77 =l add %t75, 40
+    %t76 =l loadl %t77
+    %t78 =l loadl %t54
+    %t70 =w call $snprintf(l %t69, l 4096, l %t68, ..., l %t76, l %t78)
+    %t71 =l extsw %t70
+    %t72 =l add %t71, 1
+    %t73 =l call $malloc(l %t72)
+    call $memcpy(l %t73, l %t69, l %t71)
+    %t74 =l add %t73, %t71
+    storeb 0, %t74
+    call $free(l %t69)
+    %t67 =l copy %t73
+    %t79 =l loadl %t0
+    %t80 =l add %t79, 40
+    storel %t67, %t80
+@lbl53648
+    %t81 =l add %t48, 1
+    storel %t81, %t46
+    jmp @lbl53645
+@lbl53647
+    %t82 =l loadl %ctx
+    %t84 =l add %t82, 60
+    %t83 =l loadub %t84
+    jnz %t83, @lbl53654, @lbl53655
+@lbl53654
+    %t85 =l copy $__str55
+    %t86 =l loadl %t0
+    %t87 =l add %t86, 40
+    storel %t85, %t87
+    jmp @lbl53655
+@lbl53655
+    %t88 =l loadl %t0
+    %t90 =l add %t88, 32
+    %t89 =l loadl %t90
+    %t91 =l call $cstr__len(l %t89)
+    %t92 =l copy 0
+    %t93 =w csgtl %t91, %t92
+    storew %t93, %t94
+    jnz %t93, @lbl53660, @lbl53661
+@lbl53660
+    %t95 =l loadl %ctx
+    %t97 =l add %t95, 60
+    %t96 =l loadub %t97
+    %t98 =w ceqw %t96, 0
+    storew %t98, %t94
+    jmp @lbl53661
+@lbl53661
+    %t99 =w loadw %t94
+    jnz %t99, @lbl53657, @lbl53658
+@lbl53657
+    %t101 =l copy $__str648
+    %t102 =l call $malloc(l 4096)
+    %t108 =l loadl %t0
+    %t110 =l add %t108, 40
+    %t109 =l loadl %t110
+    %t111 =l loadl %t0
+    %t113 =l add %t111, 32
+    %t112 =l loadl %t113
+    %t114 =l call $builds__quote_arg(l %t112)
+    %t103 =w call $snprintf(l %t102, l 4096, l %t101, ..., l %t109, l %t114)
+    %t104 =l extsw %t103
+    %t105 =l add %t104, 1
+    %t106 =l call $malloc(l %t105)
+    call $memcpy(l %t106, l %t102, l %t104)
+    %t107 =l add %t106, %t104
+    storeb 0, %t107
+    call $free(l %t102)
+    %t100 =l copy %t106
+    %t115 =l loadl %t0
+    %t116 =l add %t115, 40
+    storel %t100, %t116
+    jmp @lbl53658
+@lbl53658
     ret 0
 }
 
@@ -300740,21 +300793,21 @@ function w $native__build_cc_flags_native(l %ctx, l %st) {
     %t3 =l add %t1, 32
     %t2 =l loadub %t3
     %t4 =w ceqw %t2, 0
-    jnz %t4, @lbl53654, @lbl53655
-@lbl53654
+    jnz %t4, @lbl53662, @lbl53663
+@lbl53662
     %t5 =l copy $__str538
     %t6 =l loadl %t0
     %t7 =l add %t6, 48
     storel %t5, %t7
-    jmp @lbl53655
-@lbl53655
+    jmp @lbl53663
+@lbl53663
     %t9 =l add %ctx, 68
     %t8 =l loadl %t9
     %t10 =l loadl %ctx
     %t12 =l add %t10, 60
     %t11 =l loadub %t12
-    jnz %t11, @lbl53657, @lbl53659
-@lbl53657
+    jnz %t11, @lbl53665, @lbl53667
+@lbl53665
     %t14 =l copy $__str3385
     %t15 =l call $malloc(l 4096)
     %t21 =l loadl %t0
@@ -300776,34 +300829,34 @@ function w $native__build_cc_flags_native(l %ctx, l %st) {
     %t27 =l call $cstr__cmp(l %t8, l %t26)
     %t28 =l copy 0
     %t29 =w ceql %t27, %t28
-    jnz %t29, @lbl53662, @lbl53664
-@lbl53662
+    jnz %t29, @lbl53670, @lbl53672
+@lbl53670
     %t30 =l copy $__str663
     %t31 =l loadl %t0
     %t32 =l add %t31, 56
     storel %t30, %t32
-    jmp @lbl53663
-@lbl53664
+    jmp @lbl53671
+@lbl53672
     %t33 =l copy $__str662
     %t34 =l loadl %t0
     %t35 =l add %t34, 56
     storel %t33, %t35
-    jmp @lbl53663
-@lbl53663
-    jmp @lbl53658
-@lbl53659
+    jmp @lbl53671
+@lbl53671
+    jmp @lbl53666
+@lbl53667
     %t36 =l loadl %ctx
     %t38 =l add %t36, 56
     %t37 =l loadub %t38
-    jnz %t37, @lbl53660, @lbl53661
-@lbl53660
+    jnz %t37, @lbl53668, @lbl53669
+@lbl53668
     %t39 =l copy $__str670
     %t40 =l call $cstr__cmp(l %t8, l %t39)
     %t41 =l copy 0
     %t42 =w ceql %t40, %t41
-    jnz %t42, @lbl53665, @lbl53667
-@lbl53665
-    %t44 =l copy $__str3434
+    jnz %t42, @lbl53673, @lbl53675
+@lbl53673
+    %t44 =l copy $__str3433
     %t45 =l call $malloc(l 4096)
     %t51 =l loadl %t0
     %t53 =l add %t51, 48
@@ -300824,15 +300877,15 @@ function w $native__build_cc_flags_native(l %ctx, l %st) {
     %t57 =l loadl %t0
     %t58 =l add %t57, 56
     storel %t56, %t58
-    jmp @lbl53666
-@lbl53667
+    jmp @lbl53674
+@lbl53675
     %t59 =l copy $__str527
     %t60 =l call $cstr__cmp(l %t8, l %t59)
     %t61 =l copy 0
     %t62 =w ceql %t60, %t61
-    jnz %t62, @lbl53668, @lbl53669
-@lbl53668
-    %t64 =l copy $__str3435
+    jnz %t62, @lbl53676, @lbl53677
+@lbl53676
+    %t64 =l copy $__str3434
     %t65 =l call $malloc(l 4096)
     %t71 =l loadl %t0
     %t73 =l add %t71, 48
@@ -300849,13 +300902,13 @@ function w $native__build_cc_flags_native(l %ctx, l %st) {
     %t74 =l loadl %t0
     %t75 =l add %t74, 48
     storel %t63, %t75
-    %t76 =l copy $__str3436
+    %t76 =l copy $__str3435
     %t77 =l loadl %t0
     %t78 =l add %t77, 56
     storel %t76, %t78
-    jmp @lbl53666
-@lbl53669
-    %t80 =l copy $__str3435
+    jmp @lbl53674
+@lbl53677
+    %t80 =l copy $__str3434
     %t81 =l call $malloc(l 4096)
     %t87 =l loadl %t0
     %t89 =l add %t87, 48
@@ -300876,16 +300929,16 @@ function w $native__build_cc_flags_native(l %ctx, l %st) {
     %t93 =l loadl %t0
     %t94 =l add %t93, 56
     storel %t92, %t94
+    jmp @lbl53674
+@lbl53674
     jmp @lbl53666
-@lbl53666
-    jmp @lbl53658
-@lbl53661
+@lbl53669
     %t95 =l copy $__str55
     %t96 =l loadl %t0
     %t97 =l add %t96, 56
     storel %t95, %t97
-    jmp @lbl53658
-@lbl53658
+    jmp @lbl53666
+@lbl53666
     ret 0
 }
 
@@ -300893,21 +300946,25 @@ function w $native__execute_test(l %ctx, l %st) {
 @start
     %t0 =l alloc8 8
     %t1 =l alloc8 8
-    %t24 =l alloc8 16
-    %t34 =l alloc4 1
+    %t28 =l alloc8 16
+    %t39 =l alloc4 1
     storel %ctx, %t0
     storel %st, %t1
     %t2 =l copy $__str868
     %t3 =l call $builds__get_unique_tmp_path(l %t2)
-    %t5 =l copy $__str3437
+    %t5 =l copy $__str3436
     %t6 =l call $malloc(l 4096)
     %t12 =l loadl %t0
-    %t14 =l add %t12, 160
-    %t13 =l loadl %t14
-    %t15 =l loadl %t1
-    %t17 =l add %t15, 40
+    %t13 =l call $native__native_cc(l %t12)
+    %t14 =l call $builds__quote_arg(l %t3)
+    %t15 =l loadl %t0
+    %t17 =l add %t15, 160
     %t16 =l loadl %t17
-    %t7 =w call $snprintf(l %t6, l 4096, l %t5, ..., l %t3, l %t13, l %t16)
+    %t18 =l call $builds__quote_arg(l %t16)
+    %t19 =l loadl %t1
+    %t21 =l add %t19, 40
+    %t20 =l loadl %t21
+    %t7 =w call $snprintf(l %t6, l 4096, l %t5, ..., l %t13, l %t14, l %t18, l %t20)
     %t8 =l extsw %t7
     %t9 =l add %t8, 1
     %t10 =l call $malloc(l %t9)
@@ -300916,104 +300973,105 @@ function w $native__execute_test(l %ctx, l %st) {
     storeb 0, %t11
     call $free(l %t6)
     %t4 =l copy %t10
-    %t18 =l loadl %t1
-    %t19 =l add %t18, 64
-    storel %t4, %t19
-    %t20 =l loadl %t1
-    %t22 =l add %t20, 64
-    %t21 =l loadl %t22
-    %t23 =l call $std__os__exec(l %t24, l %t21)
-    %t25 =l loadl %t24
-    %t26 =w ceql %t25, 0
-    jnz %t26, @lbl53670, @lbl53671
-@lbl53670
-    %t27 =w call $std__os__run(l %t3)
-    %t28 =w copy 0
-    %t29 =w cnew %t27, %t28
-    jnz %t29, @lbl53673, @lbl53674
-@lbl53673
-    %t30 =l loadl %t0
-    %t31 =l loadl %t30
-    %t32 =l loadub %t31
-    %t33 =w ceqw %t32, 0
-    storew %t33, %t34
-    jnz %t33, @lbl53679, @lbl53680
-@lbl53679
+    %t22 =l loadl %t1
+    %t23 =l add %t22, 64
+    storel %t4, %t23
+    %t24 =l loadl %t1
+    %t26 =l add %t24, 64
+    %t25 =l loadl %t26
+    %t27 =l call $std__os__exec(l %t28, l %t25)
+    %t29 =l loadl %t28
+    %t30 =w ceql %t29, 0
+    jnz %t30, @lbl53678, @lbl53679
+@lbl53678
+    %t31 =l call $builds__quote_arg(l %t3)
+    %t32 =w call $std__os__run(l %t31)
+    %t33 =w copy 0
+    %t34 =w cnew %t32, %t33
+    jnz %t34, @lbl53681, @lbl53682
+@lbl53681
     %t35 =l loadl %t0
     %t36 =l loadl %t35
-    %t38 =l add %t36, 4
-    %t37 =l loadub %t38
-    %t39 =w ceqw %t37, 0
-    storew %t39, %t34
-    jmp @lbl53680
-@lbl53680
-    %t40 =w loadw %t34
-    jnz %t40, @lbl53676, @lbl53677
-@lbl53676
-    %t41 =l copy $__str3438
-    %t43 =l add $__sv588, 8
-    %t42 =l loadl %t43
-    %t44 =l loadl $__sv588
-    %t45 =l call $printf(l %t41, ..., l %t42, l %t44)
-    jmp @lbl53677
-@lbl53677
-    %t46 =l copy 1
-    %t47 =w copy %t46
-    %t48 =l loadl %t1
-    %t49 =l add %t48, 88
-    storew %t47, %t49
-    jmp @lbl53674
-@lbl53674
-    jmp @lbl53672
-@lbl53671
-    %t50 =w call $std__stdio__puts(l $__sv589)
+    %t37 =l loadub %t36
+    %t38 =w ceqw %t37, 0
+    storew %t38, %t39
+    jnz %t38, @lbl53687, @lbl53688
+@lbl53687
+    %t40 =l loadl %t0
+    %t41 =l loadl %t40
+    %t43 =l add %t41, 4
+    %t42 =l loadub %t43
+    %t44 =w ceqw %t42, 0
+    storew %t44, %t39
+    jmp @lbl53688
+@lbl53688
+    %t45 =w loadw %t39
+    jnz %t45, @lbl53684, @lbl53685
+@lbl53684
+    %t46 =l copy $__str3437
+    %t48 =l add $__sv588, 8
+    %t47 =l loadl %t48
+    %t49 =l loadl $__sv588
+    %t50 =l call $printf(l %t46, ..., l %t47, l %t49)
+    jmp @lbl53685
+@lbl53685
     %t51 =l copy 1
     %t52 =w copy %t51
     %t53 =l loadl %t1
     %t54 =l add %t53, 88
     storew %t52, %t54
-    jmp @lbl53672
-@lbl53672
-    %t55 =l loadl %t0
-    %t57 =l add %t55, 152
-    %t56 =l loadl %t57
-    %t58 =w call $std__os__delete(l %t56)
-    %t59 =l loadl %t0
-    %t61 =l add %t59, 160
-    %t60 =l loadl %t61
-    %t62 =w call $std__os__delete(l %t60)
-    %t63 =l loadl %t1
-    %t65 =l add %t63, 24
-    %t64 =l loadl %t65
-    %t66 =l call $cstr__len(l %t64)
-    %t67 =l copy 0
-    %t68 =w csgtl %t66, %t67
-    jnz %t68, @lbl53681, @lbl53682
-@lbl53681
-    %t69 =l loadl %t1
-    %t71 =l add %t69, 24
-    %t70 =l loadl %t71
-    %t72 =w call $std__os__delete(l %t70)
     jmp @lbl53682
 @lbl53682
-    %t73 =l loadl %t1
-    %t75 =l add %t73, 32
-    %t74 =l loadl %t75
-    %t76 =l call $cstr__len(l %t74)
-    %t77 =l copy 0
-    %t78 =w csgtl %t76, %t77
-    jnz %t78, @lbl53684, @lbl53685
-@lbl53684
-    %t79 =l loadl %t1
-    %t81 =l add %t79, 32
-    %t80 =l loadl %t81
-    %t82 =w call $std__os__delete(l %t80)
-    jmp @lbl53685
-@lbl53685
-    %t83 =l loadl %t1
-    %t85 =l add %t83, 88
-    %t84 =l loadsw %t85
-    ret %t84
+    jmp @lbl53680
+@lbl53679
+    %t55 =w call $std__stdio__puts(l $__sv589)
+    %t56 =l copy 1
+    %t57 =w copy %t56
+    %t58 =l loadl %t1
+    %t59 =l add %t58, 88
+    storew %t57, %t59
+    jmp @lbl53680
+@lbl53680
+    %t60 =l loadl %t0
+    %t62 =l add %t60, 152
+    %t61 =l loadl %t62
+    %t63 =w call $std__os__delete(l %t61)
+    %t64 =l loadl %t0
+    %t66 =l add %t64, 160
+    %t65 =l loadl %t66
+    %t67 =w call $std__os__delete(l %t65)
+    %t68 =l loadl %t1
+    %t70 =l add %t68, 24
+    %t69 =l loadl %t70
+    %t71 =l call $cstr__len(l %t69)
+    %t72 =l copy 0
+    %t73 =w csgtl %t71, %t72
+    jnz %t73, @lbl53689, @lbl53690
+@lbl53689
+    %t74 =l loadl %t1
+    %t76 =l add %t74, 24
+    %t75 =l loadl %t76
+    %t77 =w call $std__os__delete(l %t75)
+    jmp @lbl53690
+@lbl53690
+    %t78 =l loadl %t1
+    %t80 =l add %t78, 32
+    %t79 =l loadl %t80
+    %t81 =l call $cstr__len(l %t79)
+    %t82 =l copy 0
+    %t83 =w csgtl %t81, %t82
+    jnz %t83, @lbl53692, @lbl53693
+@lbl53692
+    %t84 =l loadl %t1
+    %t86 =l add %t84, 32
+    %t85 =l loadl %t86
+    %t87 =w call $std__os__delete(l %t85)
+    jmp @lbl53693
+@lbl53693
+    %t88 =l loadl %t1
+    %t90 =l add %t88, 88
+    %t89 =l loadsw %t90
+    ret %t89
 }
 
 function w $native__build_output(l %ctx, l %st) {
@@ -301022,7 +301080,7 @@ function w $native__build_output(l %ctx, l %st) {
     %t1 =l alloc8 8
     %t3 =l alloc8 8
     %t33 =l alloc8 8
-    %t122 =l alloc8 8
+    %t130 =l alloc8 8
     storel %ctx, %t0
     storel %st, %t1
     %t2 =l copy $__str55
@@ -301035,8 +301093,8 @@ function w $native__build_output(l %ctx, l %st) {
     %t9 =l call $cstr__cmp(l %t6, l %t8)
     %t10 =l copy 0
     %t11 =w ceql %t9, %t10
-    jnz %t11, @lbl53687, @lbl53689
-@lbl53687
+    jnz %t11, @lbl53695, @lbl53697
+@lbl53695
     %t12 =l loadl %t0
     %t13 =l add %t12, 8
     %t14 =l loadl %t0
@@ -301044,15 +301102,15 @@ function w $native__build_output(l %ctx, l %st) {
     %t15 =l loadl %t16
     %t17 =l call $pathutil__get_name_without_ext_cstr(l %t13, l %t15)
     storel %t17, %t3
-    jmp @lbl53688
-@lbl53689
+    jmp @lbl53696
+@lbl53697
     %t18 =l loadl %t0
     %t19 =l loadl %t18
     %t21 =l add %t19, 48
     %t20 =l loadl %t21
     storel %t20, %t3
-    jmp @lbl53688
-@lbl53688
+    jmp @lbl53696
+@lbl53696
     %t22 =l loadl %t0
     %t23 =l loadl %t22
     %t25 =l add %t23, 48
@@ -301063,8 +301121,8 @@ function w $native__build_output(l %ctx, l %st) {
     %t29 =w cnel %t27, %t28
     %t30 =w copy %t29
     %t31 =w extub %t30
-    jnz %t31, @lbl53690, @lbl53692
-@lbl53690
+    jnz %t31, @lbl53698, @lbl53700
+@lbl53698
     %t32 =l loadl %t3
     storel %t32, %t33
     %t34 =l loadl %t1
@@ -301074,8 +301132,8 @@ function w $native__build_output(l %ctx, l %st) {
     %t38 =l call $cstr__cmp(l %t35, l %t37)
     %t39 =l copy 0
     %t40 =w cnel %t38, %t39
-    jnz %t40, @lbl53693, @lbl53694
-@lbl53693
+    jnz %t40, @lbl53701, @lbl53702
+@lbl53701
     %t42 =l copy $__str3361
     %t43 =l call $malloc(l 4096)
     %t49 =l loadl %t3
@@ -301092,8 +301150,8 @@ function w $native__build_output(l %ctx, l %st) {
     call $free(l %t43)
     %t41 =l copy %t47
     storel %t41, %t33
-    jmp @lbl53694
-@lbl53694
+    jmp @lbl53702
+@lbl53702
     %t53 =l loadl %t33
     %t54 =l loadl %t1
     %t55 =l add %t54, 80
@@ -301105,18 +301163,22 @@ function w $native__build_output(l %ctx, l %st) {
     %t60 =l call $cstr__cmp(l %t57, l %t59)
     %t61 =l copy 0
     %t62 =w ceql %t60, %t61
-    jnz %t62, @lbl53696, @lbl53698
-@lbl53696
-    %t64 =l copy $__str3437
+    jnz %t62, @lbl53704, @lbl53706
+@lbl53704
+    %t64 =l copy $__str3436
     %t65 =l call $malloc(l 4096)
-    %t71 =l loadl %t33
-    %t72 =l loadl %t0
-    %t74 =l add %t72, 160
-    %t73 =l loadl %t74
-    %t75 =l loadl %t1
-    %t77 =l add %t75, 40
+    %t71 =l loadl %t0
+    %t72 =l call $native__native_cc(l %t71)
+    %t73 =l loadl %t33
+    %t74 =l call $builds__quote_arg(l %t73)
+    %t75 =l loadl %t0
+    %t77 =l add %t75, 160
     %t76 =l loadl %t77
-    %t66 =w call $snprintf(l %t65, l 4096, l %t64, ..., l %t71, l %t73, l %t76)
+    %t78 =l call $builds__quote_arg(l %t76)
+    %t79 =l loadl %t1
+    %t81 =l add %t79, 40
+    %t80 =l loadl %t81
+    %t66 =w call $snprintf(l %t65, l 4096, l %t64, ..., l %t72, l %t74, l %t78, l %t80)
     %t67 =l extsw %t66
     %t68 =l add %t67, 1
     %t69 =l call $malloc(l %t68)
@@ -301125,175 +301187,187 @@ function w $native__build_output(l %ctx, l %st) {
     storeb 0, %t70
     call $free(l %t65)
     %t63 =l copy %t69
-    %t78 =l loadl %t1
-    %t79 =l add %t78, 64
-    storel %t63, %t79
-    jmp @lbl53697
-@lbl53698
-    %t81 =l copy $__str3441
-    %t82 =l call $malloc(l 4096)
-    %t88 =l loadl %t1
-    %t90 =l add %t88, 48
-    %t89 =l loadl %t90
-    %t91 =l loadl %t33
+    %t82 =l loadl %t1
+    %t83 =l add %t82, 64
+    storel %t63, %t83
+    jmp @lbl53705
+@lbl53706
+    %t85 =l copy $__str3440
+    %t86 =l call $malloc(l 4096)
     %t92 =l loadl %t0
-    %t94 =l add %t92, 160
-    %t93 =l loadl %t94
-    %t95 =l loadl %t1
-    %t97 =l add %t95, 40
-    %t96 =l loadl %t97
-    %t83 =w call $snprintf(l %t82, l 4096, l %t81, ..., l %t89, l %t91, l %t93, l %t96)
-    %t84 =l extsw %t83
-    %t85 =l add %t84, 1
-    %t86 =l call $malloc(l %t85)
-    call $memcpy(l %t86, l %t82, l %t84)
-    %t87 =l add %t86, %t84
-    storeb 0, %t87
-    call $free(l %t82)
-    %t80 =l copy %t86
-    %t98 =l loadl %t1
-    %t99 =l add %t98, 64
-    storel %t80, %t99
-    jmp @lbl53697
-@lbl53697
-    %t101 =l copy $__str3442
-    %t102 =l call $malloc(l 4096)
-    %t108 =l loadl %t33
-    %t103 =w call $snprintf(l %t102, l 4096, l %t101, ..., l %t108)
-    %t104 =l extsw %t103
-    %t105 =l add %t104, 1
-    %t106 =l call $malloc(l %t105)
-    call $memcpy(l %t106, l %t102, l %t104)
-    %t107 =l add %t106, %t104
-    storeb 0, %t107
-    call $free(l %t102)
-    %t100 =l copy %t106
-    %t109 =l loadl %t1
-    %t110 =l add %t109, 72
-    storel %t100, %t110
-    jmp @lbl53691
-@lbl53692
-    %t111 =l copy $__str3369
-    %t112 =w call $std__fs__mkdir_path_cstr(l %t111)
-    %t114 =l copy $__str3371
-    %t115 =l call $malloc(l 4096)
-    %t121 =l loadl %t3
-    %t116 =w call $snprintf(l %t115, l 4096, l %t114, ..., l %t121)
-    %t117 =l extsw %t116
-    %t118 =l add %t117, 1
-    %t119 =l call $malloc(l %t118)
-    call $memcpy(l %t119, l %t115, l %t117)
-    %t120 =l add %t119, %t117
-    storeb 0, %t120
-    call $free(l %t115)
-    %t113 =l copy %t119
-    storel %t113, %t122
-    %t123 =l loadl %t1
-    %t125 =l add %t123, 56
-    %t124 =l loadl %t125
-    %t126 =l copy $__str55
-    %t127 =l call $cstr__cmp(l %t124, l %t126)
-    %t128 =l copy 0
-    %t129 =w cnel %t127, %t128
-    jnz %t129, @lbl53699, @lbl53700
-@lbl53699
-    %t131 =l copy $__str3443
-    %t132 =l call $malloc(l 4096)
-    %t138 =l loadl %t3
-    %t139 =l loadl %t1
-    %t141 =l add %t139, 56
-    %t140 =l loadl %t141
-    %t133 =w call $snprintf(l %t132, l 4096, l %t131, ..., l %t138, l %t140)
-    %t134 =l extsw %t133
-    %t135 =l add %t134, 1
-    %t136 =l call $malloc(l %t135)
-    call $memcpy(l %t136, l %t132, l %t134)
-    %t137 =l add %t136, %t134
-    storeb 0, %t137
-    call $free(l %t132)
-    %t130 =l copy %t136
-    storel %t130, %t122
-    jmp @lbl53700
+    %t93 =l call $native__native_cc(l %t92)
+    %t94 =l loadl %t1
+    %t96 =l add %t94, 48
+    %t95 =l loadl %t96
+    %t97 =l loadl %t33
+    %t98 =l call $builds__quote_arg(l %t97)
+    %t99 =l loadl %t0
+    %t101 =l add %t99, 160
+    %t100 =l loadl %t101
+    %t102 =l call $builds__quote_arg(l %t100)
+    %t103 =l loadl %t1
+    %t105 =l add %t103, 40
+    %t104 =l loadl %t105
+    %t87 =w call $snprintf(l %t86, l 4096, l %t85, ..., l %t93, l %t95, l %t98, l %t102, l %t104)
+    %t88 =l extsw %t87
+    %t89 =l add %t88, 1
+    %t90 =l call $malloc(l %t89)
+    call $memcpy(l %t90, l %t86, l %t88)
+    %t91 =l add %t90, %t88
+    storeb 0, %t91
+    call $free(l %t86)
+    %t84 =l copy %t90
+    %t106 =l loadl %t1
+    %t107 =l add %t106, 64
+    storel %t84, %t107
+    jmp @lbl53705
+@lbl53705
+    %t109 =l copy $__str3441
+    %t110 =l call $malloc(l 4096)
+    %t116 =l loadl %t33
+    %t111 =w call $snprintf(l %t110, l 4096, l %t109, ..., l %t116)
+    %t112 =l extsw %t111
+    %t113 =l add %t112, 1
+    %t114 =l call $malloc(l %t113)
+    call $memcpy(l %t114, l %t110, l %t112)
+    %t115 =l add %t114, %t112
+    storeb 0, %t115
+    call $free(l %t110)
+    %t108 =l copy %t114
+    %t117 =l loadl %t1
+    %t118 =l add %t117, 72
+    storel %t108, %t118
+    jmp @lbl53699
 @lbl53700
-    %t142 =l loadl %t122
-    %t143 =l loadl %t1
-    %t144 =l add %t143, 80
-    storel %t142, %t144
-    %t145 =l loadl %t1
-    %t147 =l add %t145, 48
-    %t146 =l loadl %t147
-    %t148 =l copy $__str55
-    %t149 =l call $cstr__cmp(l %t146, l %t148)
-    %t150 =l copy 0
-    %t151 =w ceql %t149, %t150
-    jnz %t151, @lbl53702, @lbl53704
-@lbl53702
-    %t153 =l copy $__str3437
-    %t154 =l call $malloc(l 4096)
-    %t160 =l loadl %t122
-    %t161 =l loadl %t0
-    %t163 =l add %t161, 160
-    %t162 =l loadl %t163
-    %t164 =l loadl %t1
-    %t166 =l add %t164, 40
-    %t165 =l loadl %t166
-    %t155 =w call $snprintf(l %t154, l 4096, l %t153, ..., l %t160, l %t162, l %t165)
-    %t156 =l extsw %t155
-    %t157 =l add %t156, 1
-    %t158 =l call $malloc(l %t157)
-    call $memcpy(l %t158, l %t154, l %t156)
-    %t159 =l add %t158, %t156
-    storeb 0, %t159
-    call $free(l %t154)
-    %t152 =l copy %t158
-    %t167 =l loadl %t1
-    %t168 =l add %t167, 64
-    storel %t152, %t168
-    jmp @lbl53703
-@lbl53704
-    %t170 =l copy $__str3441
-    %t171 =l call $malloc(l 4096)
-    %t177 =l loadl %t1
-    %t179 =l add %t177, 48
-    %t178 =l loadl %t179
-    %t180 =l loadl %t122
-    %t181 =l loadl %t0
-    %t183 =l add %t181, 160
-    %t182 =l loadl %t183
-    %t184 =l loadl %t1
-    %t186 =l add %t184, 40
-    %t185 =l loadl %t186
-    %t172 =w call $snprintf(l %t171, l 4096, l %t170, ..., l %t178, l %t180, l %t182, l %t185)
-    %t173 =l extsw %t172
-    %t174 =l add %t173, 1
-    %t175 =l call $malloc(l %t174)
-    call $memcpy(l %t175, l %t171, l %t173)
-    %t176 =l add %t175, %t173
-    storeb 0, %t176
-    call $free(l %t171)
-    %t169 =l copy %t175
-    %t187 =l loadl %t1
-    %t188 =l add %t187, 64
-    storel %t169, %t188
-    jmp @lbl53703
-@lbl53703
-    %t190 =l copy $__str3442
-    %t191 =l call $malloc(l 4096)
-    %t197 =l loadl %t122
-    %t192 =w call $snprintf(l %t191, l 4096, l %t190, ..., l %t197)
-    %t193 =l extsw %t192
-    %t194 =l add %t193, 1
-    %t195 =l call $malloc(l %t194)
-    call $memcpy(l %t195, l %t191, l %t193)
-    %t196 =l add %t195, %t193
-    storeb 0, %t196
-    call $free(l %t191)
-    %t189 =l copy %t195
-    %t198 =l loadl %t1
-    %t199 =l add %t198, 72
-    storel %t189, %t199
-    jmp @lbl53691
-@lbl53691
+    %t119 =l copy $__str3369
+    %t120 =w call $std__fs__mkdir_path_cstr(l %t119)
+    %t122 =l copy $__str3371
+    %t123 =l call $malloc(l 4096)
+    %t129 =l loadl %t3
+    %t124 =w call $snprintf(l %t123, l 4096, l %t122, ..., l %t129)
+    %t125 =l extsw %t124
+    %t126 =l add %t125, 1
+    %t127 =l call $malloc(l %t126)
+    call $memcpy(l %t127, l %t123, l %t125)
+    %t128 =l add %t127, %t125
+    storeb 0, %t128
+    call $free(l %t123)
+    %t121 =l copy %t127
+    storel %t121, %t130
+    %t131 =l loadl %t1
+    %t133 =l add %t131, 56
+    %t132 =l loadl %t133
+    %t134 =l copy $__str55
+    %t135 =l call $cstr__cmp(l %t132, l %t134)
+    %t136 =l copy 0
+    %t137 =w cnel %t135, %t136
+    jnz %t137, @lbl53707, @lbl53708
+@lbl53707
+    %t139 =l copy $__str3442
+    %t140 =l call $malloc(l 4096)
+    %t146 =l loadl %t3
+    %t147 =l loadl %t1
+    %t149 =l add %t147, 56
+    %t148 =l loadl %t149
+    %t141 =w call $snprintf(l %t140, l 4096, l %t139, ..., l %t146, l %t148)
+    %t142 =l extsw %t141
+    %t143 =l add %t142, 1
+    %t144 =l call $malloc(l %t143)
+    call $memcpy(l %t144, l %t140, l %t142)
+    %t145 =l add %t144, %t142
+    storeb 0, %t145
+    call $free(l %t140)
+    %t138 =l copy %t144
+    storel %t138, %t130
+    jmp @lbl53708
+@lbl53708
+    %t150 =l loadl %t130
+    %t151 =l loadl %t1
+    %t152 =l add %t151, 80
+    storel %t150, %t152
+    %t153 =l loadl %t1
+    %t155 =l add %t153, 48
+    %t154 =l loadl %t155
+    %t156 =l copy $__str55
+    %t157 =l call $cstr__cmp(l %t154, l %t156)
+    %t158 =l copy 0
+    %t159 =w ceql %t157, %t158
+    jnz %t159, @lbl53710, @lbl53712
+@lbl53710
+    %t161 =l copy $__str3436
+    %t162 =l call $malloc(l 4096)
+    %t168 =l loadl %t0
+    %t169 =l call $native__native_cc(l %t168)
+    %t170 =l loadl %t130
+    %t171 =l call $builds__quote_arg(l %t170)
+    %t172 =l loadl %t0
+    %t174 =l add %t172, 160
+    %t173 =l loadl %t174
+    %t175 =l call $builds__quote_arg(l %t173)
+    %t176 =l loadl %t1
+    %t178 =l add %t176, 40
+    %t177 =l loadl %t178
+    %t163 =w call $snprintf(l %t162, l 4096, l %t161, ..., l %t169, l %t171, l %t175, l %t177)
+    %t164 =l extsw %t163
+    %t165 =l add %t164, 1
+    %t166 =l call $malloc(l %t165)
+    call $memcpy(l %t166, l %t162, l %t164)
+    %t167 =l add %t166, %t164
+    storeb 0, %t167
+    call $free(l %t162)
+    %t160 =l copy %t166
+    %t179 =l loadl %t1
+    %t180 =l add %t179, 64
+    storel %t160, %t180
+    jmp @lbl53711
+@lbl53712
+    %t182 =l copy $__str3440
+    %t183 =l call $malloc(l 4096)
+    %t189 =l loadl %t0
+    %t190 =l call $native__native_cc(l %t189)
+    %t191 =l loadl %t1
+    %t193 =l add %t191, 48
+    %t192 =l loadl %t193
+    %t194 =l loadl %t130
+    %t195 =l call $builds__quote_arg(l %t194)
+    %t196 =l loadl %t0
+    %t198 =l add %t196, 160
+    %t197 =l loadl %t198
+    %t199 =l call $builds__quote_arg(l %t197)
+    %t200 =l loadl %t1
+    %t202 =l add %t200, 40
+    %t201 =l loadl %t202
+    %t184 =w call $snprintf(l %t183, l 4096, l %t182, ..., l %t190, l %t192, l %t195, l %t199, l %t201)
+    %t185 =l extsw %t184
+    %t186 =l add %t185, 1
+    %t187 =l call $malloc(l %t186)
+    call $memcpy(l %t187, l %t183, l %t185)
+    %t188 =l add %t187, %t185
+    storeb 0, %t188
+    call $free(l %t183)
+    %t181 =l copy %t187
+    %t203 =l loadl %t1
+    %t204 =l add %t203, 64
+    storel %t181, %t204
+    jmp @lbl53711
+@lbl53711
+    %t206 =l copy $__str3441
+    %t207 =l call $malloc(l 4096)
+    %t213 =l loadl %t130
+    %t208 =w call $snprintf(l %t207, l 4096, l %t206, ..., l %t213)
+    %t209 =l extsw %t208
+    %t210 =l add %t209, 1
+    %t211 =l call $malloc(l %t210)
+    call $memcpy(l %t211, l %t207, l %t209)
+    %t212 =l add %t211, %t209
+    storeb 0, %t212
+    call $free(l %t207)
+    %t205 =l copy %t211
+    %t214 =l loadl %t1
+    %t215 =l add %t214, 72
+    storel %t205, %t215
+    jmp @lbl53699
+@lbl53699
     ret 0
 }
 
@@ -301309,21 +301383,21 @@ function w $native__execute_native(l %ctx, l %st) {
     %t3 =l loadl %t2
     %t5 =l add %t3, 20
     %t4 =l loadub %t5
-    jnz %t4, @lbl53705, @lbl53706
-@lbl53705
+    jnz %t4, @lbl53713, @lbl53714
+@lbl53713
     %t6 =l copy $__str872
     %t7 =l loadl %t1
     %t9 =l add %t7, 64
     %t8 =l loadl %t9
     %t10 =l call $printf(l %t6, ..., l %t8)
-    jmp @lbl53706
-@lbl53706
+    jmp @lbl53714
+@lbl53714
     %t12 =l copy $__str648
     %t13 =l call $malloc(l 4096)
     %t19 =l loadl %t1
     %t21 =l add %t19, 64
     %t20 =l loadl %t21
-    %t22 =l copy $__str3444
+    %t22 =l copy $__str3443
     %t14 =w call $snprintf(l %t13, l 4096, l %t12, ..., l %t20, l %t22)
     %t15 =l extsw %t14
     %t16 =l add %t15, 1
@@ -301336,8 +301410,8 @@ function w $native__execute_native(l %ctx, l %st) {
     %t23 =l call $std__os__exec(l %t24, l %t11)
     %t25 =l loadl %t24
     %t26 =w ceql %t25, 0
-    jnz %t26, @lbl53708, @lbl53709
-@lbl53708
+    jnz %t26, @lbl53716, @lbl53717
+@lbl53716
     %t28 =l add %t24, 8
     %t27 =l loadl %t28
     %t29 =l loadl %t0
@@ -301348,8 +301422,8 @@ function w $native__execute_native(l %ctx, l %st) {
     %t33 =w call $ostr__contains(l %t27, l %t32)
     %t34 =w copy %t33
     %t35 =w extub %t34
-    jnz %t35, @lbl53711, @lbl53713
-@lbl53711
+    jnz %t35, @lbl53719, @lbl53721
+@lbl53719
     %t36 =l copy $__str872
     %t37 =l call $ostr__as_cstr(l %t27)
     %t38 =l call $printf(l %t36, ..., l %t37)
@@ -301359,94 +301433,95 @@ function w $native__execute_native(l %ctx, l %st) {
     %t42 =l loadl %t1
     %t43 =l add %t42, 88
     storew %t41, %t43
-    jmp @lbl53712
-@lbl53713
+    jmp @lbl53720
+@lbl53721
     %t44 =l loadl %t0
     %t45 =l loadl %t44
     %t46 =l loadub %t45
     %t47 =w ceqw %t46, 0
     storew %t47, %t48
-    jnz %t47, @lbl53717, @lbl53718
-@lbl53717
+    jnz %t47, @lbl53725, @lbl53726
+@lbl53725
     %t49 =l loadl %t0
     %t50 =l loadl %t49
     %t52 =l add %t50, 4
     %t51 =l loadub %t52
     %t53 =w ceqw %t51, 0
     storew %t53, %t48
-    jmp @lbl53718
-@lbl53718
+    jmp @lbl53726
+@lbl53726
     %t54 =w loadw %t48
-    jnz %t54, @lbl53714, @lbl53715
-@lbl53714
+    jnz %t54, @lbl53722, @lbl53723
+@lbl53722
     %t55 =l copy $__str871
     %t56 =l loadl %t1
     %t58 =l add %t56, 72
     %t57 =l loadl %t58
     %t59 =l call $printf(l %t55, ..., l %t57)
-    jmp @lbl53715
-@lbl53715
+    jmp @lbl53723
+@lbl53723
     %t60 =l loadl %t0
     %t62 =l add %t60, 64
     %t61 =l loadub %t62
-    jnz %t61, @lbl53719, @lbl53720
-@lbl53719
+    jnz %t61, @lbl53727, @lbl53728
+@lbl53727
     %t63 =l loadl %t1
     %t65 =l add %t63, 80
     %t64 =l loadl %t65
-    %t66 =w call $std__os__run(l %t64)
-    %t67 =l loadl %t1
-    %t68 =l add %t67, 88
-    storew %t66, %t68
+    %t66 =l call $builds__quote_arg(l %t64)
+    %t67 =w call $std__os__run(l %t66)
+    %t68 =l loadl %t1
+    %t69 =l add %t68, 88
+    storew %t67, %t69
+    jmp @lbl53728
+@lbl53728
     jmp @lbl53720
 @lbl53720
-    jmp @lbl53712
-@lbl53712
-    jmp @lbl53710
-@lbl53709
-    %t69 =w call $std__stdio__puts(l $__sv591)
-    jmp @lbl53710
-@lbl53710
-    %t70 =l loadl %t0
-    %t72 =l add %t70, 152
-    %t71 =l loadl %t72
-    %t73 =w call $std__os__delete(l %t71)
-    %t74 =l loadl %t0
-    %t76 =l add %t74, 160
-    %t75 =l loadl %t76
-    %t77 =w call $std__os__delete(l %t75)
-    %t78 =l loadl %t1
-    %t80 =l add %t78, 24
-    %t79 =l loadl %t80
-    %t81 =l call $cstr__len(l %t79)
-    %t82 =l copy 0
-    %t83 =w csgtl %t81, %t82
-    jnz %t83, @lbl53722, @lbl53723
-@lbl53722
-    %t84 =l loadl %t1
-    %t86 =l add %t84, 24
-    %t85 =l loadl %t86
-    %t87 =w call $std__os__delete(l %t85)
-    jmp @lbl53723
-@lbl53723
-    %t88 =l loadl %t1
-    %t90 =l add %t88, 32
-    %t89 =l loadl %t90
-    %t91 =l call $cstr__len(l %t89)
-    %t92 =l copy 0
-    %t93 =w csgtl %t91, %t92
-    jnz %t93, @lbl53725, @lbl53726
-@lbl53725
-    %t94 =l loadl %t1
-    %t96 =l add %t94, 32
-    %t95 =l loadl %t96
-    %t97 =w call $std__os__delete(l %t95)
-    jmp @lbl53726
-@lbl53726
-    %t98 =l loadl %t1
-    %t100 =l add %t98, 88
-    %t99 =l loadsw %t100
-    ret %t99
+    jmp @lbl53718
+@lbl53717
+    %t70 =w call $std__stdio__puts(l $__sv591)
+    jmp @lbl53718
+@lbl53718
+    %t71 =l loadl %t0
+    %t73 =l add %t71, 152
+    %t72 =l loadl %t73
+    %t74 =w call $std__os__delete(l %t72)
+    %t75 =l loadl %t0
+    %t77 =l add %t75, 160
+    %t76 =l loadl %t77
+    %t78 =w call $std__os__delete(l %t76)
+    %t79 =l loadl %t1
+    %t81 =l add %t79, 24
+    %t80 =l loadl %t81
+    %t82 =l call $cstr__len(l %t80)
+    %t83 =l copy 0
+    %t84 =w csgtl %t82, %t83
+    jnz %t84, @lbl53730, @lbl53731
+@lbl53730
+    %t85 =l loadl %t1
+    %t87 =l add %t85, 24
+    %t86 =l loadl %t87
+    %t88 =w call $std__os__delete(l %t86)
+    jmp @lbl53731
+@lbl53731
+    %t89 =l loadl %t1
+    %t91 =l add %t89, 32
+    %t90 =l loadl %t91
+    %t92 =l call $cstr__len(l %t90)
+    %t93 =l copy 0
+    %t94 =w csgtl %t92, %t93
+    jnz %t94, @lbl53733, @lbl53734
+@lbl53733
+    %t95 =l loadl %t1
+    %t97 =l add %t95, 32
+    %t96 =l loadl %t97
+    %t98 =w call $std__os__delete(l %t96)
+    jmp @lbl53734
+@lbl53734
+    %t99 =l loadl %t1
+    %t101 =l add %t99, 88
+    %t100 =l loadsw %t101
+    ret %t100
 }
 
 export function w $native__run(l %ctx) {
@@ -301460,22 +301535,22 @@ export function w $native__run(l %ctx) {
     %t4 =l loadl %t2
     %t5 =w call $native__collect_links_native(l %t3, l %t4)
     %t6 =w ceqw %t5, 0
-    jnz %t6, @lbl53728, @lbl53729
-@lbl53728
+    jnz %t6, @lbl53736, @lbl53737
+@lbl53736
     %t7 =l copy 1
     %t8 =w copy %t7
     ret %t8
-@lbl53729
+@lbl53737
     %t9 =l loadl %t0
     %t10 =l loadl %t2
     %t11 =w call $native__compile_shim_native(l %t9, l %t10)
     %t12 =w ceqw %t11, 0
-    jnz %t12, @lbl53731, @lbl53732
-@lbl53731
+    jnz %t12, @lbl53739, @lbl53740
+@lbl53739
     %t13 =l copy 1
     %t14 =w copy %t13
     ret %t14
-@lbl53732
+@lbl53740
     %t15 =l loadl %t0
     %t16 =l loadl %t2
     %t17 =w call $native__build_link_flags_native(l %t15, l %t16)
@@ -301486,13 +301561,13 @@ export function w $native__run(l %ctx) {
     %t22 =l loadl %t21
     %t24 =l add %t22, 24
     %t23 =l loadub %t24
-    jnz %t23, @lbl53734, @lbl53735
-@lbl53734
+    jnz %t23, @lbl53742, @lbl53743
+@lbl53742
     %t25 =l loadl %t0
     %t26 =l loadl %t2
     %t27 =w call $native__execute_test(l %t25, l %t26)
     ret %t27
-@lbl53735
+@lbl53743
     %t28 =l loadl %t0
     %t29 =l loadl %t2
     %t30 =w call $native__build_output(l %t28, l %t29)
@@ -301547,8 +301622,8 @@ function w $compile__resolve_target(l %ctx) {
     %t31 =l loadl %t0
     %t33 =l add %t31, 100
     %t32 =l loadub %t33
-    jnz %t32, @lbl53737, @lbl53738
-@lbl53737
+    jnz %t32, @lbl53745, @lbl53746
+@lbl53745
     %t34 =l loadl %t0
     %t35 =l loadl %t34
     %t37 =l add %t35, 112
@@ -301573,8 +301648,8 @@ function w $compile__resolve_target(l %ctx) {
     %t53 =l copy 0
     %t54 =w ceql %t52, %t53
     storew %t54, %t55
-    jnz %t54, @lbl53744, @lbl53743
-@lbl53743
+    jnz %t54, @lbl53752, @lbl53751
+@lbl53751
     %t56 =l loadl %t0
     %t58 =l add %t56, 92
     %t57 =l loadl %t58
@@ -301583,12 +301658,12 @@ function w $compile__resolve_target(l %ctx) {
     %t61 =l copy 0
     %t62 =w ceql %t60, %t61
     storew %t62, %t55
-    jmp @lbl53744
-@lbl53744
+    jmp @lbl53752
+@lbl53752
     %t63 =w loadw %t55
-    jnz %t63, @lbl53740, @lbl53741
-@lbl53740
-    %t64 =l copy $__str3447
+    jnz %t63, @lbl53748, @lbl53749
+@lbl53748
+    %t64 =l copy $__str3446
     %t65 =l loadl %t0
     %t66 =l loadl %t65
     %t68 =l add %t66, 112
@@ -301596,7 +301671,7 @@ function w $compile__resolve_target(l %ctx) {
     %t69 =l call $printf(l %t64, ..., l %t67)
     %t70 =l copy 0
     ret %t70
-@lbl53741
+@lbl53749
     %t71 =l loadl %t0
     %t73 =l add %t71, 84
     %t72 =l loadl %t73
@@ -301604,12 +301679,12 @@ function w $compile__resolve_target(l %ctx) {
     %t75 =l call $cstr__cmp(l %t72, l %t74)
     %t76 =l copy 0
     %t77 =w ceql %t75, %t76
-    jnz %t77, @lbl53745, @lbl53746
-@lbl53745
+    jnz %t77, @lbl53753, @lbl53754
+@lbl53753
     %t78 =w call $std__stdio__puts(l $__sv592)
     %t79 =l copy 0
     ret %t79
-@lbl53746
+@lbl53754
     %t80 =l loadl %t0
     %t82 =l add %t80, 84
     %t81 =l loadl %t82
@@ -301618,9 +301693,9 @@ function w $compile__resolve_target(l %ctx) {
     %t84 =l loadl %t85
     %t86 =w call $builds__target_is_supported(l %t81, l %t84)
     %t87 =w ceqw %t86, 0
-    jnz %t87, @lbl53748, @lbl53749
-@lbl53748
-    %t88 =l copy $__str3449
+    jnz %t87, @lbl53756, @lbl53757
+@lbl53756
+    %t88 =l copy $__str3448
     %t89 =l loadl %t0
     %t90 =l loadl %t89
     %t92 =l add %t90, 112
@@ -301628,7 +301703,7 @@ function w $compile__resolve_target(l %ctx) {
     %t93 =l call $printf(l %t88, ..., l %t91)
     %t94 =l copy 0
     ret %t94
-@lbl53749
+@lbl53757
     %t95 =l loadl %t0
     %t96 =l loadl %t95
     %t98 =l add %t96, 104
@@ -301637,8 +301712,8 @@ function w $compile__resolve_target(l %ctx) {
     %t100 =l call $cstr__cmp(l %t97, l %t99)
     %t101 =l copy 0
     %t102 =w ceql %t100, %t101
-    jnz %t102, @lbl53751, @lbl53752
-@lbl53751
+    jnz %t102, @lbl53759, @lbl53760
+@lbl53759
     %t103 =l loadl %t0
     %t104 =l loadl %t103
     %t106 =l add %t104, 112
@@ -301647,10 +301722,10 @@ function w $compile__resolve_target(l %ctx) {
     %t108 =l loadl %t107
     %t109 =l add %t108, 104
     storel %t105, %t109
-    jmp @lbl53752
-@lbl53752
-    jmp @lbl53738
-@lbl53738
+    jmp @lbl53760
+@lbl53760
+    jmp @lbl53746
+@lbl53746
     %t110 =l loadl %t0
     %t112 =l add %t110, 84
     %t111 =l loadl %t112
@@ -301690,8 +301765,8 @@ function w $compile__resolve_runtime(l %ctx) {
     %t8 =l call $cstr__len(l %t6)
     %t9 =l copy 0
     %t10 =w csgtl %t8, %t9
-    jnz %t10, @lbl53754, @lbl53755
-@lbl53754
+    jnz %t10, @lbl53762, @lbl53763
+@lbl53762
     %t11 =l loadl %t0
     %t12 =l loadl %t11
     %t14 =l add %t12, 120
@@ -301699,8 +301774,8 @@ function w $compile__resolve_runtime(l %ctx) {
     %t15 =l loadl %t0
     %t16 =l add %t15, 108
     storel %t13, %t16
-    jmp @lbl53755
-@lbl53755
+    jmp @lbl53763
+@lbl53763
     %t17 =l loadl %t0
     %t19 =l add %t17, 84
     %t18 =l loadl %t19
@@ -301712,8 +301787,8 @@ function w $compile__resolve_runtime(l %ctx) {
     %t24 =l loadl %t25
     %t26 =w call $builds__runtime_supported(l %t18, l %t21, l %t24)
     %t27 =w ceqw %t26, 0
-    jnz %t27, @lbl53757, @lbl53758
-@lbl53757
+    jnz %t27, @lbl53765, @lbl53766
+@lbl53765
     %t28 =l loadl %t0
     %t29 =l loadl %t28
     %t31 =l add %t29, 120
@@ -301721,9 +301796,9 @@ function w $compile__resolve_runtime(l %ctx) {
     %t32 =l call $cstr__len(l %t30)
     %t33 =l copy 0
     %t34 =w csgtl %t32, %t33
-    jnz %t34, @lbl53760, @lbl53761
-@lbl53760
-    %t35 =l copy $__str3450
+    jnz %t34, @lbl53768, @lbl53769
+@lbl53768
+    %t35 =l copy $__str3449
     %t36 =l loadl %t0
     %t38 =l add %t36, 108
     %t37 =l loadl %t38
@@ -301736,75 +301811,75 @@ function w $compile__resolve_runtime(l %ctx) {
     %t45 =l call $printf(l %t35, ..., l %t37, l %t40, l %t43)
     %t46 =l copy 0
     ret %t46
-@lbl53761
+@lbl53769
     %t47 =l copy $__str552
     %t48 =l loadl %t0
     %t49 =l add %t48, 108
     storel %t47, %t49
-    jmp @lbl53758
-@lbl53758
+    jmp @lbl53766
+@lbl53766
     %t50 =l loadl %t0
     %t51 =l loadl %t50
     %t53 =l add %t51, 64
     %t52 =l loadub %t53
     storew %t52, %t54
-    jnz %t52, @lbl53767, @lbl53766
-@lbl53766
+    jnz %t52, @lbl53775, @lbl53774
+@lbl53774
     %t55 =l loadl %t0
     %t56 =l loadl %t55
     %t58 =l add %t56, 56
     %t57 =l loadub %t58
     storew %t57, %t54
-    jmp @lbl53767
-@lbl53767
+    jmp @lbl53775
+@lbl53775
     %t59 =w loadw %t54
     storew %t59, %t60
-    jnz %t59, @lbl53769, @lbl53768
-@lbl53768
+    jnz %t59, @lbl53777, @lbl53776
+@lbl53776
     %t61 =l loadl %t0
     %t62 =l loadl %t61
     %t64 =l add %t62, 172
     %t63 =l loadub %t64
     storew %t63, %t60
-    jmp @lbl53769
-@lbl53769
+    jmp @lbl53777
+@lbl53777
     %t65 =w loadw %t60
-    jnz %t65, @lbl53763, @lbl53764
-@lbl53763
+    jnz %t65, @lbl53771, @lbl53772
+@lbl53771
     %t66 =l copy $__str552
     %t67 =l loadl %t0
     %t68 =l add %t67, 108
     storel %t66, %t68
-    jmp @lbl53764
-@lbl53764
+    jmp @lbl53772
+@lbl53772
     %t69 =l loadl %t0
     %t71 =l add %t69, 104
     %t70 =l loadub %t71
     %t72 =w ceqw %t70, 0
     storew %t72, %t73
-    jnz %t72, @lbl53773, @lbl53774
-@lbl53773
+    jnz %t72, @lbl53781, @lbl53782
+@lbl53781
     %t74 =l loadl %t0
     %t76 =l add %t74, 84
     %t75 =l loadl %t76
     %t77 =w call $builds__target_is_windows(l %t75)
     storew %t77, %t73
-    jmp @lbl53774
-@lbl53774
+    jmp @lbl53782
+@lbl53782
     %t78 =w loadw %t73
     storew %t78, %t79
-    jnz %t78, @lbl53775, @lbl53776
-@lbl53775
+    jnz %t78, @lbl53783, @lbl53784
+@lbl53783
     %t80 =l loadl %t0
     %t82 =l add %t80, 108
     %t81 =l loadl %t82
     %t83 =w call $builds__runtime_is_freestanding(l %t81)
     storew %t83, %t79
-    jmp @lbl53776
-@lbl53776
+    jmp @lbl53784
+@lbl53784
     %t84 =w loadw %t79
-    jnz %t84, @lbl53770, @lbl53771
-@lbl53770
+    jnz %t84, @lbl53778, @lbl53779
+@lbl53778
     %t85 =l loadl %t0
     %t86 =l loadl %t85
     %t88 =l add %t86, 80
@@ -301815,25 +301890,25 @@ function w $compile__resolve_runtime(l %ctx) {
     %t92 =l call $cstr__cmp(l %t90, l %t91)
     %t93 =l copy 0
     %t94 =w ceql %t92, %t93
-    jnz %t94, @lbl53777, @lbl53778
-@lbl53777
+    jnz %t94, @lbl53785, @lbl53786
+@lbl53785
     %t95 =l loadl %t0
     %t96 =l loadl %t95
     %t97 =l loadub %t96
     %t98 =w ceqw %t97, 0
-    jnz %t98, @lbl53780, @lbl53781
-@lbl53780
+    jnz %t98, @lbl53788, @lbl53789
+@lbl53788
     %t99 =w call $std__stdio__puts(l $__sv593)
-    jmp @lbl53781
-@lbl53781
+    jmp @lbl53789
+@lbl53789
     %t100 =l copy $__str552
     %t101 =l loadl %t0
     %t102 =l add %t101, 108
     storel %t100, %t102
-    jmp @lbl53778
-@lbl53778
-    jmp @lbl53771
-@lbl53771
+    jmp @lbl53786
+@lbl53786
+    jmp @lbl53779
+@lbl53779
     %t103 =l loadl %t0
     %t105 =l add %t103, 108
     %t104 =l loadl %t105
@@ -301877,110 +301952,110 @@ function w $compile__resolve_xwin(l %ctx) {
     %t3 =l add %t1, 104
     %t2 =l loadub %t3
     storew %t2, %t4
-    jnz %t2, @lbl53783, @lbl53784
-@lbl53783
+    jnz %t2, @lbl53791, @lbl53792
+@lbl53791
     %t5 =l loadl %t0
     %t7 =l add %t5, 84
     %t6 =l loadl %t7
     %t8 =w call $builds__target_is_windows(l %t6)
     storew %t8, %t4
-    jmp @lbl53784
-@lbl53784
+    jmp @lbl53792
+@lbl53792
     %t9 =w loadw %t4
     storew %t9, %t10
-    jnz %t9, @lbl53785, @lbl53786
-@lbl53785
+    jnz %t9, @lbl53793, @lbl53794
+@lbl53793
     %t11 =l loadl %t0
     %t13 =l add %t11, 116
     %t12 =l loadub %t13
     %t14 =w ceqw %t12, 0
     storew %t14, %t10
-    jmp @lbl53786
-@lbl53786
+    jmp @lbl53794
+@lbl53794
     %t15 =w loadw %t10
     storew %t15, %t16
-    jnz %t15, @lbl53787, @lbl53788
-@lbl53787
+    jnz %t15, @lbl53795, @lbl53796
+@lbl53795
     %t17 =l loadl %t0
     %t18 =l loadl %t17
     %t20 =l add %t18, 60
     %t19 =l loadub %t20
     %t21 =w ceqw %t19, 0
     storew %t21, %t16
-    jmp @lbl53788
-@lbl53788
+    jmp @lbl53796
+@lbl53796
     %t22 =w loadw %t16
     storew %t22, %t23
-    jnz %t22, @lbl53789, @lbl53790
-@lbl53789
+    jnz %t22, @lbl53797, @lbl53798
+@lbl53797
     %t24 =l loadl %t0
     %t25 =l loadl %t24
     %t27 =l add %t25, 16
     %t26 =l loadub %t27
     %t28 =w ceqw %t26, 0
     storew %t28, %t23
-    jmp @lbl53790
-@lbl53790
+    jmp @lbl53798
+@lbl53798
     %t29 =w loadw %t23
     storew %t29, %t30
-    jnz %t29, @lbl53791, @lbl53792
-@lbl53791
+    jnz %t29, @lbl53799, @lbl53800
+@lbl53799
     %t31 =l loadl %t0
     %t32 =l loadl %t31
     %t34 =l add %t32, 4
     %t33 =l loadub %t34
     %t35 =w ceqw %t33, 0
     storew %t35, %t30
-    jmp @lbl53792
-@lbl53792
+    jmp @lbl53800
+@lbl53800
     %t36 =w loadw %t30
     storew %t36, %t37
-    jnz %t36, @lbl53793, @lbl53794
-@lbl53793
+    jnz %t36, @lbl53801, @lbl53802
+@lbl53801
     %t38 =l loadl %t0
     %t39 =l loadl %t38
     %t41 =l add %t39, 8
     %t40 =l loadub %t41
     %t42 =w ceqw %t40, 0
     storew %t42, %t37
-    jmp @lbl53794
-@lbl53794
+    jmp @lbl53802
+@lbl53802
     %t43 =w loadw %t37
     storew %t43, %t44
-    jnz %t43, @lbl53795, @lbl53796
-@lbl53795
+    jnz %t43, @lbl53803, @lbl53804
+@lbl53803
     %t45 =l loadl %t0
     %t46 =l loadl %t45
     %t48 =l add %t46, 12
     %t47 =l loadub %t48
     %t49 =w ceqw %t47, 0
     storew %t49, %t44
-    jmp @lbl53796
-@lbl53796
+    jmp @lbl53804
+@lbl53804
     %t50 =w loadw %t44
     storew %t50, %t51
-    jnz %t50, @lbl53797, @lbl53798
-@lbl53797
+    jnz %t50, @lbl53805, @lbl53806
+@lbl53805
     %t52 =l loadl %t0
     %t53 =l loadl %t52
     %t55 =l add %t53, 68
     %t54 =l loadub %t55
     %t56 =w ceqw %t54, 0
     storew %t56, %t51
-    jmp @lbl53798
-@lbl53798
+    jmp @lbl53806
+@lbl53806
     %t57 =w loadw %t51
     storew %t57, %t58
-    jnz %t57, @lbl53799, @lbl53800
-@lbl53799
+    jnz %t57, @lbl53807, @lbl53808
+@lbl53807
     %t59 =l loadl %t0
     %t60 =l loadl %t59
     %t62 =l add %t60, 72
     %t61 =l loadub %t62
     %t63 =w ceqw %t61, 0
     storew %t63, %t58
-    jmp @lbl53800
-@lbl53800
+    jmp @lbl53808
+@lbl53808
     %t64 =w loadw %t58
     %t65 =w copy %t64
     %t66 =w extub %t65
@@ -301988,18 +302063,18 @@ function w $compile__resolve_xwin(l %ctx) {
     %t69 =l add %t67, 104
     %t68 =l loadub %t69
     storew %t68, %t70
-    jnz %t68, @lbl53804, @lbl53805
-@lbl53804
+    jnz %t68, @lbl53812, @lbl53813
+@lbl53812
     %t71 =l loadl %t0
     %t73 =l add %t71, 84
     %t72 =l loadl %t73
     %t74 =w call $builds__target_is_windows(l %t72)
     storew %t74, %t70
-    jmp @lbl53805
-@lbl53805
+    jmp @lbl53813
+@lbl53813
     %t75 =w loadw %t70
-    jnz %t75, @lbl53801, @lbl53802
-@lbl53801
+    jnz %t75, @lbl53809, @lbl53810
+@lbl53809
     %t76 =l loadl %t0
     %t77 =l loadl %t76
     %t79 =l add %t77, 128
@@ -302007,8 +302082,8 @@ function w $compile__resolve_xwin(l %ctx) {
     %t80 =l call $cstr__len(l %t78)
     %t81 =l copy 0
     %t82 =w csgtl %t80, %t81
-    jnz %t82, @lbl53806, @lbl53808
-@lbl53806
+    jnz %t82, @lbl53814, @lbl53816
+@lbl53814
     %t83 =l loadl %t0
     %t84 =l loadl %t83
     %t86 =l add %t84, 128
@@ -302016,24 +302091,24 @@ function w $compile__resolve_xwin(l %ctx) {
     %t87 =l loadl %t0
     %t88 =l add %t87, 120
     storel %t85, %t88
-    jmp @lbl53807
-@lbl53808
+    jmp @lbl53815
+@lbl53816
     %t89 =l loadl %t0
     %t90 =l loadl %t89
     %t92 =l add %t90, 136
     %t91 =l loadub %t92
     %t93 =w ceqw %t91, 0
-    jnz %t93, @lbl53809, @lbl53807
-@lbl53809
+    jnz %t93, @lbl53817, @lbl53815
+@lbl53817
     %t94 =l call $builds__xwin_find_root()
     %t95 =l loadl %t0
     %t96 =l add %t95, 120
     storel %t94, %t96
-    jmp @lbl53807
-@lbl53807
+    jmp @lbl53815
+@lbl53815
     storew %t66, %t97
-    jnz %t66, @lbl53814, @lbl53815
-@lbl53814
+    jnz %t66, @lbl53822, @lbl53823
+@lbl53822
     %t98 =l loadl %t0
     %t100 =l add %t98, 120
     %t99 =l loadl %t100
@@ -302043,20 +302118,20 @@ function w $compile__resolve_xwin(l %ctx) {
     %t104 =w call $builds__xwin_available_in(l %t99, l %t102)
     %t105 =w ceqw %t104, 0
     storew %t105, %t97
-    jmp @lbl53815
-@lbl53815
+    jmp @lbl53823
+@lbl53823
     %t106 =w loadw %t97
-    jnz %t106, @lbl53811, @lbl53812
-@lbl53811
+    jnz %t106, @lbl53819, @lbl53820
+@lbl53819
     %t107 =l loadl %t0
     %t109 =l add %t107, 120
     %t108 =l loadl %t109
     %t110 =l call $cstr__len(l %t108)
     %t111 =l copy 0
     %t112 =w csgtl %t110, %t111
-    jnz %t112, @lbl53816, @lbl53818
-@lbl53816
-    %t113 =l copy $__str3452
+    jnz %t112, @lbl53824, @lbl53826
+@lbl53824
+    %t113 =l copy $__str3451
     %t114 =l loadl %t0
     %t116 =l add %t114, 120
     %t115 =l loadl %t116
@@ -302064,49 +302139,49 @@ function w $compile__resolve_xwin(l %ctx) {
     %t119 =l add %t117, 92
     %t118 =l loadl %t119
     %t120 =l call $printf(l %t113, ..., l %t115, l %t118)
-    jmp @lbl53817
-@lbl53818
-    %t121 =l copy $__str3453
+    jmp @lbl53825
+@lbl53826
+    %t121 =l copy $__str3452
     %t122 =l loadl %t0
     %t124 =l add %t122, 92
     %t123 =l loadl %t124
     %t125 =l call $printf(l %t121, ..., l %t123)
-    jmp @lbl53817
-@lbl53817
-    %t126 =l copy $__str3454
+    jmp @lbl53825
+@lbl53825
+    %t126 =l copy $__str3453
     %t127 =l call $printf(l %t126, ..., l 0)
-    %t128 =l copy $__str3455
+    %t128 =l copy $__str3454
     %t129 =l loadl %t0
     %t131 =l add %t129, 92
     %t130 =l loadl %t131
     %t132 =l call $printf(l %t128, ..., l %t130)
-    %t133 =l copy $__str3456
+    %t133 =l copy $__str3455
     %t134 =l call $printf(l %t133, ..., l 0)
     %t135 =l copy 0
     ret %t135
-@lbl53812
+@lbl53820
     storew %t66, %t136
-    jnz %t66, @lbl53822, @lbl53823
-@lbl53822
+    jnz %t66, @lbl53830, @lbl53831
+@lbl53830
     %t137 =l loadl %t0
     %t138 =l loadl %t137
     %t139 =l loadub %t138
     %t140 =w ceqw %t139, 0
     storew %t140, %t136
-    jmp @lbl53823
-@lbl53823
+    jmp @lbl53831
+@lbl53831
     %t141 =w loadw %t136
-    jnz %t141, @lbl53819, @lbl53820
-@lbl53819
-    %t142 =l copy $__str3457
+    jnz %t141, @lbl53827, @lbl53828
+@lbl53827
+    %t142 =l copy $__str3456
     %t143 =l loadl %t0
     %t145 =l add %t143, 120
     %t144 =l loadl %t145
     %t146 =l call $printf(l %t142, ..., l %t144)
-    jmp @lbl53820
-@lbl53820
-    jmp @lbl53802
-@lbl53802
+    jmp @lbl53828
+@lbl53828
+    jmp @lbl53810
+@lbl53810
     %t147 =l copy 1
     ret %t147
 }
@@ -302136,155 +302211,155 @@ function w $compile__validate_flags(l %ctx) {
     %t7 =l copy 0
     %t8 =w cnel %t6, %t7
     storew %t8, %t9
-    jnz %t8, @lbl53827, @lbl53828
-@lbl53827
+    jnz %t8, @lbl53835, @lbl53836
+@lbl53835
     %t10 =l loadl %t0
     %t12 =l add %t10, 100
     %t11 =l loadub %t12
     %t13 =w ceqw %t11, 0
     storew %t13, %t9
-    jmp @lbl53828
-@lbl53828
+    jmp @lbl53836
+@lbl53836
     %t14 =w loadw %t9
     storew %t14, %t15
-    jnz %t14, @lbl53829, @lbl53830
-@lbl53829
+    jnz %t14, @lbl53837, @lbl53838
+@lbl53837
     %t16 =l loadl %t0
     %t17 =l loadl %t16
     %t19 =l add %t17, 16
     %t18 =l loadub %t19
     %t20 =w ceqw %t18, 0
     storew %t20, %t15
-    jmp @lbl53830
-@lbl53830
+    jmp @lbl53838
+@lbl53838
     %t21 =w loadw %t15
     storew %t21, %t22
-    jnz %t21, @lbl53831, @lbl53832
-@lbl53831
+    jnz %t21, @lbl53839, @lbl53840
+@lbl53839
     %t23 =l loadl %t0
     %t24 =l loadl %t23
     %t26 =l add %t24, 4
     %t25 =l loadub %t26
     %t27 =w ceqw %t25, 0
     storew %t27, %t22
-    jmp @lbl53832
-@lbl53832
+    jmp @lbl53840
+@lbl53840
     %t28 =w loadw %t22
     storew %t28, %t29
-    jnz %t28, @lbl53833, @lbl53834
-@lbl53833
+    jnz %t28, @lbl53841, @lbl53842
+@lbl53841
     %t30 =l loadl %t0
     %t31 =l loadl %t30
     %t33 =l add %t31, 12
     %t32 =l loadub %t33
     %t34 =w ceqw %t32, 0
     storew %t34, %t29
-    jmp @lbl53834
-@lbl53834
+    jmp @lbl53842
+@lbl53842
     %t35 =w loadw %t29
-    jnz %t35, @lbl53824, @lbl53825
-@lbl53824
+    jnz %t35, @lbl53832, @lbl53833
+@lbl53832
     %t36 =w call $std__stdio__puts(l $__sv594)
     %t37 =l copy 0
     ret %t37
-@lbl53825
+@lbl53833
     %t38 =l loadl %t0
     %t40 =l add %t38, 64
     %t39 =l loadub %t40
     storew %t39, %t41
-    jnz %t39, @lbl53838, @lbl53839
-@lbl53838
+    jnz %t39, @lbl53846, @lbl53847
+@lbl53846
     %t42 =l loadl %t0
     %t43 =l loadl %t42
     %t45 =l add %t43, 4
     %t44 =l loadub %t45
     storew %t44, %t46
-    jnz %t44, @lbl53841, @lbl53840
-@lbl53840
+    jnz %t44, @lbl53849, @lbl53848
+@lbl53848
     %t47 =l loadl %t0
     %t48 =l loadl %t47
     %t50 =l add %t48, 8
     %t49 =l loadub %t50
     storew %t49, %t46
-    jmp @lbl53841
-@lbl53841
+    jmp @lbl53849
+@lbl53849
     %t51 =w loadw %t46
     storew %t51, %t52
-    jnz %t51, @lbl53843, @lbl53842
-@lbl53842
+    jnz %t51, @lbl53851, @lbl53850
+@lbl53850
     %t53 =l loadl %t0
     %t54 =l loadl %t53
     %t56 =l add %t54, 12
     %t55 =l loadub %t56
     storew %t55, %t52
-    jmp @lbl53843
-@lbl53843
+    jmp @lbl53851
+@lbl53851
     %t57 =w loadw %t52
     storew %t57, %t58
-    jnz %t57, @lbl53845, @lbl53844
-@lbl53844
+    jnz %t57, @lbl53853, @lbl53852
+@lbl53852
     %t59 =l loadl %t0
     %t60 =l loadl %t59
     %t62 =l add %t60, 16
     %t61 =l loadub %t62
     storew %t61, %t58
-    jmp @lbl53845
-@lbl53845
+    jmp @lbl53853
+@lbl53853
     %t63 =w loadw %t58
     storew %t63, %t64
-    jnz %t63, @lbl53847, @lbl53846
-@lbl53846
+    jnz %t63, @lbl53855, @lbl53854
+@lbl53854
     %t65 =l loadl %t0
     %t66 =l loadl %t65
     %t68 =l add %t66, 56
     %t67 =l loadub %t68
     storew %t67, %t64
-    jmp @lbl53847
-@lbl53847
+    jmp @lbl53855
+@lbl53855
     %t69 =w loadw %t64
     storew %t69, %t70
-    jnz %t69, @lbl53849, @lbl53848
-@lbl53848
+    jnz %t69, @lbl53857, @lbl53856
+@lbl53856
     %t71 =l loadl %t0
     %t72 =l loadl %t71
     %t74 =l add %t72, 60
     %t73 =l loadub %t74
     storew %t73, %t70
-    jmp @lbl53849
-@lbl53849
+    jmp @lbl53857
+@lbl53857
     %t75 =w loadw %t70
     storew %t75, %t76
-    jnz %t75, @lbl53851, @lbl53850
-@lbl53850
+    jnz %t75, @lbl53859, @lbl53858
+@lbl53858
     %t77 =l loadl %t0
     %t78 =l loadl %t77
     %t80 =l add %t78, 68
     %t79 =l loadub %t80
     storew %t79, %t76
-    jmp @lbl53851
-@lbl53851
+    jmp @lbl53859
+@lbl53859
     %t81 =w loadw %t76
     storew %t81, %t82
-    jnz %t81, @lbl53853, @lbl53852
-@lbl53852
+    jnz %t81, @lbl53861, @lbl53860
+@lbl53860
     %t83 =l loadl %t0
     %t84 =l loadl %t83
     %t86 =l add %t84, 72
     %t85 =l loadub %t86
     storew %t85, %t82
-    jmp @lbl53853
-@lbl53853
+    jmp @lbl53861
+@lbl53861
     %t87 =w loadw %t82
     storew %t87, %t41
-    jmp @lbl53839
-@lbl53839
+    jmp @lbl53847
+@lbl53847
     %t88 =w loadw %t41
-    jnz %t88, @lbl53835, @lbl53836
-@lbl53835
+    jnz %t88, @lbl53843, @lbl53844
+@lbl53843
     %t89 =w call $std__stdio__puts(l $__sv595)
     %t90 =l copy 0
     ret %t90
-@lbl53836
+@lbl53844
     %t91 =l copy 1
     ret %t91
 }
@@ -302312,98 +302387,98 @@ function w $compile__prepare_module(l %ctx) {
     %t5 =l call $cstr__cmp(l %t3, l %t4)
     %t6 =l copy 0
     %t7 =w cnel %t5, %t6
-    jnz %t7, @lbl53854, @lbl53855
-@lbl53854
+    jnz %t7, @lbl53862, @lbl53863
+@lbl53862
     %t8 =l call $pathutil__dir_cstr(l %t3)
     %t9 =l loadl %t0
     %t10 =l add %t9, 56
     storel %t8, %t10
-    jmp @lbl53855
-@lbl53855
+    jmp @lbl53863
+@lbl53863
     %t11 =l loadl %t0
     %t12 =l loadl %t11
     %t14 =l add %t12, 76
     %t13 =l loadub %t14
     %t15 =w ceqw %t13, 0
     storew %t15, %t16
-    jnz %t15, @lbl53860, @lbl53861
-@lbl53860
+    jnz %t15, @lbl53868, @lbl53869
+@lbl53868
     %t17 =l loadl %t0
     %t18 =l loadl %t17
     %t20 =l add %t18, 16
     %t19 =l loadub %t20
     %t21 =w ceqw %t19, 0
     storew %t21, %t16
-    jmp @lbl53861
-@lbl53861
+    jmp @lbl53869
+@lbl53869
     %t22 =w loadw %t16
     storew %t22, %t23
-    jnz %t22, @lbl53862, @lbl53863
-@lbl53862
+    jnz %t22, @lbl53870, @lbl53871
+@lbl53870
     %t24 =l loadl %t0
     %t25 =l loadl %t24
     %t27 =l add %t25, 4
     %t26 =l loadub %t27
     %t28 =w ceqw %t26, 0
     storew %t28, %t23
-    jmp @lbl53863
-@lbl53863
+    jmp @lbl53871
+@lbl53871
     %t29 =w loadw %t23
     storew %t29, %t30
-    jnz %t29, @lbl53864, @lbl53865
-@lbl53864
+    jnz %t29, @lbl53872, @lbl53873
+@lbl53872
     %t31 =l loadl %t0
     %t32 =l loadl %t31
     %t34 =l add %t32, 8
     %t33 =l loadub %t34
     %t35 =w ceqw %t33, 0
     storew %t35, %t30
-    jmp @lbl53865
-@lbl53865
+    jmp @lbl53873
+@lbl53873
     %t36 =w loadw %t30
     storew %t36, %t37
-    jnz %t36, @lbl53866, @lbl53867
-@lbl53866
+    jnz %t36, @lbl53874, @lbl53875
+@lbl53874
     %t38 =l loadl %t0
     %t39 =l loadl %t38
     %t41 =l add %t39, 12
     %t40 =l loadub %t41
     %t42 =w ceqw %t40, 0
     storew %t42, %t37
-    jmp @lbl53867
-@lbl53867
+    jmp @lbl53875
+@lbl53875
     %t43 =w loadw %t37
     storew %t43, %t44
-    jnz %t43, @lbl53868, @lbl53869
-@lbl53868
+    jnz %t43, @lbl53876, @lbl53877
+@lbl53876
     %t45 =l loadl %t0
     %t46 =l loadl %t45
     %t48 =l add %t46, 68
     %t47 =l loadub %t48
     %t49 =w ceqw %t47, 0
     storew %t49, %t44
-    jmp @lbl53869
-@lbl53869
+    jmp @lbl53877
+@lbl53877
     %t50 =w loadw %t44
     storew %t50, %t51
-    jnz %t50, @lbl53870, @lbl53871
-@lbl53870
+    jnz %t50, @lbl53878, @lbl53879
+@lbl53878
     %t52 =l loadl %t0
     %t53 =l loadl %t52
     %t55 =l add %t53, 72
     %t54 =l loadub %t55
     %t56 =w ceqw %t54, 0
     storew %t56, %t51
-    jmp @lbl53871
-@lbl53871
+    jmp @lbl53879
+@lbl53879
     %t57 =w loadw %t51
-    jnz %t57, @lbl53857, @lbl53858
-@lbl53857
+    jnz %t57, @lbl53865, @lbl53866
+@lbl53865
     %t58 =l copy $__str880
     %t59 =w call $builds__is_compiler_available(l %t58)
     %t60 =w ceqw %t59, 0
-    jnz %t60, @lbl53872, @lbl53873
-@lbl53872
+    jnz %t60, @lbl53880, @lbl53881
+@lbl53880
     %t61 =l copy 1
     %t62 =l loadl %t0
     %t63 =l loadl %t62
@@ -302413,72 +302488,72 @@ function w $compile__prepare_module(l %ctx) {
     %t66 =l loadl %t65
     %t67 =l loadub %t66
     %t68 =w ceqw %t67, 0
-    jnz %t68, @lbl53875, @lbl53876
-@lbl53875
+    jnz %t68, @lbl53883, @lbl53884
+@lbl53883
     %t69 =w call $std__stdio__puts(l $__sv596)
-    jmp @lbl53876
-@lbl53876
-    jmp @lbl53873
-@lbl53873
-    jmp @lbl53858
-@lbl53858
+    jmp @lbl53884
+@lbl53884
+    jmp @lbl53881
+@lbl53881
+    jmp @lbl53866
+@lbl53866
     %t70 =l loadl %t0
     %t71 =l loadl %t70
     %t72 =l loadub %t71
     %t73 =w ceqw %t72, 0
     storew %t73, %t74
-    jnz %t73, @lbl53881, @lbl53882
-@lbl53881
+    jnz %t73, @lbl53889, @lbl53890
+@lbl53889
     %t75 =l loadl %t0
     %t76 =l loadl %t75
     %t78 =l add %t76, 4
     %t77 =l loadub %t78
     %t79 =w ceqw %t77, 0
     storew %t79, %t74
-    jmp @lbl53882
-@lbl53882
+    jmp @lbl53890
+@lbl53890
     %t80 =w loadw %t74
     storew %t80, %t81
-    jnz %t80, @lbl53883, @lbl53884
-@lbl53883
+    jnz %t80, @lbl53891, @lbl53892
+@lbl53891
     %t82 =l loadl %t0
     %t83 =l loadl %t82
     %t85 =l add %t83, 8
     %t84 =l loadub %t85
     %t86 =w ceqw %t84, 0
     storew %t86, %t81
-    jmp @lbl53884
-@lbl53884
+    jmp @lbl53892
+@lbl53892
     %t87 =w loadw %t81
     storew %t87, %t88
-    jnz %t87, @lbl53885, @lbl53886
-@lbl53885
+    jnz %t87, @lbl53893, @lbl53894
+@lbl53893
     %t89 =l loadl %t0
     %t90 =l loadl %t89
     %t92 =l add %t90, 16
     %t91 =l loadub %t92
     %t93 =w ceqw %t91, 0
     storew %t93, %t88
-    jmp @lbl53886
-@lbl53886
+    jmp @lbl53894
+@lbl53894
     %t94 =w loadw %t88
     storew %t94, %t95
-    jnz %t94, @lbl53887, @lbl53888
-@lbl53887
+    jnz %t94, @lbl53895, @lbl53896
+@lbl53895
     %t96 =l loadl %t0
     %t97 =l loadl %t96
     %t99 =l add %t97, 72
     %t98 =l loadub %t99
     %t100 =w ceqw %t98, 0
     storew %t100, %t95
-    jmp @lbl53888
-@lbl53888
+    jmp @lbl53896
+@lbl53896
     %t101 =w loadw %t95
-    jnz %t101, @lbl53878, @lbl53879
-@lbl53878
+    jnz %t101, @lbl53886, @lbl53887
+@lbl53886
     %t102 =w call $std__stdio__puts(l $__sv597)
-    jmp @lbl53879
-@lbl53879
+    jmp @lbl53887
+@lbl53887
     %t103 =l loadl %t0
     %t105 =l add %t103, 32
     %t104 =l loadl %t105
@@ -302494,22 +302569,22 @@ function w $compile__prepare_module(l %ctx) {
     %t114 =l call $module__resolve_module(l %t115, l %t104, l %t107, l %t109, l %t111, l %t113)
     %t116 =l loadl %t115
     %t117 =w ceql %t116, 0
-    jnz %t117, @lbl53889, @lbl53890
-@lbl53889
+    jnz %t117, @lbl53897, @lbl53898
+@lbl53897
     %t119 =l add %t115, 8
     %t118 =l loadl %t119
     %t120 =l loadl %t0
     %t121 =l add %t120, 128
     storel %t118, %t121
-    jmp @lbl53891
-@lbl53890
+    jmp @lbl53899
+@lbl53898
     %t123 =l add %t115, 8
     %t122 =l loadl %t123
     %t124 =l copy $__str1040
     %t125 =l call $printf(l %t124, ..., l %t122)
     %t126 =l copy 0
     ret %t126
-@lbl53891
+@lbl53899
     %t127 =l copy 1
     ret %t127
 }
@@ -302527,8 +302602,8 @@ function w $compile__apply_hosted_fallback(l %ctx) {
     %t3 =l add %t1, 116
     %t2 =l loadub %t3
     storew %t2, %t4
-    jnz %t2, @lbl53895, @lbl53896
-@lbl53895
+    jnz %t2, @lbl53903, @lbl53904
+@lbl53903
     %t5 =l loadl %t0
     %t6 =l loadl %t5
     %t8 =l add %t6, 120
@@ -302537,47 +302612,47 @@ function w $compile__apply_hosted_fallback(l %ctx) {
     %t10 =l copy 0
     %t11 =w ceql %t9, %t10
     storew %t11, %t4
-    jmp @lbl53896
-@lbl53896
+    jmp @lbl53904
+@lbl53904
     %t12 =w loadw %t4
     storew %t12, %t13
-    jnz %t12, @lbl53897, @lbl53898
-@lbl53897
+    jnz %t12, @lbl53905, @lbl53906
+@lbl53905
     %t14 =l loadl %t0
     %t15 =l loadl %t14
     %t17 =l add %t15, 64
     %t16 =l loadub %t17
     %t18 =w ceqw %t16, 0
     storew %t18, %t13
-    jmp @lbl53898
-@lbl53898
+    jmp @lbl53906
+@lbl53906
     %t19 =w loadw %t13
     storew %t19, %t20
-    jnz %t19, @lbl53899, @lbl53900
-@lbl53899
+    jnz %t19, @lbl53907, @lbl53908
+@lbl53907
     %t21 =l loadl %t0
     %t22 =l loadl %t21
     %t24 =l add %t22, 56
     %t23 =l loadub %t24
     %t25 =w ceqw %t23, 0
     storew %t25, %t20
-    jmp @lbl53900
-@lbl53900
+    jmp @lbl53908
+@lbl53908
     %t26 =w loadw %t20
     storew %t26, %t27
-    jnz %t26, @lbl53901, @lbl53902
-@lbl53901
+    jnz %t26, @lbl53909, @lbl53910
+@lbl53909
     %t28 =l loadl %t0
     %t29 =l loadl %t28
     %t31 =l add %t29, 60
     %t30 =l loadub %t31
     %t32 =w ceqw %t30, 0
     storew %t32, %t27
-    jmp @lbl53902
-@lbl53902
+    jmp @lbl53910
+@lbl53910
     %t33 =w loadw %t27
-    jnz %t33, @lbl53892, @lbl53893
-@lbl53892
+    jnz %t33, @lbl53900, @lbl53901
+@lbl53900
     %t34 =l loadl %t0
     %t36 =l add %t34, 128
     %t35 =l loadl %t36
@@ -302588,13 +302663,13 @@ function w $compile__apply_hosted_fallback(l %ctx) {
     %t41 =l call $module__collect_used_links(l %t42, l %t35, l %t38, w %t40)
     %t43 =l loadl %t42
     %t44 =w ceql %t43, 0
-    jnz %t44, @lbl53903, @lbl53904
-@lbl53903
+    jnz %t44, @lbl53911, @lbl53912
+@lbl53911
     %t46 =l add %t42, 8
     %t45 =l loadl %t46
     %t47 =w call $builds__links_require_hosted(l %t45)
-    jnz %t47, @lbl53906, @lbl53907
-@lbl53906
+    jnz %t47, @lbl53914, @lbl53915
+@lbl53914
     %t48 =l copy $__str552
     %t49 =l loadl %t0
     %t50 =l add %t49, 108
@@ -302615,16 +302690,16 @@ function w $compile__apply_hosted_fallback(l %ctx) {
     %t64 =l add %t62, 108
     %t63 =l loadl %t64
     %t65 =w call $alt_codegen__set_runtime_mode(l %t63)
-    %t66 =l copy $__str3462
+    %t66 =l copy $__str3461
     %t67 =l call $printf(l %t66, ..., l 0)
-    jmp @lbl53907
-@lbl53907
-    jmp @lbl53905
-@lbl53904
-    jmp @lbl53905
-@lbl53905
-    jmp @lbl53893
-@lbl53893
+    jmp @lbl53915
+@lbl53915
+    jmp @lbl53913
+@lbl53912
+    jmp @lbl53913
+@lbl53913
+    jmp @lbl53901
+@lbl53901
     ret 0
 }
 
@@ -302646,112 +302721,112 @@ function w $compile__check_windows_link(l %ctx) {
     %t2 =l loadub %t3
     %t4 =w ceqw %t2, 0
     storew %t4, %t5
-    jnz %t4, @lbl53912, @lbl53913
-@lbl53912
+    jnz %t4, @lbl53920, @lbl53921
+@lbl53920
     %t6 =l loadl %t0
     %t8 =l add %t6, 104
     %t7 =l loadub %t8
     storew %t7, %t5
-    jmp @lbl53913
-@lbl53913
+    jmp @lbl53921
+@lbl53921
     %t9 =w loadw %t5
     storew %t9, %t10
-    jnz %t9, @lbl53914, @lbl53915
-@lbl53914
+    jnz %t9, @lbl53922, @lbl53923
+@lbl53922
     %t11 =l loadl %t0
     %t13 =l add %t11, 84
     %t12 =l loadl %t13
     %t14 =w call $builds__target_is_windows(l %t12)
     storew %t14, %t10
-    jmp @lbl53915
-@lbl53915
+    jmp @lbl53923
+@lbl53923
     %t15 =w loadw %t10
     storew %t15, %t16
-    jnz %t15, @lbl53916, @lbl53917
-@lbl53916
+    jnz %t15, @lbl53924, @lbl53925
+@lbl53924
     %t17 =l loadl %t0
     %t18 =l loadl %t17
     %t20 =l add %t18, 60
     %t19 =l loadub %t20
     %t21 =w ceqw %t19, 0
     storew %t21, %t16
-    jmp @lbl53917
-@lbl53917
+    jmp @lbl53925
+@lbl53925
     %t22 =w loadw %t16
     storew %t22, %t23
-    jnz %t22, @lbl53918, @lbl53919
-@lbl53918
+    jnz %t22, @lbl53926, @lbl53927
+@lbl53926
     %t24 =l loadl %t0
     %t25 =l loadl %t24
     %t27 =l add %t25, 16
     %t26 =l loadub %t27
     %t28 =w ceqw %t26, 0
     storew %t28, %t23
-    jmp @lbl53919
-@lbl53919
+    jmp @lbl53927
+@lbl53927
     %t29 =w loadw %t23
     storew %t29, %t30
-    jnz %t29, @lbl53920, @lbl53921
-@lbl53920
+    jnz %t29, @lbl53928, @lbl53929
+@lbl53928
     %t31 =l loadl %t0
     %t32 =l loadl %t31
     %t34 =l add %t32, 4
     %t33 =l loadub %t34
     %t35 =w ceqw %t33, 0
     storew %t35, %t30
-    jmp @lbl53921
-@lbl53921
+    jmp @lbl53929
+@lbl53929
     %t36 =w loadw %t30
     storew %t36, %t37
-    jnz %t36, @lbl53922, @lbl53923
-@lbl53922
+    jnz %t36, @lbl53930, @lbl53931
+@lbl53930
     %t38 =l loadl %t0
     %t39 =l loadl %t38
     %t41 =l add %t39, 8
     %t40 =l loadub %t41
     %t42 =w ceqw %t40, 0
     storew %t42, %t37
-    jmp @lbl53923
-@lbl53923
+    jmp @lbl53931
+@lbl53931
     %t43 =w loadw %t37
     storew %t43, %t44
-    jnz %t43, @lbl53924, @lbl53925
-@lbl53924
+    jnz %t43, @lbl53932, @lbl53933
+@lbl53932
     %t45 =l loadl %t0
     %t46 =l loadl %t45
     %t48 =l add %t46, 12
     %t47 =l loadub %t48
     %t49 =w ceqw %t47, 0
     storew %t49, %t44
-    jmp @lbl53925
-@lbl53925
+    jmp @lbl53933
+@lbl53933
     %t50 =w loadw %t44
     storew %t50, %t51
-    jnz %t50, @lbl53926, @lbl53927
-@lbl53926
+    jnz %t50, @lbl53934, @lbl53935
+@lbl53934
     %t52 =l loadl %t0
     %t53 =l loadl %t52
     %t55 =l add %t53, 68
     %t54 =l loadub %t55
     %t56 =w ceqw %t54, 0
     storew %t56, %t51
-    jmp @lbl53927
-@lbl53927
+    jmp @lbl53935
+@lbl53935
     %t57 =w loadw %t51
     storew %t57, %t58
-    jnz %t57, @lbl53928, @lbl53929
-@lbl53928
+    jnz %t57, @lbl53936, @lbl53937
+@lbl53936
     %t59 =l loadl %t0
     %t60 =l loadl %t59
     %t62 =l add %t60, 72
     %t61 =l loadub %t62
     %t63 =w ceqw %t61, 0
     storew %t63, %t58
-    jmp @lbl53929
-@lbl53929
+    jmp @lbl53937
+@lbl53937
     %t64 =w loadw %t58
-    jnz %t64, @lbl53909, @lbl53910
-@lbl53909
+    jnz %t64, @lbl53917, @lbl53918
+@lbl53917
     %t65 =l loadl %t0
     %t67 =l add %t65, 120
     %t66 =l loadl %t67
@@ -302760,24 +302835,24 @@ function w $compile__check_windows_link(l %ctx) {
     %t69 =l loadl %t70
     %t71 =w call $builds__xwin_available_in(l %t66, l %t69)
     %t72 =w ceqw %t71, 0
-    jnz %t72, @lbl53930, @lbl53931
-@lbl53930
-    %t73 =l copy $__str3453
+    jnz %t72, @lbl53938, @lbl53939
+@lbl53938
+    %t73 =l copy $__str3452
     %t74 =l loadl %t0
     %t76 =l add %t74, 92
     %t75 =l loadl %t76
     %t77 =l call $printf(l %t73, ..., l %t75)
-    %t78 =l copy $__str3454
+    %t78 =l copy $__str3453
     %t79 =l call $printf(l %t78, ..., l 0)
-    %t80 =l copy $__str3456
+    %t80 =l copy $__str3455
     %t81 =l call $printf(l %t80, ..., l 0)
-    %t82 =l copy $__str3463
+    %t82 =l copy $__str3462
     %t83 =l call $printf(l %t82, ..., l 0)
     %t84 =l copy 0
     ret %t84
-@lbl53931
-    jmp @lbl53910
-@lbl53910
+@lbl53939
+    jmp @lbl53918
+@lbl53918
     %t85 =l copy 1
     ret %t85
 }
@@ -302796,46 +302871,46 @@ function w $compile__run_semantics(l %ctx) {
     %t3 =l loadub %t2
     %t4 =w ceqw %t3, 0
     storew %t4, %t5
-    jnz %t4, @lbl53936, @lbl53937
-@lbl53936
+    jnz %t4, @lbl53944, @lbl53945
+@lbl53944
     %t6 =l loadl %t0
     %t7 =l loadl %t6
     %t9 =l add %t7, 4
     %t8 =l loadub %t9
     %t10 =w ceqw %t8, 0
     storew %t10, %t5
-    jmp @lbl53937
-@lbl53937
+    jmp @lbl53945
+@lbl53945
     %t11 =w loadw %t5
     storew %t11, %t12
-    jnz %t11, @lbl53938, @lbl53939
-@lbl53938
+    jnz %t11, @lbl53946, @lbl53947
+@lbl53946
     %t13 =l loadl %t0
     %t14 =l loadl %t13
     %t16 =l add %t14, 8
     %t15 =l loadub %t16
     %t17 =w ceqw %t15, 0
     storew %t17, %t12
-    jmp @lbl53939
-@lbl53939
+    jmp @lbl53947
+@lbl53947
     %t18 =w loadw %t12
     storew %t18, %t19
-    jnz %t18, @lbl53940, @lbl53941
-@lbl53940
+    jnz %t18, @lbl53948, @lbl53949
+@lbl53948
     %t20 =l loadl %t0
     %t21 =l loadl %t20
     %t23 =l add %t21, 16
     %t22 =l loadub %t23
     %t24 =w ceqw %t22, 0
     storew %t24, %t19
-    jmp @lbl53941
-@lbl53941
+    jmp @lbl53949
+@lbl53949
     %t25 =w loadw %t19
-    jnz %t25, @lbl53933, @lbl53934
-@lbl53933
+    jnz %t25, @lbl53941, @lbl53942
+@lbl53941
     %t26 =w call $std__stdio__puts(l $__sv598)
-    jmp @lbl53934
-@lbl53934
+    jmp @lbl53942
+@lbl53942
     %t27 =l copy 0
     %t28 =w copy %t27
     %t29 =w extub %t28
@@ -302843,14 +302918,14 @@ function w $compile__run_semantics(l %ctx) {
     %t31 =l loadl %t0
     %t32 =l loadl %t31
     %t33 =l loadub %t32
-    jnz %t33, @lbl53942, @lbl53943
-@lbl53942
+    jnz %t33, @lbl53950, @lbl53951
+@lbl53950
     %t34 =l copy 1
     %t35 =w copy %t34
     %t36 =w extub %t35
     storew %t36, %t30
-    jmp @lbl53943
-@lbl53943
+    jmp @lbl53951
+@lbl53951
     %t37 =l loadl %t0
     %t39 =l add %t37, 32
     %t38 =l loadl %t39
@@ -302869,29 +302944,29 @@ function w $compile__run_semantics(l %ctx) {
     %t53 =l copy %t52
     %t54 =l copy 0
     %t55 =w csgtl %t53, %t54
-    jnz %t55, @lbl53945, @lbl53946
-@lbl53945
+    jnz %t55, @lbl53953, @lbl53954
+@lbl53953
     storel 0, %t56
     %t57 =l call $sxqbe_list_len(l %t49)
-@lbl53948
+@lbl53956
     %t58 =l loadl %t56
     %t59 =w csltl %t58, %t57
-    jnz %t59, @lbl53949, @lbl53950
-@lbl53949
+    jnz %t59, @lbl53957, @lbl53958
+@lbl53957
     %t60 =l call $sxqbe_list_buf(l %t49)
     %t61 =l mul %t58, 8
     %t62 =l add %t60, %t61
     %t63 =l loadl %t62
     %t64 =l copy $__str1040
     %t65 =l call $printf(l %t64, ..., l %t63)
-@lbl53951
+@lbl53959
     %t66 =l add %t58, 1
     storel %t66, %t56
-    jmp @lbl53948
-@lbl53950
+    jmp @lbl53956
+@lbl53958
     %t67 =l copy 0
     ret %t67
-@lbl53946
+@lbl53954
     %t68 =l copy 1
     ret %t68
 }
@@ -302904,8 +302979,8 @@ function w $compile__generate_qbe(l %ctx) {
     %t2 =l loadl %t1
     %t4 =l add %t2, 24
     %t3 =l loadub %t4
-    jnz %t3, @lbl53952, @lbl53954
-@lbl53952
+    jnz %t3, @lbl53960, @lbl53962
+@lbl53960
     %t5 =l loadl %t0
     %t7 =l add %t5, 128
     %t6 =l loadl %t7
@@ -302931,8 +303006,8 @@ function w $compile__generate_qbe(l %ctx) {
     %t26 =l loadl %t0
     %t27 =l add %t26, 144
     storel %t24, %t27
-    jmp @lbl53953
-@lbl53954
+    jmp @lbl53961
+@lbl53962
     %t28 =l loadl %t0
     %t30 =l add %t28, 128
     %t29 =l loadl %t30
@@ -302958,8 +303033,8 @@ function w $compile__generate_qbe(l %ctx) {
     %t49 =l loadl %t0
     %t50 =l add %t49, 144
     storel %t47, %t50
-    jmp @lbl53953
-@lbl53953
+    jmp @lbl53961
+@lbl53961
     ret 0
 }
 
@@ -302978,103 +303053,103 @@ export function w $compile__run(l %args, l %argc, l %input_arg_i, l %input, w %r
     %t147 =l alloc4 1
     %t172 =l alloc4 1
     %t0 =w call $std__fs__is_directory_cstr(l %input)
-    jnz %t0, @lbl53955, @lbl53956
-@lbl53955
-    %t1 =l copy $__str3465
+    jnz %t0, @lbl53963, @lbl53964
+@lbl53963
+    %t1 =l copy $__str3464
     %t2 =l call $printf(l %t1, ..., l %input)
     %t3 =w call $std__stdio__puts(l $__sv599)
     %t4 =l copy 1
     %t5 =w copy %t4
     ret %t5
-@lbl53956
+@lbl53964
     %t6 =l call $std__fs__file_size_cstr(l %t7, l %input)
     %t8 =l loadl %t7
     %t9 =w cnel %t8, 0
-    jnz %t9, @lbl53958, @lbl53959
-@lbl53958
-    jmp @lbl53960
-@lbl53959
+    jnz %t9, @lbl53966, @lbl53967
+@lbl53966
+    jmp @lbl53968
+@lbl53967
     %t10 =l copy $__str1038
     %t11 =l call $printf(l %t10, ..., l %input)
     %t12 =l copy 1
     %t13 =w copy %t12
     ret %t13
-@lbl53960
+@lbl53968
     %t14 =l call $options__new()
     storel %t14, %t15
     %t16 =l loadl %t15
     %t17 =w call $options__parse(l %t16, l %args, l %argc, l %input_arg_i, l %input)
     %t18 =w ceqw %t17, 0
-    jnz %t18, @lbl53961, @lbl53962
-@lbl53961
+    jnz %t18, @lbl53969, @lbl53970
+@lbl53969
     %t19 =l copy 1
     %t20 =w copy %t19
     ret %t20
-@lbl53962
+@lbl53970
     %t21 =l loadl %t15
     %t22 =l call $context__new(l %t21, l %arena, l %frontend_arena, l %input, l %exe_path, w %run_mode)
     storel %t22, %t23
     %t24 =l loadl %t23
     %t25 =w call $compile__resolve_target(l %t24)
     %t26 =w ceqw %t25, 0
-    jnz %t26, @lbl53964, @lbl53965
-@lbl53964
+    jnz %t26, @lbl53972, @lbl53973
+@lbl53972
     %t27 =l copy 1
     %t28 =w copy %t27
     ret %t28
-@lbl53965
+@lbl53973
     %t29 =l loadl %t23
     %t30 =w call $compile__resolve_runtime(l %t29)
     %t31 =w ceqw %t30, 0
-    jnz %t31, @lbl53967, @lbl53968
-@lbl53967
+    jnz %t31, @lbl53975, @lbl53976
+@lbl53975
     %t32 =l copy 1
     %t33 =w copy %t32
     ret %t33
-@lbl53968
+@lbl53976
     %t34 =l loadl %t23
     %t35 =w call $compile__resolve_xwin(l %t34)
     %t36 =w ceqw %t35, 0
-    jnz %t36, @lbl53970, @lbl53971
-@lbl53970
+    jnz %t36, @lbl53978, @lbl53979
+@lbl53978
     %t37 =l copy 1
     %t38 =w copy %t37
     ret %t38
-@lbl53971
+@lbl53979
     %t39 =l loadl %t23
     %t40 =w call $compile__validate_flags(l %t39)
     %t41 =w ceqw %t40, 0
-    jnz %t41, @lbl53973, @lbl53974
-@lbl53973
+    jnz %t41, @lbl53981, @lbl53982
+@lbl53981
     %t42 =l copy 1
     %t43 =w copy %t42
     ret %t43
-@lbl53974
+@lbl53982
     %t44 =l loadl %t23
     %t45 =w call $compile__prepare_module(l %t44)
     %t46 =w ceqw %t45, 0
-    jnz %t46, @lbl53976, @lbl53977
-@lbl53976
+    jnz %t46, @lbl53984, @lbl53985
+@lbl53984
     %t47 =l copy 1
     %t48 =w copy %t47
     ret %t48
-@lbl53977
+@lbl53985
     %t49 =l loadl %t23
     %t50 =w call $compile__apply_hosted_fallback(l %t49)
     %t51 =l loadl %t23
     %t52 =w call $compile__check_windows_link(l %t51)
     %t53 =w ceqw %t52, 0
-    jnz %t53, @lbl53979, @lbl53980
-@lbl53979
+    jnz %t53, @lbl53987, @lbl53988
+@lbl53987
     %t54 =l copy 1
     %t55 =w copy %t54
     ret %t55
-@lbl53980
+@lbl53988
     %t56 =l loadl %t15
     %t58 =l add %t56, 72
     %t57 =l loadub %t58
-    jnz %t57, @lbl53982, @lbl53983
-@lbl53982
+    jnz %t57, @lbl53990, @lbl53991
+@lbl53990
     %t59 =l loadl %t23
     %t61 =l add %t59, 128
     %t60 =l loadl %t61
@@ -303083,71 +303158,71 @@ export function w $compile__run(l %args, l %argc, l %input_arg_i, l %input, w %r
     %t64 =l copy 0
     %t65 =w copy %t64
     ret %t65
-@lbl53983
+@lbl53991
     %t66 =l loadl %t23
     %t67 =w call $compile__run_semantics(l %t66)
     %t68 =w ceqw %t67, 0
-    jnz %t68, @lbl53985, @lbl53986
-@lbl53985
+    jnz %t68, @lbl53993, @lbl53994
+@lbl53993
     %t69 =l copy 1
     %t70 =w copy %t69
     ret %t70
-@lbl53986
+@lbl53994
     %t71 =l loadl %t15
     %t73 =l add %t71, 68
     %t72 =l loadub %t73
-    jnz %t72, @lbl53988, @lbl53989
-@lbl53988
+    jnz %t72, @lbl53996, @lbl53997
+@lbl53996
     %t74 =w call $std__stdio__puts(l $__sv600)
     %t75 =l copy 0
     %t76 =w copy %t75
     ret %t76
-@lbl53989
+@lbl53997
     %t77 =l loadl %t23
     %t78 =l loadl %t77
     %t79 =l loadub %t78
     %t80 =w ceqw %t79, 0
     storew %t80, %t81
-    jnz %t80, @lbl53994, @lbl53995
-@lbl53994
+    jnz %t80, @lbl54002, @lbl54003
+@lbl54002
     %t82 =l loadl %t23
     %t83 =l loadl %t82
     %t85 =l add %t83, 4
     %t84 =l loadub %t85
     %t86 =w ceqw %t84, 0
     storew %t86, %t81
-    jmp @lbl53995
-@lbl53995
+    jmp @lbl54003
+@lbl54003
     %t87 =w loadw %t81
     storew %t87, %t88
-    jnz %t87, @lbl53996, @lbl53997
-@lbl53996
+    jnz %t87, @lbl54004, @lbl54005
+@lbl54004
     %t89 =l loadl %t23
     %t90 =l loadl %t89
     %t92 =l add %t90, 8
     %t91 =l loadub %t92
     %t93 =w ceqw %t91, 0
     storew %t93, %t88
-    jmp @lbl53997
-@lbl53997
+    jmp @lbl54005
+@lbl54005
     %t94 =w loadw %t88
     storew %t94, %t95
-    jnz %t94, @lbl53998, @lbl53999
-@lbl53998
+    jnz %t94, @lbl54006, @lbl54007
+@lbl54006
     %t96 =l loadl %t23
     %t97 =l loadl %t96
     %t99 =l add %t97, 16
     %t98 =l loadub %t99
     %t100 =w ceqw %t98, 0
     storew %t100, %t95
-    jmp @lbl53999
-@lbl53999
+    jmp @lbl54007
+@lbl54007
     %t101 =w loadw %t95
-    jnz %t101, @lbl53991, @lbl53992
-@lbl53991
+    jnz %t101, @lbl53999, @lbl54000
+@lbl53999
     %t102 =w call $std__stdio__puts(l $__sv601)
-    jmp @lbl53992
-@lbl53992
+    jmp @lbl54000
+@lbl54000
     %t104 =l loadl %t15
     %t105 =l add %t104, 88
     %t106 =l loadl %t105
@@ -303156,131 +303231,131 @@ export function w $compile__run(l %args, l %argc, l %input_arg_i, l %input, w %r
     %t109 =l copy 0
     %t110 =w csgtl %t108, %t109
     storew %t110, %t111
-    jnz %t110, @lbl54003, @lbl54004
-@lbl54003
+    jnz %t110, @lbl54011, @lbl54012
+@lbl54011
     %t112 =l loadl %t15
     %t114 =l add %t112, 76
     %t113 =l loadub %t114
     %t115 =w ceqw %t113, 0
     storew %t115, %t111
-    jmp @lbl54004
-@lbl54004
+    jmp @lbl54012
+@lbl54012
     %t116 =w loadw %t111
     storew %t116, %t117
-    jnz %t116, @lbl54005, @lbl54006
-@lbl54005
+    jnz %t116, @lbl54013, @lbl54014
+@lbl54013
     %t118 =l loadl %t15
     %t120 =l add %t118, 16
     %t119 =l loadub %t120
     %t121 =w ceqw %t119, 0
     storew %t121, %t117
-    jmp @lbl54006
-@lbl54006
+    jmp @lbl54014
+@lbl54014
     %t122 =w loadw %t117
-    jnz %t122, @lbl54000, @lbl54001
-@lbl54000
+    jnz %t122, @lbl54008, @lbl54009
+@lbl54008
     %t123 =w call $std__stdio__puts(l $__sv602)
     %t124 =l copy 1
     %t125 =w copy %t124
     ret %t125
-@lbl54001
+@lbl54009
     %t126 =l loadl %t15
     %t128 =l add %t126, 76
     %t127 =l loadub %t128
     storew %t127, %t129
-    jnz %t127, @lbl54011, @lbl54010
-@lbl54010
+    jnz %t127, @lbl54019, @lbl54018
+@lbl54018
     %t130 =l loadl %t15
     %t132 =l add %t130, 16
     %t131 =l loadub %t132
     storew %t131, %t129
-    jmp @lbl54011
-@lbl54011
+    jmp @lbl54019
+@lbl54019
     %t133 =w loadw %t129
-    jnz %t133, @lbl54007, @lbl54008
-@lbl54007
+    jnz %t133, @lbl54015, @lbl54016
+@lbl54015
     %t134 =l loadl %t23
     %t135 =w call $alt__run(l %t134)
     ret %t135
-@lbl54008
+@lbl54016
     %t136 =l loadl %t23
     %t137 =w call $compile__generate_qbe(l %t136)
     %t138 =l loadl %t15
     %t139 =l loadub %t138
     %t140 =w ceqw %t139, 0
     storew %t140, %t141
-    jnz %t140, @lbl54015, @lbl54016
-@lbl54015
+    jnz %t140, @lbl54023, @lbl54024
+@lbl54023
     %t142 =l loadl %t15
     %t144 =l add %t142, 4
     %t143 =l loadub %t144
     %t145 =w ceqw %t143, 0
     storew %t145, %t141
-    jmp @lbl54016
-@lbl54016
+    jmp @lbl54024
+@lbl54024
     %t146 =w loadw %t141
     storew %t146, %t147
-    jnz %t146, @lbl54017, @lbl54018
-@lbl54017
+    jnz %t146, @lbl54025, @lbl54026
+@lbl54025
     %t148 =l loadl %t15
     %t150 =l add %t148, 8
     %t149 =l loadub %t150
     %t151 =w ceqw %t149, 0
     storew %t151, %t147
-    jmp @lbl54018
-@lbl54018
+    jmp @lbl54026
+@lbl54026
     %t152 =w loadw %t147
-    jnz %t152, @lbl54012, @lbl54013
-@lbl54012
+    jnz %t152, @lbl54020, @lbl54021
+@lbl54020
     %t153 =w call $std__stdio__puts(l $__sv603)
-    jmp @lbl54013
-@lbl54013
+    jmp @lbl54021
+@lbl54021
     %t154 =l loadl %t15
     %t156 =l add %t154, 4
     %t155 =l loadub %t156
-    jnz %t155, @lbl54019, @lbl54020
-@lbl54019
+    jnz %t155, @lbl54027, @lbl54028
+@lbl54027
     %t157 =l loadl %t23
     %t158 =w call $qbe__emit_ir(l %t157)
     ret %t158
-@lbl54020
+@lbl54028
     %t159 =l loadl %t23
     %t160 =w call $qbe__assemble(l %t159)
     %t161 =w ceqw %t160, 0
-    jnz %t161, @lbl54022, @lbl54023
-@lbl54022
+    jnz %t161, @lbl54030, @lbl54031
+@lbl54030
     %t162 =l copy 1
     %t163 =w copy %t162
     ret %t163
-@lbl54023
+@lbl54031
     %t164 =l loadl %t15
     %t166 =l add %t164, 12
     %t165 =l loadub %t166
-    jnz %t165, @lbl54025, @lbl54026
-@lbl54025
+    jnz %t165, @lbl54033, @lbl54034
+@lbl54033
     %t167 =l loadl %t23
     %t168 =w call $qbe__emit_asm(l %t167)
     ret %t168
-@lbl54026
+@lbl54034
     %t169 =l loadl %t23
     %t171 =l add %t169, 104
     %t170 =l loadub %t171
     storew %t170, %t172
-    jnz %t170, @lbl54032, @lbl54031
-@lbl54031
+    jnz %t170, @lbl54040, @lbl54039
+@lbl54039
     %t173 =l loadl %t23
     %t175 =l add %t173, 116
     %t174 =l loadub %t175
     storew %t174, %t172
-    jmp @lbl54032
-@lbl54032
+    jmp @lbl54040
+@lbl54040
     %t176 =w loadw %t172
-    jnz %t176, @lbl54028, @lbl54029
-@lbl54028
+    jnz %t176, @lbl54036, @lbl54037
+@lbl54036
     %t177 =l loadl %t23
     %t178 =w call $cross__run(l %t177)
     ret %t178
-@lbl54029
+@lbl54037
     %t179 =l loadl %t23
     %t180 =w call $native__run(l %t179)
     ret %t180
@@ -303313,25 +303388,25 @@ export function w $cli__run(l %args, l %argc, l %exe_path, l %arena, l %frontend
     storew %t2, %t3
     %t4 =l copy 2
     %t5 =w csltl %argc, %t4
-    jnz %t5, @lbl54033, @lbl54034
-@lbl54033
+    jnz %t5, @lbl54041, @lbl54042
+@lbl54041
     %t6 =w call $std__stdio__puts(l $__sv604)
     %t7 =w call $meta__print_usage()
     %t8 =l copy 1
     %t9 =w copy %t8
     ret %t9
-@lbl54034
+@lbl54042
     %t10 =l copy 1
     storel %t10, %t11
-    jmp @lbl54036
-@lbl54036
-    jmp @lbl54037
-@lbl54037
+    jmp @lbl54044
+@lbl54044
+    jmp @lbl54045
+@lbl54045
     storel 0, %t13
     %t14 =l loadl %t11
     %t15 =w call $sxqbe_list_valid(l %args, l %t14)
-    jnz %t15, @lbl54040, @lbl54041
-@lbl54040
+    jnz %t15, @lbl54048, @lbl54049
+@lbl54048
     %t16 =l call $sxqbe_list_buf(l %args)
     %t17 =l mul %t14, 8
     %t18 =l add %t16, %t17
@@ -303339,14 +303414,14 @@ export function w $cli__run(l %args, l %argc, l %exe_path, l %arena, l %frontend
     %t20 =l add %t13, 8
     storel %t19, %t20
     storel 1, %t13
-    jmp @lbl54042
-@lbl54041
-    jmp @lbl54042
-@lbl54042
+    jmp @lbl54050
+@lbl54049
+    jmp @lbl54050
+@lbl54050
     %t21 =l loadl %t13
     %t22 =w cnel %t21, 0
-    jnz %t22, @lbl54043, @lbl54044
-@lbl54043
+    jnz %t22, @lbl54051, @lbl54052
+@lbl54051
     %t24 =l add %t13, 8
     %t23 =l loadl %t24
     %t25 =l copy %t23
@@ -303354,15 +303429,15 @@ export function w $cli__run(l %args, l %argc, l %exe_path, l %arena, l %frontend
     %t27 =l call $cstr__cmp(l %t25, l %t26)
     %t28 =l copy 0
     %t29 =w ceql %t27, %t28
-    jnz %t29, @lbl54046, @lbl54048
-@lbl54046
+    jnz %t29, @lbl54054, @lbl54056
+@lbl54054
     %t30 =l loadl %t11
     %t31 =l copy 1
     %t32 =l add %t30, %t31
     storel 0, %t34
     %t35 =w call $sxqbe_list_valid(l %args, l %t32)
-    jnz %t35, @lbl54051, @lbl54052
-@lbl54051
+    jnz %t35, @lbl54059, @lbl54060
+@lbl54059
     %t36 =l call $sxqbe_list_buf(l %args)
     %t37 =l mul %t32, 8
     %t38 =l add %t36, %t37
@@ -303370,44 +303445,44 @@ export function w $cli__run(l %args, l %argc, l %exe_path, l %arena, l %frontend
     %t40 =l add %t34, 8
     storel %t39, %t40
     storel 1, %t34
-    jmp @lbl54053
-@lbl54052
-    jmp @lbl54053
-@lbl54053
+    jmp @lbl54061
+@lbl54060
+    jmp @lbl54061
+@lbl54061
     %t41 =l loadl %t34
     %t42 =w cnel %t41, 0
-    jnz %t42, @lbl54054, @lbl54055
-@lbl54054
+    jnz %t42, @lbl54062, @lbl54063
+@lbl54062
     %t44 =l add %t34, 8
     %t43 =l loadl %t44
     %t45 =l copy %t43
     %t46 =l call $std__str__from_cstr(l %t45)
     %t47 =w call $defines__add_spec(l %t46)
     %t48 =w ceqw %t47, 0
-    jnz %t48, @lbl54057, @lbl54058
-@lbl54057
+    jnz %t48, @lbl54065, @lbl54066
+@lbl54065
     %t49 =l copy $__str3324
     %t50 =l call $printf(l %t49, ..., l %t45)
     %t51 =l copy 1
     %t52 =w copy %t51
     ret %t52
-@lbl54058
+@lbl54066
     %t53 =l copy 1
     %t54 =l add %t32, %t53
     storel %t54, %t11
-    jmp @lbl54056
-@lbl54055
+    jmp @lbl54064
+@lbl54063
     %t55 =w call $std__stdio__puts(l $__sv567)
     %t56 =l copy 1
     %t57 =w copy %t56
     ret %t57
+@lbl54064
+    jmp @lbl54055
 @lbl54056
-    jmp @lbl54047
-@lbl54048
     %t58 =l copy $__str340
     %t59 =w call $cstr__starts_with(l %t25, l %t58)
-    jnz %t59, @lbl54049, @lbl54050
-@lbl54049
+    jnz %t59, @lbl54057, @lbl54058
+@lbl54057
     %t60 =l copy 3
     %t61 =l call $cstr__len(l %t25)
     %t62 =l copy 3
@@ -303416,34 +303491,34 @@ export function w $cli__run(l %args, l %argc, l %exe_path, l %arena, l %frontend
     %t65 =l call $std__str__from_cstr(l %t64)
     %t66 =w call $defines__add_spec(l %t65)
     %t67 =w ceqw %t66, 0
-    jnz %t67, @lbl54060, @lbl54061
-@lbl54060
+    jnz %t67, @lbl54068, @lbl54069
+@lbl54068
     %t68 =l copy $__str3326
     %t69 =l call $printf(l %t68, ..., l %t25)
     %t70 =l copy 1
     %t71 =w copy %t70
     ret %t71
-@lbl54061
+@lbl54069
     %t72 =l loadl %t11
     %t73 =l add %t72, 1
     storel %t73, %t11
+    jmp @lbl54055
+@lbl54058
     jmp @lbl54047
-@lbl54050
-    jmp @lbl54039
+@lbl54055
+    jmp @lbl54053
+@lbl54052
+    jmp @lbl54047
+@lbl54053
+    jmp @lbl54046
+@lbl54046
+    jmp @lbl54044
 @lbl54047
-    jmp @lbl54045
-@lbl54044
-    jmp @lbl54039
-@lbl54045
-    jmp @lbl54038
-@lbl54038
-    jmp @lbl54036
-@lbl54039
     storel 0, %t75
     %t76 =l loadl %t11
     %t77 =w call $sxqbe_list_valid(l %args, l %t76)
-    jnz %t77, @lbl54063, @lbl54064
-@lbl54063
+    jnz %t77, @lbl54071, @lbl54072
+@lbl54071
     %t78 =l call $sxqbe_list_buf(l %args)
     %t79 =l mul %t76, 8
     %t80 =l add %t78, %t79
@@ -303451,34 +303526,34 @@ export function w $cli__run(l %args, l %argc, l %exe_path, l %arena, l %frontend
     %t82 =l add %t75, 8
     storel %t81, %t82
     storel 1, %t75
-    jmp @lbl54065
-@lbl54064
-    jmp @lbl54065
-@lbl54065
+    jmp @lbl54073
+@lbl54072
+    jmp @lbl54073
+@lbl54073
     %t83 =l copy $__str55
     storel %t83, %t84
     %t85 =l loadl %t75
     %t86 =w cnel %t85, 0
-    jnz %t86, @lbl54066, @lbl54067
-@lbl54066
+    jnz %t86, @lbl54074, @lbl54075
+@lbl54074
     %t88 =l add %t75, 8
     %t87 =l loadl %t88
     %t89 =l copy %t87
     storel %t89, %t84
-    jmp @lbl54068
-@lbl54067
+    jmp @lbl54076
+@lbl54075
     %t90 =w call $std__stdio__puts(l $__sv605)
     %t91 =l copy 1
     %t92 =w copy %t91
     ret %t92
-@lbl54068
+@lbl54076
     %t93 =l loadl %t84
     %t94 =l copy $__str174
     %t95 =l call $cstr__cmp(l %t93, l %t94)
     %t96 =l copy 0
     %t97 =w ceql %t95, %t96
-    jnz %t97, @lbl54069, @lbl54070
-@lbl54069
+    jnz %t97, @lbl54077, @lbl54078
+@lbl54077
     %t98 =l copy 1
     %t99 =w copy %t98
     %t100 =w extub %t99
@@ -303489,8 +303564,8 @@ export function w $cli__run(l %args, l %argc, l %exe_path, l %arena, l %frontend
     storel 0, %t104
     %t105 =l loadl %t11
     %t106 =w call $sxqbe_list_valid(l %args, l %t105)
-    jnz %t106, @lbl54072, @lbl54073
-@lbl54072
+    jnz %t106, @lbl54080, @lbl54081
+@lbl54080
     %t107 =l call $sxqbe_list_buf(l %args)
     %t108 =l mul %t105, 8
     %t109 =l add %t107, %t108
@@ -303498,101 +303573,101 @@ export function w $cli__run(l %args, l %argc, l %exe_path, l %arena, l %frontend
     %t111 =l add %t104, 8
     storel %t110, %t111
     storel 1, %t104
-    jmp @lbl54074
-@lbl54073
-    jmp @lbl54074
-@lbl54074
+    jmp @lbl54082
+@lbl54081
+    jmp @lbl54082
+@lbl54082
     %t112 =l loadl %t104
     %t113 =w cnel %t112, 0
-    jnz %t113, @lbl54075, @lbl54076
-@lbl54075
+    jnz %t113, @lbl54083, @lbl54084
+@lbl54083
     %t115 =l add %t104, 8
     %t114 =l loadl %t115
     %t116 =l copy %t114
     storel %t116, %t84
-    jmp @lbl54077
-@lbl54076
+    jmp @lbl54085
+@lbl54084
     %t117 =w call $std__stdio__puts(l $__sv606)
     %t118 =w call $meta__print_usage()
     %t119 =l copy 1
     %t120 =w copy %t119
     ret %t120
-@lbl54077
-    jmp @lbl54070
-@lbl54070
+@lbl54085
+    jmp @lbl54078
+@lbl54078
     %t121 =l loadl %t84
     %t122 =l copy $__str300
     %t123 =l call $cstr__cmp(l %t121, l %t122)
     %t124 =l copy 0
     %t125 =w ceql %t123, %t124
-    jnz %t125, @lbl54078, @lbl54079
-@lbl54078
+    jnz %t125, @lbl54086, @lbl54087
+@lbl54086
     %t126 =l loadl %t11
     %t127 =w call $tools__test_all(l %args, l %t126, l %exe_path)
     ret %t127
-@lbl54079
+@lbl54087
     %t128 =l loadl %t84
     %t129 =l copy $__str360
     %t130 =l call $cstr__cmp(l %t128, l %t129)
     %t131 =l copy 0
     %t132 =w ceql %t130, %t131
     storew %t132, %t133
-    jnz %t132, @lbl54085, @lbl54084
-@lbl54084
+    jnz %t132, @lbl54093, @lbl54092
+@lbl54092
     %t134 =l loadl %t84
     %t135 =l copy $__str361
     %t136 =l call $cstr__cmp(l %t134, l %t135)
     %t137 =l copy 0
     %t138 =w ceql %t136, %t137
     storew %t138, %t133
-    jmp @lbl54085
-@lbl54085
+    jmp @lbl54093
+@lbl54093
     %t139 =w loadw %t133
-    jnz %t139, @lbl54081, @lbl54082
-@lbl54081
+    jnz %t139, @lbl54089, @lbl54090
+@lbl54089
     %t140 =w call $meta__print_usage()
     %t141 =l copy 0
     %t142 =w copy %t141
     ret %t142
-@lbl54082
+@lbl54090
     %t143 =l loadl %t84
     %t144 =l copy $__str355
     %t145 =l call $cstr__cmp(l %t143, l %t144)
     %t146 =l copy 0
     %t147 =w ceql %t145, %t146
     storew %t147, %t148
-    jnz %t147, @lbl54090, @lbl54089
-@lbl54089
+    jnz %t147, @lbl54098, @lbl54097
+@lbl54097
     %t149 =l loadl %t84
     %t150 =l copy $__str356
     %t151 =l call $cstr__cmp(l %t149, l %t150)
     %t152 =l copy 0
     %t153 =w ceql %t151, %t152
     storew %t153, %t148
-    jmp @lbl54090
-@lbl54090
+    jmp @lbl54098
+@lbl54098
     %t154 =w loadw %t148
-    jnz %t154, @lbl54086, @lbl54087
-@lbl54086
+    jnz %t154, @lbl54094, @lbl54095
+@lbl54094
     %t155 =w call $meta__print_version()
     %t156 =l copy 0
     %t157 =w copy %t156
     ret %t157
-@lbl54087
+@lbl54095
     %t158 =l loadl %t84
     %t159 =l copy $__str241
     %t160 =l call $cstr__cmp(l %t158, l %t159)
     %t161 =l copy 0
     %t162 =w ceql %t160, %t161
-    jnz %t162, @lbl54091, @lbl54092
-@lbl54091
+    jnz %t162, @lbl54099, @lbl54100
+@lbl54099
     %t163 =l copy $__str55
     storel %t163, %t164
     storel 0, %t166
     %t167 =l copy 2
     %t168 =w call $sxqbe_list_valid(l %args, l %t167)
-    jnz %t168, @lbl54094, @lbl54095
-@lbl54094
+    jnz %t168, @lbl54102, @lbl54103
+@lbl54102
     %t169 =l call $sxqbe_list_buf(l %args)
     %t170 =l mul %t167, 8
     %t171 =l add %t169, %t170
@@ -303600,61 +303675,61 @@ export function w $cli__run(l %args, l %argc, l %exe_path, l %arena, l %frontend
     %t173 =l add %t166, 8
     storel %t172, %t173
     storel 1, %t166
-    jmp @lbl54096
-@lbl54095
-    jmp @lbl54096
-@lbl54096
+    jmp @lbl54104
+@lbl54103
+    jmp @lbl54104
+@lbl54104
     %t174 =l loadl %t166
     %t175 =w cnel %t174, 0
-    jnz %t175, @lbl54097, @lbl54098
-@lbl54097
+    jnz %t175, @lbl54105, @lbl54106
+@lbl54105
     %t177 =l add %t166, 8
     %t176 =l loadl %t177
     %t178 =l copy %t176
     storel %t178, %t164
-    jmp @lbl54099
-@lbl54098
-    jmp @lbl54099
-@lbl54099
+    jmp @lbl54107
+@lbl54106
+    jmp @lbl54107
+@lbl54107
     %t179 =l loadl %t164
     %t180 =l call $std__str__from_cstr(l %t179)
     %t181 =w call $meta__print_help(l %t180)
     ret %t181
-@lbl54092
+@lbl54100
     %t182 =l loadl %t84
     %t183 =l copy $__str219
     %t184 =l call $cstr__cmp(l %t182, l %t183)
     %t185 =l copy 0
     %t186 =w ceql %t184, %t185
-    jnz %t186, @lbl54100, @lbl54101
-@lbl54100
+    jnz %t186, @lbl54108, @lbl54109
+@lbl54108
     %t187 =w call $commands__cmd_doctor()
     ret %t187
-@lbl54101
+@lbl54109
     %t188 =l loadl %t84
     %t189 =l copy $__str211
     %t190 =l call $cstr__cmp(l %t188, l %t189)
     %t191 =l copy 0
     %t192 =w ceql %t190, %t191
-    jnz %t192, @lbl54103, @lbl54104
-@lbl54103
+    jnz %t192, @lbl54111, @lbl54112
+@lbl54111
     %t193 =w call $commands__cmd_ref()
     ret %t193
-@lbl54104
+@lbl54112
     %t194 =l loadl %t84
     %t195 =l copy $__str129
     %t196 =l call $cstr__cmp(l %t194, l %t195)
     %t197 =l copy 0
     %t198 =w ceql %t196, %t197
-    jnz %t198, @lbl54106, @lbl54107
-@lbl54106
+    jnz %t198, @lbl54114, @lbl54115
+@lbl54114
     %t199 =l copy $__str55
     storel %t199, %t200
     storel 0, %t202
     %t203 =l copy 2
     %t204 =w call $sxqbe_list_valid(l %args, l %t203)
-    jnz %t204, @lbl54109, @lbl54110
-@lbl54109
+    jnz %t204, @lbl54117, @lbl54118
+@lbl54117
     %t205 =l call $sxqbe_list_buf(l %args)
     %t206 =l mul %t203, 8
     %t207 =l add %t205, %t206
@@ -303662,60 +303737,60 @@ export function w $cli__run(l %args, l %argc, l %exe_path, l %arena, l %frontend
     %t209 =l add %t202, 8
     storel %t208, %t209
     storel 1, %t202
-    jmp @lbl54111
-@lbl54110
-    jmp @lbl54111
-@lbl54111
+    jmp @lbl54119
+@lbl54118
+    jmp @lbl54119
+@lbl54119
     %t210 =l loadl %t202
     %t211 =w cnel %t210, 0
-    jnz %t211, @lbl54112, @lbl54113
-@lbl54112
+    jnz %t211, @lbl54120, @lbl54121
+@lbl54120
     %t213 =l add %t202, 8
     %t212 =l loadl %t213
     %t214 =l copy %t212
     storel %t214, %t200
-    jmp @lbl54114
-@lbl54113
-    jmp @lbl54114
-@lbl54114
+    jmp @lbl54122
+@lbl54121
+    jmp @lbl54122
+@lbl54122
     %t215 =l loadl %t200
     %t216 =w call $commands__cmd_init(l %t215)
     ret %t216
-@lbl54107
+@lbl54115
     %t217 =l loadl %t84
     %t218 =l copy $__str134
     %t219 =l call $cstr__cmp(l %t217, l %t218)
     %t220 =l copy 0
     %t221 =w ceql %t219, %t220
-    jnz %t221, @lbl54115, @lbl54116
-@lbl54115
+    jnz %t221, @lbl54123, @lbl54124
+@lbl54123
     %t222 =w call $tools__fmt(l %args)
     ret %t222
-@lbl54116
+@lbl54124
     %t223 =l loadl %t84
     %t224 =l copy $__str144
     %t225 =l call $cstr__cmp(l %t223, l %t224)
     %t226 =l copy 0
     %t227 =w ceql %t225, %t226
-    jnz %t227, @lbl54118, @lbl54119
-@lbl54118
+    jnz %t227, @lbl54126, @lbl54127
+@lbl54126
     %t228 =w call $tools__critic(l %args)
     ret %t228
-@lbl54119
+@lbl54127
     %t229 =l loadl %t84
     %t230 =l copy $__str150
     %t231 =l call $cstr__cmp(l %t229, l %t230)
     %t232 =l copy 0
     %t233 =w ceql %t231, %t232
-    jnz %t233, @lbl54121, @lbl54122
-@lbl54121
+    jnz %t233, @lbl54129, @lbl54130
+@lbl54129
     %t234 =l copy $__str1580
     storel %t234, %t235
     storel 0, %t237
     %t238 =l copy 2
     %t239 =w call $sxqbe_list_valid(l %args, l %t238)
-    jnz %t239, @lbl54124, @lbl54125
-@lbl54124
+    jnz %t239, @lbl54132, @lbl54133
+@lbl54132
     %t240 =l call $sxqbe_list_buf(l %args)
     %t241 =l mul %t238, 8
     %t242 =l add %t240, %t241
@@ -303723,58 +303798,58 @@ export function w $cli__run(l %args, l %argc, l %exe_path, l %arena, l %frontend
     %t244 =l add %t237, 8
     storel %t243, %t244
     storel 1, %t237
-    jmp @lbl54126
-@lbl54125
-    jmp @lbl54126
-@lbl54126
+    jmp @lbl54134
+@lbl54133
+    jmp @lbl54134
+@lbl54134
     %t245 =l loadl %t237
     %t246 =w cnel %t245, 0
-    jnz %t246, @lbl54127, @lbl54128
-@lbl54127
+    jnz %t246, @lbl54135, @lbl54136
+@lbl54135
     %t248 =l add %t237, 8
     %t247 =l loadl %t248
     %t249 =l copy %t247
     storel %t249, %t235
-    jmp @lbl54129
-@lbl54128
-    jmp @lbl54129
-@lbl54129
+    jmp @lbl54137
+@lbl54136
+    jmp @lbl54137
+@lbl54137
     %t250 =l loadl %t235
     %t251 =w call $commands__cmd_build(l %t250, l %exe_path)
     ret %t251
-@lbl54122
+@lbl54130
     %t252 =l loadl %t84
     %t253 =l copy $__str157
     %t254 =l call $cstr__cmp(l %t252, l %t253)
     %t255 =l copy 0
     %t256 =w ceql %t254, %t255
-    jnz %t256, @lbl54130, @lbl54131
-@lbl54130
+    jnz %t256, @lbl54138, @lbl54139
+@lbl54138
     %t257 =w call $tools__install(l %args)
     ret %t257
-@lbl54131
+@lbl54139
     %t258 =l loadl %t84
     %t259 =l copy $__str178
     %t260 =l call $cstr__cmp(l %t258, l %t259)
     %t261 =l copy 0
     %t262 =w ceql %t260, %t261
-    jnz %t262, @lbl54133, @lbl54134
-@lbl54133
+    jnz %t262, @lbl54141, @lbl54142
+@lbl54141
     %t263 =w call $tools__doc(l %args)
     ret %t263
-@lbl54134
+@lbl54142
     %t264 =l loadl %t84
     %t265 =l copy $__str190
     %t266 =l call $cstr__cmp(l %t264, l %t265)
     %t267 =l copy 0
     %t268 =w ceql %t266, %t267
-    jnz %t268, @lbl54136, @lbl54137
-@lbl54136
+    jnz %t268, @lbl54144, @lbl54145
+@lbl54144
     storel 0, %t270
     %t271 =l copy 2
     %t272 =w call $sxqbe_list_valid(l %args, l %t271)
-    jnz %t272, @lbl54139, @lbl54140
-@lbl54139
+    jnz %t272, @lbl54147, @lbl54148
+@lbl54147
     %t273 =l call $sxqbe_list_buf(l %args)
     %t274 =l mul %t271, 8
     %t275 =l add %t273, %t274
@@ -303782,39 +303857,39 @@ export function w $cli__run(l %args, l %argc, l %exe_path, l %arena, l %frontend
     %t277 =l add %t270, 8
     storel %t276, %t277
     storel 1, %t270
-    jmp @lbl54141
-@lbl54140
-    jmp @lbl54141
-@lbl54141
+    jmp @lbl54149
+@lbl54148
+    jmp @lbl54149
+@lbl54149
     %t278 =l loadl %t270
     %t279 =w cnel %t278, 0
-    jnz %t279, @lbl54142, @lbl54143
-@lbl54142
+    jnz %t279, @lbl54150, @lbl54151
+@lbl54150
     %t281 =l add %t270, 8
     %t280 =l loadl %t281
     %t282 =l copy %t280
     %t283 =w call $commands__cmd_add(l %t282)
     ret %t283
-@lbl54143
+@lbl54151
     %t284 =w call $std__stdio__puts(l $__sv607)
     %t285 =l copy 1
     %t286 =w copy %t285
     ret %t286
-@lbl54144
-    jmp @lbl54137
-@lbl54137
+@lbl54152
+    jmp @lbl54145
+@lbl54145
     %t287 =l loadl %t84
     %t288 =l copy $__str194
     %t289 =l call $cstr__cmp(l %t287, l %t288)
     %t290 =l copy 0
     %t291 =w ceql %t289, %t290
-    jnz %t291, @lbl54145, @lbl54146
-@lbl54145
+    jnz %t291, @lbl54153, @lbl54154
+@lbl54153
     storel 0, %t293
     %t294 =l copy 2
     %t295 =w call $sxqbe_list_valid(l %args, l %t294)
-    jnz %t295, @lbl54148, @lbl54149
-@lbl54148
+    jnz %t295, @lbl54156, @lbl54157
+@lbl54156
     %t296 =l call $sxqbe_list_buf(l %args)
     %t297 =l mul %t294, 8
     %t298 =l add %t296, %t297
@@ -303822,41 +303897,41 @@ export function w $cli__run(l %args, l %argc, l %exe_path, l %arena, l %frontend
     %t300 =l add %t293, 8
     storel %t299, %t300
     storel 1, %t293
-    jmp @lbl54150
-@lbl54149
-    jmp @lbl54150
-@lbl54150
+    jmp @lbl54158
+@lbl54157
+    jmp @lbl54158
+@lbl54158
     %t301 =l loadl %t293
     %t302 =w cnel %t301, 0
-    jnz %t302, @lbl54151, @lbl54152
-@lbl54151
+    jnz %t302, @lbl54159, @lbl54160
+@lbl54159
     %t304 =l add %t293, 8
     %t303 =l loadl %t304
     %t305 =l copy %t303
     %t306 =w call $commands__cmd_remove(l %t305)
     ret %t306
-@lbl54152
+@lbl54160
     %t307 =w call $std__stdio__puts(l $__sv608)
     %t308 =l copy 1
     %t309 =w copy %t308
     ret %t309
-@lbl54153
-    jmp @lbl54146
-@lbl54146
+@lbl54161
+    jmp @lbl54154
+@lbl54154
     %t310 =l loadl %t84
     %t311 =l copy $__str198
     %t312 =l call $cstr__cmp(l %t310, l %t311)
     %t313 =l copy 0
     %t314 =w ceql %t312, %t313
-    jnz %t314, @lbl54154, @lbl54155
-@lbl54154
+    jnz %t314, @lbl54162, @lbl54163
+@lbl54162
     %t315 =l copy $__str55
     storel %t315, %t316
     storel 0, %t318
     %t319 =l copy 2
     %t320 =w call $sxqbe_list_valid(l %args, l %t319)
-    jnz %t320, @lbl54157, @lbl54158
-@lbl54157
+    jnz %t320, @lbl54165, @lbl54166
+@lbl54165
     %t321 =l call $sxqbe_list_buf(l %args)
     %t322 =l mul %t319, 8
     %t323 =l add %t321, %t322
@@ -303864,78 +303939,78 @@ export function w $cli__run(l %args, l %argc, l %exe_path, l %arena, l %frontend
     %t325 =l add %t318, 8
     storel %t324, %t325
     storel 1, %t318
-    jmp @lbl54159
-@lbl54158
-    jmp @lbl54159
-@lbl54159
+    jmp @lbl54167
+@lbl54166
+    jmp @lbl54167
+@lbl54167
     %t326 =l loadl %t318
     %t327 =w cnel %t326, 0
-    jnz %t327, @lbl54160, @lbl54161
-@lbl54160
+    jnz %t327, @lbl54168, @lbl54169
+@lbl54168
     %t329 =l add %t318, 8
     %t328 =l loadl %t329
     %t330 =l copy %t328
     storel %t330, %t316
-    jmp @lbl54162
-@lbl54161
-    jmp @lbl54162
-@lbl54162
+    jmp @lbl54170
+@lbl54169
+    jmp @lbl54170
+@lbl54170
     %t331 =l loadl %t316
     %t332 =w call $commands__cmd_upgrade(l %t331)
     ret %t332
-@lbl54155
+@lbl54163
     %t333 =l loadl %t84
     %t334 =l copy $__str204
     %t335 =l call $cstr__cmp(l %t333, l %t334)
     %t336 =l copy 0
     %t337 =w ceql %t335, %t336
-    jnz %t337, @lbl54163, @lbl54164
-@lbl54163
+    jnz %t337, @lbl54171, @lbl54172
+@lbl54171
     %t338 =w call $commands__cmd_restore()
     ret %t338
-@lbl54164
+@lbl54172
     %t339 =l loadl %t84
     %t340 =l copy $__str208
     %t341 =l call $cstr__cmp(l %t339, l %t340)
     %t342 =l copy 0
     %t343 =w ceql %t341, %t342
-    jnz %t343, @lbl54166, @lbl54167
-@lbl54166
+    jnz %t343, @lbl54174, @lbl54175
+@lbl54174
     %t344 =w call $commands__cmd_graph()
     ret %t344
-@lbl54167
+@lbl54175
     %t345 =l loadl %t84
     %t346 =l copy $__str215
     %t347 =l call $cstr__cmp(l %t345, l %t346)
     %t348 =l copy 0
     %t349 =w ceql %t347, %t348
-    jnz %t349, @lbl54169, @lbl54170
-@lbl54169
+    jnz %t349, @lbl54177, @lbl54178
+@lbl54177
     %t350 =w call $commands__cmd_clean()
     ret %t350
-@lbl54170
+@lbl54178
     %t351 =l loadl %t84
     %t352 =l copy $__str222
     %t353 =l call $cstr__cmp(l %t351, l %t352)
     %t354 =l copy 0
     %t355 =w ceql %t353, %t354
-    jnz %t355, @lbl54172, @lbl54173
-@lbl54172
+    jnz %t355, @lbl54180, @lbl54181
+@lbl54180
     %t356 =l loadl %t11
     %t357 =w call $tools__port_c(l %args, l %t356, l %arena)
     ret %t357
-@lbl54173
+@lbl54181
     %t358 =l loadl %t84
     %t359 =l copy $__str227
     %t360 =l call $cstr__cmp(l %t358, l %t359)
     %t361 =l copy 0
     %t362 =w ceql %t360, %t361
-    jnz %t362, @lbl54175, @lbl54176
-@lbl54175
+    jnz %t362, @lbl54183, @lbl54184
+@lbl54183
     %t363 =l loadl %t11
     %t364 =w call $tools__bind_c(l %args, l %t363, l %arena)
     ret %t364
-@lbl54176
+@lbl54184
     %t365 =l loadl %t11
     %t366 =l loadl %t84
     %t368 =w loadw %t3
@@ -303960,10 +304035,10 @@ export function w $main(w %argc, l %argv) {
     %t2 =l call $std__allocators__Arena__new(l %t3, l %t1)
     %t4 =l loadl %t3
     %t5 =w ceql %t4, 0
-    jnz %t5, @lbl54178, @lbl54179
-@lbl54179
+    jnz %t5, @lbl54186, @lbl54187
+@lbl54187
     ret %t3
-@lbl54178
+@lbl54186
     %t7 =l add %t3, 8
     %t6 =l loadl %t7
     %t8 =l copy 67108864
@@ -303971,23 +304046,23 @@ export function w $main(w %argc, l %argv) {
     %t10 =l call $std__allocators__ScopedArena__new(l %t11, l %t9)
     %t12 =l loadl %t11
     %t13 =w ceql %t12, 0
-    jnz %t13, @lbl54180, @lbl54181
-@lbl54181
+    jnz %t13, @lbl54188, @lbl54189
+@lbl54189
     ret %t11
-@lbl54180
+@lbl54188
     %t15 =l add %t11, 8
     %t14 =l loadl %t15
     %t16 =w call $mem__init()
     %t17 =l call $std__os__get_args()
     %t19 =l call $sxqbe_list_len(l %t17)
     %t20 =l copy %t19
-    %t21 =l copy $__str3476
+    %t21 =l copy $__str3475
     storel %t21, %t22
     storel 0, %t24
     %t25 =l copy 0
     %t26 =w call $sxqbe_list_valid(l %t17, l %t25)
-    jnz %t26, @lbl54182, @lbl54183
-@lbl54182
+    jnz %t26, @lbl54190, @lbl54191
+@lbl54190
     %t27 =l call $sxqbe_list_buf(l %t17)
     %t28 =l mul %t25, 8
     %t29 =l add %t27, %t28
@@ -303995,22 +304070,22 @@ export function w $main(w %argc, l %argv) {
     %t31 =l add %t24, 8
     storel %t30, %t31
     storel 1, %t24
-    jmp @lbl54184
-@lbl54183
-    jmp @lbl54184
-@lbl54184
+    jmp @lbl54192
+@lbl54191
+    jmp @lbl54192
+@lbl54192
     %t32 =l loadl %t24
     %t33 =w cnel %t32, 0
-    jnz %t33, @lbl54185, @lbl54186
-@lbl54185
+    jnz %t33, @lbl54193, @lbl54194
+@lbl54193
     %t35 =l add %t24, 8
     %t34 =l loadl %t35
     %t36 =l copy %t34
     storel %t36, %t22
-    jmp @lbl54187
-@lbl54186
-    jmp @lbl54187
-@lbl54187
+    jmp @lbl54195
+@lbl54194
+    jmp @lbl54195
+@lbl54195
     %t37 =l loadl %t22
     %t38 =w call $cli__run(l %t17, l %t20, l %t37, l %t6, l %t14)
     %t39 =w copy %t38
@@ -304096,7 +304171,7 @@ data $__str65 = { b "/spectrelib/env/core.sx", b 0 }
 data $__str66 = { b "/src/meta/env.sx", b 0 }
 data $__str67 = { b "v0.0.16", b 0 }
 data $__str68 = { b "VERSION", b 0 }
-data $__str69 = { b "570562d", b 0 }
+data $__str69 = { b "8244ca0", b 0 }
 data $__str70 = { b "unknown", b 0 }
 data $__str71 = { b "usage:", b 0 }
 data $__str72 = { b "  spectre <command> [args] | <input.sx> [options]", b 0 }
@@ -307457,53 +307532,52 @@ data $__str3426 = { b "clang --target=%s -fuse-ld=lld %s -o %s%s 2>&1", b 0 }
 data $__str3427 = { b "error: target link failed", b 0 }
 data $__str3428 = { b "Compiled (%s.%s): %s\n", b 0 }
 data $__str3429 = { b "Compiled (target object): %s\n", b 0 }
-data $__str3430 = { b "%s -I%s", b 0 }
-data $__str3431 = { b "cc -std=c99 -Wno-error=int-conversion -c -o %s %s%s 2>&1", b 0 }
-data $__str3432 = { b "error: C shim compilation failed", b 0 }
-data $__str3433 = { b "error: failed to run C compiler for C shim", b 0 }
-data $__str3434 = { b "%s -dynamiclib", b 0 }
-data $__str3435 = { b "%s -shared", b 0 }
-data $__str3436 = { b ".dll", b 0 }
-data $__str3437 = { b "cc -o %s %s%s", b 0 }
-data $__str3438 = { b "warning: test binary exited with: %.*s\n", b 0 }
-data $__str3439 = { b "non-zero exit", b 0 }
-data $__str3440 = { b "error: cc compilation failed", b 0 }
-data $__str3441 = { b "cc %s -o %s %s%s", b 0 }
-data $__str3442 = { b "Compiled: %s\n", b 0 }
-data $__str3443 = { b "./s-out/%s%s", b 0 }
-data $__str3444 = { b " 2>&1", b 0 }
-data $__str3445 = { b "linking failed.", b 0 }
-data $__str3446 = { b "\nerror: cc compilation failed", b 0 }
-data $__str3447 = { b "error: invalid target '%s', expected <os>.<arch> (for example windows.x86_64)\n", b 0 }
-data $__str3448 = { b "error: cross compilation to macOS is not supported", b 0 }
-data $__str3449 = { b "error: unsupported target '%s'; supported: linux.x86_64, linux.aarch64, windows.x86_64, windows.aarch64\n", b 0 }
-data $__str3450 = { b "error: runtime mode '%s' is not implemented for %s.%s\n", b 0 }
-data $__str3451 = { b "warning: tcc on Windows cannot link COFF runtime objects, thus using the hosted runtime\n", b 0 }
-data $__str3452 = { b "error: xwin at '%s' is missing CRT/SDK libraries for %s\n", b 0 }
-data $__str3453 = { b "error: windows.%s requires xwin or a compatible Windows SDK\n", b 0 }
-data $__str3454 = { b "  install: cargo install xwin --locked\n", b 0 }
-data $__str3455 = { b "           xwin --arch %s --accept-license splat --output ~/.xwin\n", b 0 }
-data $__str3456 = { b "  or pass: -xwin:<dir>\n", b 0 }
-data $__str3457 = { b "[I  ]│ xwin root: %s\n", b 0 }
-data $__str3458 = { b "error: -src-target requires -emit-alt or -emit-ssa", b 0 }
-data $__str3459 = { b "error: run requires flags that produce a runnable executable", b 0 }
-data $__str3460 = { b "[I  ]│ UQBE not found - using fallback C backend", b 0 }
-data $__str3461 = { b "[I  ]│ Resolving module", b 0 }
-data $__str3462 = { b "warning: external C library detected; using hosted runtime (pass -runtime:freestanding to force)\n", b 0 }
-data $__str3463 = { b "  or use:  -runtime:freestanding\n", b 0 }
-data $__str3464 = { b "[II ]│ Semantic analysis", b 0 }
-data $__str3465 = { b "error: '%s' is a directory, not a source file\n", b 0 }
-data $__str3466 = { b "-> run 'spectre build <config>' in a project with sx.mod, or compile a file with 'spectre <file.sx> -o <output>'", b 0 }
-data $__str3467 = { b "Syntax OK", b 0 }
-data $__str3468 = { b "[III]│ CG pass", b 0 }
-data $__str3469 = { b "error: -I<headers> requires the alt backend (-alt)", b 0 }
-data $__str3470 = { b "[IV ]│ Module used-links collection", b 0 }
-data $__str3471 = { b "error: no input file provided\n", b 0 }
-data $__str3472 = { b "error: no input file", b 0 }
-data $__str3473 = { b "error: run requires an input file\n", b 0 }
-data $__str3474 = { b "error: add requires a git repository URL", b 0 }
-data $__str3475 = { b "error: remove requires a dependency name", b 0 }
-data $__str3476 = { b "./spectre", b 0 }
+data $__str3430 = { b "%s -std=c99 -Wno-error=int-conversion -c -o %s %s%s 2>&1", b 0 }
+data $__str3431 = { b "error: C shim compilation failed", b 0 }
+data $__str3432 = { b "error: failed to run C compiler for C shim", b 0 }
+data $__str3433 = { b "%s -dynamiclib", b 0 }
+data $__str3434 = { b "%s -shared", b 0 }
+data $__str3435 = { b ".dll", b 0 }
+data $__str3436 = { b "%s -o %s %s%s", b 0 }
+data $__str3437 = { b "warning: test binary exited with: %.*s\n", b 0 }
+data $__str3438 = { b "non-zero exit", b 0 }
+data $__str3439 = { b "error: cc compilation failed", b 0 }
+data $__str3440 = { b "%s %s -o %s %s%s", b 0 }
+data $__str3441 = { b "Compiled: %s\n", b 0 }
+data $__str3442 = { b "./s-out/%s%s", b 0 }
+data $__str3443 = { b " 2>&1", b 0 }
+data $__str3444 = { b "linking failed.", b 0 }
+data $__str3445 = { b "\nerror: cc compilation failed", b 0 }
+data $__str3446 = { b "error: invalid target '%s', expected <os>.<arch> (for example windows.x86_64)\n", b 0 }
+data $__str3447 = { b "error: cross compilation to macOS is not supported", b 0 }
+data $__str3448 = { b "error: unsupported target '%s'; supported: linux.x86_64, linux.aarch64, windows.x86_64, windows.aarch64\n", b 0 }
+data $__str3449 = { b "error: runtime mode '%s' is not implemented for %s.%s\n", b 0 }
+data $__str3450 = { b "warning: tcc on Windows cannot link COFF runtime objects, thus using the hosted runtime\n", b 0 }
+data $__str3451 = { b "error: xwin at '%s' is missing CRT/SDK libraries for %s\n", b 0 }
+data $__str3452 = { b "error: windows.%s requires xwin or a compatible Windows SDK\n", b 0 }
+data $__str3453 = { b "  install: cargo install xwin --locked\n", b 0 }
+data $__str3454 = { b "           xwin --arch %s --accept-license splat --output ~/.xwin\n", b 0 }
+data $__str3455 = { b "  or pass: -xwin:<dir>\n", b 0 }
+data $__str3456 = { b "[I  ]│ xwin root: %s\n", b 0 }
+data $__str3457 = { b "error: -src-target requires -emit-alt or -emit-ssa", b 0 }
+data $__str3458 = { b "error: run requires flags that produce a runnable executable", b 0 }
+data $__str3459 = { b "[I  ]│ UQBE not found - using fallback C backend", b 0 }
+data $__str3460 = { b "[I  ]│ Resolving module", b 0 }
+data $__str3461 = { b "warning: external C library detected; using hosted runtime (pass -runtime:freestanding to force)\n", b 0 }
+data $__str3462 = { b "  or use:  -runtime:freestanding\n", b 0 }
+data $__str3463 = { b "[II ]│ Semantic analysis", b 0 }
+data $__str3464 = { b "error: '%s' is a directory, not a source file\n", b 0 }
+data $__str3465 = { b "-> run 'spectre build <config>' in a project with sx.mod, or compile a file with 'spectre <file.sx> -o <output>'", b 0 }
+data $__str3466 = { b "Syntax OK", b 0 }
+data $__str3467 = { b "[III]│ CG pass", b 0 }
+data $__str3468 = { b "error: -I<headers> requires the alt backend (-alt)", b 0 }
+data $__str3469 = { b "[IV ]│ Module used-links collection", b 0 }
+data $__str3470 = { b "error: no input file provided\n", b 0 }
+data $__str3471 = { b "error: no input file", b 0 }
+data $__str3472 = { b "error: run requires an input file\n", b 0 }
+data $__str3473 = { b "error: add requires a git repository URL", b 0 }
+data $__str3474 = { b "error: remove requires a dependency name", b 0 }
+data $__str3475 = { b "./spectre", b 0 }
 data $__sv0 = { l $__str64, l 46 }
 data $__sv1 = { l $__str65, l 23 }
 data $__sv2 = { l $__str66, l 16 }
@@ -308090,29 +308164,29 @@ data $__sv582 = { l $__str3407, l 29 }
 data $__sv583 = { l $__str3414, l 39 }
 data $__sv584 = { l $__str3415, l 41 }
 data $__sv585 = { l $__str3427, l 25 }
-data $__sv586 = { l $__str3432, l 32 }
-data $__sv587 = { l $__str3433, l 42 }
-data $__sv588 = { l $__str3439, l 13 }
-data $__sv589 = { l $__str3440, l 28 }
-data $__sv590 = { l $__str3445, l 15 }
-data $__sv591 = { l $__str3446, l 29 }
-data $__sv592 = { l $__str3448, l 50 }
-data $__sv593 = { l $__str3451, l 88 }
-data $__sv594 = { l $__str3458, l 50 }
-data $__sv595 = { l $__str3459, l 60 }
-data $__sv596 = { l $__str3460, l 50 }
-data $__sv597 = { l $__str3461, l 25 }
-data $__sv598 = { l $__str3464, l 26 }
-data $__sv599 = { l $__str3466, l 112 }
-data $__sv600 = { l $__str3467, l 9 }
-data $__sv601 = { l $__str3468, l 16 }
-data $__sv602 = { l $__str3469, l 50 }
-data $__sv603 = { l $__str3470, l 37 }
-data $__sv604 = { l $__str3471, l 30 }
-data $__sv605 = { l $__str3472, l 20 }
-data $__sv606 = { l $__str3473, l 34 }
-data $__sv607 = { l $__str3474, l 40 }
-data $__sv608 = { l $__str3475, l 40 }
+data $__sv586 = { l $__str3431, l 32 }
+data $__sv587 = { l $__str3432, l 42 }
+data $__sv588 = { l $__str3438, l 13 }
+data $__sv589 = { l $__str3439, l 28 }
+data $__sv590 = { l $__str3444, l 15 }
+data $__sv591 = { l $__str3445, l 29 }
+data $__sv592 = { l $__str3447, l 50 }
+data $__sv593 = { l $__str3450, l 88 }
+data $__sv594 = { l $__str3457, l 50 }
+data $__sv595 = { l $__str3458, l 60 }
+data $__sv596 = { l $__str3459, l 50 }
+data $__sv597 = { l $__str3460, l 25 }
+data $__sv598 = { l $__str3463, l 26 }
+data $__sv599 = { l $__str3465, l 112 }
+data $__sv600 = { l $__str3466, l 9 }
+data $__sv601 = { l $__str3467, l 16 }
+data $__sv602 = { l $__str3468, l 50 }
+data $__sv603 = { l $__str3469, l 37 }
+data $__sv604 = { l $__str3470, l 30 }
+data $__sv605 = { l $__str3471, l 20 }
+data $__sv606 = { l $__str3472, l 34 }
+data $__sv607 = { l $__str3473, l 40 }
+data $__sv608 = { l $__str3474, l 40 }
 function l $std__allocators__alloc_in__GENMONO__allocators__HeapAllocator(l %__ret, l %ac, l %size) {
 @start
     %t4 =l alloc8 16
