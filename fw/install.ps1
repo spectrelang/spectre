@@ -28,10 +28,18 @@ function Ensure-Tool($cmd, $wingetId) {
 
     Log "$cmd not found. Installing via winget..."
     if (-not (Get-Command winget -ErrorAction SilentlyContinue)) {
-        Err "winget is required to install $cmd automatically."
-    }
+        if (-not (Get-Command scoop -ErrorAction SilentlyContinue)) {
+            Log "Scoop not found. Installing Scoop..."
 
-    winget install --id $wingetId -e --source winget
+            Set-ExecutionPolicy RemoteSigned -Scope CurrentUser -Force
+            Invoke-RestMethod get.scoop.sh | Invoke-Expression
+        }
+
+        scoop bucket add main 2>$null
+        scoop install clang
+    } else {
+        winget install --id $wingetId -e --source winget
+    }
 }
 
 function Ensure-Tcc {
