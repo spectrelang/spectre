@@ -2420,6 +2420,88 @@ fn is_integer_literal_text(text: ref u8) bool = {
     return true
 }
 
+fn enum_literal_digit(c: u8) i64 = {
+    if c >= 48 && c <= 57 {
+        return (c - 48) as i64
+    }
+    if c >= 65 && c <= 70 {
+        return (c - 55) as i64
+    }
+    if c >= 97 && c <= 102 {
+        return (c - 87) as i64
+    }
+    return -1
+}
+
+fn parse_enum_int_literal(text: ref u8) option[i64] = trust {
+    val trimmed: ref u8 = trim_cstr(text)
+    val len: i64 = cstr.len(trimmed)
+    if len == 0 {
+        return none
+    }
+    val i: mut i64 = 0
+    val negative: mut bool = false
+    val first: u8 = @load8(trimmed) as u8
+    if first == 45 {
+        negative = true
+        i = 1
+    } elif first == 43 {
+        i = 1
+    }
+    if i >= len {
+        return none
+    }
+    val base: mut i64 = 10
+    if (@load8(@ptradd(trimmed, i)) as u8) == 48 && i + 1 < len {
+        val second: u8 = @load8(@ptradd(trimmed, i + 1)) as u8
+        if second == 120 || second == 88 {
+            base = 16
+            i += 2
+        } elif second == 98 || second == 66 {
+            base = 2
+            i += 2
+        } elif second >= 48 && second <= 55 {
+            base = 8
+            i++
+        }
+    }
+    val value: mut i64 = 0
+    val digits: mut i64 = 0
+    for {
+        if i >= len {
+            break
+        }
+        val c: u8 = @load8(@ptradd(trimmed, i)) as u8
+        if c == 117 || c == 85 || c == 108 || c == 76 {
+            break
+        }
+        val digit: i64 = enum_literal_digit(c)
+        if digit < 0 || digit >= base {
+            return none
+        }
+        value = value * base + digit
+        digits++
+        i++
+    }
+    if digits == 0 {
+        return none
+    }
+    for {
+        if i >= len {
+            break
+        }
+        val c: u8 = @load8(@ptradd(trimmed, i)) as u8
+        if !(c == 117 || c == 85 || c == 108 || c == 76) {
+            return none
+        }
+        i++
+    }
+    if negative {
+        value = -value
+    }
+    return some value
+}
+
 fn is_float_literal_text(text: ref u8) bool = {
     val trimmed: ref u8 = trim_cstr(text)
     return str_contains(trimmed, c".") && !is_string_literal_text(trimmed)
@@ -5994,6 +6076,9 @@ fn map_base_type(ctx: ref TranslationCtx, base: ref u8) ref u8 = {
     if cstr.cmp(base, c"") == 0 {
         return c"void"
     }
+    if ctx != none && list_contains(ctx.bind_enum_type_names, base) {
+        return c"i32"
+    }
     if ctx != none && ctx.bind_mode {
         val bind_mapped: ref u8 = map_bind_base_type(ctx, base)
         if cstr.cmp(bind_mapped, c"") != 0 {
@@ -6148,7 +6233,11 @@ fn map_base_type(ctx: ref TranslationCtx, base: ref u8) ref u8 = {
         return sanitize_type_identifier(trim_cstr(trust tsubstr(base, 7, cstr.len(base) - 7)))
     }
     if cstr.starts_with(base, c"enum ") {
-        return sanitize_type_identifier(trim_cstr(trust tsubstr(base, 5, cstr.len(base) - 5)))
+        val tag: ref u8 = trim_cstr(trust tsubstr(base, 5, cstr.len(base) - 5))
+        if ctx != none && list_contains(ctx.bind_enum_type_names, tag) {
+            return c"i32"
+        }
+        return sanitize_type_identifier(tag)
     }
     if cstr.starts_with(base, c"union ") {
         return sanitize_type_identifier(trim_cstr(trust tsubstr(base, 6, cstr.len(base) - 6)))
@@ -6868,7 +6957,7 @@ fn translate_struct_decl(
         if cstr.cmp(trimmed, c"") == 0 {
             continue
         }
-        if ctx.bind_mode && str_contains(trimmed, c"(*") {
+        if str_contains(trimmed, c"(*") {
             val info: ref FnPtrInfo = parse_c_fnptr_type(ctx, trimmed, c"")
             if info.is_ok && cstr.cmp(info.name, c"") != 0 {
                 append_line(
@@ -6958,114 +7047,70 @@ fn translate_enum_decl(
         alias = before_body_name
     }
     val raw_alias: ref u8 = alias
-    if ctx.bind_mode && cstr.cmp(raw_alias, c"") != 0 {
+    if cstr.cmp(raw_alias, c"") != 0 {
         push_unique(ctx.bind_enum_type_names, raw_alias)
     }
+    if cstr.cmp(before_body_name, c"") != 0 {
+        push_unique(ctx.bind_enum_type_names, before_body_name)
+    }
     alias = sanitize_type_identifier(alias)
+    if !ctx.bind_mode && cstr.cmp(alias, c"") != 0 {
+        if list_contains(ctx.translated_type_names, alias) {
+            return true
+        }
+        push_unique(ctx.translated_type_names, alias)
+    }
     val body: ref u8 = trust tsubstr(flat, open_i + 1, close_i - open_i - 1)
     val items = split_top_level(body, 44 as u8)
-    if ctx.bind_mode {
-        val next_value: mut ref u8 = c"0"
-        for item in items {
-            val trimmed: ref u8 = trim_cstr(item)
-            if cstr.cmp(trimmed, c"") == 0 {
-                continue
-            }
-            val assign_i: i64 = find_top_level_assign(trimmed)
-            val name_src: mut ref u8 = trimmed
-            val value_expr: mut ref u8 = next_value
-            if assign_i > 0 {
-                name_src = trim_cstr(trust tsubstr(trimmed, 0, assign_i))
-                value_expr = translate_expr_text(
-                    ctx,
-                    trim_cstr(trust tsubstr(
-                            trimmed,
-                            assign_i + 1,
-                            cstr.len(trimmed) - assign_i - 1
-                        ))
-                )
-            }
-            val member: ref u8 = sanitize_const_identifier(trim_cstr(name_src))
-            if cstr.cmp(member, c"") == 0 {
-                continue
-            }
-            append_line(
-                out,
-                indent,
-                trust tfmt("pub val {s}: i32 = {s}", {member, value_expr})
-            )
-            next_value = trust tfmt("({s}) + 1", {value_expr})
-        }
-        append_blank_line(out)
-        return true
-    }
-    if cstr.cmp(alias, c"") == 0 {
-        val next_value: mut ref u8 = c"0"
-        for item in items {
-            val trimmed: ref u8 = trim_cstr(item)
-            if cstr.cmp(trimmed, c"") == 0 {
-                continue
-            }
-            val assign_i: i64 = find_top_level_assign(trimmed)
-            val name_src: mut ref u8 = trimmed
-            val value_expr: mut ref u8 = next_value
-            if assign_i > 0 {
-                name_src = trim_cstr(trust tsubstr(trimmed, 0, assign_i))
-                value_expr = translate_expr_text(
-                    ctx,
-                    trim_cstr(trust tsubstr(
-                            trimmed,
-                            assign_i + 1,
-                            cstr.len(trimmed) - assign_i - 1
-                        ))
-                )
-            }
-            val member: ref u8 = sanitize_identifier(trim_cstr(name_src))
-            if cstr.cmp(member, c"") == 0 {
-                continue
-            }
-            append_line(out, indent, trust tfmt("val {s}: i32 = {s}", {member, value_expr}))
-            next_value = trust tfmt("({s}) + 1", {value_expr})
-        }
-        append_blank_line(out)
-        return true
-    }
-    if list_contains(ctx.translated_type_names, alias) {
-        return true
-    }
-    push_unique(ctx.translated_type_names, alias)
-    val members: mut list[ref u8] = mem.new[ref u8]()
+    val next_value: mut ref u8 = c"0"
+    val next_literal: mut i64 = 0
+    val next_has_literal: mut bool = true
     for item in items {
         val trimmed: ref u8 = trim_cstr(item)
         if cstr.cmp(trimmed, c"") == 0 {
             continue
         }
-        val member: ref u8 = sanitize_identifier(trim_cstr(strip_initializer(trimmed)))
+        val assign_i: i64 = find_top_level_assign(trimmed)
+        val name_src: mut ref u8 = trimmed
+        val value_expr: mut ref u8 = next_value
+        val value_literal: mut i64 = next_literal
+        val value_has_literal: mut bool = next_has_literal
+        if assign_i > 0 {
+            name_src = trim_cstr(trust tsubstr(trimmed, 0, assign_i))
+            val raw_value: ref u8 = trim_cstr(trust tsubstr(
+                    trimmed,
+                    assign_i + 1,
+                    cstr.len(trimmed) - assign_i - 1
+                ))
+            value_expr = translate_expr_text(ctx, raw_value)
+            match trust parse_enum_int_literal(raw_value) {
+                some literal => {
+                    value_literal = literal as i64
+                    value_has_literal = true
+                }
+                none => {
+                    value_has_literal = false
+                }
+            }
+        }
+        val member: ref u8 = sanitize_const_identifier(trim_cstr(name_src))
         if cstr.cmp(member, c"") == 0 {
             continue
         }
-        @append(members, member)
-    }
-    append_open_block_line(out, indent, trust tfmt("pub enum {s} = ", {alias}))
-    val member_count: i64 = @len(members) as i64
-    val member_i: mut i64 = 0
-    for {
-        if member_i >= member_count {
-            break
+        append_line(
+            out,
+            indent,
+            trust tfmt("pub val {s}: i32 = {s}", {member, value_expr})
+        )
+        if value_has_literal {
+            next_literal = value_literal + 1
+            next_has_literal = true
+            next_value = trust tfmt("{d}", {next_literal})
+        } else {
+            next_has_literal = false
+            next_value = trust tfmt("({s}) + 1", {value_expr})
         }
-        val member_opt = @get(members, member_i as usize)
-        if member_opt is some member_val {
-            val member: ref u8 = member_val as ref u8
-            remember_enum_constant(ctx, member, alias)
-            if member_i + 1 < member_count {
-                append_line(out, indent + 1, trust tfmt("{s},", {member}))
-            } else {
-                append_line(out, indent + 1, member)
-            }
-        }
-        member_i++
     }
-    append_line(out, indent, c"}")
     append_blank_line(out)
     return true
 }
@@ -7359,12 +7404,10 @@ fn translate_params(ctx: mut ref TranslationCtx, params_text: ref u8) ref u8 = {
             val fallback_ptr: ref u8 = parse_function_pointer_param_name(p, fallback)
             val pname: mut ref u8 = fallback_ptr
             val ptype: mut ref u8 = c"ref void"
-            if ctx.bind_mode {
-                val info: ref FnPtrInfo = parse_c_fnptr_type(ctx, p, fallback_ptr)
-                if info.is_ok {
-                    pname = info.name
-                    ptype = info.type_name
-                }
+            val info: ref FnPtrInfo = parse_c_fnptr_type(ctx, p, fallback_ptr)
+            if info.is_ok {
+                pname = info.name
+                ptype = info.type_name
             }
             push_unique(ctx.fnptr_names, pname)
             if !first {
@@ -7779,7 +7822,7 @@ fn translate_top_level_decl(
         }
         return any_ok
     }
-    if ctx.bind_mode && cstr.starts_with(stripped, c"typedef ")
+    if cstr.starts_with(stripped, c"typedef ")
     && str_contains(stripped, c"(*") {
         val info: ref FnPtrInfo = parse_c_fnptr_type(ctx, stripped, c"")
         if info.is_ok && cstr.cmp(info.name, c"") != 0 {
@@ -8692,7 +8735,7 @@ pub fn translate_top_level(
                 i++
                 continue
             }
-            if ctx.bind_mode && cstr.starts_with(trimmed, c"typedef ")
+            if cstr.starts_with(trimmed, c"typedef ")
             && str_contains(trimmed, c"(*") {
                 val span_ptr = collect_function(lines, i)
                 val full_ptr: ref u8 = join_lines(lines, i, span_ptr.next_index)
@@ -8824,7 +8867,7 @@ pub fn translate_c(input_path: ref u8, output_path: ref u8) i32 = {
     append_comment_line(
         out,
         0,
-        trust tfmt("Generated by spectre -port-c from {s}", {input_path})
+        trust tfmt("Generated by spectre port-c from {s}", {input_path})
     )
     append_blank_line(out)
     append_synthesized_externs(ctx, out)

@@ -422,7 +422,7 @@ pub fn bind_c(inputs: list[ref u8], opts: mut BindOptions) i32 = trust {
     if opts.output_dir.len == 0 {
         opts.output_dir = "./src-out"
     }
-    if !fs.mkdir_path(opts.output_dir) {
+    if !fs.is_directory(opts.output_dir) && !fs.mkdir_path(opts.output_dir) {
         stdio.print(
             "error: could not create output directory '{s}'\n",
             {copy_view(opts.output_dir)}
