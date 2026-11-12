@@ -538,7 +538,7 @@ pub fn main() i32 = trust {
         return code
     }
 
-    if cstr.cmp(input, c"transl-c") == 0 {
+    if cstr.cmp(input, c"port-c") == 0 {
         val tc_input: mut ref u8 = c""
         val tc_output: mut ref u8 = c""
         val ti: mut i64 = input_arg_i + 1
@@ -547,7 +547,7 @@ pub fn main() i32 = trust {
             if opt is some tv {
                 val arg: ref u8 = tv as ref u8
                 if cstr.cmp(arg, c"-h") == 0 || cstr.cmp(arg, c"-help") == 0 {
-                    val code: i32 = meta.print_help("transl-c")
+                    val code: i32 = meta.print_help("port-c")
                     allocators.Arena.free(arena)
                     return code
                 } elif cstr.cmp(arg, c"-o") == 0 || cstr.cmp(arg, c"-output") == 0 {
@@ -556,12 +556,12 @@ pub fn main() i32 = trust {
                     if next_opt is some ov {
                         tc_output = ov as ref u8
                     } else {
-                        stdio.puts("error: transl-c -o requires a value")
+                        stdio.puts("error: port-c -o requires a value")
                         allocators.Arena.free(arena)
                         return 1
                     }
                 } elif cstr.starts_with(arg, c"-") {
-                    stdio.print("error: unknown transl-c flag: {s}\n", {arg})
+                    stdio.print("error: unknown port-c flag: {s}\n", {arg})
                     allocators.Arena.free(arena)
                     return 1
                 } else {
@@ -573,7 +573,7 @@ pub fn main() i32 = trust {
             ti++
         }
         if cstr.cmp(tc_input, c"") == 0 {
-            stdio.puts("error: transl-c requires an input .c or .h file")
+            stdio.puts("error: port-c requires an input .c or .h file")
             allocators.Arena.free(arena)
             return 1
         }
