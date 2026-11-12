@@ -6,10 +6,9 @@ BIN_DIR="${PREFIX}/bin"
 SRC_DIR="${PREFIX}/src"
 
 QBE_OK=1
-QBE_BIN=""
+UQBE_BIN=""
 FORCE_FALLBACK=0
-QBE_MIRROR_REPO="https://github.com/spectrelang/uqbe.git"
-QBE_REPO="https://c9x.me/git/qbe.git"
+UQBE_REPO="https://github.com/spectrelang/uqbe.git"
 SPECTRE_REPO="https://github.com/spectrelang/spectre.git"
 SPECTRE_LS_REPO="https://github.com/spectrelang/spectre-ls.git"
 YYJSON_REPO="https://github.com/ibireme/yyjson.git"
@@ -197,16 +196,6 @@ install_pkg() {
 	esac
 }
 
-git_clone_with_fallback() {
-	PRIMARY="$1"
-	MIRROR="$2"
-	DEST="$3"
-	git clone "$PRIMARY" "$DEST" 2>/dev/null || {
-		log "Primary remote failed, trying fallback..."
-		git clone "$MIRROR" "$DEST"
-	}
-}
-
 install_network_deps() {
 	if command -v pkg-config >/dev/null 2>&1 &&
 		pkg-config --exists libcurl libnghttp2 openssl zlib libbrotlidec libbrotlicommon; then
@@ -261,7 +250,7 @@ while [ "$#" -gt 0 ]; do
 		;;
 	-fallback)
 		FORCE_FALLBACK=1
-		log "Flag: -fallback set — skipping QBE, building from C source."
+		log "Flag: -fallback set — skipping UQBE, building from C source."
 		shift
 		;;
 	-minimal)
@@ -353,42 +342,35 @@ log "Preparing directories..."
 mkdir -p "$BIN_DIR" "$SRC_DIR"
 
 if [ "$FORCE_FALLBACK" -eq 1 ]; then
-	log "Skipping QBE (forced fallback mode)."
+	log "Skipping UQBE (forced fallback mode)."
 	QBE_OK=0
-elif command -v qbe >/dev/null 2>&1; then
-	QBE_BIN="$(command -v qbe)"
-	log "QBE already installed, skipping: ${QBE_BIN}"
+elif command -v uqbe >/dev/null 2>&1; then
+	UQBE_BIN="$(command -v uqbe)"
+	log "UQBE already installed, skipping: ${UQBE_BIN}"
 else
-	log "Installing QBE..."
+	log "Installing UQBE..."
 
-	QBE_DIR="${SRC_DIR}/qbe"
+	UQBE_DIR="${SRC_DIR}/uqbe"
 
-	if [ -d "$QBE_DIR" ]; then
-		log "QBE source already exists, updating from the Spectre mirror..."
-		git -C "$QBE_DIR" remote set-url origin "$QBE_MIRROR_REPO" 2>/dev/null || true
-		git -C "$QBE_DIR" pull --ff-only || {
-			log "Spectre mirror failed, trying upstream QBE..."
-			git -C "$QBE_DIR" remote set-url origin "$QBE_REPO"
-			git -C "$QBE_DIR" pull --ff-only || QBE_OK=0
-		}
+	if [ -d "$UQBE_DIR" ]; then
+		log "UQBE source already exists, updating..."
+		git -C "$UQBE_DIR" remote set-url origin "$UQBE_REPO" 2>/dev/null || true
+		git -C "$UQBE_DIR" pull --ff-only || QBE_OK=0
 	else
-		# Prefer the Spectre mirror; it carries the Windows targets and
-		# cross-compilation fixes. The upstream c9x.me repository is only
-		# a fallback.
-		git_clone_with_fallback "$QBE_MIRROR_REPO" "$QBE_REPO" "$QBE_DIR" || QBE_OK=0
+		git clone "$UQBE_REPO" "$UQBE_DIR" || QBE_OK=0
 	fi
 
 	if [ "$QBE_OK" -eq 1 ]; then
-		log "Building QBE..."
-		(cd "$QBE_DIR" && make) || QBE_OK=0
+		log "Building UQBE..."
+		(cd "$UQBE_DIR" && make) || QBE_OK=0
 	fi
 
-	if [ "$QBE_OK" -eq 1 ] && [ -x "${QBE_DIR}/qbe" ]; then
-		log "Installing QBE to ${BIN_DIR}..."
-		/usr/bin/install -m 0755 "${QBE_DIR}/qbe" "$BIN_DIR/qbe"
-		QBE_BIN="${BIN_DIR}/qbe"
+	if [ "$QBE_OK" -eq 1 ] && [ -x "${UQBE_DIR}/qbe" ]; then
+		log "Installing UQBE to ${BIN_DIR}..."
+		/usr/bin/install -m 0755 "${UQBE_DIR}/qbe" "$BIN_DIR/uqbe"
+		UQBE_BIN="${BIN_DIR}/uqbe"
 	else
-		log "QBE setup failed — will use C bootstrap fallback."
+		log "UQBE setup failed — will use C bootstrap fallback."
 		QBE_OK=0
 	fi
 fi
@@ -499,12 +481,12 @@ STAGE2="${SPECTRE_DIR}/spectre-stage2"
 
 if [ "$QBE_OK" -eq 1 ]; then
 	[ -f "$BOOTSTRAP_SSA" ] || err "Missing bootstrap SSA at ${BOOTSTRAP_SSA}"
-	[ -n "$QBE_BIN" ] || err "QBE was not found in PATH or installed."
+	[ -n "$UQBE_BIN" ] || err "UQBE was not found in PATH or installed."
 
-	log "Bootstrapping Spectre with QBE..."
+	log "Bootstrapping Spectre with UQBE..."
 
-	log "QBE Stage..."
-	"${QBE_BIN}" -o "${BOOTSTRAP_OUT}.s" "$BOOTSTRAP_SSA"
+	log "UQBE Stage..."
+	"${UQBE_BIN}" -o "${BOOTSTRAP_OUT}.s" "$BOOTSTRAP_SSA"
 
 	log "CC Stage II..."
 	cc -O2 \
@@ -621,7 +603,7 @@ else
 	fi
 
 	if [ "$QBE_OK" -eq 0 ]; then
-		log "QBE unavailable — building spectre-ls with the fallback backend."
+		log "UQBE unavailable — building spectre-ls with the fallback backend."
 		if [ "$SPECTRE_LS_SXMOD_PATCHED" -eq 0 ]; then
 			cp "$SPECTRE_LS_SXMOD" "${SPECTRE_LS_SXMOD}.install.bak"
 			SPECTRE_LS_SXMOD_PATCHED=1
@@ -667,11 +649,11 @@ echo "  - spectre    -> ${BIN_DIR}/spectre"
 echo "  - spectre-ls -> ${BIN_DIR}/spectre-ls"
 echo "  - stdlib     -> ${BIN_DIR}/spectrelib"
 if [ "$QBE_OK" -eq 1 ]; then
-	echo "  - qbe        -> ${QBE_BIN}"
+	echo "  - uqbe       -> ${UQBE_BIN}"
 elif [ "$FORCE_FALLBACK" -eq 1 ]; then
-	echo "  - qbe        -> (skipped, -fallback flag set)"
+	echo "  - uqbe       -> (skipped, -fallback flag set)"
 else
-	echo "  - qbe        -> (skipped, used fallback)"
+	echo "  - uqbe       -> (skipped, used fallback)"
 fi
 if command -v tcc >/dev/null 2>&1; then
 	echo "  - tcc        -> $(command -v tcc)"

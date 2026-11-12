@@ -1200,10 +1200,10 @@ pub fn main() i32 = trust {
 
     if !use_alt && !emit_alt && !emit_qbe && !emit_ll && !emit_asm &&
     !syntax_check && !print_ast {
-        if !builds.is_compiler_available(c"qbe") {
+        if !builds.is_compiler_available(c"uqbe") {
             use_alt = true
             if !quiet {
-                stdio.puts("[I  ]│ QBE not found - using fallback C backend")
+                stdio.puts("[I  ]│ UQBE not found - using fallback C backend")
             }
         }
     }
@@ -2047,11 +2047,11 @@ pub fn main() i32 = trust {
     val qbe_cmd: mut ref u8 = c""
     if cstr.cmp(qbe_target_name, c"") != 0 {
         qbe_cmd = @fmtalloc(
-            "qbe -t {s} -o {s} {s} 2>&1",
+            "uqbe -t {s} -o {s} {s} 2>&1",
             {qbe_target_name, asm_file, qbe_file}
         )
     } else {
-        qbe_cmd = @fmtalloc("qbe -o {s} {s} 2>&1", {asm_file, qbe_file})
+        qbe_cmd = @fmtalloc("uqbe -o {s} {s} 2>&1", {asm_file, qbe_file})
     }
     val qbe_res = os.exec(qbe_cmd)
     if show_cmd {
@@ -2064,14 +2064,14 @@ pub fn main() i32 = trust {
                 stdio.print("{s}", {vstr})
             }
             if cstr.starts_with(vstr, c"qbe:") {
-                stdio.puts("error: qbe stage failed")
+                stdio.puts("error: uqbe stage failed")
                 os.delete(qbe_file)
                 allocators.Arena.free(arena)
                 return 1
             }
         }
         err _ => {
-            stdio.puts("\nerror: failed to run qbe")
+            stdio.puts("\nerror: failed to run uqbe")
             os.delete(qbe_file)
             allocators.Arena.free(arena)
             return 1

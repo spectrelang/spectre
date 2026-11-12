@@ -1784,24 +1784,16 @@ pub fn cmd_doctor() i32 = {
     trust doctor_row(c"hash", meta.get_commit_hash().ptr)
     trust doctor_row(c"os", tool_version(c"uname -srm 2>&1"))
 
-    val qbe_ver: ref u8 = tool_version(c"qbe -h 2>&1 | head -1")
-    val qbe_installed_str: mut ref u8 = c"installed"
+    val uqbe_ver: ref u8 = tool_version(c"uqbe -h 2>&1 | head -1")
+    val uqbe_installed_str: mut ref u8 = c"installed"
     val arena: allocators.Arena = trust allocators.Arena.new(512 as usize)?
-    val qbe_ver_string = trust ostr.from_cstr[allocators.Arena](arena, qbe_ver)
+    val uqbe_ver_string = trust ostr.from_cstr[allocators.Arena](arena, uqbe_ver)
     val not_found = trust ostr.from_cstr[allocators.Arena](arena, c"not found")
-    if ostr.contains(qbe_ver_string, not_found) {
-        qbe_installed_str = c"not installed"
-    }
-    val qbe_check: ref u8 = tool_version(c"qbe -spectre-check 2>&1")
-    val qbe_check_string = trust ostr.from_cstr[allocators.Arena](arena, qbe_check)
-    val spectre_marker = trust ostr.from_cstr[allocators.Arena](arena, c"qbe (spectre)")
-    val qbe_spectre_str: mut ref u8 = c"false"
-    if ostr.contains(qbe_check_string, spectre_marker) {
-        qbe_spectre_str = c"true"
+    if ostr.contains(uqbe_ver_string, not_found) {
+        uqbe_installed_str = c"not installed"
     }
     trust allocators.Arena.free(arena)
-    trust doctor_row(c"qbe", qbe_installed_str)
-    trust doctor_row(c"uqbe", qbe_spectre_str)
+    trust doctor_row(c"uqbe", uqbe_installed_str)
 
     trust doctor_row(c"cc", tool_version(c"cc --version 2>&1 | head -1"))
     trust doctor_row(c"clang", tool_version(c"clang --version 2>&1 | head -1"))
