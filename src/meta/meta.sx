@@ -40,7 +40,7 @@ pub fn print_usage() void = {
     stdio.puts("  clean               Remove build artifacts")
     stdio.puts("  doctor              Show system and Spectre installation information")
     stdio.puts("  port-c  <file>      Translate C source into a single .sx file")
-    stdio.puts("  bind-c  <file|dir>  Generate C bindings from headers")
+    stdio.puts("  bind-c  <file|dir>  Generate Spectre bindings from C headers")
     stdio.puts("")
     stdio.puts("options:")
     stdio.puts("  -ast                 Print the AST in a unicode tree and exit")
