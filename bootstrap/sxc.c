@@ -391,7 +391,7 @@ static char sx__str7[]="/spectrelib/env/core.sx";
 static char sx__str8[]="/src/meta/env.sx";
 static char sx__str9[]="v0.0.16";
 static char sx__str10[]="VERSION";
-static char sx__str11[]="4ae7738";
+static char sx__str11[]="901f515";
 static char sx__str12[]="unknown";
 static char sx__str13[]="usage:";
 static char sx__str14[]="  spectre <command> [args] | <input.sx> [options]";
@@ -104827,19 +104827,19 @@ int64_t sx__fap1[16]={(int64_t)(builds__quote_arg((*(int64_t*)((char*)(intptr_t)
 {
 if((*(int32_t*)((char*)(intptr_t)((*(int64_t*)((char*)(intptr_t)(t_ctx)+0)))+60)))
 {
-int64_t sx__fap2[16]={(int64_t)(builds__quote_arg((*(int64_t*)((char*)(intptr_t)(t_st)+0)))),(int64_t)((*(int64_t*)((char*)(intptr_t)(t_st)+128))),(int64_t)((*(int64_t*)((char*)(intptr_t)(t_st)+120))),(int64_t)(builds__quote_arg((*(int64_t*)((char*)(intptr_t)(t_st)+80)))),(int64_t)(builds__quote_arg(t_compile_output)),0,0,0,0,0,0,0,0,0,0,0};
+int64_t sx__fap2[16]={(int64_t)((*(int64_t*)((char*)(intptr_t)(t_st)+0))),(int64_t)((*(int64_t*)((char*)(intptr_t)(t_st)+128))),(int64_t)((*(int64_t*)((char*)(intptr_t)(t_st)+120))),(int64_t)(builds__quote_arg((*(int64_t*)((char*)(intptr_t)(t_st)+80)))),(int64_t)(builds__quote_arg(t_compile_output)),0,0,0,0,0,0,0,0,0,0,0};
 *(int64_t*)(intptr_t)((int64_t)(intptr_t)((char*)(intptr_t)(t_st)+136))=(int64_t)((int64_t)(intptr_t)sx__rt_fmt((const char*)(intptr_t)(sx__str3229),(int64_t*)(intptr_t)(sx__fap2)));
 }else{
-int64_t sx__fap3[16]={(int64_t)(builds__quote_arg((*(int64_t*)((char*)(intptr_t)(t_st)+0)))),(int64_t)((*(int64_t*)((char*)(intptr_t)(t_st)+128))),(int64_t)((*(int64_t*)((char*)(intptr_t)(t_st)+120))),(int64_t)(builds__quote_arg((*(int64_t*)((char*)(intptr_t)(t_st)+80)))),(int64_t)(builds__quote_arg(t_compile_output)),(int64_t)((*(int64_t*)((char*)(intptr_t)(t_st)+112))),0,0,0,0,0,0,0,0,0,0};
+int64_t sx__fap3[16]={(int64_t)((*(int64_t*)((char*)(intptr_t)(t_st)+0))),(int64_t)((*(int64_t*)((char*)(intptr_t)(t_st)+128))),(int64_t)((*(int64_t*)((char*)(intptr_t)(t_st)+120))),(int64_t)(builds__quote_arg((*(int64_t*)((char*)(intptr_t)(t_st)+80)))),(int64_t)(builds__quote_arg(t_compile_output)),(int64_t)((*(int64_t*)((char*)(intptr_t)(t_st)+112))),0,0,0,0,0,0,0,0,0,0};
 *(int64_t*)(intptr_t)((int64_t)(intptr_t)((char*)(intptr_t)(t_st)+136))=(int64_t)((int64_t)(intptr_t)sx__rt_fmt((const char*)(intptr_t)(sx__str3230),(int64_t*)(intptr_t)(sx__fap3)));
 }
 }else{
 if(((cstr__cmp((*(int64_t*)((char*)(intptr_t)(t_st)+128)),((int64_t)(intptr_t)sx__str0)))==(INT64_C(0))))
 {
-int64_t sx__fap4[16]={(int64_t)(builds__quote_arg((*(int64_t*)((char*)(intptr_t)(t_st)+0)))),(int64_t)((*(int64_t*)((char*)(intptr_t)(t_st)+120))),(int64_t)(builds__quote_arg(t_compile_output)),(int64_t)(builds__quote_arg((*(int64_t*)((char*)(intptr_t)(t_st)+80)))),(int64_t)((*(int64_t*)((char*)(intptr_t)(t_st)+112))),0,0,0,0,0,0,0,0,0,0,0};
+int64_t sx__fap4[16]={(int64_t)((*(int64_t*)((char*)(intptr_t)(t_st)+0))),(int64_t)((*(int64_t*)((char*)(intptr_t)(t_st)+120))),(int64_t)(builds__quote_arg(t_compile_output)),(int64_t)(builds__quote_arg((*(int64_t*)((char*)(intptr_t)(t_st)+80)))),(int64_t)((*(int64_t*)((char*)(intptr_t)(t_st)+112))),0,0,0,0,0,0,0,0,0,0,0};
 *(int64_t*)(intptr_t)((int64_t)(intptr_t)((char*)(intptr_t)(t_st)+136))=(int64_t)((int64_t)(intptr_t)sx__rt_fmt((const char*)(intptr_t)(sx__str3231),(int64_t*)(intptr_t)(sx__fap4)));
 }else{
-int64_t sx__fap5[16]={(int64_t)(builds__quote_arg((*(int64_t*)((char*)(intptr_t)(t_st)+0)))),(int64_t)((*(int64_t*)((char*)(intptr_t)(t_st)+128))),(int64_t)((*(int64_t*)((char*)(intptr_t)(t_st)+120))),(int64_t)(builds__quote_arg(t_compile_output)),(int64_t)(builds__quote_arg((*(int64_t*)((char*)(intptr_t)(t_st)+80)))),(int64_t)((*(int64_t*)((char*)(intptr_t)(t_st)+112))),0,0,0,0,0,0,0,0,0,0};
+int64_t sx__fap5[16]={(int64_t)((*(int64_t*)((char*)(intptr_t)(t_st)+0))),(int64_t)((*(int64_t*)((char*)(intptr_t)(t_st)+128))),(int64_t)((*(int64_t*)((char*)(intptr_t)(t_st)+120))),(int64_t)(builds__quote_arg(t_compile_output)),(int64_t)(builds__quote_arg((*(int64_t*)((char*)(intptr_t)(t_st)+80)))),(int64_t)((*(int64_t*)((char*)(intptr_t)(t_st)+112))),0,0,0,0,0,0,0,0,0,0};
 *(int64_t*)(intptr_t)((int64_t)(intptr_t)((char*)(intptr_t)(t_st)+136))=(int64_t)((int64_t)(intptr_t)sx__rt_fmt((const char*)(intptr_t)(sx__str3232),(int64_t*)(intptr_t)(sx__fap5)));
 }
 }

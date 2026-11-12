@@ -296912,20 +296912,19 @@ function w $alt__build_cmd_alt(l %ctx, l %st) {
     %t90 =l call $malloc(l 4096)
     %t96 =l loadl %t0
     %t97 =l loadl %t96
-    %t98 =l call $builds__quote_arg(l %t97)
-    %t99 =l loadl %t0
-    %t101 =l add %t99, 128
-    %t100 =l loadl %t101
-    %t102 =l loadl %t0
-    %t104 =l add %t102, 120
-    %t103 =l loadl %t104
-    %t105 =l loadl %t0
-    %t107 =l add %t105, 80
-    %t106 =l loadl %t107
-    %t108 =l call $builds__quote_arg(l %t106)
-    %t109 =l loadl %t8
-    %t110 =l call $builds__quote_arg(l %t109)
-    %t91 =w call $snprintf(l %t90, l 4096, l %t89, ..., l %t98, l %t100, l %t103, l %t108, l %t110)
+    %t98 =l loadl %t0
+    %t100 =l add %t98, 128
+    %t99 =l loadl %t100
+    %t101 =l loadl %t0
+    %t103 =l add %t101, 120
+    %t102 =l loadl %t103
+    %t104 =l loadl %t0
+    %t106 =l add %t104, 80
+    %t105 =l loadl %t106
+    %t107 =l call $builds__quote_arg(l %t105)
+    %t108 =l loadl %t8
+    %t109 =l call $builds__quote_arg(l %t108)
+    %t91 =w call $snprintf(l %t90, l 4096, l %t89, ..., l %t97, l %t99, l %t102, l %t107, l %t109)
     %t92 =l extsw %t91
     %t93 =l add %t92, 1
     %t94 =l call $malloc(l %t93)
@@ -296934,119 +296933,116 @@ function w $alt__build_cmd_alt(l %ctx, l %st) {
     storeb 0, %t95
     call $free(l %t90)
     %t88 =l copy %t94
-    %t111 =l loadl %t0
-    %t112 =l add %t111, 136
-    storel %t88, %t112
+    %t110 =l loadl %t0
+    %t111 =l add %t110, 136
+    storel %t88, %t111
     jmp @lbl53167
 @lbl53168
-    %t114 =l copy $__str3375
-    %t115 =l call $malloc(l 4096)
-    %t121 =l loadl %t0
-    %t122 =l loadl %t121
-    %t123 =l call $builds__quote_arg(l %t122)
-    %t124 =l loadl %t0
-    %t126 =l add %t124, 128
-    %t125 =l loadl %t126
-    %t127 =l loadl %t0
-    %t129 =l add %t127, 120
-    %t128 =l loadl %t129
-    %t130 =l loadl %t0
-    %t132 =l add %t130, 80
-    %t131 =l loadl %t132
-    %t133 =l call $builds__quote_arg(l %t131)
-    %t134 =l loadl %t8
-    %t135 =l call $builds__quote_arg(l %t134)
-    %t136 =l loadl %t0
-    %t138 =l add %t136, 112
-    %t137 =l loadl %t138
-    %t116 =w call $snprintf(l %t115, l 4096, l %t114, ..., l %t123, l %t125, l %t128, l %t133, l %t135, l %t137)
-    %t117 =l extsw %t116
-    %t118 =l add %t117, 1
-    %t119 =l call $malloc(l %t118)
-    call $memcpy(l %t119, l %t115, l %t117)
-    %t120 =l add %t119, %t117
-    storeb 0, %t120
-    call $free(l %t115)
-    %t113 =l copy %t119
-    %t139 =l loadl %t0
-    %t140 =l add %t139, 136
-    storel %t113, %t140
+    %t113 =l copy $__str3375
+    %t114 =l call $malloc(l 4096)
+    %t120 =l loadl %t0
+    %t121 =l loadl %t120
+    %t122 =l loadl %t0
+    %t124 =l add %t122, 128
+    %t123 =l loadl %t124
+    %t125 =l loadl %t0
+    %t127 =l add %t125, 120
+    %t126 =l loadl %t127
+    %t128 =l loadl %t0
+    %t130 =l add %t128, 80
+    %t129 =l loadl %t130
+    %t131 =l call $builds__quote_arg(l %t129)
+    %t132 =l loadl %t8
+    %t133 =l call $builds__quote_arg(l %t132)
+    %t134 =l loadl %t0
+    %t136 =l add %t134, 112
+    %t135 =l loadl %t136
+    %t115 =w call $snprintf(l %t114, l 4096, l %t113, ..., l %t121, l %t123, l %t126, l %t131, l %t133, l %t135)
+    %t116 =l extsw %t115
+    %t117 =l add %t116, 1
+    %t118 =l call $malloc(l %t117)
+    call $memcpy(l %t118, l %t114, l %t116)
+    %t119 =l add %t118, %t116
+    storeb 0, %t119
+    call $free(l %t114)
+    %t112 =l copy %t118
+    %t137 =l loadl %t0
+    %t138 =l add %t137, 136
+    storel %t112, %t138
     jmp @lbl53167
 @lbl53167
     jmp @lbl53156
 @lbl53159
-    %t141 =l loadl %t0
-    %t143 =l add %t141, 128
-    %t142 =l loadl %t143
-    %t144 =l copy $__str55
-    %t145 =l call $cstr__cmp(l %t142, l %t144)
-    %t146 =l copy 0
-    %t147 =w ceql %t145, %t146
-    jnz %t147, @lbl53169, @lbl53171
+    %t139 =l loadl %t0
+    %t141 =l add %t139, 128
+    %t140 =l loadl %t141
+    %t142 =l copy $__str55
+    %t143 =l call $cstr__cmp(l %t140, l %t142)
+    %t144 =l copy 0
+    %t145 =w ceql %t143, %t144
+    jnz %t145, @lbl53169, @lbl53171
 @lbl53169
-    %t149 =l copy $__str3376
-    %t150 =l call $malloc(l 4096)
+    %t147 =l copy $__str3376
+    %t148 =l call $malloc(l 4096)
+    %t154 =l loadl %t0
+    %t155 =l loadl %t154
     %t156 =l loadl %t0
-    %t157 =l loadl %t156
-    %t158 =l call $builds__quote_arg(l %t157)
-    %t159 =l loadl %t0
-    %t161 =l add %t159, 120
-    %t160 =l loadl %t161
-    %t162 =l loadl %t8
-    %t163 =l call $builds__quote_arg(l %t162)
-    %t164 =l loadl %t0
-    %t166 =l add %t164, 80
-    %t165 =l loadl %t166
-    %t167 =l call $builds__quote_arg(l %t165)
+    %t158 =l add %t156, 120
+    %t157 =l loadl %t158
+    %t159 =l loadl %t8
+    %t160 =l call $builds__quote_arg(l %t159)
+    %t161 =l loadl %t0
+    %t163 =l add %t161, 80
+    %t162 =l loadl %t163
+    %t164 =l call $builds__quote_arg(l %t162)
+    %t165 =l loadl %t0
+    %t167 =l add %t165, 112
+    %t166 =l loadl %t167
+    %t149 =w call $snprintf(l %t148, l 4096, l %t147, ..., l %t155, l %t157, l %t160, l %t164, l %t166)
+    %t150 =l extsw %t149
+    %t151 =l add %t150, 1
+    %t152 =l call $malloc(l %t151)
+    call $memcpy(l %t152, l %t148, l %t150)
+    %t153 =l add %t152, %t150
+    storeb 0, %t153
+    call $free(l %t148)
+    %t146 =l copy %t152
     %t168 =l loadl %t0
-    %t170 =l add %t168, 112
-    %t169 =l loadl %t170
-    %t151 =w call $snprintf(l %t150, l 4096, l %t149, ..., l %t158, l %t160, l %t163, l %t167, l %t169)
-    %t152 =l extsw %t151
-    %t153 =l add %t152, 1
-    %t154 =l call $malloc(l %t153)
-    call $memcpy(l %t154, l %t150, l %t152)
-    %t155 =l add %t154, %t152
-    storeb 0, %t155
-    call $free(l %t150)
-    %t148 =l copy %t154
-    %t171 =l loadl %t0
-    %t172 =l add %t171, 136
-    storel %t148, %t172
+    %t169 =l add %t168, 136
+    storel %t146, %t169
     jmp @lbl53170
 @lbl53171
-    %t174 =l copy $__str3377
-    %t175 =l call $malloc(l 4096)
-    %t181 =l loadl %t0
-    %t182 =l loadl %t181
-    %t183 =l call $builds__quote_arg(l %t182)
-    %t184 =l loadl %t0
-    %t186 =l add %t184, 128
-    %t185 =l loadl %t186
-    %t187 =l loadl %t0
-    %t189 =l add %t187, 120
-    %t188 =l loadl %t189
-    %t190 =l loadl %t8
-    %t191 =l call $builds__quote_arg(l %t190)
+    %t171 =l copy $__str3377
+    %t172 =l call $malloc(l 4096)
+    %t178 =l loadl %t0
+    %t179 =l loadl %t178
+    %t180 =l loadl %t0
+    %t182 =l add %t180, 128
+    %t181 =l loadl %t182
+    %t183 =l loadl %t0
+    %t185 =l add %t183, 120
+    %t184 =l loadl %t185
+    %t186 =l loadl %t8
+    %t187 =l call $builds__quote_arg(l %t186)
+    %t188 =l loadl %t0
+    %t190 =l add %t188, 80
+    %t189 =l loadl %t190
+    %t191 =l call $builds__quote_arg(l %t189)
     %t192 =l loadl %t0
-    %t194 =l add %t192, 80
+    %t194 =l add %t192, 112
     %t193 =l loadl %t194
-    %t195 =l call $builds__quote_arg(l %t193)
-    %t196 =l loadl %t0
-    %t198 =l add %t196, 112
-    %t197 =l loadl %t198
-    %t176 =w call $snprintf(l %t175, l 4096, l %t174, ..., l %t183, l %t185, l %t188, l %t191, l %t195, l %t197)
-    %t177 =l extsw %t176
-    %t178 =l add %t177, 1
-    %t179 =l call $malloc(l %t178)
-    call $memcpy(l %t179, l %t175, l %t177)
-    %t180 =l add %t179, %t177
-    storeb 0, %t180
-    call $free(l %t175)
-    %t173 =l copy %t179
-    %t199 =l loadl %t0
-    %t200 =l add %t199, 136
-    storel %t173, %t200
+    %t173 =w call $snprintf(l %t172, l 4096, l %t171, ..., l %t179, l %t181, l %t184, l %t187, l %t191, l %t193)
+    %t174 =l extsw %t173
+    %t175 =l add %t174, 1
+    %t176 =l call $malloc(l %t175)
+    call $memcpy(l %t176, l %t172, l %t174)
+    %t177 =l add %t176, %t174
+    storeb 0, %t177
+    call $free(l %t172)
+    %t170 =l copy %t176
+    %t195 =l loadl %t0
+    %t196 =l add %t195, 136
+    storel %t170, %t196
     jmp @lbl53170
 @lbl53170
     jmp @lbl53156
@@ -303897,7 +303893,7 @@ data $__str65 = { b "/spectrelib/env/core.sx", b 0 }
 data $__str66 = { b "/src/meta/env.sx", b 0 }
 data $__str67 = { b "v0.0.16", b 0 }
 data $__str68 = { b "VERSION", b 0 }
-data $__str69 = { b "4ae7738", b 0 }
+data $__str69 = { b "901f515", b 0 }
 data $__str70 = { b "unknown", b 0 }
 data $__str71 = { b "usage:", b 0 }
 data $__str72 = { b "  spectre <command> [args] | <input.sx> [options]", b 0 }
