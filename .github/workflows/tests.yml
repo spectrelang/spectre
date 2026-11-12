@@ -32,7 +32,7 @@ jobs:
             libunistring-dev libp11-kit-dev
 
       - name: Install Spectre toolchain
-        run: ./fw/install.sh -f
+        run: ./fw/install.sh -f -ci
 
       - name: Add Spectre to PATH
         run: echo "${HOME}/.local/bin" >> "$GITHUB_PATH"

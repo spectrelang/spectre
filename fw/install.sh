@@ -280,6 +280,7 @@ install_network_deps() {
 SPECTRE_VERSION=""
 MINIMAL=0
 FORCE_LATEST=0
+CI=0
 
 while [ "$#" -gt 0 ]; do
 	case "$1" in
@@ -297,6 +298,11 @@ while [ "$#" -gt 0 ]; do
 	-minimal)
 		MINIMAL=1
 		log "Flag: -minimal set — skipping optional networking deps and spectre-ls."
+		shift
+		;;
+	-ci)
+		CI=1
+		log "Flag: -ci set — skipping spectre-ls."
 		shift
 		;;
 	-v)
@@ -585,7 +591,9 @@ mkdir -p "$STDLIB_DEST"
 	tar xf -
 )
 
-if [ "$MINIMAL" -eq 1 ]; then
+if [ "$CI" -eq 1 ]; then
+	log "Skipping spectre-ls (-ci)."
+elif [ "$MINIMAL" -eq 1 ]; then
 	log "Skipping spectre-ls (-minimal)."
 else
 	log "Installing spectre-ls (language server)..."
@@ -665,7 +673,13 @@ log "Installation complete."
 echo
 echo "Installed:"
 echo "  - spectre    -> ${BIN_DIR}/spectre"
-echo "  - spectre-ls -> ${BIN_DIR}/spectre-ls"
+if [ "$CI" -eq 1 ]; then
+	echo "  - spectre-ls -> (skipped, -ci flag set)"
+elif [ "$MINIMAL" -eq 1 ]; then
+	echo "  - spectre-ls -> (skipped, -minimal flag set)"
+else
+	echo "  - spectre-ls -> ${BIN_DIR}/spectre-ls"
+fi
 echo "  - stdlib     -> ${BIN_DIR}/spectrelib"
 if [ "$QBE_OK" -eq 1 ]; then
 	echo "  - uqbe       -> ${UQBE_BIN}"
