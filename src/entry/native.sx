@@ -21,6 +21,7 @@ type NativeState = {
     strip_link: mut ref u8
     shim_c_file: mut ref u8
     shim_obj: mut ref u8
+    win_compat: mut ref u8
     link_flags: mut ref u8
     cc_flags: mut ref u8
     output_ext: mut ref u8
@@ -38,6 +39,7 @@ fn new_state() mut ref NativeState = trust {
     st.strip_link = c""
     st.shim_c_file = c""
     st.shim_obj = c""
+    st.win_compat = c""
     st.link_flags = c""
     st.cc_flags = c""
     st.output_ext = c""
@@ -153,6 +155,21 @@ fn compile_shim_native(ctx: mut ref context.Context, st: mut ref NativeState) bo
     return true
 }
 
+fn prepare_win_compat_native(ctx: ref context.Context, st: mut ref NativeState) void = trust {
+    if cstr.cmp(ctx.host_platform, c"windows") != 0
+    || ctx.freestanding_runtime || ctx.opts.compile_obj {
+        return
+    }
+
+    val compat_c: ref u8 = path.join_cstr(
+        ctx.exe_dir,
+        c"spectrelib/csources/hosted_windows_compat.c"
+    )
+    if os.exists(compat_c) {
+        st.win_compat = compat_c
+    }
+}
+
 fn build_link_flags_native(ctx: ref context.Context, st: mut ref NativeState) void = trust {
     if cstr.cmp(st.static_link, c"") != 0 {
         st.link_flags = @fmtalloc(" {s}", {st.static_link})
@@ -175,6 +192,13 @@ fn build_link_flags_native(ctx: ref context.Context, st: mut ref NativeState) vo
         st.link_flags = @fmtalloc(
             "{s} {s}",
             {st.link_flags, builds.quote_arg(st.shim_obj)}
+        )
+    }
+
+    if cstr.len(st.win_compat) > 0 && !ctx.opts.compile_obj {
+        st.link_flags = @fmtalloc(
+            "{s} {s}",
+            {st.link_flags, builds.quote_arg(st.win_compat)}
         )
     }
 }
@@ -365,6 +389,7 @@ pub fn run(ctx: mut ref context.Context) i32 = trust {
     if !compile_shim_native(ctx, st) {
         return 1
     }
+    prepare_win_compat_native(ctx, st)
     build_link_flags_native(ctx, st)
     build_cc_flags_native(ctx, st)
 
