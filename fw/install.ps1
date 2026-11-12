@@ -1,8 +1,16 @@
 $ErrorActionPreference = "Stop"
 
-$PREFIX       = "$env:USERPROFILE\.local"
-$BIN_DIR      = "$PREFIX\bin"
-$SRC_DIR      = "$PREFIX\src"
+$USER_PROFILE = [System.Environment]::GetFolderPath(
+    [System.Environment+SpecialFolder]::UserProfile
+)
+if (-not $USER_PROFILE) {
+    $USER_PROFILE = $env:USERPROFILE
+}
+
+$PREFIX       = Join-Path $USER_PROFILE ".local"
+$BIN_DIR      = Join-Path $PREFIX "bin"
+$SRC_DIR      = Join-Path $PREFIX "src"
+$TEMP_DIR     = Join-Path $PREFIX "tmp"
 $SPECTRE_REPO = "https://github.com/spectrelang/spectre.git"
 
 function Log($msg) {
@@ -12,6 +20,22 @@ function Log($msg) {
 function Err($msg) {
     Write-Host "[ERROR] $msg" -ForegroundColor Red
     exit 1
+}
+
+function Ensure-Directory($path) {
+    [System.IO.Directory]::CreateDirectory($path) | Out-Null
+}
+
+function Remove-Directory($path) {
+    if ($path -and [System.IO.Directory]::Exists($path)) {
+        [System.IO.Directory]::Delete($path, $true)
+    }
+}
+
+function Remove-File($path) {
+    if ($path -and [System.IO.File]::Exists($path)) {
+        [System.IO.File]::Delete($path)
+    }
 }
 
 function Require-Cmd($cmd) {
@@ -109,7 +133,8 @@ function Install-Msvc {
         Log "winget could not install the MSVC workload; trying the Visual Studio bootstrapper..."
     }
 
-    $installer = Join-Path $env:TEMP "vs_buildtools.exe"
+    Ensure-Directory $TEMP_DIR
+    $installer = Join-Path $TEMP_DIR "vs_buildtools.exe"
     $url = "https://aka.ms/vs/17/release/vs_buildtools.exe"
 
     Log "Downloading the Visual Studio Build Tools bootstrapper..."
@@ -118,7 +143,7 @@ function Install-Msvc {
 
     Log "Running the Visual Studio Build Tools installer (this may take a while)..."
     $proc = Start-Process -FilePath $installer -ArgumentList $workloadArgs -Wait -PassThru
-    Remove-Item -Force $installer -ErrorAction SilentlyContinue
+    Remove-File $installer
 
     if ($proc.ExitCode -ne 0 -and $proc.ExitCode -ne 3010) {
         Err "MSVC Build Tools installation failed (exit $($proc.ExitCode))."
@@ -184,7 +209,7 @@ function Add-LlvmToPath {
 
     $paths = @()
     foreach ($llvmBin in $llvmCandidates) {
-        if ((Test-Path (Join-Path $llvmBin "clang.exe")) -and
+        if ([System.IO.File]::Exists((Join-Path $llvmBin "clang.exe")) -and
             ($env:PATH -notlike "*$llvmBin*")) {
             $paths += $llvmBin
         }
@@ -225,49 +250,52 @@ function Get-LatestLlvmArchive {
 }
 
 function Expand-LlvmArchive($archive, $destination) {
-    Remove-Item -Recurse -Force $destination -ErrorAction SilentlyContinue
-    New-Item -ItemType Directory -Force -Path $destination | Out-Null
+    Remove-Directory $destination
+    Ensure-Directory $destination
 
     tar -xf $archive -C $destination --strip-components=1
-    if ($LASTEXITCODE -eq 0 -and (Test-Path (Join-Path $destination "bin\clang.exe"))) {
+    if ($LASTEXITCODE -eq 0 -and [System.IO.File]::Exists(
+        (Join-Path $destination "bin\clang.exe"))) {
         return
     }
 
     Log "Windows tar cannot extract .xz archives; using 7zr instead..."
-    Remove-Item -Recurse -Force $destination -ErrorAction SilentlyContinue
-    New-Item -ItemType Directory -Force -Path $destination | Out-Null
+    Remove-Directory $destination
+    Ensure-Directory $destination
+    Ensure-Directory $TEMP_DIR
 
-    $sevenZip = Join-Path $env:TEMP "7zr.exe"
-    if (-not (Test-Path $sevenZip)) {
+    $sevenZip = Join-Path $TEMP_DIR "7zr.exe"
+    if (-not [System.IO.File]::Exists($sevenZip)) {
         Invoke-WebRequest -Uri "https://www.7-zip.org/a/7zr.exe" `
             -OutFile $sevenZip -UseBasicParsing
         Unblock-File -Path $sevenZip
     }
 
-    $tarDir = Join-Path $env:TEMP "llvm-tar"
-    Remove-Item -Recurse -Force $tarDir -ErrorAction SilentlyContinue
-    New-Item -ItemType Directory -Force -Path $tarDir | Out-Null
+    $tarDir = Join-Path $TEMP_DIR "llvm-tar"
+    Remove-Directory $tarDir
+    Ensure-Directory $tarDir
 
     & $sevenZip x $archive "-o$tarDir" -y | Out-Null
     if ($LASTEXITCODE -ne 0) {
-        Remove-Item -Recurse -Force $tarDir -ErrorAction SilentlyContinue
+        Remove-Directory $tarDir
         Err "7zr failed to decompress the LLVM archive."
     }
 
-    $tarFile = Get-ChildItem -Path $tarDir -Filter "*.tar" | Select-Object -First 1
-    if (-not $tarFile) {
-        Remove-Item -Recurse -Force $tarDir -ErrorAction SilentlyContinue
+    $tarFiles = [System.IO.Directory]::GetFiles($tarDir, "*.tar")
+    if ($tarFiles.Count -eq 0) {
+        Remove-Directory $tarDir
         Err "Could not find the decompressed LLVM tar archive."
     }
 
-    tar -xf $tarFile.FullName -C $destination --strip-components=1
-    Remove-Item -Recurse -Force $tarDir -ErrorAction SilentlyContinue
+    tar -xf $tarFiles[0] -C $destination --strip-components=1
+    Remove-Directory $tarDir
 
-    if ($LASTEXITCODE -ne 0 -or -not (Test-Path (Join-Path $destination "bin\clang.exe"))) {
+    if ($LASTEXITCODE -ne 0 -or -not [System.IO.File]::Exists(
+        (Join-Path $destination "bin\clang.exe"))) {
         Err "Failed to extract the LLVM archive."
     }
 
-    Remove-Item -Force $sevenZip -ErrorAction SilentlyContinue
+    Remove-File $sevenZip
 }
 
 function Install-LlvmPortable {
@@ -276,9 +304,10 @@ function Install-LlvmPortable {
         Err "Could not find a portable LLVM Windows x64 archive."
     }
 
-    $archive = Join-Path $env:TEMP $asset.name
-    $llvmDir = "$PREFIX\llvm"
-    $stagingDir = "$PREFIX\llvm.tmp"
+    Ensure-Directory $TEMP_DIR
+    $archive = Join-Path $TEMP_DIR $asset.name
+    $llvmDir = Join-Path $PREFIX "llvm"
+    $stagingDir = Join-Path $PREFIX "llvm.tmp"
 
     Log "Downloading $($asset.name)..."
     $ProgressPreference = "SilentlyContinue"
@@ -291,9 +320,9 @@ function Install-LlvmPortable {
     Log "Extracting LLVM..."
     Expand-LlvmArchive $archive $stagingDir
 
-    Remove-Item -Recurse -Force $llvmDir -ErrorAction SilentlyContinue
-    Move-Item $stagingDir $llvmDir
-    Remove-Item -Force $archive -ErrorAction SilentlyContinue
+    Remove-Directory $llvmDir
+    [System.IO.Directory]::Move($stagingDir, $llvmDir)
+    Remove-File $archive
 
     Log "LLVM installed to $llvmDir."
 }
@@ -380,8 +409,8 @@ Require-Cmd git
 Require-Cmd clang
 
 Log "Preparing directories..."
-New-Item -ItemType Directory -Force -Path $BIN_DIR | Out-Null
-New-Item -ItemType Directory -Force -Path $SRC_DIR | Out-Null
+Ensure-Directory $BIN_DIR
+Ensure-Directory $SRC_DIR
 
 Log "Installing Spectre (self-hosted)..."
 
@@ -452,7 +481,9 @@ try {
 Log "Installing Spectre binary..."
 
 Copy-Item $STAGE2 "$BIN_DIR\spectre.exe" -Force
-Remove-Item -Force $STAGE0, $STAGE1, $STAGE2 -ErrorAction SilentlyContinue
+Remove-File $STAGE0
+Remove-File $STAGE1
+Remove-File $STAGE2
 
 $STDLIB_SRC  = "$SPECTRE_DIR\spectrelib"
 $STDLIB_DEST = "$BIN_DIR\spectrelib"
@@ -463,7 +494,7 @@ if (-not (Test-Path $STDLIB_SRC)) {
 
 Log "Installing standard library..."
 
-Remove-Item -Recurse -Force $STDLIB_DEST -ErrorAction SilentlyContinue
+Remove-Directory $STDLIB_DEST
 Copy-Item $STDLIB_SRC $STDLIB_DEST -Recurse
 
 $LlvmBin = "$PREFIX\llvm\bin"
@@ -476,7 +507,8 @@ $MissingPaths = @()
 if ($UserPath -notlike "*$BIN_DIR*") {
     $MissingPaths += $BIN_DIR
 }
-if ((Test-Path (Join-Path $LlvmBin "clang.exe")) -and ($UserPath -notlike "*$LlvmBin*")) {
+if ([System.IO.File]::Exists((Join-Path $LlvmBin "clang.exe")) -and
+    ($UserPath -notlike "*$LlvmBin*")) {
     $MissingPaths += $LlvmBin
 }
 
