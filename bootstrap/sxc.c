@@ -391,7 +391,7 @@ static char sx__str7[]="/spectrelib/env/core.sx";
 static char sx__str8[]="/src/meta/env.sx";
 static char sx__str9[]="v0.0.16";
 static char sx__str10[]="VERSION";
-static char sx__str11[]="8244ca0";
+static char sx__str11[]="7890bfe";
 static char sx__str12[]="unknown";
 static char sx__str13[]="usage:";
 static char sx__str14[]="  spectre <command> [args] | <input.sx> [options]";
@@ -6870,6 +6870,7 @@ static int64_t native__new_state(void);
 static int64_t native__native_cc(int64_t);
 static int32_t native__collect_links_native(int64_t,int64_t);
 static int32_t native__compile_shim_native(int64_t,int64_t);
+static int32_t native__prepare_win_compat_native(int64_t,int64_t);
 static int32_t native__build_link_flags_native(int64_t,int64_t);
 static int32_t native__build_cc_flags_native(int64_t,int64_t);
 static int32_t native__execute_test(int64_t,int64_t);
@@ -105792,8 +105793,8 @@ return(int32_t)(cross__execute_link(t_ctx,t_st));
 }
 
 static int64_t native__new_state(void){
-int64_t t_st=(int64_t)((int64_t)(mem__alloc((uint64_t)(INT64_C(92)))));
-(void)((memset((void*)(intptr_t)(t_st),(int)(INT64_C(0)),(size_t)((uint64_t)(INT64_C(92)))),0));
+int64_t t_st=(int64_t)((int64_t)(mem__alloc((uint64_t)(INT64_C(100)))));
+(void)((memset((void*)(intptr_t)(t_st),(int)(INT64_C(0)),(size_t)((uint64_t)(INT64_C(100)))),0));
 int64_t sx__gv1=sx__mem__new__GENMONO__ref_u8();
 *(int64_t*)(intptr_t)((int64_t)(intptr_t)((char*)(intptr_t)(t_st)+0))=(int64_t)(sx__gv1);
 *(int64_t*)(intptr_t)((int64_t)(intptr_t)((char*)(intptr_t)(t_st)+8))=(int64_t)(((int64_t)(intptr_t)sx__str0));
@@ -105806,7 +105807,8 @@ int64_t sx__gv1=sx__mem__new__GENMONO__ref_u8();
 *(int64_t*)(intptr_t)((int64_t)(intptr_t)((char*)(intptr_t)(t_st)+64))=(int64_t)(((int64_t)(intptr_t)sx__str0));
 *(int64_t*)(intptr_t)((int64_t)(intptr_t)((char*)(intptr_t)(t_st)+72))=(int64_t)(((int64_t)(intptr_t)sx__str0));
 *(int64_t*)(intptr_t)((int64_t)(intptr_t)((char*)(intptr_t)(t_st)+80))=(int64_t)(((int64_t)(intptr_t)sx__str0));
-*(int32_t*)(intptr_t)((int64_t)(intptr_t)((char*)(intptr_t)(t_st)+88))=(int32_t)(INT64_C(0));
+*(int64_t*)(intptr_t)((int64_t)(intptr_t)((char*)(intptr_t)(t_st)+88))=(int64_t)(((int64_t)(intptr_t)sx__str0));
+*(int32_t*)(intptr_t)((int64_t)(intptr_t)((char*)(intptr_t)(t_st)+96))=(int32_t)(INT64_C(0));
 return(int64_t)(t_st);
 }
 
@@ -105908,16 +105910,29 @@ return(int32_t)(0);
 return(int32_t)(1);
 }
 
+static int32_t native__prepare_win_compat_native(int64_t t_ctx,int64_t t_st){
+if(((((((cstr__cmp((*(int64_t*)((char*)(intptr_t)(t_ctx)+68)),((int64_t)(intptr_t)sx__str455)))!=(INT64_C(0))))?(1):((*(int32_t*)((char*)(intptr_t)(t_ctx)+116)))))?(1):((*(int32_t*)((char*)(intptr_t)((*(int64_t*)((char*)(intptr_t)(t_ctx)+0)))+60)))))
+{
+return 0;
+}
+int64_t t_compat_c=(int64_t)(pathutil__join_cstr((*(int64_t*)((char*)(intptr_t)(t_ctx)+56)),((int64_t)(intptr_t)sx__str3217)));
+if(std__os__exists(t_compat_c))
+{
+*(int64_t*)(intptr_t)((int64_t)(intptr_t)((char*)(intptr_t)(t_st)+40))=(int64_t)(t_compat_c);
+}
+return 0;
+}
+
 static int32_t native__build_link_flags_native(int64_t t_ctx,int64_t t_st){
 if(((cstr__cmp((*(int64_t*)((char*)(intptr_t)(t_st)+8)),((int64_t)(intptr_t)sx__str0)))!=(INT64_C(0))))
 {
 int64_t sx__fap0[16]={(int64_t)((*(int64_t*)((char*)(intptr_t)(t_st)+8))),0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
-*(int64_t*)(intptr_t)((int64_t)(intptr_t)((char*)(intptr_t)(t_st)+40))=(int64_t)((int64_t)(intptr_t)sx__rt_fmt((const char*)(intptr_t)(sx__str3228),(int64_t*)(intptr_t)(sx__fap0)));
+*(int64_t*)(intptr_t)((int64_t)(intptr_t)((char*)(intptr_t)(t_st)+48))=(int64_t)((int64_t)(intptr_t)sx__rt_fmt((const char*)(intptr_t)(sx__str3228),(int64_t*)(intptr_t)(sx__fap0)));
 }
 if(((cstr__cmp((*(int64_t*)((char*)(intptr_t)(t_st)+16)),((int64_t)(intptr_t)sx__str0)))!=(INT64_C(0))))
 {
-int64_t sx__fap1[16]={(int64_t)((*(int64_t*)((char*)(intptr_t)(t_st)+40))),(int64_t)((*(int64_t*)((char*)(intptr_t)(t_st)+16))),0,0,0,0,0,0,0,0,0,0,0,0,0,0};
-*(int64_t*)(intptr_t)((int64_t)(intptr_t)((char*)(intptr_t)(t_st)+40))=(int64_t)((int64_t)(intptr_t)sx__rt_fmt((const char*)(intptr_t)(sx__str576),(int64_t*)(intptr_t)(sx__fap1)));
+int64_t sx__fap1[16]={(int64_t)((*(int64_t*)((char*)(intptr_t)(t_st)+48))),(int64_t)((*(int64_t*)((char*)(intptr_t)(t_st)+16))),0,0,0,0,0,0,0,0,0,0,0,0,0,0};
+*(int64_t*)(intptr_t)((int64_t)(intptr_t)((char*)(intptr_t)(t_st)+48))=(int64_t)((int64_t)(intptr_t)sx__rt_fmt((const char*)(intptr_t)(sx__str576),(int64_t*)(intptr_t)(sx__fap1)));
 }
 {int64_t sx__it2=(*(int64_t*)((char*)(intptr_t)(t_st)+0));int64_t sx__len2=(sx__it2==0?0:*(int64_t*)((char*)(intptr_t)sx__it2+8));int64_t*sx__buf2=(sx__it2==0?0:*(int64_t**)(intptr_t)sx__it2);int64_t sx__i2=0;for(;sx__i2<sx__len2;sx__i2++){int64_t t_link_flag=sx__buf2[sx__i2];
 int64_t t_link_arg=(int64_t)(t_link_flag);
@@ -105925,17 +105940,22 @@ if(((((cstr__len(t_link_arg))>(INT64_C(0))))?((!(cstr__starts_with(t_link_arg,((
 {
 t_link_arg=(builds__quote_arg(t_link_arg));
 }
-int64_t sx__fap3[16]={(int64_t)((*(int64_t*)((char*)(intptr_t)(t_st)+40))),(int64_t)(t_link_arg),0,0,0,0,0,0,0,0,0,0,0,0,0,0};
-*(int64_t*)(intptr_t)((int64_t)(intptr_t)((char*)(intptr_t)(t_st)+40))=(int64_t)((int64_t)(intptr_t)sx__rt_fmt((const char*)(intptr_t)(sx__str576),(int64_t*)(intptr_t)(sx__fap3)));
+int64_t sx__fap3[16]={(int64_t)((*(int64_t*)((char*)(intptr_t)(t_st)+48))),(int64_t)(t_link_arg),0,0,0,0,0,0,0,0,0,0,0,0,0,0};
+*(int64_t*)(intptr_t)((int64_t)(intptr_t)((char*)(intptr_t)(t_st)+48))=(int64_t)((int64_t)(intptr_t)sx__rt_fmt((const char*)(intptr_t)(sx__str576),(int64_t*)(intptr_t)(sx__fap3)));
 }}
 if((*(int32_t*)((char*)(intptr_t)((*(int64_t*)((char*)(intptr_t)(t_ctx)+0)))+60)))
 {
-*(int64_t*)(intptr_t)((int64_t)(intptr_t)((char*)(intptr_t)(t_st)+40))=(int64_t)(((int64_t)(intptr_t)sx__str0));
+*(int64_t*)(intptr_t)((int64_t)(intptr_t)((char*)(intptr_t)(t_st)+48))=(int64_t)(((int64_t)(intptr_t)sx__str0));
 }
 if(((((cstr__len((*(int64_t*)((char*)(intptr_t)(t_st)+32))))>(INT64_C(0))))?((!((*(int32_t*)((char*)(intptr_t)((*(int64_t*)((char*)(intptr_t)(t_ctx)+0)))+60))))):(0)))
 {
-int64_t sx__fap4[16]={(int64_t)((*(int64_t*)((char*)(intptr_t)(t_st)+40))),(int64_t)(builds__quote_arg((*(int64_t*)((char*)(intptr_t)(t_st)+32)))),0,0,0,0,0,0,0,0,0,0,0,0,0,0};
-*(int64_t*)(intptr_t)((int64_t)(intptr_t)((char*)(intptr_t)(t_st)+40))=(int64_t)((int64_t)(intptr_t)sx__rt_fmt((const char*)(intptr_t)(sx__str576),(int64_t*)(intptr_t)(sx__fap4)));
+int64_t sx__fap4[16]={(int64_t)((*(int64_t*)((char*)(intptr_t)(t_st)+48))),(int64_t)(builds__quote_arg((*(int64_t*)((char*)(intptr_t)(t_st)+32)))),0,0,0,0,0,0,0,0,0,0,0,0,0,0};
+*(int64_t*)(intptr_t)((int64_t)(intptr_t)((char*)(intptr_t)(t_st)+48))=(int64_t)((int64_t)(intptr_t)sx__rt_fmt((const char*)(intptr_t)(sx__str576),(int64_t*)(intptr_t)(sx__fap4)));
+}
+if(((((cstr__len((*(int64_t*)((char*)(intptr_t)(t_st)+40))))>(INT64_C(0))))?((!((*(int32_t*)((char*)(intptr_t)((*(int64_t*)((char*)(intptr_t)(t_ctx)+0)))+60))))):(0)))
+{
+int64_t sx__fap5[16]={(int64_t)((*(int64_t*)((char*)(intptr_t)(t_st)+48))),(int64_t)(builds__quote_arg((*(int64_t*)((char*)(intptr_t)(t_st)+40)))),0,0,0,0,0,0,0,0,0,0,0,0,0,0};
+*(int64_t*)(intptr_t)((int64_t)(intptr_t)((char*)(intptr_t)(t_st)+48))=(int64_t)((int64_t)(intptr_t)sx__rt_fmt((const char*)(intptr_t)(sx__str576),(int64_t*)(intptr_t)(sx__fap5)));
 }
 return 0;
 }
@@ -105943,48 +105963,48 @@ return 0;
 static int32_t native__build_cc_flags_native(int64_t t_ctx,int64_t t_st){
 if((!((*(int32_t*)((char*)(intptr_t)((*(int64_t*)((char*)(intptr_t)(t_ctx)+0)))+32)))))
 {
-*(int64_t*)(intptr_t)((int64_t)(intptr_t)((char*)(intptr_t)(t_st)+48))=(int64_t)(((int64_t)(intptr_t)sx__str466));
+*(int64_t*)(intptr_t)((int64_t)(intptr_t)((char*)(intptr_t)(t_st)+56))=(int64_t)(((int64_t)(intptr_t)sx__str466));
 }
 int64_t t_platform=(int64_t)((*(int64_t*)((char*)(intptr_t)(t_ctx)+68)));
 if((*(int32_t*)((char*)(intptr_t)((*(int64_t*)((char*)(intptr_t)(t_ctx)+0)))+60)))
 {
-int64_t sx__fap0[16]={(int64_t)((*(int64_t*)((char*)(intptr_t)(t_st)+48))),0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
-*(int64_t*)(intptr_t)((int64_t)(intptr_t)((char*)(intptr_t)(t_st)+48))=(int64_t)((int64_t)(intptr_t)sx__rt_fmt((const char*)(intptr_t)(sx__str3239),(int64_t*)(intptr_t)(sx__fap0)));
+int64_t sx__fap0[16]={(int64_t)((*(int64_t*)((char*)(intptr_t)(t_st)+56))),0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
+*(int64_t*)(intptr_t)((int64_t)(intptr_t)((char*)(intptr_t)(t_st)+56))=(int64_t)((int64_t)(intptr_t)sx__rt_fmt((const char*)(intptr_t)(sx__str3239),(int64_t*)(intptr_t)(sx__fap0)));
 if(((cstr__cmp(t_platform,((int64_t)(intptr_t)sx__str455)))==(INT64_C(0))))
 {
-*(int64_t*)(intptr_t)((int64_t)(intptr_t)((char*)(intptr_t)(t_st)+56))=(int64_t)(((int64_t)(intptr_t)sx__str591));
+*(int64_t*)(intptr_t)((int64_t)(intptr_t)((char*)(intptr_t)(t_st)+64))=(int64_t)(((int64_t)(intptr_t)sx__str591));
 }else{
-*(int64_t*)(intptr_t)((int64_t)(intptr_t)((char*)(intptr_t)(t_st)+56))=(int64_t)(((int64_t)(intptr_t)sx__str590));
+*(int64_t*)(intptr_t)((int64_t)(intptr_t)((char*)(intptr_t)(t_st)+64))=(int64_t)(((int64_t)(intptr_t)sx__str590));
 }
 }else if((*(int32_t*)((char*)(intptr_t)((*(int64_t*)((char*)(intptr_t)(t_ctx)+0)))+56)))
 {
 if(((cstr__cmp(t_platform,((int64_t)(intptr_t)sx__str598)))==(INT64_C(0))))
 {
-int64_t sx__fap1[16]={(int64_t)((*(int64_t*)((char*)(intptr_t)(t_st)+48))),0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
-*(int64_t*)(intptr_t)((int64_t)(intptr_t)((char*)(intptr_t)(t_st)+48))=(int64_t)((int64_t)(intptr_t)sx__rt_fmt((const char*)(intptr_t)(sx__str3287),(int64_t*)(intptr_t)(sx__fap1)));
-*(int64_t*)(intptr_t)((int64_t)(intptr_t)((char*)(intptr_t)(t_st)+56))=(int64_t)(((int64_t)(intptr_t)sx__str1595));
+int64_t sx__fap1[16]={(int64_t)((*(int64_t*)((char*)(intptr_t)(t_st)+56))),0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
+*(int64_t*)(intptr_t)((int64_t)(intptr_t)((char*)(intptr_t)(t_st)+56))=(int64_t)((int64_t)(intptr_t)sx__rt_fmt((const char*)(intptr_t)(sx__str3287),(int64_t*)(intptr_t)(sx__fap1)));
+*(int64_t*)(intptr_t)((int64_t)(intptr_t)((char*)(intptr_t)(t_st)+64))=(int64_t)(((int64_t)(intptr_t)sx__str1595));
 }else if(((cstr__cmp(t_platform,((int64_t)(intptr_t)sx__str455)))==(INT64_C(0))))
 {
-int64_t sx__fap2[16]={(int64_t)((*(int64_t*)((char*)(intptr_t)(t_st)+48))),0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
-*(int64_t*)(intptr_t)((int64_t)(intptr_t)((char*)(intptr_t)(t_st)+48))=(int64_t)((int64_t)(intptr_t)sx__rt_fmt((const char*)(intptr_t)(sx__str3288),(int64_t*)(intptr_t)(sx__fap2)));
-*(int64_t*)(intptr_t)((int64_t)(intptr_t)((char*)(intptr_t)(t_st)+56))=(int64_t)(((int64_t)(intptr_t)sx__str3289));
+int64_t sx__fap2[16]={(int64_t)((*(int64_t*)((char*)(intptr_t)(t_st)+56))),0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
+*(int64_t*)(intptr_t)((int64_t)(intptr_t)((char*)(intptr_t)(t_st)+56))=(int64_t)((int64_t)(intptr_t)sx__rt_fmt((const char*)(intptr_t)(sx__str3288),(int64_t*)(intptr_t)(sx__fap2)));
+*(int64_t*)(intptr_t)((int64_t)(intptr_t)((char*)(intptr_t)(t_st)+64))=(int64_t)(((int64_t)(intptr_t)sx__str3289));
 }else{
-int64_t sx__fap3[16]={(int64_t)((*(int64_t*)((char*)(intptr_t)(t_st)+48))),0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
-*(int64_t*)(intptr_t)((int64_t)(intptr_t)((char*)(intptr_t)(t_st)+48))=(int64_t)((int64_t)(intptr_t)sx__rt_fmt((const char*)(intptr_t)(sx__str3288),(int64_t*)(intptr_t)(sx__fap3)));
-*(int64_t*)(intptr_t)((int64_t)(intptr_t)((char*)(intptr_t)(t_st)+56))=(int64_t)(((int64_t)(intptr_t)sx__str588));
+int64_t sx__fap3[16]={(int64_t)((*(int64_t*)((char*)(intptr_t)(t_st)+56))),0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
+*(int64_t*)(intptr_t)((int64_t)(intptr_t)((char*)(intptr_t)(t_st)+56))=(int64_t)((int64_t)(intptr_t)sx__rt_fmt((const char*)(intptr_t)(sx__str3288),(int64_t*)(intptr_t)(sx__fap3)));
+*(int64_t*)(intptr_t)((int64_t)(intptr_t)((char*)(intptr_t)(t_st)+64))=(int64_t)(((int64_t)(intptr_t)sx__str588));
 }
 }else{
-*(int64_t*)(intptr_t)((int64_t)(intptr_t)((char*)(intptr_t)(t_st)+56))=(int64_t)(((int64_t)(intptr_t)sx__str0));
+*(int64_t*)(intptr_t)((int64_t)(intptr_t)((char*)(intptr_t)(t_st)+64))=(int64_t)(((int64_t)(intptr_t)sx__str0));
 }
 return 0;
 }
 
 static int32_t native__execute_test(int64_t t_ctx,int64_t t_st){
 int64_t t_test_bin=(int64_t)(builds__get_unique_tmp_path(((int64_t)(intptr_t)sx__str793)));
-int64_t sx__fap0[16]={(int64_t)(native__native_cc(t_ctx)),(int64_t)(builds__quote_arg(t_test_bin)),(int64_t)(builds__quote_arg((*(int64_t*)((char*)(intptr_t)(t_ctx)+160)))),(int64_t)((*(int64_t*)((char*)(intptr_t)(t_st)+40))),0,0,0,0,0,0,0,0,0,0,0,0};
-*(int64_t*)(intptr_t)((int64_t)(intptr_t)((char*)(intptr_t)(t_st)+64))=(int64_t)((int64_t)(intptr_t)sx__rt_fmt((const char*)(intptr_t)(sx__str3290),(int64_t*)(intptr_t)(sx__fap0)));
+int64_t sx__fap0[16]={(int64_t)(native__native_cc(t_ctx)),(int64_t)(builds__quote_arg(t_test_bin)),(int64_t)(builds__quote_arg((*(int64_t*)((char*)(intptr_t)(t_ctx)+160)))),(int64_t)((*(int64_t*)((char*)(intptr_t)(t_st)+48))),0,0,0,0,0,0,0,0,0,0,0,0};
+*(int64_t*)(intptr_t)((int64_t)(intptr_t)((char*)(intptr_t)(t_st)+72))=(int64_t)((int64_t)(intptr_t)sx__rt_fmt((const char*)(intptr_t)(sx__str3290),(int64_t*)(intptr_t)(sx__fap0)));
 int64_t sx__rb1[3];
-(void)(std__os__exec((int64_t)(intptr_t)sx__rb1,(*(int64_t*)((char*)(intptr_t)(t_st)+64))));
+(void)(std__os__exec((int64_t)(intptr_t)sx__rb1,(*(int64_t*)((char*)(intptr_t)(t_st)+72))));
 int64_t t_cc_res2=(int64_t)(((int64_t)(intptr_t)sx__rb1));
 {int64_t*sx__rp2=(int64_t*)(intptr_t)(t_cc_res2);if(sx__rp2[0]==0)
 {
@@ -105997,12 +106017,12 @@ if((((!((*(int32_t*)((char*)(intptr_t)((*(int64_t*)((char*)(intptr_t)(t_ctx)+0))
 int64_t sx__parg3 = (int64_t)(intptr_t)(((int64_t)(intptr_t)sx__svs588));
 (void)(printf((const char*)(intptr_t)sx__str3291,(int)(*(int64_t*)(intptr_t)((char*)(intptr_t)(sx__parg3) + 8)),(const char*)(intptr_t)(*(int64_t*)(intptr_t)((char*)(intptr_t)(sx__parg3)))));
 }
-*(int32_t*)(intptr_t)((int64_t)(intptr_t)((char*)(intptr_t)(t_st)+88))=(int32_t)(INT64_C(1));
+*(int32_t*)(intptr_t)((int64_t)(intptr_t)((char*)(intptr_t)(t_st)+96))=(int32_t)(INT64_C(1));
 }
 }else{
 int64_t t__=sx__rp2[1];
 (void)(std__stdio__puts(((int64_t)(intptr_t)sx__svs589)));
-*(int32_t*)(intptr_t)((int64_t)(intptr_t)((char*)(intptr_t)(t_st)+88))=(int32_t)(INT64_C(1));
+*(int32_t*)(intptr_t)((int64_t)(intptr_t)((char*)(intptr_t)(t_st)+96))=(int32_t)(INT64_C(1));
 }}
 (void)(std__os__delete((*(int64_t*)((char*)(intptr_t)(t_ctx)+152))));
 (void)(std__os__delete((*(int64_t*)((char*)(intptr_t)(t_ctx)+160))));
@@ -106014,7 +106034,7 @@ if(((cstr__len((*(int64_t*)((char*)(intptr_t)(t_st)+32))))>(INT64_C(0))))
 {
 (void)(std__os__delete((*(int64_t*)((char*)(intptr_t)(t_st)+32))));
 }
-return(int32_t)((*(int32_t*)((char*)(intptr_t)(t_st)+88)));
+return(int32_t)((*(int32_t*)((char*)(intptr_t)(t_st)+96)));
 }
 
 static int32_t native__build_output(int64_t t_ctx,int64_t t_st){
@@ -106029,42 +106049,42 @@ int32_t t_output_specified=(int32_t)(((cstr__cmp((*(int64_t*)((char*)(intptr_t)(
 if(t_output_specified)
 {
 int64_t t_final_output=(int64_t)(t_binary_name);
-if(((cstr__cmp((*(int64_t*)((char*)(intptr_t)(t_st)+56)),((int64_t)(intptr_t)sx__str0)))!=(INT64_C(0))))
+if(((cstr__cmp((*(int64_t*)((char*)(intptr_t)(t_st)+64)),((int64_t)(intptr_t)sx__str0)))!=(INT64_C(0))))
 {
-int64_t sx__fap0[16]={(int64_t)(t_binary_name),(int64_t)((*(int64_t*)((char*)(intptr_t)(t_st)+56))),0,0,0,0,0,0,0,0,0,0,0,0,0,0};
+int64_t sx__fap0[16]={(int64_t)(t_binary_name),(int64_t)((*(int64_t*)((char*)(intptr_t)(t_st)+64))),0,0,0,0,0,0,0,0,0,0,0,0,0,0};
 t_final_output=((int64_t)(intptr_t)sx__rt_fmt((const char*)(intptr_t)(sx__str3215),(int64_t*)(intptr_t)(sx__fap0)));
 }
-*(int64_t*)(intptr_t)((int64_t)(intptr_t)((char*)(intptr_t)(t_st)+80))=(int64_t)(t_final_output);
-if(((cstr__cmp((*(int64_t*)((char*)(intptr_t)(t_st)+48)),((int64_t)(intptr_t)sx__str0)))==(INT64_C(0))))
+*(int64_t*)(intptr_t)((int64_t)(intptr_t)((char*)(intptr_t)(t_st)+88))=(int64_t)(t_final_output);
+if(((cstr__cmp((*(int64_t*)((char*)(intptr_t)(t_st)+56)),((int64_t)(intptr_t)sx__str0)))==(INT64_C(0))))
 {
-int64_t sx__fap1[16]={(int64_t)(native__native_cc(t_ctx)),(int64_t)(builds__quote_arg(t_final_output)),(int64_t)(builds__quote_arg((*(int64_t*)((char*)(intptr_t)(t_ctx)+160)))),(int64_t)((*(int64_t*)((char*)(intptr_t)(t_st)+40))),0,0,0,0,0,0,0,0,0,0,0,0};
-*(int64_t*)(intptr_t)((int64_t)(intptr_t)((char*)(intptr_t)(t_st)+64))=(int64_t)((int64_t)(intptr_t)sx__rt_fmt((const char*)(intptr_t)(sx__str3290),(int64_t*)(intptr_t)(sx__fap1)));
+int64_t sx__fap1[16]={(int64_t)(native__native_cc(t_ctx)),(int64_t)(builds__quote_arg(t_final_output)),(int64_t)(builds__quote_arg((*(int64_t*)((char*)(intptr_t)(t_ctx)+160)))),(int64_t)((*(int64_t*)((char*)(intptr_t)(t_st)+48))),0,0,0,0,0,0,0,0,0,0,0,0};
+*(int64_t*)(intptr_t)((int64_t)(intptr_t)((char*)(intptr_t)(t_st)+72))=(int64_t)((int64_t)(intptr_t)sx__rt_fmt((const char*)(intptr_t)(sx__str3290),(int64_t*)(intptr_t)(sx__fap1)));
 }else{
-int64_t sx__fap2[16]={(int64_t)(native__native_cc(t_ctx)),(int64_t)((*(int64_t*)((char*)(intptr_t)(t_st)+48))),(int64_t)(builds__quote_arg(t_final_output)),(int64_t)(builds__quote_arg((*(int64_t*)((char*)(intptr_t)(t_ctx)+160)))),(int64_t)((*(int64_t*)((char*)(intptr_t)(t_st)+40))),0,0,0,0,0,0,0,0,0,0,0};
-*(int64_t*)(intptr_t)((int64_t)(intptr_t)((char*)(intptr_t)(t_st)+64))=(int64_t)((int64_t)(intptr_t)sx__rt_fmt((const char*)(intptr_t)(sx__str3294),(int64_t*)(intptr_t)(sx__fap2)));
+int64_t sx__fap2[16]={(int64_t)(native__native_cc(t_ctx)),(int64_t)((*(int64_t*)((char*)(intptr_t)(t_st)+56))),(int64_t)(builds__quote_arg(t_final_output)),(int64_t)(builds__quote_arg((*(int64_t*)((char*)(intptr_t)(t_ctx)+160)))),(int64_t)((*(int64_t*)((char*)(intptr_t)(t_st)+48))),0,0,0,0,0,0,0,0,0,0,0};
+*(int64_t*)(intptr_t)((int64_t)(intptr_t)((char*)(intptr_t)(t_st)+72))=(int64_t)((int64_t)(intptr_t)sx__rt_fmt((const char*)(intptr_t)(sx__str3294),(int64_t*)(intptr_t)(sx__fap2)));
 }
 int64_t sx__fap3[16]={(int64_t)(t_final_output),0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
-*(int64_t*)(intptr_t)((int64_t)(intptr_t)((char*)(intptr_t)(t_st)+72))=(int64_t)((int64_t)(intptr_t)sx__rt_fmt((const char*)(intptr_t)(sx__str3295),(int64_t*)(intptr_t)(sx__fap3)));
+*(int64_t*)(intptr_t)((int64_t)(intptr_t)((char*)(intptr_t)(t_st)+80))=(int64_t)((int64_t)(intptr_t)sx__rt_fmt((const char*)(intptr_t)(sx__str3295),(int64_t*)(intptr_t)(sx__fap3)));
 }else{
 (void)(std__fs__mkdir_path_cstr(((int64_t)(intptr_t)sx__str3223)));
 int64_t sx__fap4[16]={(int64_t)(t_binary_name),0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
 int64_t t_final_output=(int64_t)((int64_t)(intptr_t)sx__rt_fmt((const char*)(intptr_t)(sx__str3225),(int64_t*)(intptr_t)(sx__fap4)));
-if(((cstr__cmp((*(int64_t*)((char*)(intptr_t)(t_st)+56)),((int64_t)(intptr_t)sx__str0)))!=(INT64_C(0))))
+if(((cstr__cmp((*(int64_t*)((char*)(intptr_t)(t_st)+64)),((int64_t)(intptr_t)sx__str0)))!=(INT64_C(0))))
 {
-int64_t sx__fap5[16]={(int64_t)(t_binary_name),(int64_t)((*(int64_t*)((char*)(intptr_t)(t_st)+56))),0,0,0,0,0,0,0,0,0,0,0,0,0,0};
+int64_t sx__fap5[16]={(int64_t)(t_binary_name),(int64_t)((*(int64_t*)((char*)(intptr_t)(t_st)+64))),0,0,0,0,0,0,0,0,0,0,0,0,0,0};
 t_final_output=((int64_t)(intptr_t)sx__rt_fmt((const char*)(intptr_t)(sx__str3296),(int64_t*)(intptr_t)(sx__fap5)));
 }
-*(int64_t*)(intptr_t)((int64_t)(intptr_t)((char*)(intptr_t)(t_st)+80))=(int64_t)(t_final_output);
-if(((cstr__cmp((*(int64_t*)((char*)(intptr_t)(t_st)+48)),((int64_t)(intptr_t)sx__str0)))==(INT64_C(0))))
+*(int64_t*)(intptr_t)((int64_t)(intptr_t)((char*)(intptr_t)(t_st)+88))=(int64_t)(t_final_output);
+if(((cstr__cmp((*(int64_t*)((char*)(intptr_t)(t_st)+56)),((int64_t)(intptr_t)sx__str0)))==(INT64_C(0))))
 {
-int64_t sx__fap6[16]={(int64_t)(native__native_cc(t_ctx)),(int64_t)(builds__quote_arg(t_final_output)),(int64_t)(builds__quote_arg((*(int64_t*)((char*)(intptr_t)(t_ctx)+160)))),(int64_t)((*(int64_t*)((char*)(intptr_t)(t_st)+40))),0,0,0,0,0,0,0,0,0,0,0,0};
-*(int64_t*)(intptr_t)((int64_t)(intptr_t)((char*)(intptr_t)(t_st)+64))=(int64_t)((int64_t)(intptr_t)sx__rt_fmt((const char*)(intptr_t)(sx__str3290),(int64_t*)(intptr_t)(sx__fap6)));
+int64_t sx__fap6[16]={(int64_t)(native__native_cc(t_ctx)),(int64_t)(builds__quote_arg(t_final_output)),(int64_t)(builds__quote_arg((*(int64_t*)((char*)(intptr_t)(t_ctx)+160)))),(int64_t)((*(int64_t*)((char*)(intptr_t)(t_st)+48))),0,0,0,0,0,0,0,0,0,0,0,0};
+*(int64_t*)(intptr_t)((int64_t)(intptr_t)((char*)(intptr_t)(t_st)+72))=(int64_t)((int64_t)(intptr_t)sx__rt_fmt((const char*)(intptr_t)(sx__str3290),(int64_t*)(intptr_t)(sx__fap6)));
 }else{
-int64_t sx__fap7[16]={(int64_t)(native__native_cc(t_ctx)),(int64_t)((*(int64_t*)((char*)(intptr_t)(t_st)+48))),(int64_t)(builds__quote_arg(t_final_output)),(int64_t)(builds__quote_arg((*(int64_t*)((char*)(intptr_t)(t_ctx)+160)))),(int64_t)((*(int64_t*)((char*)(intptr_t)(t_st)+40))),0,0,0,0,0,0,0,0,0,0,0};
-*(int64_t*)(intptr_t)((int64_t)(intptr_t)((char*)(intptr_t)(t_st)+64))=(int64_t)((int64_t)(intptr_t)sx__rt_fmt((const char*)(intptr_t)(sx__str3294),(int64_t*)(intptr_t)(sx__fap7)));
+int64_t sx__fap7[16]={(int64_t)(native__native_cc(t_ctx)),(int64_t)((*(int64_t*)((char*)(intptr_t)(t_st)+56))),(int64_t)(builds__quote_arg(t_final_output)),(int64_t)(builds__quote_arg((*(int64_t*)((char*)(intptr_t)(t_ctx)+160)))),(int64_t)((*(int64_t*)((char*)(intptr_t)(t_st)+48))),0,0,0,0,0,0,0,0,0,0,0};
+*(int64_t*)(intptr_t)((int64_t)(intptr_t)((char*)(intptr_t)(t_st)+72))=(int64_t)((int64_t)(intptr_t)sx__rt_fmt((const char*)(intptr_t)(sx__str3294),(int64_t*)(intptr_t)(sx__fap7)));
 }
 int64_t sx__fap8[16]={(int64_t)(t_final_output),0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
-*(int64_t*)(intptr_t)((int64_t)(intptr_t)((char*)(intptr_t)(t_st)+72))=(int64_t)((int64_t)(intptr_t)sx__rt_fmt((const char*)(intptr_t)(sx__str3295),(int64_t*)(intptr_t)(sx__fap8)));
+*(int64_t*)(intptr_t)((int64_t)(intptr_t)((char*)(intptr_t)(t_st)+80))=(int64_t)((int64_t)(intptr_t)sx__rt_fmt((const char*)(intptr_t)(sx__str3295),(int64_t*)(intptr_t)(sx__fap8)));
 }
 return 0;
 }
@@ -106072,10 +106092,10 @@ return 0;
 static int32_t native__execute_native(int64_t t_ctx,int64_t t_st){
 if((*(int32_t*)((char*)(intptr_t)((*(int64_t*)((char*)(intptr_t)(t_ctx)+0)))+20)))
 {
-(void)(printf((const char*)(intptr_t)sx__str797,((*(int64_t*)((char*)(intptr_t)(t_st)+64)))));
+(void)(printf((const char*)(intptr_t)sx__str797,((*(int64_t*)((char*)(intptr_t)(t_st)+72)))));
 }
 int64_t sx__rb0[3];
-int64_t sx__fap1[16]={(int64_t)((*(int64_t*)((char*)(intptr_t)(t_st)+64))),(int64_t)(((int64_t)(intptr_t)sx__str3297)),0,0,0,0,0,0,0,0,0,0,0,0,0,0};
+int64_t sx__fap1[16]={(int64_t)((*(int64_t*)((char*)(intptr_t)(t_st)+72))),(int64_t)(((int64_t)(intptr_t)sx__str3297)),0,0,0,0,0,0,0,0,0,0,0,0,0,0};
 (void)(std__os__exec((int64_t)(intptr_t)sx__rb0,(int64_t)(intptr_t)sx__rt_fmt((const char*)(intptr_t)(sx__str576),(int64_t*)(intptr_t)(sx__fap1))));
 int64_t t_cc_res=(int64_t)(((int64_t)(intptr_t)sx__rb0));
 {int64_t*sx__rp2=(int64_t*)(intptr_t)(t_cc_res);if(sx__rp2[0]==0)
@@ -106088,15 +106108,15 @@ if(t_has_error)
 {
 (void)(printf((const char*)(intptr_t)sx__str797,(ostr__as_cstr(t_v))));
 (void)(std__stdio__puts(((int64_t)(intptr_t)sx__svs590)));
-*(int32_t*)(intptr_t)((int64_t)(intptr_t)((char*)(intptr_t)(t_st)+88))=(int32_t)(INT64_C(1));
+*(int32_t*)(intptr_t)((int64_t)(intptr_t)((char*)(intptr_t)(t_st)+96))=(int32_t)(INT64_C(1));
 }else{
 if((((!((*(int32_t*)((char*)(intptr_t)((*(int64_t*)((char*)(intptr_t)(t_ctx)+0)))+0)))))?((!((*(int32_t*)((char*)(intptr_t)((*(int64_t*)((char*)(intptr_t)(t_ctx)+0)))+4))))):(0)))
 {
-(void)(printf((const char*)(intptr_t)sx__str796,((*(int64_t*)((char*)(intptr_t)(t_st)+72)))));
+(void)(printf((const char*)(intptr_t)sx__str796,((*(int64_t*)((char*)(intptr_t)(t_st)+80)))));
 }
 if((*(int32_t*)((char*)(intptr_t)(t_ctx)+64)))
 {
-*(int32_t*)(intptr_t)((int64_t)(intptr_t)((char*)(intptr_t)(t_st)+88))=(int32_t)(std__os__run(builds__quote_arg((*(int64_t*)((char*)(intptr_t)(t_st)+80)))));
+*(int32_t*)(intptr_t)((int64_t)(intptr_t)((char*)(intptr_t)(t_st)+96))=(int32_t)(std__os__run(builds__quote_arg((*(int64_t*)((char*)(intptr_t)(t_st)+88)))));
 }
 }
 }else{
@@ -106113,7 +106133,7 @@ if(((cstr__len((*(int64_t*)((char*)(intptr_t)(t_st)+32))))>(INT64_C(0))))
 {
 (void)(std__os__delete((*(int64_t*)((char*)(intptr_t)(t_st)+32))));
 }
-return(int32_t)((*(int32_t*)((char*)(intptr_t)(t_st)+88)));
+return(int32_t)((*(int32_t*)((char*)(intptr_t)(t_st)+96)));
 }
 
 static int32_t native__run(int64_t t_ctx){
@@ -106126,6 +106146,7 @@ if((!(native__compile_shim_native(t_ctx,t_st))))
 {
 return(int32_t)(INT64_C(1));
 }
+(void)(native__prepare_win_compat_native(t_ctx,t_st));
 (void)(native__build_link_flags_native(t_ctx,t_st));
 (void)(native__build_cc_flags_native(t_ctx,t_st));
 if((*(int32_t*)((char*)(intptr_t)((*(int64_t*)((char*)(intptr_t)(t_ctx)+0)))+24)))
