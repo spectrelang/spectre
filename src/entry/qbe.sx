@@ -58,10 +58,17 @@ pub fn assemble(ctx: mut ref context.Context) bool = trust {
     if cstr.cmp(qbe_target_name, c"") != 0 {
         qbe_cmd = @fmtalloc(
             "uqbe -t {s} -o {s} {s} 2>&1",
-            {qbe_target_name, asm_file, qbe_file}
+            {
+                qbe_target_name,
+                builds.quote_arg(asm_file),
+                builds.quote_arg(qbe_file)
+            }
         )
     } else {
-        qbe_cmd = @fmtalloc("uqbe -o {s} {s} 2>&1", {asm_file, qbe_file})
+        qbe_cmd = @fmtalloc(
+            "uqbe -o {s} {s} 2>&1",
+            {builds.quote_arg(asm_file), builds.quote_arg(qbe_file)}
+        )
     }
     val qbe_res = os.exec(qbe_cmd)
     if ctx.opts.show_cmd {

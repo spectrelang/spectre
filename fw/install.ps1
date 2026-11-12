@@ -12,6 +12,7 @@ $BIN_DIR      = Join-Path $PREFIX "bin"
 $SRC_DIR      = Join-Path $PREFIX "src"
 $TEMP_DIR     = Join-Path $PREFIX "tmp"
 $SPECTRE_REPO = "https://github.com/spectrelang/spectre.git"
+$QBE_REPO     = "https://github.com/spectrelang/qbe-mirror.git"
 
 function Log($msg) {
     Write-Host "[INFO] $msg" -ForegroundColor Cyan
@@ -360,6 +361,59 @@ function Ensure-Clang {
     Err "Failed to install clang."
 }
 
+function Build-Uqbe {
+    $qbeDir = Join-Path $SRC_DIR "qbe"
+
+    if (Test-Path $qbeDir) {
+        Log "UQBE source already exists, updating..."
+        git -C $qbeDir pull --ff-only
+    } else {
+        git clone $QBE_REPO $qbeDir
+    }
+
+    $qbeHash = "unknown"
+    try {
+        $qbeHash = (git -C $qbeDir rev-parse --short HEAD).Trim()
+    } catch {
+    }
+
+    $qbeTarget = "T_amd64_win"
+    if ($env:PROCESSOR_ARCHITECTURE -eq "ARM64") {
+        $qbeTarget = "T_arm64_win"
+    }
+
+    $config = "#define Deftgt $qbeTarget`n#define GIT_COMMIT `"$qbeHash`"`n"
+    [System.IO.File]::WriteAllText(
+        (Join-Path $qbeDir "config.h"),
+        $config,
+        [System.Text.Encoding]::ASCII
+    )
+
+    $sources = @()
+    $sources += [System.IO.Directory]::GetFiles($qbeDir, "*.c")
+    foreach ($arch in @("amd64", "arm64", "rv64")) {
+        $archDir = Join-Path $qbeDir $arch
+        if ([System.IO.Directory]::Exists($archDir)) {
+            $sources += [System.IO.Directory]::GetFiles($archDir, "*.c")
+        }
+    }
+
+    $uqbeOut = Join-Path $BIN_DIR "uqbe.exe"
+    Log "Building UQBE from source..."
+
+    Push-Location $qbeDir
+    try {
+        & clang -std=c99 -O2 -w @sources -o $uqbeOut
+        if ($LASTEXITCODE -ne 0 -or -not (Test-Path $uqbeOut)) {
+            Err "UQBE build failed"
+        }
+    } finally {
+        Pop-Location
+    }
+
+    Log "UQBE installed: $uqbeOut"
+}
+
 function Ensure-Tcc {
     if (Get-Command tcc -ErrorAction SilentlyContinue) {
         Log "tcc already installed."
@@ -412,6 +466,12 @@ Log "Preparing directories..."
 Ensure-Directory $BIN_DIR
 Ensure-Directory $SRC_DIR
 
+Build-Uqbe
+
+if ($env:PATH -notlike "*$BIN_DIR*") {
+    $env:PATH = "$BIN_DIR;$env:PATH"
+}
+
 Log "Installing Spectre (self-hosted)..."
 
 $SPECTRE_DIR = "$SRC_DIR\spectre"
@@ -458,7 +518,7 @@ Copy-Item $BOOTSTRAP_OUT $STAGE0 -Force
 
 Push-Location $SPECTRE_DIR
 try {
-    & .\spectre-stage0.exe .\src\sxc.sx -alt -runtime:hosted -o .\spectre-stage1.exe
+    & .\spectre-stage0.exe .\src\sxc.sx -runtime:hosted -o .\spectre-stage1.exe
     if ($LASTEXITCODE -ne 0 -or -not (Test-Path .\spectre-stage1.exe)) {
         Err "Stage 1 build failed"
     }
@@ -470,7 +530,7 @@ try {
     }
 
     Log "Building Spectre stage 2 from source..."
-    & .\spectre-stage1.exe "-d:GIT_HASH=$GitHash" .\src\sxc.sx -alt -runtime:hosted -o .\spectre-stage2.exe
+    & .\spectre-stage1.exe "-d:GIT_HASH=$GitHash" .\src\sxc.sx -runtime:hosted -o .\spectre-stage2.exe
     if ($LASTEXITCODE -ne 0 -or -not (Test-Path .\spectre-stage2.exe)) {
         Err "Stage 2 build failed"
     }
@@ -539,9 +599,13 @@ Write-Host ""
 Write-Host "Installed:"
 Write-Host "  - spectre -> $BIN_DIR\spectre.exe"
 Write-Host "  - stdlib  -> $BIN_DIR\spectrelib"
+Write-Host "  - uqbe    -> $BIN_DIR\uqbe.exe (default backend)"
 Write-Host "  - clang   -> $ClangPath"
 Write-Host "  - msvc    -> $script:MSVC_PATH"
 Write-Host "  - tcc     -> $TccPath"
+Write-Host ""
+Write-Host "UQBE is the default backend on Windows."
+Write-Host "Pass -alt to use a C backend instead."
 Write-Host ""
 Write-Host "Verify with:"
 Write-Host "  spectre -v"
