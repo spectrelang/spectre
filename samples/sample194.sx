@@ -16,11 +16,15 @@ pub fn main() void = trust {
 
     for i = 0, i < iterations, i++ {
         val doc = json.parse(input)
-        if doc is some v {
-            val root = json.doc_root(v)
-            json.obj_get_int(root, c"version")
-            json.obj_get_bool(root, c"active")
-            json.doc_free(v)
+        match doc {
+            ok value => {
+                val root = json.root(value)
+                json.object_get_int(root, "version")
+                json.object_get_bool(root, "active")
+                json.doc_free(value)
+            }
+            err _ => {
+            }
         }
     }
 

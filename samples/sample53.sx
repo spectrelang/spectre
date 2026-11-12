@@ -5,17 +5,22 @@ pub fn main() void = trust {
     val raw_str = \\{"Alice": "asdf"}
     val doc_opt = json.parse(raw_str)
     match doc_opt {
-        none => {
+        err _ => {
             @puts("Got nothing.")
         }
-        some handle => {
+        ok handle => {
             @puts("Got something:")
             stdio.print("Raw string: {s}\n", {raw_str})
-            if (json.obj_get_str(json.doc_root(handle), c"Alice")) is some v {
-                stdio.print("{s}", {v})
+            val root = json.root(handle)
+            match json.object_get_str(root, "Alice") {
+                some value => {
+                    stdio.print("{s}", {value})
+                }
+                none => {
+                    assert false
+                }
             }
-            val root: ref void = json.doc_root(handle)
-            assert json.val_is_object(root)
+            assert json.is_object(root)
             json.doc_free(handle)
         }
     }

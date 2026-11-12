@@ -3,54 +3,23 @@
 set -u
 
 DO_BOOTSTRAP=0
+RELEASE=0
+if [ "${SPECTRE_BUILD_RELEASE:-0}" = "1" ]; then
+	RELEASE=1
+fi
 
 for arg in "$@"; do
 	case "$arg" in
 	-bs)
 		DO_BOOTSTRAP=1
 		;;
+	-release)
+		RELEASE=1
+		;;
 	esac
 done
 
-YYJSON_INC="${YYJSON_INC:-}"
-YYJSON_FOUND=0
-
-if [ -n "$YYJSON_INC" ]; then
-	YYJSON_FOUND=1
-elif [ -n "${YYJSON_DIR:-}" ] && [ -f "$YYJSON_DIR/src/yyjson.h" ]; then
-	YYJSON_INC="-I$YYJSON_DIR/src"
-	YYJSON_FOUND=1
-elif [ -f "$HOME/.local/src/yyjson/src/yyjson.h" ]; then
-	YYJSON_INC="-I$HOME/.local/src/yyjson/src"
-	YYJSON_FOUND=1
-fi
-
-if [ "$YYJSON_FOUND" -eq 0 ] && command -v pkg-config >/dev/null 2>&1; then
-	if pkg-config --exists yyjson 2>/dev/null; then
-		YYJSON_INC="$(pkg-config --cflags yyjson 2>/dev/null || true)"
-		YYJSON_FOUND=1
-	fi
-fi
-
-if [ "$YYJSON_FOUND" -eq 0 ]; then
-	for prefix in /opt/homebrew /usr/local; do
-		if [ -f "$prefix/include/yyjson.h" ]; then
-			YYJSON_INC="-I$prefix/include"
-			YYJSON_FOUND=1
-			break
-		fi
-	done
-fi
-
-if [ "$YYJSON_FOUND" -eq 0 ]; then
-	echo "error: could not find yyjson.h" >&2
-	echo "       expected $HOME/.local/src/yyjson/src/yyjson.h" >&2
-	echo "       run ./fw/install.sh first, or set YYJSON_DIR / YYJSON_INC" >&2
-	exit 1
-fi
-
 cc -c spectrelib/csources/panic_handler.c -o spectrelib/csources/panic_handler.o || exit 1
-cc $YYJSON_INC -c spectrelib/csources/yyjson_shim.c -o spectrelib/csources/yyjson_shim.o || exit 1
 cc -c spectrelib/csources/qbe_runtime.c -o spectrelib/csources/qbe_runtime.o || exit 1
 
 GIT_HASH="unknown"
@@ -75,12 +44,16 @@ fi
 
 # Optional backend flag, e.g. "-alt" for bootstrap environments without QBE.
 BACKEND_FLAG="${SPECTRE_BUILD_BACKEND:-}"
+RELEASE_FLAG=""
+if [ "$RELEASE" -eq 1 ]; then
+	RELEASE_FLAG="-release"
+fi
 
 echo "Building spectre stage 1..."
-"$STAGE0" ./src/sxc.sx -runtime:hosted $BACKEND_FLAG -o ./spectre-stage1 || exit 1
+"$STAGE0" ./src/sxc.sx -runtime:hosted $RELEASE_FLAG $BACKEND_FLAG -o ./spectre-stage1 || exit 1
 
 echo "Building spectre-dev..."
-./spectre-stage1 "${DEFINES[@]}" ./src/sxc.sx $BACKEND_FLAG -o spectre-dev || exit 1
+./spectre-stage1 "${DEFINES[@]}" ./src/sxc.sx -runtime:hosted $RELEASE_FLAG $BACKEND_FLAG -o spectre-dev || exit 1
 rm -f ./spectre-stage1
 
 if [ $DO_BOOTSTRAP -eq 1 ]; then

@@ -4,7 +4,6 @@ $PREFIX       = "$env:USERPROFILE\.local"
 $BIN_DIR      = "$PREFIX\bin"
 $SRC_DIR      = "$PREFIX\src"
 $SPECTRE_REPO = "https://github.com/spectrelang/spectre.git"
-$YYJSON_REPO  = "https://github.com/ibireme/yyjson.git"
 
 function Log($msg) {
     Write-Host "[INFO] $msg" -ForegroundColor Cyan
@@ -78,13 +77,11 @@ function Ensure-Tcc {
 Log "Checking required tools..."
 
 Ensure-Tool git Git.Git
-Ensure-Tool cmake Kitware.CMake
 
 Ensure-Tool clang LLVM.LLVM
 Ensure-Tcc
 
 Require-Cmd git
-Require-Cmd cmake
 
 Log "Preparing directories..."
 New-Item -ItemType Directory -Force -Path $BIN_DIR | Out-Null
@@ -101,37 +98,6 @@ if (Test-Path $SPECTRE_DIR) {
     git clone $SPECTRE_REPO $SPECTRE_DIR
 }
 
-Log "Installing yyjson..."
-
-$YYJSON_DIR = "$SRC_DIR\yyjson"
-
-if (Test-Path $YYJSON_DIR) {
-    Log "yyjson source already exists, updating..."
-    git -C $YYJSON_DIR pull --ff-only
-} else {
-    git clone $YYJSON_REPO $YYJSON_DIR
-}
-
-Log "Building yyjson..."
-Remove-Item -Recurse -Force "$YYJSON_DIR\build" -ErrorAction SilentlyContinue
-
-cmake -S $YYJSON_DIR -B "$YYJSON_DIR\build" `
-    -DCMAKE_BUILD_TYPE=Release `
-    -DBUILD_SHARED_LIBS=OFF `
-    -DYYJSON_BUILD_TESTS=OFF `
-    -DYYJSON_BUILD_FUZZER=OFF `
-    -DYYJSON_BUILD_MISC=OFF `
-    -DYYJSON_BUILD_DOC=OFF
-
-cmake --build "$YYJSON_DIR\build" --config Release
-
-$YYJSON_LIB = "$YYJSON_DIR\build\Release\yyjson.lib"
-$YYJSON_INC = "$YYJSON_DIR\src"
-
-if (-not (Test-Path $YYJSON_LIB)) {
-    Err "yyjson build failed: missing library"
-}
-
 Log "Bootstrapping Spectre with clang..."
 
 $BOOTSTRAP_SRC = "$SPECTRE_DIR\bootstrap\sxcw.c"
@@ -143,16 +109,12 @@ if (-not (Test-Path $BOOTSTRAP_SRC)) {
 
 $CSOURCES_DIR = "$SPECTRE_DIR\spectrelib\csources"
 $PANIC_HANDLER_SRC = "$CSOURCES_DIR\panic_handler.c"
-$YYJSON_SHIM_SRC   = "$CSOURCES_DIR\yyjson_shim.c"
 
 Log "Compiling bootstrap..."
 
 clang -O3 -Wno-everything `
     $BOOTSTRAP_SRC `
     $PANIC_HANDLER_SRC `
-    $YYJSON_SHIM_SRC `
-    -I"$YYJSON_INC" `
-    $YYJSON_LIB `
     -lDbghelp `
     -o $BOOTSTRAP_OUT
 
@@ -223,7 +185,6 @@ Write-Host "  - spectre -> $BIN_DIR\spectre.exe"
 Write-Host "  - stdlib  -> $BIN_DIR\spectrelib"
 Write-Host "  - clang   -> (system)"
 Write-Host "  - tcc     -> (system)"
-Write-Host "  - yyjson  -> $YYJSON_LIB"
 Write-Host ""
 Write-Host "Verify with:"
 Write-Host "  spectre -v"

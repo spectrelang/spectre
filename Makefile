@@ -1,4 +1,4 @@
-.PHONY: all cprev clean test_fmt test_critic checkmem checkmem-strict
+.PHONY: all cprev clean test_fmt test_critic checkmem checkmem-strict bench_json
 
 all:
 ifeq ($(OS),Windows_NT)
@@ -30,6 +30,9 @@ checkmem:
 
 checkmem-strict:
 	@bash ./fw/checkmem.sh --strict
+
+bench_json:
+	@bash ./fw/bench_json.sh
 
 test_surface:
 	@bash ./fw/test_alt.sh

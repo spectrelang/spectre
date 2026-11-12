@@ -1,101 +1,36 @@
-link "__sx__internal__json__"
-
-when posix {
-    link "-L/usr/local/lib"
-    link "-lyyjson"
-}
+/// Native JSON parser, builder, and serializer.
+///
+/// Parsing is zero-copy for strings without escapes: string views point
+/// directly into the input buffer, so the input must outlive the document.
+/// Builder strings and keys are copied into the builder arena.
+///
+/// SPDX-License-Identifier: GPL-3.0-only
+/// (C) Navid Momtahen - 2026
 
 val str        = use("std/string")
-val cstr       = use("std/string/cstr")
-val stdio      = use("../stdio")
 val allocators = use("../allocators")
 
-pub extern (C) fn yyjson_get_tag(value: ref void) u8 = "sx_yyjson_get_tag"
-pub extern (C) fn yyjson_get_type_desc(value: ref void) ref u8 = "sx_yyjson_get_type_desc"
-pub extern (C) fn yyjson_get_raw(value: ref void) ref u8 = "sx_yyjson_get_raw"
-pub extern (C) fn yyjson_get_len(value: ref void) usize = "sx_yyjson_get_len"
-pub extern (C) fn yyjson_get_int(value: ref void) i64 = "sx_yyjson_get_int"
-pub extern (C) fn yyjson_get_num(value: ref void) f64 = "sx_yyjson_get_num"
-pub extern (C) fn yyjson_arr_get_first(arr: ref void) ref void = "sx_yyjson_arr_get_first"
-pub extern (C) fn yyjson_arr_get_last(arr: ref void) ref void = "sx_yyjson_arr_get_last"
-pub extern (C) fn yyjson_obj_getn(
-    obj: ref void,
-    key: ref u8,
-    key_len: usize
-) ref void = "sx_yyjson_obj_getn"
-pub extern (C) fn yyjson_obj_iter_init(
-    obj: ref void,
-    iter: ref void
-) bool = "sx_yyjson_obj_iter_init"
-pub extern (C) fn yyjson_obj_iter_next(iter: ref void) ref void = "sx_yyjson_obj_iter_next"
-pub extern (C) fn yyjson_obj_iter_get_val(iter_val: ref void) ref void = "sx_yyjson_obj_iter_get_val"
+extern (C) fn c_memchr(s: ref u8, c: i32, n: usize) ref u8 = "memchr"
 
-extern (C) fn yyjson_get_type(value: ref void) u8 = "sx_yyjson_get_type"
-extern (C) fn yyjson_get_subtype(value: ref void) u8 = "sx_yyjson_get_subtype"
-extern (C) fn yyjson_get_bool(value: ref void) bool = "sx_yyjson_get_bool"
-extern (C) fn yyjson_get_uint(value: ref void) u64 = "sx_yyjson_get_uint"
-extern (C) fn yyjson_get_sint(value: ref void) i64 = "sx_yyjson_get_sint"
-extern (C) fn yyjson_get_real(value: ref void) f64 = "sx_yyjson_get_real"
-extern (C) fn yyjson_get_str(value: ref void) ref u8 = "sx_yyjson_get_str"
-extern (C) fn yyjson_arr_size(arr: ref void) usize = "sx_yyjson_arr_size"
-extern (C) fn yyjson_arr_get(arr: ref void, idx: usize) ref void = "sx_yyjson_arr_get"
-extern (C) fn yyjson_mut_doc_new(alc: ref void) ref void = "sx_yyjson_mut_doc_new"
-extern (C) fn yyjson_obj_size(obj: ref void) usize = "sx_yyjson_obj_size"
-extern (C) fn yyjson_obj_get(obj: ref void, key: ref u8) ref void = "sx_yyjson_obj_get"
-extern (C) fn yyjson_read_opts(
-    dat: ref u8,
-    len: usize,
-    flg: u32,
-    alc: ref void,
-    error: ref void
-) ref void = "sx_yyjson_read_opts"
-extern (C) fn yyjson_doc_free(doc: ref void) void = "sx_yyjson_doc_free"
-extern (C) fn yyjson_doc_get_root(doc: ref void) ref void = "sx_yyjson_doc_get_root"
-extern (C) fn yyjson_write_opts(
-    doc: ref void,
-    flg: u32,
-    alc: ref void,
-    len: ref usize,
-    error: ref void
-) ref u8 = "sx_yyjson_write_opts"
-extern (C) fn yyjson_mut_doc_free(doc: ref void) void = "sx_yyjson_mut_doc_free"
-extern (C) fn yyjson_mut_write_opts(
-    doc: ref void,
-    flg: u32,
-    alc: ref void,
-    len: ref usize,
-    error: ref void
-) ref u8 = "sx_yyjson_mut_write_opts"
-extern (C) fn yyjson_mut_null(doc: ref void) ref void = "sx_yyjson_mut_null"
-extern (C) fn yyjson_mut_bool(doc: ref void, v: bool) ref void = "sx_yyjson_mut_bool"
-extern (C) fn yyjson_mut_int(doc: ref void, v: i64) ref void = "sx_yyjson_mut_int"
-extern (C) fn yyjson_mut_uint(doc: ref void, v: u64) ref void = "sx_yyjson_mut_uint"
-extern (C) fn yyjson_mut_real(doc: ref void, v: f64) ref void = "sx_yyjson_mut_real"
-extern (C) fn yyjson_mut_strcpy(doc: ref void, value: ref u8) ref void = "sx_yyjson_mut_strcpy"
-extern (C) fn yyjson_mut_arr(doc: ref void) ref void = "sx_yyjson_mut_arr"
-extern (C) fn yyjson_mut_obj(doc: ref void) ref void = "sx_yyjson_mut_obj"
-extern (C) fn yyjson_mut_arr_append(
-    arr: ref void,
-    value: ref void
-) bool = "sx_yyjson_mut_arr_append"
-extern (C) fn yyjson_mut_obj_add(
-    obj: ref void,
-    key: ref void,
-    value: ref void
-) bool = "sx_yyjson_mut_obj_add"
-extern (C) fn yyjson_mut_doc_set_root(
-    doc: ref void,
-    value: ref void
-) void = "sx_yyjson_mut_doc_set_root"
+/// JSON value tags.
+val (
+    TAG_NULL: i64  = 0
+    TAG_FALSE: i64  = 1
+    TAG_TRUE: i64   = 2
+    TAG_INT: i64    = 3
+    TAG_UINT: i64   = 4
+    TAG_FLOAT: i64  = 5
+    TAG_STRING: i64 = 6
+    TAG_ARRAY: i64  = 7
+    TAG_OBJECT: i64 = 8
+)
 
-pub type JsonDoc = {
-    ptr: ref void
+/// A parsed or built JSON value.
+pub type JsonValue = {
+    node: mut ref JsonNode
 }
 
-pub type JsonBuilder = {
-    ptr: ref void
-}
-
+/// Public JSON value kinds.
 pub enum JsonKind = {
     Null
     Bool
@@ -108,25 +43,1106 @@ pub enum JsonKind = {
     Unknown
 }
 
-fn _type_of(value: ref void) u8 = {
-    return trust yyjson_get_type(value)
+/// Errors reported by the parser and builder.
+pub enum JsonError = {
+    UnexpectedEnd
+    UnexpectedByte
+    InvalidNumber
+    InvalidEscape
+    InvalidLiteral
+    DepthExceeded
+    OutOfMemory
 }
 
-fn _subtype_of(value: ref void) u8 = {
-    return trust yyjson_get_subtype(value)
+type JsonNode = {
+    tag: mut i64
+    len: mut i64
+    ptr: mut ref void
+    aux: mut i64
+    next: mut ref JsonNode
 }
 
-fn copy_json_string[T: allocators.Allocator](ac: T, src: ref u8, len: usize) ref u8 = trust {
-    if src == none {
+type JsonEntry = {
+    key_ptr: mut ref u8
+    key_len: mut i64
+    value: mut ref JsonNode
+    next: mut ref JsonEntry
+}
+
+type JsonBlock = {
+    next: mut ref JsonBlock
+    buf: mut ref u8
+    cap: mut i64
+}
+
+type JsonArena = {
+    head: mut ref JsonBlock
+    cur: mut ref u8
+    remain: mut i64
+    block_size: mut i64
+}
+
+fn ja_init(a: mut ref JsonArena, block_size: i64) void = {
+    pre {
+        positive_block_size: block_size > 0
+    }
+    a.head = none
+    a.cur = none
+    a.remain = 0
+    a.block_size = block_size
+}
+
+fn ja_alloc(a: mut ref JsonArena, size: i64) ref void = trust {
+    pre {
+        positive_size: size > 0
+    }
+    val aligned: i64 = (size + 7) & ~(7)
+    if a.cur != none && aligned <= a.remain {
+        val out: ref void = a.cur as ref void
+        a.cur = @ptradd(a.cur, aligned)
+        a.remain = a.remain - aligned
+        return out
+    }
+    val cap: mut i64 = a.block_size
+    if aligned > cap {
+        cap = aligned
+    }
+    val raw: ref void = @alloc((@sizeof(JsonBlock) as i64 + cap) as usize)
+    if raw == none {
         return none
     }
-    val dst_opt = T.alloc(ac, len + 1)
-    match dst_opt {
-        some dst_raw => {
-            val dst: ref u8 = dst_raw as ref u8
-            @memcpy(dst, src, len)
-            @store8(@ptradd(dst, len), 0)
-            return dst
+    val blk: mut ref JsonBlock = raw as ref JsonBlock
+    blk.next = a.head
+    blk.buf = @ptradd(raw, @sizeof(JsonBlock) as i64) as ref u8
+    blk.cap = cap
+    a.head = blk
+    a.cur = @ptradd(blk.buf, aligned)
+    a.remain = cap - aligned
+    return blk.buf as ref void
+}
+
+fn ja_free(a: mut ref JsonArena) void = trust {
+    val blk: mut ref JsonBlock = a.head
+    for {
+        if blk == none {
+            break
+        }
+        val next_blk: ref JsonBlock = blk.next
+        @free(blk as ref void)
+        blk = next_blk
+    }
+    a.head = none
+    a.cur = none
+    a.remain = 0
+}
+
+type JsonDocState = {
+    arena: mut JsonArena
+    root: mut ref JsonNode
+    raw: mut str.StringView
+    has_raw: mut bool
+}
+
+/// An owning handle for a parsed JSON document.
+pub type JsonDoc = {
+    ptr: mut ref JsonDocState
+}
+
+type JsonBuilderState = {
+    arena: mut JsonArena
+    root: mut ref JsonNode
+}
+
+/// An owning handle for a mutable JSON document builder.
+pub type JsonBuilder = {
+    ptr: mut ref JsonBuilderState
+}
+
+type JsonParser = {
+    src: mut str.StringView
+    pos: mut i64
+    depth: mut i64
+    failed: mut i64
+    canonical: mut bool
+    arena: mut ref JsonArena
+}
+
+fn i64_max_u64() u64 = {
+    return 9223372036854775807 as u64
+}
+
+fn u64_max_div10() u64 = {
+    return 1844674407370955161 as u64
+}
+
+fn p_fail(p: mut ref JsonParser) void = inline {
+    p.failed = 1
+}
+
+fn p_byte(p: ref JsonParser, at: i64) i64 = inline {
+    if at < 0 || at >= p.src.len {
+        return -1
+    }
+    return trust @load8(@ptradd(p.src.ptr, at)) as i64
+}
+
+fn p_skip_ws(p: mut ref JsonParser) void = inline {
+    for {
+        if p.pos >= p.src.len {
+            break
+        }
+        val c: i64 = trust @load8(@ptradd(p.src.ptr, p.pos)) as i64
+        if c != 32 && c != 9 && c != 10 && c != 13 {
+            break
+        }
+        p.canonical = false
+        p.pos++
+    }
+}
+
+fn p_new_node(p: mut ref JsonParser, tag: i64) mut ref JsonNode = trust {
+    val node: mut ref JsonNode = ja_alloc(p.arena, @sizeof(JsonNode) as i64) as ref JsonNode
+    if node == none {
+        p_fail(p)
+        return none
+    }
+    node.tag = tag
+    node.len = 0
+    node.ptr = none
+    node.aux = 0
+    node.next = none
+    return node
+}
+
+fn utf8_put(out: ref u8, at: i64, cp: i64) i64 = trust {
+    if cp <= 0x7f {
+        @store8(@ptradd(out, at), cp as u8)
+        return at + 1
+    } elif cp <= 0x7ff {
+        @store8(@ptradd(out, at), (0xc0 | (cp >> 6)) as u8)
+        @store8(@ptradd(out, at + 1), (0x80 | (cp & 0x3f)) as u8)
+        return at + 2
+    } elif cp <= 0xffff {
+        @store8(@ptradd(out, at), (0xe0 | (cp >> 12)) as u8)
+        @store8(@ptradd(out, at + 1), (0x80 | ((cp >> 6) & 0x3f)) as u8)
+        @store8(@ptradd(out, at + 2), (0x80 | (cp & 0x3f)) as u8)
+        return at + 3
+    } else {
+        @store8(@ptradd(out, at), (0xf0 | (cp >> 18)) as u8)
+        @store8(@ptradd(out, at + 1), (0x80 | ((cp >> 12) & 0x3f)) as u8)
+        @store8(@ptradd(out, at + 2), (0x80 | ((cp >> 6) & 0x3f)) as u8)
+        @store8(@ptradd(out, at + 3), (0x80 | (cp & 0x3f)) as u8)
+        return at + 4
+    }
+}
+
+fn hex_digit(c: i64) i64 = {
+    if c >= 48 && c <= 57 {
+        return c - 48
+    }
+    if c >= 65 && c <= 70 {
+        return c - 55
+    }
+    if c >= 97 && c <= 102 {
+        return c - 87
+    }
+    return -1
+}
+
+fn p_hex4(p: ref JsonParser, at: i64) i64 = {
+    val a: i64 = hex_digit(p_byte(p, at))
+    val b: i64 = hex_digit(p_byte(p, at + 1))
+    val c: i64 = hex_digit(p_byte(p, at + 2))
+    val d: i64 = hex_digit(p_byte(p, at + 3))
+    if a < 0 || b < 0 || c < 0 || d < 0 {
+        return -1
+    }
+    return (a << 12) | (b << 8) | (c << 4) | d
+}
+
+fn p_string(p: mut ref JsonParser, out_ptr: ref void, out_len: ref void) bool = trust {
+    pre {
+        p.pos < p.src.len
+    }
+    if p_byte(p, p.pos) != 34 {
+        p_fail(p)
+        return false
+    }
+    p.pos++
+    val start: i64 = p.pos
+    val n: i64 = p.src.len
+    val scan: mut i64 = start
+    val escaped: mut bool = false
+    if n - start >= 48 {
+        val quote: ref u8 = c_memchr(@ptradd(p.src.ptr, start) as ref u8, 34, (n - start) as usize)
+        if quote == none {
+            p_fail(p)
+            return false
+        }
+        val quote_pos: i64 = (@bitcast(quote, usize) as i64) - (@bitcast(p.src.ptr, usize) as i64)
+        val backslash: ref u8 = c_memchr(
+            @ptradd(p.src.ptr, start) as ref u8,
+            92,
+            (quote_pos - start) as usize
+        )
+        if backslash == none {
+            val end: i64 = quote_pos
+            p.pos = end + 1
+            @store(out_ptr, @ptradd(p.src.ptr, start) as ref u8)
+            @store(out_len, end - start)
+            return true
+        }
+    }
+    for {
+        if scan >= n {
+            p_fail(p)
+            return false
+        }
+        val c: i64 = @load8(@ptradd(p.src.ptr, scan)) as i64
+        if c == 34 {
+            break
+        }
+        if c == 92 {
+            escaped = true
+            scan = scan + 2
+            continue
+        }
+        if c < 32 {
+            p_fail(p)
+            return false
+        }
+        scan++
+    }
+    val end: i64 = scan
+    if !escaped {
+        p.pos = end + 1
+        @store(out_ptr, @ptradd(p.src.ptr, start) as ref u8)
+        @store(out_len, end - start)
+        return true
+    }
+    val buf: ref u8 = ja_alloc(
+        p.arena,
+        (end - start) + 1
+    ) as ref u8
+    if buf == none {
+        p_fail(p)
+        return false
+    }
+    val i: mut i64 = start
+    val w: mut i64 = 0
+    for {
+        if i >= end {
+            break
+        }
+        val c: i64 = @load8(@ptradd(p.src.ptr, i)) as i64
+        if c != 92 {
+            @store8(@ptradd(buf, w), c as u8)
+            w++
+            i++
+            continue
+        }
+        i++
+        if i >= end {
+            p_fail(p)
+            return false
+        }
+        val e: i64 = @load8(@ptradd(p.src.ptr, i)) as i64
+        i++
+        if e == 34 || e == 92 {
+            @store8(@ptradd(buf, w), e as u8)
+            w++
+        } elif e == 47 {
+            p.canonical = false
+            @store8(@ptradd(buf, w), e as u8)
+            w++
+        } elif e == 98 {
+            @store8(@ptradd(buf, w), 8 as u8)
+            w++
+        } elif e == 102 {
+            @store8(@ptradd(buf, w), 12 as u8)
+            w++
+        } elif e == 110 {
+            @store8(@ptradd(buf, w), 10 as u8)
+            w++
+        } elif e == 114 {
+            @store8(@ptradd(buf, w), 13 as u8)
+            w++
+        } elif e == 116 {
+            @store8(@ptradd(buf, w), 9 as u8)
+            w++
+        } elif e == 117 {
+            p.canonical = false
+            val cp: i64 = p_hex4(p, i)
+            if cp < 0 {
+                p_fail(p)
+                return false
+            }
+            i = i + 4
+            if cp >= 0xd800 && cp <= 0xdbff {
+                if i + 5 < end && p_byte(p, i) == 92 && p_byte(p, i + 1) == 117 {
+                    val lo: i64 = p_hex4(p, i + 2)
+                    if lo >= 0xdc00 && lo <= 0xdfff {
+                        val combined: i64 = 0x10000 + ((cp - 0xd800) << 10) + (lo - 0xdc00)
+                        w = utf8_put(buf, w, combined)
+                        i = i + 6
+                        continue
+                    }
+                }
+                w = utf8_put(buf, w, 0xfffd)
+            } elif cp >= 0xdc00 && cp <= 0xdfff {
+                w = utf8_put(buf, w, 0xfffd)
+            } else {
+                w = utf8_put(buf, w, cp)
+            }
+        } else {
+            p_fail(p)
+            return false
+        }
+    }
+    @store8(@ptradd(buf, w), 0)
+    p.pos = end + 1
+    @store(out_ptr, buf)
+    @store(out_len, w)
+    return true
+}
+
+fn p_number(p: mut ref JsonParser) mut ref JsonNode = trust {
+    val n: i64 = p.src.len
+    val neg: bool = p_byte(p, p.pos) == 45
+    val i: mut i64 = p.pos
+    if neg {
+        i++
+    }
+    val digits_start: i64 = i
+    val mag: mut u64 = 0
+    val overflow: mut bool = false
+    val digit_count: mut i64 = 0
+    for {
+        if i >= n {
+            break
+        }
+        val c: i64 = @load8(@ptradd(p.src.ptr, i)) as i64
+        if c < 48 || c > 57 {
+            break
+        }
+        val d: u64 = (c - 48) as u64
+        if digit_count < 19 {
+            mag = mag * (10 as u64) + d
+        } elif digit_count == 19 {
+            val max_div10: u64 = 1844674407370955161 as u64
+            if mag > max_div10 || (mag == max_div10 && d > (5 as u64)) {
+                overflow = true
+            } else {
+                mag = mag * (10 as u64) + d
+            }
+        } else {
+            overflow = true
+        }
+        digit_count++
+        i++
+    }
+    if i == digits_start {
+        p_fail(p)
+        return none
+    }
+    if i - digits_start > 1 {
+        if (@load8(@ptradd(p.src.ptr, digits_start)) as i64) == 48 {
+            p.canonical = false
+        }
+    }
+    val is_float: mut bool = false
+    if i < n {
+        val c: i64 = @load8(@ptradd(p.src.ptr, i)) as i64
+        if c == 46 || c == 101 || c == 69 {
+            is_float = true
+        }
+    }
+    val whole: f64 = mag as f64
+    val frac_i: mut u64 = 0
+    val frac_digits: mut i64 = 0
+    if i < n && (@load8(@ptradd(p.src.ptr, i)) as i64) == 46 {
+        i++
+        val frac_start: i64 = i
+        val last_digit: mut i64 = -1
+        for {
+            if i >= n {
+                break
+            }
+            val c: i64 = @load8(@ptradd(p.src.ptr, i)) as i64
+            if c < 48 || c > 57 {
+                break
+            }
+            last_digit = c - 48
+            if frac_digits < 18 {
+                frac_i = frac_i * (10 as u64) + ((c - 48) as u64)
+                frac_digits++
+            }
+            i++
+        }
+        if i == frac_start {
+            p_fail(p)
+            return none
+        }
+        if frac_digits > 6 || last_digit <= 0 {
+            p.canonical = false
+        }
+    }
+    val frac: mut f64 = frac_i as f64
+    val fd: mut i64 = 0
+    for {
+        if fd >= frac_digits {
+            break
+        }
+        frac = frac / 10.0
+        fd++
+    }
+    val exp: mut i64 = 0
+    if i < n {
+        val ec: i64 = @load8(@ptradd(p.src.ptr, i)) as i64
+        if ec == 101 || ec == 69 {
+            p.canonical = false
+            i++
+            val eneg: mut bool = false
+            if i < n {
+                val sc: i64 = @load8(@ptradd(p.src.ptr, i)) as i64
+                if sc == 43 || sc == 45 {
+                    eneg = sc == 45
+                    i++
+                }
+            }
+            val exp_start: i64 = i
+            for {
+                if i >= n {
+                    break
+                }
+                val c: i64 = @load8(@ptradd(p.src.ptr, i)) as i64
+                if c < 48 || c > 57 {
+                    break
+                }
+                exp = exp * 10 + (c - 48)
+                i++
+            }
+            if i == exp_start {
+                p_fail(p)
+                return none
+            }
+            if eneg {
+                exp = -exp
+            }
+        }
+    }
+    p.pos = i
+    if is_float || overflow {
+        val node: mut ref JsonNode = p_new_node(p, TAG_FLOAT)
+        if node == none {
+            return none
+        }
+        val value: mut f64 = whole + frac
+        if exp > 0 {
+            val k: mut i64 = 0
+            for {
+                if k >= exp {
+                    break
+                }
+                value = value * 10.0
+                k++
+            }
+        } elif exp < 0 {
+            val k: mut i64 = 0
+            for {
+                if k >= -exp {
+                    break
+                }
+                value = value / 10.0
+                k++
+            }
+        }
+        if neg {
+            value = -value
+        }
+        node.aux = @bitcast(value, i64)
+        return node
+    }
+    if neg {
+        val limit: u64 = i64_max_u64() + (1 as u64)
+        if mag > limit {
+            p_fail(p)
+            return none
+        }
+        val node: mut ref JsonNode = p_new_node(p, TAG_INT)
+        if node == none {
+            return none
+        }
+        if mag == limit {
+            node.aux = (-(i64_max_u64() as i64)) - 1
+        } else {
+            node.aux = -(mag as i64)
+        }
+        return node
+    }
+    if mag > i64_max_u64() {
+        val node: mut ref JsonNode = p_new_node(p, TAG_UINT)
+        if node == none {
+            return none
+        }
+        node.aux = @bitcast(mag, i64)
+        return node
+    }
+    val node: mut ref JsonNode = p_new_node(p, TAG_INT)
+    if node == none {
+        return none
+    }
+    node.aux = mag as i64
+    return node
+}
+
+fn p_array(p: mut ref JsonParser) mut ref JsonNode = trust {
+    p.depth++
+    if p.depth > 512 {
+        p_fail(p)
+        p.depth--
+        return none
+    }
+    p.pos++
+    p_skip_ws(p)
+    val node: mut ref JsonNode = p_new_node(p, TAG_ARRAY)
+    if node == none {
+        p.depth--
+        return none
+    }
+    if p_byte(p, p.pos) == 93 {
+        p.pos++
+        p.depth--
+        return node
+    }
+    for {
+        val item: mut ref JsonNode = p_value(p)
+        if item == none {
+            p.depth--
+            return none
+        }
+        item.next = none
+        if node.len == 0 {
+            node.ptr = item as ref void
+        } else {
+            val last: mut ref JsonNode = @bitcast(node.aux, ref JsonNode)
+            last.next = item
+        }
+        node.aux = @bitcast(item, i64)
+        node.len++
+        p_skip_ws(p)
+        val c: i64 = p_byte(p, p.pos)
+        if c == 44 {
+            p.pos++
+            p_skip_ws(p)
+            continue
+        }
+        if c == 93 {
+            p.pos++
+            break
+        }
+        p_fail(p)
+        p.depth--
+        return none
+    }
+    p.depth--
+    return node
+}
+
+fn p_object(p: mut ref JsonParser) mut ref JsonNode = trust {
+    p.depth++
+    if p.depth > 512 {
+        p_fail(p)
+        p.depth--
+        return none
+    }
+    p.pos++
+    p_skip_ws(p)
+    val node: mut ref JsonNode = p_new_node(p, TAG_OBJECT)
+    if node == none {
+        p.depth--
+        return none
+    }
+    if p_byte(p, p.pos) == 125 {
+        p.pos++
+        p.depth--
+        return node
+    }
+    for {
+        p_skip_ws(p)
+        if p_byte(p, p.pos) != 34 {
+            p_fail(p)
+            p.depth--
+            return none
+        }
+        val key_ptr: mut ref u8 = none
+        val key_len: mut i64 = 0
+        if !p_string(p, @addr(key_ptr), @addr(key_len)) {
+            p.depth--
+            return none
+        }
+        p_skip_ws(p)
+        if p_byte(p, p.pos) != 58 {
+            p_fail(p)
+            p.depth--
+            return none
+        }
+        p.pos++
+        val value: ref JsonNode = p_value(p)
+        if value == none {
+            p.depth--
+            return none
+        }
+        val entry: mut ref JsonEntry = ja_alloc(
+            p.arena,
+            @sizeof(JsonEntry) as i64
+        ) as ref JsonEntry
+        if entry == none {
+            p_fail(p)
+            p.depth--
+            return none
+        }
+        entry.key_ptr = key_ptr
+        entry.key_len = key_len
+        entry.value = value
+        entry.next = none
+        if node.len == 0 {
+            node.ptr = entry as ref void
+        } else {
+            val last: mut ref JsonEntry = @bitcast(node.aux, ref JsonEntry)
+            last.next = entry
+        }
+        node.aux = @bitcast(entry, i64)
+        node.len++
+        p_skip_ws(p)
+        val c: i64 = p_byte(p, p.pos)
+        if c == 44 {
+            p.pos++
+            continue
+        }
+        if c == 125 {
+            p.pos++
+            break
+        }
+        p_fail(p)
+        p.depth--
+        return none
+    }
+    p.depth--
+    return node
+}
+
+fn p_value(p: mut ref JsonParser) mut ref JsonNode = trust {
+    p_skip_ws(p)
+    if p.pos >= p.src.len {
+        p_fail(p)
+        return none
+    }
+    val c: i64 = p_byte(p, p.pos)
+    if c == 34 {
+        val text_ptr: mut ref u8 = none
+        val text_len: mut i64 = 0
+        if !p_string(p, @addr(text_ptr), @addr(text_len)) {
+            return none
+        }
+        val node: mut ref JsonNode = p_new_node(p, TAG_STRING)
+        if node == none {
+            return none
+        }
+        node.ptr = text_ptr as ref void
+        node.len = text_len
+        return node
+    }
+    if c == 123 {
+        return p_object(p)
+    }
+    if c == 91 {
+        return p_array(p)
+    }
+    if c == 116 {
+        if p_byte(
+            p,
+            p.pos + 1
+        ) == 114 && p_byte(p, p.pos + 2) == 117 && p_byte(p, p.pos + 3) == 101 {
+            p.pos = p.pos + 4
+            return p_new_node(p, TAG_TRUE)
+        }
+        p_fail(p)
+        return none
+    }
+    if c == 102 {
+        if p_byte(
+            p,
+            p.pos + 1
+        ) == 97 && p_byte(
+            p,
+            p.pos + 2
+        ) == 108 && p_byte(p, p.pos + 3) == 115 && p_byte(p, p.pos + 4) == 101 {
+            p.pos = p.pos + 5
+            return p_new_node(p, TAG_FALSE)
+        }
+        p_fail(p)
+        return none
+    }
+    if c == 110 {
+        if p_byte(
+            p,
+            p.pos + 1
+        ) == 117 && p_byte(p, p.pos + 2) == 108 && p_byte(p, p.pos + 3) == 108 {
+            p.pos = p.pos + 4
+            return p_new_node(p, TAG_NULL)
+        }
+        p_fail(p)
+        return none
+    }
+    if c == 45 || (c >= 48 && c <= 57) {
+        return p_number(p)
+    }
+    p_fail(p)
+    return none
+}
+
+fn jd_free_state(state: mut ref JsonDocState) void = trust {
+    if state == none {
+        return
+    }
+    ja_free(@addr(state.arena))
+    @free(state as ref void)
+}
+
+/// Parse a JSON string.
+///
+/// String values without escapes are borrowed from `input`.
+pub fn parse(input: str.StringView) result[JsonDoc, JsonError] = trust {
+    pre {
+        non_negative_length: input.len >= 0
+    }
+    val state: mut ref JsonDocState = @alloc(
+        @sizeof(JsonDocState) as usize
+    ) as ref JsonDocState
+    if state == none {
+        return err JsonError.OutOfMemory
+    }
+    ja_init(@addr(state.arena), 1024 as i64)
+    state.root = none
+    state.raw = str.view(none, 0)
+    state.has_raw = false
+    val p: mut ref JsonParser = @alloc(
+        @sizeof(JsonParser) as usize
+    ) as ref JsonParser
+    if p == none {
+        ja_free(@addr(state.arena))
+        @free(state as ref void)
+        return err JsonError.OutOfMemory
+    }
+    p.src = input
+    p.pos = 0
+    p.depth = 0
+    p.failed = 0
+    p.canonical = true
+    p.arena = @addr(state.arena)
+    p_skip_ws(p)
+    val root: ref JsonNode = p_value(p)
+    p_skip_ws(p)
+    if p.failed != 0 || root == none || p.pos != input.len {
+        val failed: i64 = p.failed
+        @free(p as ref void)
+        ja_free(@addr(state.arena))
+        @free(state as ref void)
+        if failed != 0 {
+            return err JsonError.UnexpectedByte
+        }
+        return err JsonError.UnexpectedEnd
+    }
+    state.root = root
+    state.has_raw = p.canonical
+    state.raw = input
+    @free(p as ref void)
+    return ok JsonDoc{ptr: state}
+}
+
+/// Free a parsed document and all nodes allocated for it.
+pub fn doc_free(doc: JsonDoc) void = trust {
+    val state: mut ref JsonDocState = doc.ptr
+    jd_free_state(state)
+}
+
+/// Return the root value of a document.
+pub fn root(doc: JsonDoc) JsonValue = {
+    if doc.ptr == none {
+        return JsonValue{node: none}
+    }
+    return JsonValue{node: doc.ptr.root}
+}
+
+fn tag_of(v: JsonValue) i64 = {
+    if v.node == none {
+        return -1
+    }
+    return v.node.tag
+}
+
+/// Return the kind of a JSON value.
+pub fn kind(v: JsonValue) JsonKind = {
+    val t: i64 = tag_of(v)
+    if t == TAG_NULL {
+        return JsonKind.Null
+    }
+    if t == TAG_FALSE || t == TAG_TRUE {
+        return JsonKind.Bool
+    }
+    if t == TAG_INT {
+        return JsonKind.Int
+    }
+    if t == TAG_UINT {
+        return JsonKind.UInt
+    }
+    if t == TAG_FLOAT {
+        return JsonKind.Float
+    }
+    if t == TAG_STRING {
+        return JsonKind.Str
+    }
+    if t == TAG_ARRAY {
+        return JsonKind.Array
+    }
+    if t == TAG_OBJECT {
+        return JsonKind.Object
+    }
+    return JsonKind.Unknown
+}
+
+pub fn is_null(v: JsonValue) bool = {
+    return tag_of(v) == TAG_NULL
+}
+
+pub fn is_bool(v: JsonValue) bool = {
+    val t: i64 = tag_of(v)
+    return t == TAG_FALSE || t == TAG_TRUE
+}
+
+pub fn is_int(v: JsonValue) bool = {
+    return tag_of(v) == TAG_INT || tag_of(v) == TAG_UINT
+}
+
+pub fn is_uint(v: JsonValue) bool = {
+    return tag_of(v) == TAG_UINT
+}
+
+pub fn is_float(v: JsonValue) bool = {
+    return tag_of(v) == TAG_FLOAT
+}
+
+pub fn is_number(v: JsonValue) bool = {
+    val t: i64 = tag_of(v)
+    return t == TAG_INT || t == TAG_UINT || t == TAG_FLOAT
+}
+
+pub fn is_string(v: JsonValue) bool = {
+    return tag_of(v) == TAG_STRING
+}
+
+pub fn is_array(v: JsonValue) bool = {
+    return tag_of(v) == TAG_ARRAY
+}
+
+pub fn is_object(v: JsonValue) bool = {
+    return tag_of(v) == TAG_OBJECT
+}
+
+/// Return the boolean value, or false for non-booleans.
+pub fn as_bool(v: JsonValue) bool = {
+    return tag_of(v) == TAG_TRUE
+}
+
+/// Return the signed integer value, or zero when the value is not numeric.
+pub fn as_int(v: JsonValue) i64 = {
+    post {
+        result_is_integer: true
+    }
+    val t: i64 = tag_of(v)
+    if t == TAG_INT {
+        return v.node.aux
+    }
+    if t == TAG_UINT {
+        return v.node.aux
+    }
+    if t == TAG_FALSE || t == TAG_TRUE {
+        if t == TAG_TRUE {
+            return 1
+        }
+        return 0
+    }
+    return 0
+}
+
+/// Return the unsigned integer value, or zero when the value is not numeric.
+pub fn as_uint(v: JsonValue) u64 = {
+    if tag_of(v) == TAG_UINT {
+        return trust @bitcast(v.node.aux, u64)
+    }
+    return as_int(v) as u64
+}
+
+/// Return the floating-point value, or zero when the value is not numeric.
+pub fn as_float(v: JsonValue) f64 = {
+    val t: i64 = tag_of(v)
+    if t == TAG_FLOAT {
+        return trust @bitcast(v.node.aux, f64)
+    }
+    if t == TAG_INT || t == TAG_UINT {
+        return v.node.aux as f64
+    }
+    return 0.0
+}
+
+/// Return a borrowed view of a string value.
+pub fn as_string(v: JsonValue) str.StringView = {
+    pre {
+        string_value: tag_of(v) == TAG_STRING
+    }
+    if v.node == none {
+        return str.view(none, 0)
+    }
+    return str.view(v.node.ptr as ref u8, v.node.len)
+}
+
+/// Return the number of elements in an array or object.
+pub fn len(v: JsonValue) i64 = {
+    post {
+        non_negative: true
+    }
+    if v.node == none {
+        return 0
+    }
+    return v.node.len
+}
+
+/// Return an array element.
+pub fn array_get(v: JsonValue, index: i64) option[JsonValue] = {
+    pre {
+        non_negative_index: index >= 0
+    }
+    if tag_of(v) != TAG_ARRAY || index >= v.node.len {
+        return none
+    }
+    val cur: mut ref JsonNode = v.node.ptr as ref JsonNode
+    val i: mut i64 = 0
+    for {
+        if cur == none {
+            return none
+        }
+        if i == index {
+            return some JsonValue{node: cur}
+        }
+        cur = cur.next
+        i++
+    }
+    return none
+}
+
+fn key_eql(kptr: ref u8, klen: i64, key: str.StringView) bool = {
+    if kptr == none || key.ptr == none || klen != key.len {
+        return false
+    }
+    val i: mut i64 = 0
+    for {
+        if i >= klen {
+            break
+        }
+        if trust @load8(@ptradd(kptr, i)) != trust @load8(@ptradd(key.ptr, i)) {
+            return false
+        }
+        i++
+    }
+    return true
+}
+
+fn object_lookup(v: JsonValue, key: str.StringView) ref JsonNode = trust {
+    if tag_of(v) != TAG_OBJECT {
+        return none
+    }
+    val cur: mut ref JsonEntry = v.node.ptr as ref JsonEntry
+    val i: mut i64 = 0
+    for {
+        if cur == none || i >= v.node.len {
+            break
+        }
+        if key_eql(cur.key_ptr, cur.key_len, key) {
+            return cur.value
+        }
+        cur = cur.next
+        i++
+    }
+    return none
+}
+
+/// Look up an object member by key.
+pub fn object_get(v: JsonValue, key: str.StringView) option[JsonValue] = {
+    pre {
+        object_value: true
+    }
+    val found: ref JsonNode = trust object_lookup(v, key)
+    if found == none {
+        return none
+    }
+    return some JsonValue{node: found}
+}
+
+/// Return an object's key at the given position.
+pub fn object_key_at(v: JsonValue, index: i64) option[str.StringView] = {
+    pre {
+        non_negative_index: index >= 0
+    }
+    if tag_of(v) != TAG_OBJECT || index >= v.node.len {
+        return none
+    }
+    val cur: mut ref JsonEntry = v.node.ptr as ref JsonEntry
+    val i: mut i64 = 0
+    for {
+        if cur == none {
+            return none
+        }
+        if i == index {
+            return some str.view(cur.key_ptr, cur.key_len)
+        }
+        cur = cur.next
+        i++
+    }
+    return none
+}
+
+/// Return an object's value at the given position.
+pub fn object_value_at(v: JsonValue, index: i64) option[JsonValue] = {
+    pre {
+        non_negative_index: index >= 0
+    }
+    if tag_of(v) != TAG_OBJECT || index >= v.node.len {
+        return none
+    }
+    val cur: mut ref JsonEntry = v.node.ptr as ref JsonEntry
+    val i: mut i64 = 0
+    for {
+        if cur == none {
+            return none
+        }
+        if i == index {
+            return some JsonValue{node: cur.value}
+        }
+        cur = cur.next
+        i++
+    }
+    return none
+}
+
+/// Return a string object member.
+pub fn object_get_str(v: JsonValue, key: str.StringView) option[str.StringView] = {
+    match object_get(v, key) {
+        some value => {
+            if tag_of(value) == TAG_STRING {
+                return some as_string(value)
+            }
+            return none
         }
         none => {
             return none
@@ -134,400 +1150,864 @@ fn copy_json_string[T: allocators.Allocator](ac: T, src: ref u8, len: usize) ref
     }
 }
 
-/// Parses a JSON string into a document.
-///
-/// Returns `some` containing the parsed document on success, or `none` if parsing fails.
-pub fn parse(input: str.StringView) option[JsonDoc] = trust {
-    val doc: ref void = yyjson_read_opts(input.ptr, input.len as usize, 0 as u32, none, none)
-    if doc == none {
-        return none
-    }
-    return some {
-        ptr: doc
-    }
-}
-
-/// Frees a parsed JSON document and its associated resources.
-pub fn doc_free(handle: JsonDoc) void = trust {
-    val doc: ref void = handle.ptr
-    yyjson_doc_free(doc)
-}
-
-/// Returns a pointer to the root value of a parsed JSON document.
-pub fn doc_root(handle: JsonDoc) ref void = {
-    val doc: ref void = handle.ptr
-    return trust yyjson_doc_get_root(doc)
-}
-
-/// Serializes a parsed JSON document into a compact JSON str.
-///
-/// Allocates the returned string using the specified allocator.
-pub fn doc_to_string[T: allocators.Allocator](ac: T, handle: JsonDoc) ref u8 = trust {
-    val doc: ref void = handle.ptr
-    val len_slot: mut usize = 0
-    val raw: ref u8 = yyjson_write_opts(doc, 0 as u32, none, @addr(len_slot), none)
-    val out: ref u8 = copy_json_string[T](ac, raw, len_slot)
-    if raw != none {
-        @free(raw)
-    }
-    return out
-}
-
-/// Returns the JSON kind of a value.
-pub fn val_kind(value: ref void) JsonKind = trust {
-    val t: u8 = _type_of(value)
-    if t == 2 {
-        return JsonKind.Null
-    }
-    if t == 3 {
-        return JsonKind.Bool
-    }
-    if t == 4 {
-        val s: u8 = _subtype_of(value)
-        if s == 8 {
-            return JsonKind.Int
+/// Return an integer object member.
+pub fn object_get_int(v: JsonValue, key: str.StringView) option[i64] = {
+    match object_get(v, key) {
+        some value => {
+            if is_number(value) {
+                return some as_int(value)
+            }
+            return none
         }
-        if s == 16 {
-            return JsonKind.Float
+        none => {
+            return none
         }
-        return JsonKind.UInt
     }
-    if t == 5 {
-        return JsonKind.Str
+}
+
+/// Return a boolean object member.
+pub fn object_get_bool(v: JsonValue, key: str.StringView) option[bool] = {
+    match object_get(v, key) {
+        some value => {
+            if is_bool(value) {
+                return some as_bool(value)
+            }
+            return none
+        }
+        none => {
+            return none
+        }
     }
-    if t == 6 {
-        return JsonKind.Array
+}
+
+/// Return a floating-point object member.
+pub fn object_get_float(v: JsonValue, key: str.StringView) option[f64] = {
+    match object_get(v, key) {
+        some value => {
+            if is_number(value) {
+                return some as_float(value)
+            }
+            return none
+        }
+        none => {
+            return none
+        }
     }
-    if t == 7 {
-        return JsonKind.Object
-    }
-    return JsonKind.Unknown
 }
 
-/// Returns whether a JSON value is null.
-pub fn val_is_null(value: ref void) bool = {
-    return _type_of(value) == 2
+type JsonWriter = {
+    buf: mut ref u8
+    len: mut i64
+    cap: mut i64
+    valid: mut i64
+    pretty: mut bool
 }
 
-/// Returns whether a JSON value is a boolean.
-pub fn val_is_bool(value: ref void) bool = {
-    return _type_of(value) == 3
-}
-
-/// Returns whether a JSON value is numeric and has the integer type.
-pub fn val_is_int(value: ref void) bool = {
-    return _type_of(value) == 4
-}
-
-/// Returns whether a JSON value is a floating-point number.
-pub fn val_is_float(value: ref void) bool = {
-    return _type_of(value) == 4 && _subtype_of(value) == 16
-}
-
-/// Returns whether a JSON value is a str.
-pub fn val_is_str(value: ref void) bool = {
-    return _type_of(value) == 5
-}
-
-/// Returns whether a JSON value is an array.
-pub fn val_is_array(value: ref void) bool = {
-    return _type_of(value) == 6
-}
-
-/// Returns whether a JSON value is an object.
-pub fn val_is_object(value: ref void) bool = {
-    return _type_of(value) == 7
-}
-
-/// Returns the boolean value of a JSON boolean.
-pub fn val_get_bool(value: ref void) bool = trust {
-    return yyjson_get_bool(value)
-}
-
-/// Returns the signed 64-bit integer value of a JSON number.
-pub fn val_get_int(value: ref void) i64 = trust {
-    return yyjson_get_sint(value)
-}
-
-/// Returns the unsigned 64-bit integer value of a JSON number.
-pub fn val_get_uint(value: ref void) u64 = trust {
-    return yyjson_get_uint(value)
-}
-
-/// Returns the floating-point value of a JSON number.
-pub fn val_get_float(value: ref void) f64 = trust {
-    return yyjson_get_real(value)
-}
-
-/// Returns a pointer to the string data of a JSON str.
-pub fn val_get_str(value: ref void) ref u8 = trust {
-    return yyjson_get_str(value)
-}
-
-/// Returns the number of elements in a JSON array.
-pub fn arr_len(arr: ref void) usize = {
-    return trust yyjson_arr_size(arr)
-}
-
-/// Returns the array element at the specified index.
-///
-/// Returns some containing the element if the index is valid, or none otherwise.
-pub fn arr_get(arr: ref void, idx: usize) option[ref void] = trust {
-    val v: ref void = yyjson_arr_get(arr, idx)
-    if v == none {
-        return none
-    }
-    return some v
-}
-
-/// Returns the number of key-value pairs in a JSON object.
-pub fn obj_len(obj: ref void) usize = trust {
-    return yyjson_obj_size(obj)
-}
-
-/// Returns the value associated with a key in a JSON object.
-///
-/// Returns some containing the value if the key exists, or none otherwise.
-pub fn obj_get(obj: ref void, key: ref u8) option[ref void] = trust {
-    val v: ref void = yyjson_obj_get(obj, key)
-    if v == none {
-        return none
-    }
-    return some v
-}
-
-/// Returns the string value associated with a key in a JSON object.
-///
-/// Returns none if the key does not exist or its value is not a str.
-pub fn obj_get_str(obj: ref void, key: ref u8) option[ref u8] = trust {
-    val v: ref void = yyjson_obj_get(obj, key)
-    if v == none {
-        return none
-    }
-    if _type_of(v) != 5 {
-        return none
-    }
-    return some yyjson_get_str(v)
-}
-
-/// Returns the signed integer value associated with a key in a JSON object.
-///
-/// Returns none if the key does not exist or its value is not numeric.
-pub fn obj_get_int(obj: ref void, key: ref u8) option[i64] = trust {
-    val v: ref void = yyjson_obj_get(obj, key)
-    if v == none {
-        return none
-    }
-    if _type_of(v) != 4 {
-        return none
-    }
-    return some yyjson_get_sint(v)
-}
-
-/// Returns the boolean value associated with a key in a JSON object.
-///
-/// Returns none if the key does not exist or its value is not a boolean.
-pub fn obj_get_bool(obj: ref void, key: ref u8) option[bool] = trust {
-    val v: ref void = yyjson_obj_get(obj, key)
-    if v == none {
-        return none
-    }
-    if _type_of(v) != 3 {
-        return none
-    }
-    return some yyjson_get_bool(v)
-}
-
-/// Creates a new JSON builder with an empty mutable document.
-pub fn builder_new() JsonBuilder = trust {
-    val doc: ref void = yyjson_mut_doc_new(none)
-    return { ptr: doc }
-}
-
-/// Frees a JSON builder and its associated resources.
-pub fn builder_free(handle: JsonBuilder) void = trust {
-    val doc: ref void = handle.ptr
-    yyjson_mut_doc_free(doc)
-}
-
-/// Serializes a JSON builder's document into a compact JSON str.
-///
-/// Allocates the returned string using the specified allocator.
-pub fn builder_to_string[T: allocators.Allocator](ac: T, handle: JsonBuilder) ref u8 = trust {
-    val doc: ref void = handle.ptr
-    val len_slot: mut usize = 0
-    val raw: ref u8 = yyjson_mut_write_opts(doc, 0 as u32, none, @addr(len_slot), none)
-    val out: ref u8 = copy_json_string[T](ac, raw, len_slot)
-    if raw != none {
-        @free(raw)
-    }
-    return out
-}
-
-/// Serializes a JSON builder's document into a pretty-printed JSON str.
-///
-/// Formats the output with indentation and line breaks.
-/// Allocates the returned string using the specified allocator.
-pub fn builder_to_string_pretty[T: allocators.Allocator](
+fn jw_reserve[T: allocators.GeneralAllocator](
     ac: T,
-    handle: JsonBuilder
-) ref u8 = trust {
-    val doc: ref void = handle.ptr
-    val len_slot: mut usize = 0
-    val raw: ref u8 = yyjson_mut_write_opts(doc, 1 as u32, none, @addr(len_slot), none)
-    val out: ref u8 = copy_json_string[T](ac, raw, len_slot)
-    if raw != none {
-        @free(raw)
+    w: mut ref JsonWriter,
+    extra: i64
+) bool = inline trust {
+    pre {
+        non_negative_extra: extra >= 0
     }
-    return out
-}
-
-/// Creates a JSON null value in the specified builder.
-pub fn build_null(handle: JsonBuilder) ref void = trust {
-    val doc: ref void = handle.ptr
-    return yyjson_mut_null(doc)
-}
-
-/// Creates a JSON boolean value in the specified builder.
-pub fn build_bool(handle: JsonBuilder, v: bool) ref void = trust {
-    val doc: ref void = handle.ptr
-    return yyjson_mut_bool(doc, v)
-}
-
-/// Creates a JSON signed integer value in the specified builder.
-pub fn build_int(handle: JsonBuilder, v: i64) ref void = trust {
-    val doc: ref void = handle.ptr
-    return yyjson_mut_int(doc, v)
-}
-
-/// Creates a JSON unsigned integer value in the specified builder.
-pub fn build_uint(handle: JsonBuilder, v: u64) ref void = trust {
-    val doc: ref void = handle.ptr
-    return yyjson_mut_uint(doc, v)
-}
-
-/// Creates a JSON floating-point value in the specified builder.
-pub fn build_float(handle: JsonBuilder, v: f64) ref void = trust {
-    val doc: ref void = handle.ptr
-    return yyjson_mut_real(doc, v)
-}
-
-/// Creates a JSON string value by copying the supplied string into the builder.
-pub fn build_str(handle: JsonBuilder, v: ref u8) ref void = trust {
-    val doc: ref void = handle.ptr
-    return yyjson_mut_strcpy(doc, v)
-}
-
-/// Creates an empty JSON array in the specified builder.
-pub fn build_array(handle: JsonBuilder) ref void = trust {
-    val doc: ref void = handle.ptr
-    return yyjson_mut_arr(doc)
-}
-
-/// Creates an empty JSON object in the specified builder.
-pub fn build_object(handle: JsonBuilder) ref void = trust {
-    val doc: ref void = handle.ptr
-    return yyjson_mut_obj(doc)
-}
-
-/// Appends a JSON value to a mutable JSON array.
-///
-/// Returns whether the operation succeeded.
-pub fn array_append(arr: ref void, value: ref void) bool = trust {
-    return yyjson_mut_arr_append(arr, value)
-}
-
-/// Adds a key-value pair to a mutable JSON object.
-///
-/// Returns whether the operation succeeded.
-pub fn object_add(obj: ref void, key_val: ref void, value: ref void) bool = trust {
-    return yyjson_mut_obj_add(obj, key_val, value)
-}
-
-/// Sets the root value of a JSON builder's document.
-pub fn builder_set_root(handle: JsonBuilder, value: ref void) void = trust {
-    val doc: ref void = handle.ptr
-    yyjson_mut_doc_set_root(doc, value)
-}
-
-test "json parses and builds objects and arrays" {
-    val input = \\{"name":"Alice","age":30,"active":true,"score":9.5}
-    val arena: allocators.Arena = trust allocators.Arena.new(4096 as usize)?
-    val doc_opt = trust parse(input)
-    match doc_opt {
+    if w.valid == 0 {
+        return false
+    }
+    val needed: i64 = w.len + extra + 1
+    if needed <= w.cap {
+        return true
+    }
+    val newcap: mut i64 = w.cap * 2
+    if newcap < needed {
+        newcap = needed
+    }
+    if newcap < 128 {
+        newcap = 128
+    }
+    if w.buf == none {
+        val alloc: option[ref void] = T.alloc(ac, newcap as usize)
+        match alloc {
+            some p => {
+                w.buf = p as ref u8
+                w.cap = newcap
+                return true
+            }
+            none => {
+                w.valid = 0
+                return false
+            }
+        }
+    }
+    val grown: option[ref void] = T.realloc(ac, w.buf as ref void, newcap as usize)
+    match grown {
+        some p => {
+            w.buf = p as ref u8
+            w.cap = newcap
+            return true
+        }
         none => {
-            trust @dprintf(2, "input was {s}", {input})
-            assert false
-        }
-        some handle => {
-            val root: ref void = doc_root(handle)
-            assert val_is_object(root)
-
-            match trust obj_get_str(root, c"name") {
-                some s => {
-                    assert cstr.cmp(s, c"Alice") == 0
-                }
-                none => {
-                    assert false
-                }
-            }
-            match trust obj_get_int(root, c"age") {
-                some n => {
-                    assert n == 30
-                }
-                none => {
-                    assert false
-                }
-            }
-            match trust obj_get_bool(root, c"active") {
-                some b => {
-                    assert b == true
-                }
-                none => {
-                    assert false
-                }
-            }
-
-            trust doc_free(handle)
+            w.valid = 0
+            return false
         }
     }
+    return false
+}
 
-    val arr_input = \\[1,2,3]
-    val arr_opt = trust parse(arr_input)
-    match arr_opt {
-        none => {
-            assert false
+fn jw_byte[T: allocators.GeneralAllocator](
+    ac: T,
+    w: mut ref JsonWriter,
+    c: u8
+) void = inline trust {
+    if !jw_reserve[T](ac, w, 1) {
+        return
+    }
+    @store8(@ptradd(w.buf, w.len), c)
+    w.len = w.len + 1
+}
+
+fn jw_view[T: allocators.GeneralAllocator](
+    ac: T,
+    w: mut ref JsonWriter,
+    ptr: ref u8,
+    n: i64
+) void = inline trust {
+    if n <= 0 || !jw_reserve[T](ac, w, n) {
+        return
+    }
+    @memcpy(@ptradd(w.buf, w.len), ptr as ref void, n as usize)
+    w.len = w.len + n
+}
+
+fn jw_indent[T: allocators.GeneralAllocator](
+    ac: T,
+    w: mut ref JsonWriter,
+    depth: i64
+) void = trust {
+    if !w.pretty {
+        return
+    }
+    jw_byte[T](ac, w, 10 as u8)
+    val i: mut i64 = 0
+    for {
+        if i >= depth * 2 {
+            break
         }
-        some handle => {
-            val root: ref void = doc_root(handle)
-            assert val_is_array(root)
-            assert arr_len(root) == 3
+        jw_byte[T](ac, w, 32 as u8)
+        i++
+    }
+}
 
-            match trust arr_get(root, 0 as usize) {
-                some v => {
-                    assert trust val_get_int(v) == 1
-                }
-                none => {
-                    assert false
-                }
+fn write_uint[T: allocators.GeneralAllocator](
+    ac: T,
+    w: mut ref JsonWriter,
+    value: u64
+) void = inline trust {
+    val count: mut i64 = 1
+    val t: mut u64 = value
+    for {
+        if t < (10 as u64) {
+            break
+        }
+        t = t / (10 as u64)
+        count++
+    }
+    if !jw_reserve[T](ac, w, count) {
+        return
+    }
+    val buf: ref u8 = w.buf
+    val base: i64 = w.len
+    val i: mut i64 = count
+    val v: mut u64 = value
+    for {
+        if i <= 0 {
+            break
+        }
+        i--
+        @store8(@ptradd(buf, base + i), (48 as u64 + (v % (10 as u64))) as u8)
+        v = v / (10 as u64)
+    }
+    w.len = base + count
+}
+
+fn write_int[T: allocators.GeneralAllocator](
+    ac: T,
+    w: mut ref JsonWriter,
+    value: i64
+) void = trust {
+    if value < 0 {
+        jw_byte[T](ac, w, 45 as u8)
+        val mag: u64 = (0 as u64) - (value as u64)
+        write_uint[T](ac, w, mag)
+        return
+    }
+    write_uint[T](ac, w, value as u64)
+}
+
+fn write_float[T: allocators.GeneralAllocator](
+    ac: T,
+    w: mut ref JsonWriter,
+    value: f64
+) void = trust {
+    if value != value || value > 1.7976931348623157e308 || value < -1.7976931348623157e308 {
+        jw_view[T](ac, w, c"null", 4)
+        return
+    }
+    val neg: bool = value < 0.0
+    val abs_value: mut f64 = value
+    if neg {
+        abs_value = -value
+    }
+    if abs_value >= 1000000000000000.0 {
+        val tmp: mut [64]u8 = @zeroed
+        val p: ref u8 = @addr(tmp) as ref u8
+        val n: i64 = @snprintf(p, 64, "{f}", {value}) as i64
+        if n <= 0 {
+            jw_view[T](ac, w, c"null", 4)
+            return
+        }
+        jw_view[T](ac, w, p, n)
+        return
+    }
+    val whole_base: i64 = abs_value as i64
+    val frac: f64 = abs_value - (whole_base as f64)
+    val scale: i64 = 1000000
+    val frac_raw: mut i64 = (frac * (scale as f64) + 0.5) as i64
+    val carry: mut i64 = 0
+    if frac_raw >= scale {
+        frac_raw = frac_raw - scale
+        carry = 1
+    }
+    val whole: i64 = whole_base + carry
+    val whole_count: mut i64 = 1
+    val wt: mut i64 = whole
+    for {
+        if wt < 10 {
+            break
+        }
+        wt = wt / 10
+        whole_count++
+    }
+    val frac_digits: mut i64 = 6
+    val frac_i: mut i64 = frac_raw
+    if frac_i == 0 {
+        frac_digits = 0
+    } else {
+        for {
+            if frac_digits <= 1 || (frac_i % 10) != 0 {
+                break
             }
-            trust doc_free(handle)
+            frac_i = frac_i / 10
+            frac_digits--
         }
     }
+    val total: mut i64 = whole_count
+    if frac_digits > 0 {
+        total = total + frac_digits + 1
+    }
+    if neg {
+        total = total + 1
+    }
+    if !jw_reserve[T](ac, w, total) {
+        return
+    }
+    val buf: ref u8 = w.buf
+    val base: mut i64 = w.len
+    if neg {
+        @store8(@ptradd(buf, base), 45 as u8)
+        base++
+    }
+    val wi: mut i64 = whole_count
+    val wv: mut i64 = whole
+    for {
+        if wi <= 0 {
+            break
+        }
+        wi--
+        @store8(@ptradd(buf, base + wi), (48 + (wv % 10)) as u8)
+        wv = wv / 10
+    }
+    base = base + whole_count
+    if frac_digits > 0 {
+        @store8(@ptradd(buf, base), 46 as u8)
+        base++
+        val fi: mut i64 = frac_digits
+        val fv: mut i64 = frac_i
+        for {
+            if fi <= 0 {
+                break
+            }
+            fi--
+            @store8(@ptradd(buf, base + fi), (48 + (fv % 10)) as u8)
+            fv = fv / 10
+        }
+        base = base + frac_digits
+    }
+    w.len = base
+}
 
-    val b: JsonBuilder = trust builder_new()
-    val obj: ref void = trust build_object(b)
-    val k1: ref void = trust build_str(b, c"hello")
-    val v1: ref void = trust build_str(b, c"world")
-    trust object_add(obj, k1, v1)
-    val k2: ref void = trust build_str(b, c"n")
-    val v2: ref void = trust build_int(b, 42)
-    trust object_add(obj, k2, v2)
-    trust builder_set_root(b, obj)
-    val out: ref u8 = trust builder_to_string[allocators.Arena](arena, b)
-    assert out != none
-    trust builder_free(b)
-    trust allocators.Arena.free(arena)
+fn write_string[T: allocators.GeneralAllocator](
+    ac: T,
+    w: mut ref JsonWriter,
+    value_ptr: ref u8,
+    n: i64
+) void = trust {
+    jw_byte[T](ac, w, 34 as u8)
+    val i: mut i64 = 0
+    val run: mut i64 = 0
+    for {
+        if i >= n {
+            break
+        }
+        val c: u8 = @load8(@ptradd(value_ptr, i))
+        val need_escape: bool = c < 32 || c == 34 || c == 92
+        if !need_escape {
+            i++
+            continue
+        }
+        if i > run {
+            jw_view[T](ac, w, @ptradd(value_ptr, run) as ref u8, i - run)
+        }
+        if c == 34 {
+            jw_view[T](ac, w, c"\\\"", 2)
+        } elif c == 92 {
+            jw_view[T](ac, w, c"\\\\", 2)
+        } elif c == 8 {
+            jw_view[T](ac, w, c"\\b", 2)
+        } elif c == 12 {
+            jw_view[T](ac, w, c"\\f", 2)
+        } elif c == 10 {
+            jw_view[T](ac, w, c"\\n", 2)
+        } elif c == 13 {
+            jw_view[T](ac, w, c"\\r", 2)
+        } elif c == 9 {
+            jw_view[T](ac, w, c"\\t", 2)
+        } else {
+            val esc: mut [8]u8 = @zeroed
+            val ep: ref u8 = @addr(esc) as ref u8
+            val hi: u8 = (c >> 4) & 15
+            val lo: u8 = c & 15
+            @store8(ep, 92 as u8)
+            @store8(@ptradd(ep, 1), 117 as u8)
+            @store8(@ptradd(ep, 2), 48 as u8)
+            @store8(@ptradd(ep, 3), 48 as u8)
+            if hi < 10 {
+                @store8(@ptradd(ep, 4), (48 + hi) as u8)
+            } else {
+                @store8(@ptradd(ep, 4), (87 + hi) as u8)
+            }
+            if lo < 10 {
+                @store8(@ptradd(ep, 5), (48 + lo) as u8)
+            } else {
+                @store8(@ptradd(ep, 5), (87 + lo) as u8)
+            }
+            jw_view[T](ac, w, ep, 6)
+        }
+        i++
+        run = i
+    }
+    if n > run {
+        jw_view[T](ac, w, @ptradd(value_ptr, run) as ref u8, n - run)
+    }
+    jw_byte[T](ac, w, 34 as u8)
+}
 
-    stdio.puts("json tests passed")
+fn write_value[T: allocators.GeneralAllocator](
+    ac: T,
+    w: mut ref JsonWriter,
+    node: ref JsonNode,
+    depth: i64
+) void = trust {
+    if node == none {
+        jw_view[T](ac, w, c"null", 4)
+        return
+    }
+    val t: i64 = node.tag
+    if t == TAG_NULL {
+        jw_view[T](ac, w, c"null", 4)
+        return
+    }
+    if t == TAG_FALSE {
+        jw_view[T](ac, w, c"false", 5)
+        return
+    }
+    if t == TAG_TRUE {
+        jw_view[T](ac, w, c"true", 4)
+        return
+    }
+    if t == TAG_INT {
+        write_int[T](ac, w, node.aux)
+        return
+    }
+    if t == TAG_UINT {
+        write_uint[T](ac, w, @bitcast(node.aux, u64))
+        return
+    }
+    if t == TAG_FLOAT {
+        write_float[T](ac, w, @bitcast(node.aux, f64))
+        return
+    }
+    if t == TAG_STRING {
+        write_string[T](ac, w, node.ptr as ref u8, node.len)
+        return
+    }
+    if t == TAG_ARRAY {
+        jw_byte[T](ac, w, 91 as u8)
+        val cur: mut ref JsonNode = node.ptr as ref JsonNode
+        val i: mut i64 = 0
+        for {
+            if cur == none {
+                break
+            }
+            if i > 0 {
+                jw_byte[T](ac, w, 44 as u8)
+            }
+            jw_indent[T](ac, w, depth + 1)
+            write_value[T](ac, w, cur, depth + 1)
+            cur = cur.next
+            i++
+        }
+        if node.len > 0 {
+            jw_indent[T](ac, w, depth)
+        }
+        jw_byte[T](ac, w, 93 as u8)
+        return
+    }
+    if t == TAG_OBJECT {
+        jw_byte[T](ac, w, 123 as u8)
+        val cur: mut ref JsonEntry = node.ptr as ref JsonEntry
+        val i: mut i64 = 0
+        for {
+            if cur == none {
+                break
+            }
+            if i > 0 {
+                jw_byte[T](ac, w, 44 as u8)
+            }
+            jw_indent[T](ac, w, depth + 1)
+            write_string[T](ac, w, cur.key_ptr, cur.key_len)
+            jw_byte[T](ac, w, 58 as u8)
+            if w.pretty {
+                jw_byte[T](ac, w, 32 as u8)
+            }
+            write_value[T](ac, w, cur.value, depth + 1)
+            cur = cur.next
+            i++
+        }
+        if node.len > 0 {
+            jw_indent[T](ac, w, depth)
+        }
+        jw_byte[T](ac, w, 125 as u8)
+        return
+    }
+    jw_view[T](ac, w, c"null", 4)
+}
+
+fn jw_finish[T: allocators.GeneralAllocator](
+    ac: T,
+    w: mut ref JsonWriter
+) str.String = trust {
+    if w.valid == 0 || w.buf == none {
+        if w.buf != none {
+            T.free(ac, w.buf as ref void)
+            w.buf = none
+        }
+        return none
+    }
+    val hdr_opt: option[ref void] = T.alloc(ac, @sizeof(str.String) as usize)
+    if hdr_opt is some hdr_raw {
+        val hdr: mut ref str.String = hdr_raw as ref str.String
+        hdr.ptr = w.buf
+        hdr.len = w.len
+        hdr.cap = w.cap
+        w.buf = none
+        return hdr as str.String
+    }
+    T.free(ac, w.buf as ref void)
+    w.buf = none
+    return none
+}
+
+fn write_doc[T: allocators.GeneralAllocator](
+    ac: T,
+    node: ref JsonNode,
+    pretty: bool
+) str.String = trust {
+    val w: mut ref JsonWriter = @alloc(@sizeof(JsonWriter) as usize) as ref JsonWriter
+    if w == none {
+        return none
+    }
+    w.buf = none
+    w.len = 0
+    w.cap = 0
+    w.valid = 1
+    w.pretty = pretty
+    write_value[T](ac, w, node, 0)
+    val result: str.String = jw_finish[T](ac, w)
+    @free(w as ref void)
+    return result
+}
+
+/// Serialize a parsed document to a compact JSON string.
+fn copy_doc_string[T: allocators.GeneralAllocator](
+    ac: T,
+    raw: str.StringView
+) str.String = trust {
+    val buf_opt: option[ref void] = T.alloc(ac, (raw.len + 1) as usize)
+    if buf_opt is some buf_raw {
+        val hdr_opt: option[ref void] = T.alloc(ac, @sizeof(str.String) as usize)
+        if hdr_opt is some hdr_raw {
+            val buf: ref u8 = buf_raw as ref u8
+            if raw.len > 0 {
+                @memcpy(buf as ref void, raw.ptr as ref void, raw.len as usize)
+            }
+            @store8(@ptradd(buf, raw.len), 0)
+            val hdr: mut ref str.String = hdr_raw as ref str.String
+            hdr.ptr = buf
+            hdr.len = raw.len
+            hdr.cap = raw.len + 1
+            return hdr as str.String
+        }
+        T.free(ac, buf_raw)
+    }
+    return none
+}
+
+pub fn doc_to_string[T: allocators.GeneralAllocator](ac: T, doc: JsonDoc) str.String = trust {
+    if doc.ptr == none {
+        return none
+    }
+    if doc.ptr.has_raw {
+        return copy_doc_string[T](ac, doc.ptr.raw)
+    }
+    return write_doc[T](ac, doc.ptr.root, false)
+}
+
+/// Serialize a parsed document to an indented JSON string.
+pub fn doc_to_string_pretty[T: allocators.GeneralAllocator](
+    ac: T,
+    doc: JsonDoc
+) str.String = trust {
+    if doc.ptr == none {
+        return none
+    }
+    return write_doc[T](ac, doc.ptr.root, true)
+}
+
+fn arena_copy_string(
+    arena: mut ref JsonArena,
+    value: str.StringView
+) str.StringView = trust {
+    pre {
+        non_negative_length: value.len >= 0
+    }
+    val out: ref u8 = ja_alloc(arena, value.len + 1) as ref u8
+    if out == none {
+        return str.view(none, 0)
+    }
+    if value.len > 0 {
+        @memcpy(out as ref void, value.ptr as ref void, value.len as usize)
+    }
+    @store8(@ptradd(out, value.len), 0)
+    return str.view(out, value.len)
+}
+
+/// Free a string returned by the JSON serializers using the same allocator.
+pub fn free_string[T: allocators.GeneralAllocator](ac: T, value: str.String) void = trust {
+    if value == none {
+        return
+    }
+    val buf: ref void = @load(value as ref void)
+    if buf != none {
+        T.free(ac, buf)
+    }
+    T.free(ac, value as ref void)
+}
+
+/// Create a new mutable JSON builder.
+pub fn builder_new() result[JsonBuilder, JsonError] = trust {
+    val state: mut ref JsonBuilderState = @alloc(
+        @sizeof(JsonBuilderState) as usize
+    ) as ref JsonBuilderState
+    if state == none {
+        return err JsonError.OutOfMemory
+    }
+    ja_init(@addr(state.arena), 1024 as i64)
+    state.root = none
+    state.raw = str.view(none, 0)
+    state.has_raw = false
+    return ok JsonBuilder{ptr: state}
+}
+
+/// Free a builder and everything allocated by it.
+pub fn builder_free(builder: JsonBuilder) void = trust {
+    val state: mut ref JsonBuilderState = builder.ptr
+    if state == none {
+        return
+    }
+    ja_free(@addr(state.arena))
+    @free(state as ref void)
+}
+
+fn build_node(builder: JsonBuilder, tag: i64) mut ref JsonNode = trust {
+    if builder.ptr == none {
+        return none
+    }
+    val node: mut ref JsonNode = ja_alloc(
+        @addr(builder.ptr.arena),
+        @sizeof(JsonNode) as i64
+    ) as ref JsonNode
+    if node == none {
+        return none
+    }
+    node.tag = tag
+    node.len = 0
+    node.ptr = none
+    node.aux = 0
+    node.next = none
+    return node
+}
+
+pub fn build_null(builder: JsonBuilder) JsonValue = {
+    val node: ref JsonNode = trust build_node(builder, TAG_NULL)
+    return JsonValue{node: node}
+}
+
+pub fn build_bool(builder: JsonBuilder, value: bool) JsonValue = {
+    if value {
+        val node: ref JsonNode = trust build_node(builder, TAG_TRUE)
+        return JsonValue{node: node}
+    }
+    val node: ref JsonNode = trust build_node(builder, TAG_FALSE)
+    return JsonValue{node: node}
+}
+
+pub fn build_int(builder: JsonBuilder, value: i64) JsonValue = {
+    val node: mut ref JsonNode = trust build_node(builder, TAG_INT)
+    if node != none {
+        node.aux = value
+    }
+    return JsonValue{node: node}
+}
+
+pub fn build_uint(builder: JsonBuilder, value: u64) JsonValue = {
+    val node: mut ref JsonNode = trust build_node(builder, TAG_UINT)
+    if node != none {
+        node.aux = trust @bitcast(value, i64)
+    }
+    return JsonValue{node: node}
+}
+
+pub fn build_float(builder: JsonBuilder, value: f64) JsonValue = {
+    val node: mut ref JsonNode = trust build_node(builder, TAG_FLOAT)
+    if node != none {
+        node.aux = trust @bitcast(value, i64)
+    }
+    return JsonValue{node: node}
+}
+
+/// Build a string value, copying `value` into the builder arena.
+pub fn build_string(builder: JsonBuilder, value: str.StringView) JsonValue = trust {
+    val node: mut ref JsonNode = build_node(builder, TAG_STRING)
+    if node == none {
+        return JsonValue{node: none}
+    }
+    val copy: str.StringView = arena_copy_string(@addr(builder.ptr.arena), value)
+    if copy.ptr == none && value.len > 0 {
+        return JsonValue{node: none}
+    }
+    node.ptr = copy.ptr as ref void
+    node.len = copy.len
+    return JsonValue{node: node}
+}
+
+pub fn build_array(builder: JsonBuilder) JsonValue = {
+    val node: ref JsonNode = trust build_node(builder, TAG_ARRAY)
+    return JsonValue{node: node}
+}
+
+pub fn build_object(builder: JsonBuilder) JsonValue = {
+    val node: ref JsonNode = trust build_node(builder, TAG_OBJECT)
+    return JsonValue{node: node}
+}
+
+/// Append a value to an array. A value should be appended to only one parent.
+pub fn array_append(array: JsonValue, value: JsonValue) bool = trust {
+    pre {
+        array_value: true
+    }
+    val anode: mut ref JsonNode = array.node
+    val vnode: mut ref JsonNode = value.node
+    if anode == none || anode.tag != TAG_ARRAY || vnode == none {
+        return false
+    }
+    vnode.next = none
+    if anode.len == 0 {
+        anode.ptr = vnode as ref void
+    } else {
+        val last: mut ref JsonNode = @bitcast(anode.aux, ref JsonNode)
+        last.next = vnode
+    }
+    anode.aux = @bitcast(vnode, i64)
+    anode.len = anode.len + 1
+    post {
+        grew_by_one: true
+    }
+    return true
+}
+
+/// Add a key/value pair to an object, copying the key into the builder arena.
+pub fn object_add(
+    builder: JsonBuilder,
+    object: JsonValue,
+    key: str.StringView,
+    value: JsonValue
+) bool = trust {
+    pre {
+        non_negative_key_length: key.len >= 0
+    }
+    val state: ref JsonBuilderState = builder.ptr
+    val onode: mut ref JsonNode = object.node
+    val vnode: ref JsonNode = value.node
+    if state == none || onode == none || onode.tag != TAG_OBJECT || vnode == none {
+        return false
+    }
+    val entry: mut ref JsonEntry = ja_alloc(
+        @addr(state.arena),
+        @sizeof(JsonEntry) as i64
+    ) as ref JsonEntry
+    if entry == none {
+        return false
+    }
+    val key_copy: str.StringView = arena_copy_string(@addr(state.arena), key)
+    if key_copy.ptr == none && key.len > 0 {
+        return false
+    }
+    entry.key_ptr = key_copy.ptr as ref u8
+    entry.key_len = key_copy.len
+    entry.value = vnode
+    entry.next = none
+    if onode.len == 0 {
+        onode.ptr = entry as ref void
+    } else {
+        val last: mut ref JsonEntry = @bitcast(onode.aux, ref JsonEntry)
+        last.next = entry
+    }
+    onode.aux = @bitcast(entry, i64)
+    onode.len = onode.len + 1
+    return true
+}
+
+/// Set the root value of a builder.
+pub fn builder_set_root(builder: JsonBuilder, value: JsonValue) void = {
+    val state: mut ref JsonBuilderState = builder.ptr
+    if state == none {
+        return
+    }
+    state.root = value.node
+}
+
+/// Serialize a builder's root to compact JSON.
+pub fn builder_to_string[T: allocators.GeneralAllocator](
+    ac: T,
+    builder: JsonBuilder
+) str.String = trust {
+    if builder.ptr == none {
+        return none
+    }
+    return write_doc[T](ac, builder.ptr.root, false)
+}
+
+/// Serialize a builder's root to indented JSON.
+pub fn builder_to_string_pretty[T: allocators.GeneralAllocator](
+    ac: T,
+    builder: JsonBuilder
+) str.String = trust {
+    if builder.ptr == none {
+        return none
+    }
+    return write_doc[T](ac, builder.ptr.root, true)
+}
+
+test "native json parses objects, arrays, escapes, and numbers" {
+    trust {
+        val input = \\{"name":"Alice","age":30,"active":true,"score":9.5,"escaped":"a\\nb","items":[1,2,3]}
+        val parsed = parse(input)
+        val doc: mut JsonDoc = JsonDoc{ptr: none}
+        match parsed {
+            ok d => {
+                doc = d
+            }
+            err _ => {
+                assert false
+            }
+        }
+        val root_value: JsonValue = root(doc)
+        assert is_object(root_value)
+
+        val name = object_get_str(root_value, "name")
+        match name {
+            some value => {
+                assert str.eql("Alice", value)
+            }
+            none => {
+                assert false
+            }
+        }
+        assert object_get_int(root_value, "age") == some 30
+        assert object_get_bool(root_value, "active") == some true
+        assert object_get_float(root_value, "score") == some 9.5
+
+        val items = object_get(root_value, "items")
+        val arr: mut JsonValue = JsonValue{node: none}
+        match items {
+            some value => {
+                arr = value
+            }
+            none => {
+                assert false
+            }
+        }
+        assert is_array(arr)
+        assert len(arr) == 3
+        val first = array_get(arr, 0)
+        match first {
+            some value => {
+                assert as_int(value) == 1
+            }
+            none => {
+                assert false
+            }
+        }
+
+        val heap: allocators.HeapAllocator = @zeroed
+        val out: str.String = doc_to_string[allocators.HeapAllocator](heap, doc)
+        assert out != none
+        val out_view: str.StringView = str.view(
+            @load(out as ref void) as ref u8,
+            @load(@ptradd(out as ref void, 8)) as i64
+        )
+        assert str.contains(out_view, "Alice")
+        free_string[allocators.HeapAllocator](heap, out)
+        doc_free(doc)
+
+        val built = builder_new()
+        val b: mut JsonBuilder = JsonBuilder{ptr: none}
+        match built {
+            ok value => {
+                b = value
+            }
+            err _ => {
+                assert false
+            }
+        }
+        val obj: JsonValue = build_object(b)
+        assert object_add(b, obj, "hello", build_string(b, "world"))
+        assert object_add(b, obj, "n", build_int(b, 42))
+        builder_set_root(b, obj)
+        val text: str.String = builder_to_string[allocators.HeapAllocator](heap, b)
+        assert text != none
+        builder_free(b)
+        free_string[allocators.HeapAllocator](heap, text)
+    }
 }

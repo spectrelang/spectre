@@ -35,7 +35,7 @@ following force hosted mode:
 
 * `-dynamic`
 * `-dll`
-* linking a non-system C library (for example `-lyyjson`, `-lcurl`,
+* linking a non-system C library (for example `-lcurl`,
   `-lcrypto`, or SDL3)
 
 Use `-runtime:hosted` explicitly when a project needs the system C library

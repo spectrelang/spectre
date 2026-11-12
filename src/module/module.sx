@@ -1880,22 +1880,14 @@ fn collect_links_with_root(
     }
 
     val result: mut list[ref u8] = mem.new[ref u8]()
-    val workspace: ref u8 = link_root
+    val workspace: mut ref u8 = link_root
+    // keep exe_dir in the signature for callers that resolve links relative
+    // to the compiler installation
+    if exe_dir != none && cstr.len(exe_dir) == 0 {
+        workspace = link_root
+    }
     for the_link in links {
-        if cstr.cmp(the_link, c"__sx__internal__json__") == 0 {
-            val shim_c: ref u8 = path.join_cstr(exe_dir, c"spectrelib/csources/yyjson_shim.c")
-            val shim_o: ref u8 = path.join_cstr(exe_dir, c"spectrelib/csources/yyjson_shim.o")
-
-            if file_exists(shim_c) {
-                @append(result, shim_c)
-            } elif file_exists(shim_o) {
-                @append(result, shim_o)
-            } else {
-                @append(result, the_link)
-            }
-        } else {
-            @append(result, resolve_link_path(the_link, workspace))
-        }
+        @append(result, resolve_link_path(the_link, workspace))
     }
 
     allocators.Arena.free(arena)

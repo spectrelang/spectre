@@ -79,6 +79,8 @@ pub type CgCtx = {
     mc_index: mut ref void
     fn_name_index: mut ref void
     fn_suffix_index: mut ref void
+    fn_suffix_unique: mut ref void
+    fn_node_table: mut list[i64]
     defer_stack: mut list[ref void]
     local_src_names: mut list[ref u8]
     local_qbe_names: mut list[ref u8]
@@ -216,6 +218,16 @@ fn cg_new() ref CgCtx = trust {
     ctx.mc_index = collections.RawIndexMap.new(64 as usize)
     ctx.fn_name_index = collections.RawIndexMap.new(256 as usize)
     ctx.fn_suffix_index = collections.RawIndexMap.new(256 as usize)
+    ctx.fn_suffix_unique = collections.RawIndexMap.new(256 as usize)
+    ctx.fn_node_table = mem.new[i64]()
+    val nti: mut i64 = 0
+    for {
+        if nti >= 512 {
+            break
+        }
+        @append(ctx.fn_node_table, 0)
+        nti++
+    }
     ctx.defer_stack = mem.new[ref void]()
     ctx.local_src_names = mem.new[ref u8]()
     ctx.local_qbe_names = mem.new[ref u8]()
@@ -273,6 +285,9 @@ fn cg_free_ctx(ctx: mut ref CgCtx) void = trust {
     }
     if ctx.fn_suffix_index != none {
         collections.RawIndexMap.free(ctx.fn_suffix_index)
+    }
+    if ctx.fn_suffix_unique != none {
+        collections.RawIndexMap.free(ctx.fn_suffix_unique)
     }
     if ctx.c_const_index != none {
         collections.RawIndexMap.free(ctx.c_const_index)
@@ -2931,43 +2946,19 @@ fn cg_lookup_canonical_name(ctx: ref CgCtx, name: ref u8) ref u8 = trust {
 /// registrations agree on the same full name. Ambiguous suffixes are left for
 /// the caller's module-prefix logic instead of being resolved arbitrarily.
 fn cg_find_unique_fn_by_suffix(ctx: ref CgCtx, suffix: ref u8) ref u8 = trust {
-    val nlen: i64 = @len(ctx.fn_names) as i64
-    val slen: i64 = cstr.len(suffix)
-    val found: mut ref u8 = none
-    val i: mut i64 = 0
-    for {
-        if i >= nlen {
-            break
-        }
-        val n_opt = @get(ctx.fn_names, i as usize)
-        if n_opt is some n {
-            val cand: ref u8 = n as ref u8
-            val clen: i64 = cstr.len(cand)
-            val matches: mut bool = false
-            if clen == slen {
-                if cstr.cmp(cand, suffix) == 0 {
-                    matches = true
-                }
-            } elif clen > slen + 2 {
-                val tail: ref u8 = @ptradd(cand, clen - slen) as ref u8
-                if cstr.cmp(tail, suffix) == 0 {
-                    if @load8(@ptradd(cand, clen - slen - 1)) == 95
-                    && @load8(@ptradd(cand, clen - slen - 2)) == 95 {
-                        matches = true
-                    }
-                }
+    match collections.RawIndexMap.get(ctx.fn_suffix_unique, suffix) {
+        some raw_index => {
+            if raw_index == (9223372036854775807 as usize) {
+                return none
             }
-            if matches {
-                if found == none {
-                    found = cand
-                } elif cstr.cmp(found, cand) != 0 {
-                    return none
-                }
-            }
+            val index: usize = raw_index
+            val found: ref u8 = @load(cg_list_slot(ctx.fn_names as ref void, index as i64)) as ref u8
+            return found
         }
-        i++
+        none => {
+            return none
+        }
     }
-    return found
 }
 
 /// Record the canonical module prefix chosen for an import alias. The first
@@ -3219,9 +3210,27 @@ fn cg_resolve_fn_name(ctx: mut ref CgCtx, name: ref u8) ref u8 = trust {
     }
 }
 
+fn cg_suffix_unique_add(ctx: mut ref CgCtx, suffix: ref u8, index: usize) void = trust {
+    match collections.RawIndexMap.get(ctx.fn_suffix_unique, suffix) {
+        some prev => {
+            if prev != index && prev != (9223372036854775807 as usize) {
+                collections.RawIndexMap.set(
+                    ctx.fn_suffix_unique,
+                    suffix,
+                    9223372036854775807 as usize
+                )
+            }
+        }
+        none => {
+            collections.RawIndexMap.set(ctx.fn_suffix_unique, suffix, index)
+        }
+    }
+}
+
 /// Index a mangled name by itself and by every suffix after a `__` boundary.
 fn cg_index_fn_name(ctx: mut ref CgCtx, mangled: ref u8, index: usize) void = trust {
     collections.RawIndexMap.set(ctx.fn_name_index, mangled, index)
+    cg_suffix_unique_add(ctx, mangled, index)
     val n: i64 = cstr.len(mangled)
     val i: mut i64 = 0
     for {
@@ -3231,9 +3240,95 @@ fn cg_index_fn_name(ctx: mut ref CgCtx, mangled: ref u8, index: usize) void = tr
         if @load8(@ptradd(mangled, i)) == 95 && @load8(@ptradd(mangled, i + 1)) == 95 {
             val suffix: ref u8 = @ptradd(mangled, i + 2) as ref u8
             collections.RawIndexMap.set(ctx.fn_suffix_index, suffix, index)
+            cg_suffix_unique_add(ctx, suffix, index)
         }
         i++
     }
+}
+
+fn cg_node_slot(tbl: list[i64], i: i64) ref i64 = trust {
+    val buf: ref void = @load(tbl as ref void)
+    return @ptradd(buf, (i * 8) as usize) as ref i64
+}
+
+fn cg_node_table_insert(tbl: list[i64], node: ref parser.Node, index: i64) void = trust {
+    val cap: i64 = @len(tbl) as i64
+    if cap <= 0 {
+        return
+    }
+    val p: usize = parser.ptr_to_usize[ref parser.Node](node)
+    val mask: i64 = cap - 1
+    val h: i64 = ((p >> 3) as i64) & mask
+    val start: mut i64 = h
+    for {
+        val slot: ref i64 = cg_node_slot(tbl, start)
+        val cur: i64 = @load(slot)
+        if cur == 0 {
+            @store(slot, index + 1)
+            return
+        }
+        start = (start + 1) & mask
+        if start == h {
+            return
+        }
+    }
+}
+
+fn cg_node_table_rehash(ctx: mut ref CgCtx) void = trust {
+    val oldcap: i64 = @len(ctx.fn_node_table) as i64
+    val newcap: i64 = oldcap * 2
+    val tbl: mut list[i64] = mem.new[i64]()
+    val i: mut i64 = 0
+    for {
+        if i >= newcap {
+            break
+        }
+        @append(tbl, 0)
+        i++
+    }
+    val n: i64 = @len(ctx.fn_nodes) as i64
+    val j: mut i64 = 0
+    for {
+        if j >= n {
+            break
+        }
+        val node: ref parser.Node = @load(cg_list_slot(
+            ctx.fn_nodes as ref void, j
+        )) as ref parser.Node
+        cg_node_table_insert(tbl, node, j)
+        j++
+    }
+    ctx.fn_node_table = tbl
+}
+
+fn cg_node_index_lookup(ctx: ref CgCtx, node: ref parser.Node) i64 = trust {
+    val tbl: list[i64] = ctx.fn_node_table
+    val cap: i64 = @len(tbl) as i64
+    if cap <= 0 {
+        return -1
+    }
+    val p: usize = parser.ptr_to_usize[ref parser.Node](node)
+    val mask: i64 = cap - 1
+    val h: i64 = ((p >> 3) as i64) & mask
+    val start: mut i64 = h
+    for {
+        val cur: i64 = @load(cg_node_slot(tbl, start))
+        if cur == 0 {
+            return -1
+        }
+        val idx: i64 = cur - 1
+        val cand: ref parser.Node = @load(cg_list_slot(
+            ctx.fn_nodes as ref void, idx
+        )) as ref parser.Node
+        if cand == node {
+            return idx
+        }
+        start = (start + 1) & mask
+        if start == h {
+            return -1
+        }
+    }
+    return -1
 }
 
 /// Register a function's mangled name and its param list for call-site type checking.
@@ -3249,6 +3344,10 @@ fn cg_register_fn(
     @append(ctx.fn_params as list[ref void], params)
     @append(ctx.fn_rets as list[ref void], ret_ty)
     val index: usize = (@len(ctx.fn_names) as usize) - 1
+    if (index * 2) >= (@len(ctx.fn_node_table) as usize) {
+        cg_node_table_rehash(ctx)
+    }
+    cg_node_table_insert(ctx.fn_node_table, node, index as i64)
     cg_index_fn_name(ctx, mangled, index)
 }
 
@@ -3259,33 +3358,18 @@ fn cg_lookup_fn_name_by_node(ctx: mut ref CgCtx, node: ref parser.Node) ref u8 =
     if node.kind == parser.NK_EXTERN_FN {
         return parser.node_str_raw(node.d2)
     }
-    val nlen: i64 = @len(ctx.fn_nodes) as i64
-    val ni: mut i64 = 0
-    for {
-        if ni >= nlen {
-            break
-        }
-        val nd_opt = @get(ctx.fn_nodes, ni as usize)
-        if nd_opt is some nd {
-            if nd as ref parser.Node == node {
-                val n_opt = @get(ctx.fn_names, ni as usize)
-                if n_opt is some n {
-                    val found: ref u8 = n as ref u8
-                    if cstr.contains(found, c"__") {
-                        val canonical: ref u8 = cg_resolve_fn_name(ctx, found)
-                        if canonical != none {
-                            return canonical
-                        }
-                    }
-                    return found
-                } else {
-                    return none
-                }
-            }
-        }
-        ni++
+    val idx: i64 = cg_node_index_lookup(ctx, node)
+    if idx < 0 {
+        return none
     }
-    return none
+    val found: ref u8 = @load(cg_list_slot(ctx.fn_names as ref void, idx)) as ref u8
+    if cstr.contains(found, c"__") {
+        val canonical: ref u8 = cg_resolve_fn_name(ctx, found)
+        if canonical != none {
+            return canonical
+        }
+    }
+    return found
 }
 
 /// Look up param list for a mangled function name. Returns 0 if not found.

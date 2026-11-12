@@ -11,7 +11,6 @@ FORCE_FALLBACK=0
 UQBE_REPO="https://github.com/spectrelang/uqbe.git"
 SPECTRE_REPO="https://github.com/spectrelang/spectre.git"
 SPECTRE_LS_REPO="https://github.com/spectrelang/spectre-ls.git"
-YYJSON_REPO="https://github.com/ibireme/yyjson.git"
 TUI_STTY=""
 
 tui_cleanup() {
@@ -372,7 +371,6 @@ log "Checking required tools..."
 require_cmd git
 require_cmd make
 require_cmd cc
-require_cmd cmake
 
 if [ "$MINIMAL" -eq 0 ]; then
 	install_network_deps
@@ -473,11 +471,8 @@ fi
 CSOURCES_DIR="${SPECTRE_DIR}/spectrelib/csources"
 PANIC_HANDLER_SRC="${CSOURCES_DIR}/panic_handler.c"
 PANIC_HANDLER_OBJ="${CSOURCES_DIR}/panic_handler.o"
-YYJSON_SHIM_SRC="${CSOURCES_DIR}/yyjson_shim.c"
-YYJSON_SHIM_OBJ="${CSOURCES_DIR}/yyjson_shim.o"
 QBE_RUNTIME_SRC="${CSOURCES_DIR}/qbe_runtime.c"
 QBE_RUNTIME_OBJ="${CSOURCES_DIR}/qbe_runtime.o"
-YYJSON_DIR="${SRC_DIR}/yyjson"
 OS="$(uname -s)"
 OTHER_PREFIX="/usr/local"
 
@@ -491,41 +486,8 @@ Darwin)
 	;;
 esac
 
-if [ -d "$YYJSON_DIR" ]; then
-	log "yyjson source already exists, updating..."
-	git -C "$YYJSON_DIR" pull --ff-only
-else
-	git clone "$YYJSON_REPO" "$YYJSON_DIR"
-fi
-
-log "Building yyjson..."
-rm -rf "${YYJSON_DIR}/build"
-cmake -S "$YYJSON_DIR" -B "${YYJSON_DIR}/build" \
-	-DCMAKE_BUILD_TYPE=Release \
-	-DBUILD_SHARED_LIBS=OFF \
-	-DYYJSON_BUILD_TESTS=OFF \
-	-DYYJSON_BUILD_FUZZER=OFF \
-	-DYYJSON_BUILD_MISC=OFF \
-	-DYYJSON_BUILD_DOC=OFF \
-	-DCMAKE_POSITION_INDEPENDENT_CODE=ON
-cmake --build "${YYJSON_DIR}/build" --config Release
-
-log "Verifying yyjson symbols..."
-
-log "Installing yyjson to ${OTHER_PREFIX}..."
-sudo mkdir -p "${OTHER_PREFIX}/lib" "${OTHER_PREFIX}/include"
-sudo cp "${YYJSON_DIR}/build/libyyjson.a" "${OTHER_PREFIX}/lib/"
-sudo cp "${YYJSON_DIR}/src/yyjson.h" "${OTHER_PREFIX}/include/"
-
-if [ "$OS" = "Linux" ]; then
-	log "Refreshing linker cache (ldconfig)..."
-	sudo ldconfig
-fi
-
-log "yyjson installed successfully."
 log "CC Stage I (C sources)..."
 cc -O2 -c "${PANIC_HANDLER_SRC}" -o "${PANIC_HANDLER_OBJ}"
-cc -O2 -I"${OTHER_PREFIX}/include" -c "${YYJSON_SHIM_SRC}" -o "${YYJSON_SHIM_OBJ}"
 if [ -f "${QBE_RUNTIME_SRC}" ]; then
 	cc -O2 -c "${QBE_RUNTIME_SRC}" -o "${QBE_RUNTIME_OBJ}"
 fi
@@ -563,9 +525,6 @@ if [ "$QBE_OK" -eq 1 ]; then
 		"${BOOTSTRAP_OUT}.s" \
 		"${QBE_RUNTIME_OBJ}" \
 		"${PANIC_HANDLER_OBJ}" \
-		"${YYJSON_SHIM_OBJ}" \
-		-L"${OTHER_PREFIX}/lib" \
-		-lyyjson \
 		-o "${BOOTSTRAP_OUT}"
 else
 	[ -f "$POSIX_BOOTSTRAP_SRC" ] || err "Missing C bootstrap at ${POSIX_BOOTSTRAP_SRC}"
@@ -576,11 +535,7 @@ else
 	(cd "$SPECTRE_DIR" && cc -O2 \
 		"${POSIX_BOOTSTRAP_SRC}" \
 		"${PANIC_HANDLER_OBJ}" \
-		"${YYJSON_SHIM_OBJ}" \
-		-I"${OTHER_PREFIX}/include" \
-		-L"${OTHER_PREFIX}/lib" \
 		-Wno-everything \
-		-lyyjson \
 		-o "${POSIX_BOOTSTRAP_OUT}")
 fi
 
@@ -590,7 +545,7 @@ if [ "$QBE_OK" -eq 1 ]; then
 else
 	/usr/bin/install -m 0755 "${POSIX_BOOTSTRAP_OUT}" "$STAGE0"
 fi
-(cd "$SPECTRE_DIR" && ./spectre-stage0 ./src/sxc.sx -alt -runtime:hosted -o ./spectre-stage1)
+(cd "$SPECTRE_DIR" && ./spectre-stage0 ./src/sxc.sx -release -alt -runtime:hosted -o ./spectre-stage1)
 
 GIT_HASH="unknown"
 if command -v git >/dev/null 2>&1; then
@@ -606,7 +561,7 @@ if [ -n "$SPECTRE_MOD_VERSION" ]; then
 fi
 
 log "Building Spectre stage 2 from source..."
-(cd "$SPECTRE_DIR" && ./spectre-stage1 $STAGE_DEFINES ./src/sxc.sx -alt -o ./spectre-stage2)
+(cd "$SPECTRE_DIR" && ./spectre-stage1 $STAGE_DEFINES ./src/sxc.sx -release -alt -runtime:hosted -o ./spectre-stage2)
 
 log "Installing Spectre binary..."
 /usr/bin/install -m 0755 "${STAGE2}" "${BIN_DIR}/spectre"
@@ -629,12 +584,6 @@ mkdir -p "$STDLIB_DEST"
 	cd "$STDLIB_DEST"
 	tar xf -
 )
-
-log "Installing C shim sources..."
-mkdir -p "${STDLIB_DEST}/csources"
-if [ -f "${YYJSON_DIR}/src/yyjson.h" ]; then
-	cp "${YYJSON_DIR}/src/yyjson.h" "${STDLIB_DEST}/csources/"
-fi
 
 if [ "$MINIMAL" -eq 1 ]; then
 	log "Skipping spectre-ls (-minimal)."
@@ -731,7 +680,6 @@ else
 	echo "  - tcc        -> (unavailable, used fallback)"
 fi
 echo "  - clang      -> $(command -v clang)"
-echo "  - yyjson     -> ${OTHER_PREFIX}/lib/libyyjson.a"
 echo
 echo "Verify with:"
 echo "  spectre -v"

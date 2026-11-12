@@ -196,17 +196,22 @@ pub fn node_store_slot[T](slot: ref i64, value: T) void = trust {
 /// Read a string slot. The slot stores an arena-owned StringView pointer.
 pub fn node_str(d: i64) str.StringView = {
     if d == 0 {
-        return str.view(none, 0)
+        return str.StringView{ptr: none, len: 0}
     }
-    val box: NodeSlotBox = {value: d}
-    val sv: ref str.StringView = box.value as ref str.StringView
-    return str.view(sv.ptr, sv.len)
+    val p: ref void = trust @bitcast(d, ref void)
+    return str.StringView{
+        ptr: trust @load(p) as ref u8,
+        len: trust @load(@ptradd(p, 8)) as i64
+    }
 }
 
 /// Raw-pointer compatibility view for callers that still need `ref u8`.
 pub fn node_str_raw(d: i64) ref u8 = {
-    val v: str.StringView = node_str(d)
-    return v.ptr
+    if d == 0 {
+        return none
+    }
+    val p: ref void = trust @bitcast(d, ref void)
+    return trust @load(p) as ref u8
 }
 
 pub fn ptr_to_i64[T](p: T) i64 = trust {

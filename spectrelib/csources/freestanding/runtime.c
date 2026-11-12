@@ -44,10 +44,21 @@ sx_i64 __sx_sys_nanosleep_us(sx_i64 us);
 void *memcpy(void *dst, const void *src, sx_size_t n) {
   unsigned char *d = (unsigned char *)dst;
   const unsigned char *s = (const unsigned char *)src;
-  sx_size_t i = 0;
-  while (i < n) {
-    d[i] = s[i];
-    i++;
+  while (n > 0 && (((sx_size_t)d) & (sizeof(sx_size_t) - 1)) != 0) {
+    *d++ = *s++;
+    n--;
+  }
+  sx_size_t *dw = (sx_size_t *)d;
+  const sx_size_t *sw = (const sx_size_t *)s;
+  while (n >= sizeof(sx_size_t)) {
+    *dw++ = *sw++;
+    n -= sizeof(sx_size_t);
+  }
+  d = (unsigned char *)dw;
+  s = (const unsigned char *)sw;
+  while (n > 0) {
+    *d++ = *s++;
+    n--;
   }
   return dst;
 }
@@ -58,18 +69,25 @@ void *memmove(void *dst, const void *src, sx_size_t n) {
   if (d == s || n == 0) {
     return dst;
   }
-  if (d < s) {
-    sx_size_t i = 0;
-    while (i < n) {
-      d[i] = s[i];
-      i++;
-    }
-  } else {
-    sx_size_t i = n;
-    while (i > 0) {
-      i--;
-      d[i] = s[i];
-    }
+  if (d < s || d >= s + n) {
+    return memcpy(dst, src, n);
+  }
+  sx_size_t i = n;
+  while (i > 0 && ((((sx_size_t)(d + i)) & (sizeof(sx_size_t) - 1)) != 0)) {
+    i--;
+    d[i] = s[i];
+  }
+  sx_size_t *dw = (sx_size_t *)(d + i);
+  const sx_size_t *sw = (const sx_size_t *)(s + i);
+  while (i >= sizeof(sx_size_t)) {
+    dw--;
+    sw--;
+    *dw = *sw;
+    i -= sizeof(sx_size_t);
+  }
+  while (i > 0) {
+    i--;
+    d[i] = s[i];
   }
   return dst;
 }
@@ -77,36 +95,121 @@ void *memmove(void *dst, const void *src, sx_size_t n) {
 void *memset(void *dst, int value, sx_size_t n) {
   unsigned char *d = (unsigned char *)dst;
   unsigned char v = (unsigned char)value;
-  sx_size_t i = 0;
-  while (i < n) {
-    d[i] = v;
-    i++;
+  while (n > 0 && (((sx_size_t)d) & (sizeof(sx_size_t) - 1)) != 0) {
+    *d++ = v;
+    n--;
+  }
+  sx_size_t word = (sx_size_t)v;
+  sx_size_t shift = 8;
+  while (shift < sizeof(sx_size_t) * 8) {
+    word |= ((sx_size_t)v) << shift;
+    shift += 8;
+  }
+  sx_size_t *dw = (sx_size_t *)d;
+  while (n >= sizeof(sx_size_t)) {
+    *dw++ = word;
+    n -= sizeof(sx_size_t);
+  }
+  d = (unsigned char *)dw;
+  while (n > 0) {
+    *d++ = v;
+    n--;
   }
   return dst;
+}
+
+void *memchr(const void *s, int c, sx_size_t n) {
+  const unsigned char *p = (const unsigned char *)s;
+  const unsigned char needle = (unsigned char)c;
+  while (n > 0 && (((sx_size_t)p) & (sizeof(sx_size_t) - 1)) != 0) {
+    if (*p == needle) {
+      return (void *)p;
+    }
+    p++;
+    n--;
+  }
+  const sx_size_t ones = (sx_size_t)-1 / 255;
+  const sx_size_t highs = ones * 128;
+  const sx_size_t target = ones * needle;
+  const sx_size_t *wp = (const sx_size_t *)p;
+  while (n >= sizeof(sx_size_t)) {
+    sx_size_t w = *wp ^ target;
+    if (((w - ones) & ~w & highs) != 0) {
+      const unsigned char *q = (const unsigned char *)wp;
+      sx_size_t i = 0;
+      while (i < sizeof(sx_size_t)) {
+        if (q[i] == needle) {
+          return (void *)(q + i);
+        }
+        i++;
+      }
+    }
+    wp++;
+    n -= sizeof(sx_size_t);
+  }
+  p = (const unsigned char *)wp;
+  while (n > 0) {
+    if (*p == needle) {
+      return (void *)p;
+    }
+    p++;
+    n--;
+  }
+  return 0;
 }
 
 int memcmp(const void *a, const void *b, sx_size_t n) {
   const unsigned char *x = (const unsigned char *)a;
   const unsigned char *y = (const unsigned char *)b;
-  sx_size_t i = 0;
-  while (i < n) {
-    if (x[i] != y[i]) {
-      return (int)x[i] - (int)y[i];
+  while (n >= sizeof(sx_size_t)) {
+    sx_size_t xw = *(const sx_size_t *)x;
+    sx_size_t yw = *(const sx_size_t *)y;
+    if (xw != yw) {
+      break;
     }
-    i++;
+    x += sizeof(sx_size_t);
+    y += sizeof(sx_size_t);
+    n -= sizeof(sx_size_t);
+  }
+  while (n > 0) {
+    if (*x != *y) {
+      return (int)*x - (int)*y;
+    }
+    x++;
+    y++;
+    n--;
   }
   return 0;
 }
 
 sx_size_t strlen(const char *s) {
-  sx_size_t n = 0;
   if (!s) {
     return 0;
   }
-  while (s[n]) {
-    n++;
+  const unsigned char *p = (const unsigned char *)s;
+  while ((((sx_size_t)p) & (sizeof(sx_size_t) - 1)) != 0) {
+    if (*p == 0) {
+      return (sx_size_t)(p - (const unsigned char *)s);
+    }
+    p++;
   }
-  return n;
+  const sx_size_t *wp = (const sx_size_t *)p;
+  const sx_size_t ones = (sx_size_t)-1 / 255;
+  const sx_size_t highs = ones * 128;
+  while (1) {
+    sx_size_t w = *wp;
+    if (((w - ones) & ~w & highs) != 0) {
+      const unsigned char *q = (const unsigned char *)wp;
+      sx_size_t i = 0;
+      while (i < sizeof(sx_size_t)) {
+        if (q[i] == 0) {
+          return (sx_size_t)(q + i - (const unsigned char *)s);
+        }
+        i++;
+      }
+    }
+    wp++;
+  }
 }
 
 int strcmp(const char *a, const char *b) {

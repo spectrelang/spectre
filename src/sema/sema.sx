@@ -78,7 +78,17 @@ type SemaCtx = {
     current_fn_name: mut ref u8
     const_env: mut ref SemaConstEnv
     const_env_depths: mut list[i64]
+    import_cache_names: mut list[ref u8]
+    import_cache_mods: mut list[ref void]
+    module_cache: mut list[ref ModulePathCache]
     arena: mut allocators.ScopedArenaAllocator
+}
+
+type ModulePathCache = {
+    mod: mut ref void
+    canon: mut ref u8
+    prefix: mut ref u8
+    emitted: mut ref u8
 }
 
 fn sema_new(arena: allocators.ScopedArenaAllocator) ref SemaCtx = trust {
@@ -1560,17 +1570,25 @@ fn find_fn_in_module_with_ns(
     return none
 }
 
-/// Find an imported module by alias name on root_mod.
-fn find_imported_mod(ctx: ref SemaCtx, alias: ref u8) ref modinfo.ResolvedModule = trust {
-    if ctx == none {
-        return none
+fn import_cache_add(ctx: ref SemaCtx, name: ref u8, mod: ref modinfo.ResolvedModule) void = trust {
+    if name == none || mod == none {
+        return
     }
-    if alias == none {
-        return none
+    @append(ctx.import_cache_names, name)
+    @append(ctx.import_cache_mods, mod as ref void)
+}
+
+/// Build the root import alias table once per semantic-analysis context.
+///
+/// Direct aliases are registered before filename-derived aliases so the
+/// lookup order matches the previous linear scan.
+fn ensure_import_cache(ctx: ref SemaCtx) void = trust {
+    if (@len(ctx.import_cache_names) as i64) > 0 {
+        return
     }
     val rmod: ref modinfo.ResolvedModule = ctx.root_mod
     if rmod == none {
-        return none
+        return
     }
     val n: i64 = modinfo.import_count(rmod)
     val i: mut i64 = 0
@@ -1578,10 +1596,11 @@ fn find_imported_mod(ctx: ref SemaCtx, alias: ref u8) ref modinfo.ResolvedModule
         if i >= n {
             break
         }
-        val mname: ref u8 = modinfo.import_name_at(rmod, i as usize)
-        if mname != none && cstr.eql(mname, alias) {
-            return modinfo.import_module_at(rmod, i as usize)
-        }
+        import_cache_add(
+            ctx,
+            modinfo.import_name_at(rmod, i as usize),
+            modinfo.import_module_at(rmod, i as usize)
+        )
         i++
     }
     val j: mut i64 = 0
@@ -1591,14 +1610,38 @@ fn find_imported_mod(ctx: ref SemaCtx, alias: ref u8) ref modinfo.ResolvedModule
         }
         val imported: ref modinfo.ResolvedModule = modinfo.import_module_at(rmod, j as usize)
         if imported != none {
-            val canonical_prefix: ref u8 = canonical_type_prefix_for_imported_module(ctx, imported)
-            val emitted_prefix: ref u8 = emitted_type_prefix_for_imported_module(ctx, imported)
-            if ((canonical_prefix != none && cstr.eql(canonical_prefix, alias)) ||
-                (emitted_prefix != none && cstr.eql(emitted_prefix, alias))) {
-                return imported
-            }
+            import_cache_add(ctx, canonical_type_prefix_for_imported_module(ctx, imported), imported)
+            import_cache_add(ctx, emitted_type_prefix_for_imported_module(ctx, imported), imported)
         }
         j++
+    }
+}
+
+/// Find an imported module by alias name on root_mod.
+fn find_imported_mod(ctx: ref SemaCtx, alias: ref u8) ref modinfo.ResolvedModule = trust {
+    if ctx == none {
+        return none
+    }
+    if alias == none {
+        return none
+    }
+    ensure_import_cache(ctx)
+    val n: i64 = @len(ctx.import_cache_names) as i64
+    val i: mut i64 = 0
+    for {
+        if i >= n {
+            break
+        }
+        val name_opt = @get(ctx.import_cache_names, i as usize)
+        if name_opt is some name {
+            if cstr.eql(name as ref u8, alias) {
+                val mod_opt = @get(ctx.import_cache_mods, i as usize)
+                if mod_opt is some mod {
+                    return mod as ref modinfo.ResolvedModule
+                }
+            }
+        }
+        i++
     }
     return none
 }
@@ -2898,6 +2941,36 @@ fn qualify_type_name_for_callee(
     return buf
 }
 
+fn module_cache_entry(
+    ctx: ref SemaCtx,
+    imported: ref modinfo.ResolvedModule
+) mut ref ModulePathCache = trust {
+    for entry in ctx.module_cache {
+        if entry.mod == imported as ref void {
+            return entry
+        }
+    }
+    val entry: mut ref ModulePathCache = allocators.ScopedArena.alloc_or_none(
+        ctx.arena,
+        @sizeof(ModulePathCache) as usize
+    ) as ref ModulePathCache
+    @memset(entry, 0, @sizeof(ModulePathCache) as usize)
+    entry.mod = imported as ref void
+    @append(ctx.module_cache, entry)
+    return entry
+}
+
+fn module_canonical_path(ctx: ref SemaCtx, imported: ref modinfo.ResolvedModule) ref u8 = trust {
+    if imported == none {
+        return none
+    }
+    val entry: mut ref ModulePathCache = module_cache_entry(ctx, imported)
+    if entry.canon == none {
+        entry.canon = canonicalize_path(ctx, modinfo.module_filename(imported))
+    }
+    return entry.canon
+}
+
 fn canonical_type_prefix_for_imported_module(
     ctx: ref SemaCtx,
     imported: ref modinfo.ResolvedModule
@@ -2905,7 +2978,11 @@ fn canonical_type_prefix_for_imported_module(
     if imported == none {
         return none
     }
-    val fname: ref u8 = canonicalize_path(ctx, modinfo.module_filename(imported))
+    val entry: mut ref ModulePathCache = module_cache_entry(ctx, imported)
+    if entry.prefix != none {
+        return entry.prefix
+    }
+    val fname: ref u8 = module_canonical_path(ctx, imported)
     if fname == none {
         return none
     }
@@ -2958,6 +3035,7 @@ fn canonical_type_prefix_for_imported_module(
     ) as ref u8
     @memcpy(out, @ptradd(fname, start), out_len as usize)
     @store8(@ptradd(out, out_len), 0)
+    entry.prefix = out
     return out
 }
 
@@ -3005,12 +3083,17 @@ fn emitted_type_prefix_for_imported_module(
     if imported == none {
         return none
     }
-    val fname: ref u8 = canonicalize_path(ctx, modinfo.module_filename(imported))
+    val entry: mut ref ModulePathCache = module_cache_entry(ctx, imported)
+    if entry.emitted != none {
+        return entry.emitted
+    }
+    val fname: ref u8 = module_canonical_path(ctx, imported)
     if fname == none {
         return none
     }
     if path_contains_segment(fname, c"/spectrelib/") {
-        return canonical_type_prefix_for_imported_module(ctx, imported)
+        entry.emitted = canonical_type_prefix_for_imported_module(ctx, imported)
+        return entry.emitted
     }
     if ctx != none && ctx.root_mod != none {
         val n: i64 = modinfo.import_count(ctx.root_mod)
@@ -3024,21 +3107,20 @@ fn emitted_type_prefix_for_imported_module(
                 i as usize
             )
             if imported_mod != none {
-                val imported_fname: ref u8 = canonicalize_path(
-                    ctx,
-                    modinfo.module_filename(imported_mod)
-                )
+                val imported_fname: ref u8 = module_canonical_path(ctx, imported_mod)
                 if imported_fname != none && cstr.eql(imported_fname, fname) {
                     val alias_name: ref u8 = modinfo.import_name_at(ctx.root_mod, i as usize)
                     if alias_name != none {
-                        return alias_name
+                        entry.emitted = alias_name
+                        return entry.emitted
                     }
                 }
             }
             i++
         }
     }
-    return canonical_type_prefix_for_imported_module(ctx, imported)
+    entry.emitted = canonical_type_prefix_for_imported_module(ctx, imported)
+    return entry.emitted
 }
 
 fn canonicalize_import_alias_type_name(ctx: ref SemaCtx, type_name: ref u8) ref u8 = trust {
