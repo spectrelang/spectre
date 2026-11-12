@@ -1,7 +1,11 @@
 
 #ifdef SX_FREESTANDING
 typedef __SIZE_TYPE__ size_t;
+#if defined(__TINYC__)
+typedef __PTRDIFF_TYPE__ intptr_t;
+#else
 typedef __INTPTR_TYPE__ intptr_t;
+#endif
 void *malloc(size_t);
 void *calloc(size_t, size_t);
 void *realloc(void *, size_t);
