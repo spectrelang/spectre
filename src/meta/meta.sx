@@ -323,7 +323,7 @@ pub fn print_help(topic: str.StringView) i32 = trust {
         stdio.puts("")
         stdio.puts("options:")
         stdio.puts("  -o <dir>        Write generated .sx files to <dir> (default: ./src-out)")
-        stdio.puts("  -normalize      Convert PascalCase/camelCase names to snake_case")
+        stdio.puts("  -normalize      Use snake_case values and PascalCase type names")
         stdio.puts("  -link <name>    Emit `lib \"<name>\"` in the generated module")
         stdio.puts("  -target:<os>.<arch>  Select the target C ABI")
         stdio.puts("  -I <dir>        Add a C include search path")

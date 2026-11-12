@@ -259,7 +259,8 @@ fn view_to_cstr(value: str.StringView) ref u8 = trust {
 fn bind_normalize_with(
     name: ref u8,
     sources: mut list[ref u8],
-    results: mut list[ref u8]
+    results: mut list[ref u8],
+    pascal: bool
 ) ref u8 = trust {
     val nlen: i64 = @len(sources) as i64
     val i: mut i64 = 0
@@ -278,8 +279,11 @@ fn bind_normalize_with(
         }
         i++
     }
-    val snake: str.StringView = naming.to_snake(str.from_cstr(name))
-    val base: ref u8 = view_to_cstr(snake)
+    val normalized: mut str.StringView = naming.to_snake(str.from_cstr(name))
+    if pascal {
+        normalized = naming.to_pascal(str.from_cstr(name))
+    }
+    val base: ref u8 = view_to_cstr(normalized)
     val candidate: mut ref u8 = base
     val suffix: mut i64 = 2
     for {
@@ -298,7 +302,8 @@ fn bind_normalize_identifier(name: ref u8) ref u8 = trust {
     return bind_normalize_with(
         name,
         bind_normalize_sources,
-        bind_normalize_results
+        bind_normalize_results,
+        false
     )
 }
 
@@ -306,7 +311,8 @@ fn bind_normalize_type_identifier(name: ref u8) ref u8 = trust {
     return bind_normalize_with(
         name,
         bind_normalize_type_sources,
-        bind_normalize_type_results
+        bind_normalize_type_results,
+        true
     )
 }
 

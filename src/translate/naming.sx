@@ -21,6 +21,13 @@ fn lower(c: u8) u8 = {
     return c
 }
 
+fn upper(c: u8) u8 = {
+    if is_lower(c) {
+        return (c as u8) - 32
+    }
+    return c
+}
+
 /// Convert PascalCase, camelCase, and upper-case identifiers to snake_case.
 ///
 /// Acronym runs are treated as a single word, so `SDL_Init` becomes
@@ -71,6 +78,39 @@ pub fn to_snake(value: str.StringView) str.StringView = trust {
         prev_underscore = false
         prev_lower_or_digit = is_lower(c) || is_digit(c)
         prev_upper = false
+        i++
+    }
+    val built: ref void = builder.StringBuilder.build(sb)
+    builder.StringBuilder.free(sb)
+    val owned: str.String = built as str.String
+    return str.view(ostr.as_cstr(owned), ostr.len(owned))
+}
+
+/// Convert identifiers to PascalCase while keeping acronyms readable.
+///
+/// `audio_stream` and `AudioStream` both become `AudioStream`, while
+/// `SDL_Window` becomes `SdlWindow`.
+pub fn to_pascal(value: str.StringView) str.StringView = trust {
+    val snake: str.StringView = to_snake(value)
+    val sb: ref void = builder.StringBuilder.new()
+    val new_word: mut bool = true
+    val i: mut i64 = 0
+    for {
+        if i >= snake.len {
+            break
+        }
+        val c: u8 = @load8(@ptradd(snake.ptr, i))
+        if c == 95 {
+            new_word = true
+            i++
+            continue
+        }
+        if new_word {
+            builder.StringBuilder.append_char(sb, upper(c))
+            new_word = false
+        } else {
+            builder.StringBuilder.append_char(sb, c)
+        }
         i++
     }
     val built: ref void = builder.StringBuilder.build(sb)

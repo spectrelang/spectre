@@ -18,7 +18,7 @@ for cfile in "$SAMPLES_DIR"/*.c; do
 
 	echo "== Testing $name =="
 
-	"$COMPILER" transl-c "$cfile"
+	"$COMPILER" port-c "$cfile"
 	if [ $? -ne 0 ]; then
 		echo "[FAIL] translation failed: $name"
 		echo
