@@ -391,6 +391,9 @@ pub fn freestanding_c_flags() ref u8 = {
 
 /// Link flags for the freestanding Windows runtime.
 pub fn freestanding_windows_link_flags(kind: ref u8) ref u8 = {
+    if cstr.cmp(kind, c"tcc") == 0 {
+        return c"-nostdlib"
+    }
     if cstr.cmp(kind, c"msvc") == 0 {
         return c"/link /nodefaultlib /entry:mainCRTStartup /opt:ref"
     }
