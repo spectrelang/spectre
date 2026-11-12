@@ -34,7 +34,7 @@ function Ensure-Tool($cmd, $wingetId) {
         }
 
         scoop bucket add main 2>$null
-        scoop install clang
+        scoop install llvm
     } else {
         winget install --id $wingetId -e --source winget
     }
