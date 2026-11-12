@@ -391,7 +391,7 @@ static char sx__str7[]="/spectrelib/env/core.sx";
 static char sx__str8[]="/src/meta/env.sx";
 static char sx__str9[]="v0.0.16";
 static char sx__str10[]="VERSION";
-static char sx__str11[]="901f515";
+static char sx__str11[]="585e3fb";
 static char sx__str12[]="unknown";
 static char sx__str13[]="usage:";
 static char sx__str14[]="  spectre <command> [args] | <input.sx> [options]";
@@ -4570,6 +4570,7 @@ static int32_t std__os__copy_file(int64_t,int64_t);
 static int32_t std__os__copy_dir_recursive(int64_t,int64_t);
 static int32_t std__os__bytes_equal(int64_t,int64_t,int64_t);
 static int64_t std__os__get_args(void);
+static int64_t std__os__command_for_shell(int64_t);
 static int32_t std__os__run(int64_t);
 static int64_t std__os__exec(int64_t*,int64_t);
 static uint8_t std__os__path_separator(void);
@@ -11783,12 +11784,27 @@ static int64_t std__os__get_args(void){
 return(int64_t)((int64_t)(intptr_t)sx__rt_get_args());
 }
 
+static int64_t std__os__command_for_shell(int64_t t_cmd){
+return(int64_t)(t_cmd);
+}
+
 static int32_t std__os__run(int64_t t_cmd){
-return(int32_t)(std__os__system(t_cmd));
+int64_t t_actual=(int64_t)(std__os__command_for_shell(t_cmd));
+int32_t t_code=(int32_t)(std__os__system(t_actual));
+if(((t_actual)!=(t_cmd)))
+{
+(void)((free((void*)(intptr_t)((int64_t)(t_actual))),0));
+}
+return(int32_t)(t_code);
 }
 
 static int64_t std__os__exec(int64_t* sx__ret,int64_t t_cmd){
-int64_t t_pipe=(int64_t)(std__os__popen(t_cmd,((int64_t)(intptr_t)sx__str4)));
+int64_t t_actual=(int64_t)(std__os__command_for_shell(t_cmd));
+int64_t t_pipe=(int64_t)(std__os__popen(t_actual,((int64_t)(intptr_t)sx__str4)));
+if(((t_actual)!=(t_cmd)))
+{
+(void)((free((void*)(intptr_t)((int64_t)(t_actual))),0));
+}
 if(((t_pipe)==(0)))
 {
 int64_t sx__w0[3]={0,0,0};sx__w0[0]=1;int64_t sx__sv0=(int64_t)((0));memcpy(&sx__w0[1],&sx__sv0,sizeof(sx__sv0));

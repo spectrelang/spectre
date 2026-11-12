@@ -431,14 +431,35 @@ pub fn get_args() list[ref u8] = trust {
     return @args()
 }
 
+/// Quote a command that starts with a quoted executable.
+///
+/// This is a no-op outside of Windows.
+fn command_for_shell(cmd: ref u8) ref u8 = trust {
+    when windows {
+        if cstr.len(cmd) > 0 && @load8(cmd) == 34 {
+            return @fmtalloc("\"{s}\"", {cmd})
+        }
+    }
+    return cmd
+}
+
 /// Execute a command inheriting stdout/stderr (no capture). Returns exit code.
 pub fn run(cmd: ref u8) i32 = trust {
-    return system(cmd)
+    val actual: ref u8 = command_for_shell(cmd)
+    val code: i32 = system(actual)
+    if actual != cmd {
+        @free(actual as ref void)
+    }
+    return code
 }
 
 /// Execute some subprocess, capturing its output.
 pub fn exec(cmd: ref u8) result[String, ProcessError] = trust {
-    val pipe: ref void = popen(cmd, c"r")
+    val actual: ref u8 = command_for_shell(cmd)
+    val pipe: ref void = popen(actual, c"r")
+    if actual != cmd {
+        @free(actual as ref void)
+    }
     if (pipe == none) {
         return err ProcessError.FailedToStart
     }
