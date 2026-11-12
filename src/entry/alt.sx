@@ -649,7 +649,7 @@ fn build_cmd_alt(ctx: ref context.Context, st: mut ref AltState) void = trust {
             st.cmd = @fmtalloc(
                 "{s} {s}{s} /c {s} /Fo:{s} 2>&1",
                 {
-                    builds.quote_arg(st.selected_compiler),
+                    st.selected_compiler,
                     st.cc_flags,
                     st.include_flags,
                     builds.quote_arg(st.c_file),
@@ -660,7 +660,7 @@ fn build_cmd_alt(ctx: ref context.Context, st: mut ref AltState) void = trust {
             st.cmd = @fmtalloc(
                 "{s} {s}{s} {s} /Fe:{s} {s} 2>&1",
                 {
-                    builds.quote_arg(st.selected_compiler),
+                    st.selected_compiler,
                     st.cc_flags,
                     st.include_flags,
                     builds.quote_arg(st.c_file),
@@ -674,7 +674,7 @@ fn build_cmd_alt(ctx: ref context.Context, st: mut ref AltState) void = trust {
             st.cmd = @fmtalloc(
                 "{s}{s} -o {s} {s}{s} 2>&1",
                 {
-                    builds.quote_arg(st.selected_compiler),
+                    st.selected_compiler,
                     st.include_flags,
                     builds.quote_arg(compile_output),
                     builds.quote_arg(st.c_file),
@@ -685,7 +685,7 @@ fn build_cmd_alt(ctx: ref context.Context, st: mut ref AltState) void = trust {
             st.cmd = @fmtalloc(
                 "{s} {s}{s} -o {s} {s}{s} 2>&1",
                 {
-                    builds.quote_arg(st.selected_compiler),
+                    st.selected_compiler,
                     st.cc_flags,
                     st.include_flags,
                     builds.quote_arg(compile_output),
