@@ -22,6 +22,14 @@ fn tmp_join(dir: ref u8, name: ref u8) ref u8 = trust {
     return out
 }
 
+/// Quote a path or argument for use in a shell command.
+pub fn quote_arg(value: ref u8) ref u8 = trust {
+    if value == none {
+        return value
+    }
+    return @fmtalloc("\"{s}\"", {value})
+}
+
 /// Returns a platform-appropriate path for a temp file.
 pub fn get_tmp_path(name: ref u8) ref u8 = trust {
     when windows {
@@ -265,9 +273,9 @@ pub fn compiler_unroll_flag(kind: ref u8, unroll_mode: bool) ref u8 = {
 
 pub fn compiler_include_flag(kind: ref u8, path: ref u8) ref u8 = trust {
     if compiler_uses_msvc_flags(kind) {
-        return @fmtalloc("/I{s}", {path})
+        return @fmtalloc("/I\"{s}\"", {path})
     }
-    return @fmtalloc("-I{s}", {path})
+    return @fmtalloc("-I\"{s}\"", {path})
 }
 
 pub fn compiler_strip_flag(kind: ref u8, release_mode: bool) ref u8 = {
@@ -443,7 +451,12 @@ pub fn generate_windows_import_library(
     }
     val cmd: ref u8 = @fmtalloc(
         "{s} -m {s} -d {s} -l {s} 2>&1",
-        {dlltool, machine, def_path, lib_path}
+        {
+            dlltool,
+            machine,
+            quote_arg(def_path),
+            quote_arg(lib_path)
+        }
     )
     val res = os.exec(cmd)
     match res {
@@ -560,16 +573,16 @@ pub fn freestanding_windows_import_flags(arch: ref u8) ref u8 = trust {
     val bcrypt_lib: ref u8 = generate_windows_import_library(cache, c"bcrypt", bcrypt, arch)
     val ws2_lib: ref u8 = generate_windows_import_library(cache, c"ws2_32", ws2, arch)
     if cstr.len(kernel_lib) > 0 {
-        out = @fmtalloc("{s} {s}", {out, kernel_lib})
+        out = @fmtalloc("{s} {s}", {out, quote_arg(kernel_lib)})
     }
     if cstr.len(shell_lib) > 0 {
-        out = @fmtalloc("{s} {s}", {out, shell_lib})
+        out = @fmtalloc("{s} {s}", {out, quote_arg(shell_lib)})
     }
     if cstr.len(bcrypt_lib) > 0 {
-        out = @fmtalloc("{s} {s}", {out, bcrypt_lib})
+        out = @fmtalloc("{s} {s}", {out, quote_arg(bcrypt_lib)})
     }
     if cstr.len(ws2_lib) > 0 {
-        out = @fmtalloc("{s} {s}", {out, ws2_lib})
+        out = @fmtalloc("{s} {s}", {out, quote_arg(ws2_lib)})
     }
     return out
 }
@@ -950,19 +963,19 @@ pub fn xwin_include_flags(root: ref u8, arch: ref u8) ref u8 = trust {
     val um_inc: ref u8 = path.join_cstr(root, c"sdk/include/um")
     val winrt_inc: ref u8 = path.join_cstr(root, c"sdk/include/winrt")
     if fs.is_directory_cstr(crt_inc) {
-        flags = @fmtalloc("{s} -isystem {s}", {flags, crt_inc})
+        flags = @fmtalloc("{s} -isystem \"{s}\"", {flags, crt_inc})
     }
     if fs.is_directory_cstr(ucrt_inc) {
-        flags = @fmtalloc("{s} -isystem {s}", {flags, ucrt_inc})
+        flags = @fmtalloc("{s} -isystem \"{s}\"", {flags, ucrt_inc})
     }
     if fs.is_directory_cstr(shared_inc) {
-        flags = @fmtalloc("{s} -isystem {s}", {flags, shared_inc})
+        flags = @fmtalloc("{s} -isystem \"{s}\"", {flags, shared_inc})
     }
     if fs.is_directory_cstr(um_inc) {
-        flags = @fmtalloc("{s} -isystem {s}", {flags, um_inc})
+        flags = @fmtalloc("{s} -isystem \"{s}\"", {flags, um_inc})
     }
     if fs.is_directory_cstr(winrt_inc) {
-        flags = @fmtalloc("{s} -isystem {s}", {flags, winrt_inc})
+        flags = @fmtalloc("{s} -isystem \"{s}\"", {flags, winrt_inc})
     }
     // Clang 18 defines an AArch64 `__prefetch` builtin that conflicts with the
     // MSVC arm64 CRT's declaration in <intrin.h>. Rename the declaration so the
@@ -986,7 +999,7 @@ pub fn xwin_lib_path_flags(root: ref u8, arch: ref u8) ref u8 = trust {
     val um_lib: ref u8 = path.join_cstr(path.join_cstr(root, c"sdk/lib/um"), ad)
     val ucrt_lib: ref u8 = path.join_cstr(path.join_cstr(root, c"sdk/lib/ucrt"), ad)
     return @fmtalloc(
-        "/libpath:{s} /libpath:{s} /libpath:{s}",
+        "/libpath:\"{s}\" /libpath:\"{s}\" /libpath:\"{s}\"",
         {crt_lib, um_lib, ucrt_lib}
     )
 }
@@ -1001,7 +1014,7 @@ pub fn xwin_lib_path_flags_clang(root: ref u8, arch: ref u8) ref u8 = trust {
     val um_lib: ref u8 = path.join_cstr(path.join_cstr(root, c"sdk/lib/um"), ad)
     val ucrt_lib: ref u8 = path.join_cstr(path.join_cstr(root, c"sdk/lib/ucrt"), ad)
     return @fmtalloc(
-        "-Wl,/libpath:{s} -Wl,/libpath:{s} -Wl,/libpath:{s}",
+        "-Wl,/libpath:\"{s}\" -Wl,/libpath:\"{s}\" -Wl,/libpath:\"{s}\"",
         {crt_lib, um_lib, ucrt_lib}
     )
 }

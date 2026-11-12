@@ -968,26 +968,6 @@ fn lookup_local_array_type(ctx: ref TranslationCtx, name: ref u8) option[ref u8]
     return none
 }
 
-fn remember_enum_constant(ctx: ref TranslationCtx, name: ref u8, enum_type: ref u8) void = {
-    val len: i64 = @len(ctx.enum_constant_names) as i64
-    val i: mut i64 = 0
-    for {
-        if i >= len {
-            break
-        }
-        val existing_opt = @get(ctx.enum_constant_names, i as usize)
-        if existing_opt is some existing_name {
-            if cstr.cmp(existing_name as ref u8, name) == 0 {
-                @set(ctx.enum_constant_types, i as usize, enum_type)
-                return
-            }
-        }
-        i++
-    }
-    @append(ctx.enum_constant_names, name)
-    @append(ctx.enum_constant_types, enum_type)
-}
-
 fn lookup_enum_constant_type(ctx: ref TranslationCtx, name: ref u8) option[ref u8] = {
     val len: i64 = @len(ctx.enum_constant_names) as i64
     val i: mut i64 = 0

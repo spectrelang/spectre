@@ -158,7 +158,12 @@ fn prepare_freestanding(ctx: mut ref context.Context, st: mut ref AltState) bool
             val rt_tmp: ref u8 = @fmtalloc("{s}.tmp", {st.runtime_obj})
             val rt_cmd_alt: ref u8 = @fmtalloc(
                 "clang --target={s} {s} -c {s} -o {s} 2>&1",
-                {alt_triple, builds.freestanding_c_flags(), rt_c, rt_tmp}
+                {
+                    alt_triple,
+                    builds.freestanding_c_flags(),
+                    builds.quote_arg(rt_c),
+                    builds.quote_arg(rt_tmp)
+                }
             )
             if ctx.opts.show_cmd {
                 stdio.print("{s}\n", {rt_cmd_alt})
@@ -205,7 +210,11 @@ fn prepare_freestanding(ctx: mut ref context.Context, st: mut ref AltState) bool
                 val st_tmp: ref u8 = @fmtalloc("{s}.tmp", {st.start_obj})
                 val st_cmd_alt: ref u8 = @fmtalloc(
                     "clang --target={s} -c {s} -o {s} 2>&1",
-                    {alt_triple2, start_src_alt, st_tmp}
+                    {
+                        alt_triple2,
+                        builds.quote_arg(start_src_alt),
+                        builds.quote_arg(st_tmp)
+                    }
                 )
                 if ctx.opts.show_cmd {
                     stdio.print("{s}\n", {st_cmd_alt})
@@ -264,11 +273,11 @@ fn prepare_freestanding(ctx: mut ref context.Context, st: mut ref AltState) bool
                 val sys_cmd_alt: ref u8 = @fmtalloc(
                     "{s} {s} -c -runtime:freestanding -target:{s}.{s} -o {s} 2>&1",
                     {
-                        self_exe,
-                        sys_src_alt,
+                        builds.quote_arg(self_exe),
+                        builds.quote_arg(sys_src_alt),
                         ctx.target_platform,
                         ctx.target_arch,
-                        sys_base_alt
+                        builds.quote_arg(sys_base_alt)
                     }
                 )
                 if ctx.opts.show_cmd {
@@ -303,8 +312,8 @@ fn prepare_win_compat(ctx: mut ref context.Context, st: mut ref AltState) void =
                 "clang --target={s} -std=c99 -c {s} -o {s}{s} 2>&1",
                 {
                     builds.target_triple(ctx.target_platform, ctx.target_arch),
-                    compat_c,
-                    compat_obj,
+                    builds.quote_arg(compat_c),
+                    builds.quote_arg(compat_obj),
                     builds.xwin_include_flags(ctx.xwin_root, ctx.target_arch)
                 }
             )
@@ -459,6 +468,9 @@ fn build_link_flags_alt(ctx: mut ref context.Context, st: mut ref AltState) void
             )
         }
         if cstr.len(translated_link) > 0 {
+            if !cstr.starts_with(translated_link, c"-") {
+                translated_link = builds.quote_arg(translated_link)
+            }
             st.link_flags = @fmtalloc("{s} {s}", {st.link_flags, translated_link})
         }
     }
@@ -471,7 +483,10 @@ fn build_link_flags_alt(ctx: mut ref context.Context, st: mut ref AltState) void
             }
         )
         if cstr.len(st.win_compat) > 0 {
-            st.link_flags = @fmtalloc("{s} {s}", {st.link_flags, st.win_compat})
+            st.link_flags = @fmtalloc(
+                "{s} {s}",
+                {st.link_flags, builds.quote_arg(st.win_compat)}
+            )
         }
     }
     if ctx.freestanding_runtime && !ctx.opts.compile_obj {
@@ -482,15 +497,20 @@ fn build_link_flags_alt(ctx: mut ref context.Context, st: mut ref AltState) void
                     st.link_flags,
                     builds.freestanding_windows_link_flags(st.compiler_kind),
                     builds.freestanding_windows_import_flags(ctx.target_arch),
-                    st.runtime_obj,
-                    st.sys_rt_obj,
-                    st.start_obj
+                    builds.quote_arg(st.runtime_obj),
+                    builds.quote_arg(st.sys_rt_obj),
+                    builds.quote_arg(st.start_obj)
                 }
             )
         } else {
             st.link_flags = @fmtalloc(
                 "{s} -nostdlib -static {s} {s} {s}",
-                {st.link_flags, st.runtime_obj, st.sys_rt_obj, st.start_obj}
+                {
+                    st.link_flags,
+                    builds.quote_arg(st.runtime_obj),
+                    builds.quote_arg(st.sys_rt_obj),
+                    builds.quote_arg(st.start_obj)
+                }
             )
         }
     }
@@ -605,8 +625,8 @@ fn build_cmd_alt(ctx: ref context.Context, st: mut ref AltState) void = trust {
             st.cmd = @fmtalloc(
                 "tcc {s} -o {s} -w -std=c99{s}{s} {s} 2>&1",
                 {
-                    st.c_file,
-                    st.test_output,
+                    builds.quote_arg(st.c_file),
+                    builds.quote_arg(st.test_output),
                     tcc_compile,
                     st.include_flags,
                     st.link_flags
@@ -616,8 +636,8 @@ fn build_cmd_alt(ctx: ref context.Context, st: mut ref AltState) void = trust {
             st.cmd = @fmtalloc(
                 "tcc {s} -o {s} -w -std=c99{s}{s} {s} 2>&1",
                 {
-                    st.c_file,
-                    st.final_output,
+                    builds.quote_arg(st.c_file),
+                    builds.quote_arg(st.final_output),
                     tcc_compile,
                     st.include_flags,
                     st.link_flags
@@ -629,22 +649,22 @@ fn build_cmd_alt(ctx: ref context.Context, st: mut ref AltState) void = trust {
             st.cmd = @fmtalloc(
                 "{s} {s}{s} /c {s} /Fo:{s} 2>&1",
                 {
-                    st.selected_compiler,
+                    builds.quote_arg(st.selected_compiler),
                     st.cc_flags,
                     st.include_flags,
-                    st.c_file,
-                    compile_output
+                    builds.quote_arg(st.c_file),
+                    builds.quote_arg(compile_output)
                 }
             )
         } else {
             st.cmd = @fmtalloc(
                 "{s} {s}{s} {s} /Fe:{s} {s} 2>&1",
                 {
-                    st.selected_compiler,
+                    builds.quote_arg(st.selected_compiler),
                     st.cc_flags,
                     st.include_flags,
-                    st.c_file,
-                    compile_output,
+                    builds.quote_arg(st.c_file),
+                    builds.quote_arg(compile_output),
                     st.link_flags
                 }
             )
@@ -654,10 +674,10 @@ fn build_cmd_alt(ctx: ref context.Context, st: mut ref AltState) void = trust {
             st.cmd = @fmtalloc(
                 "{s}{s} -o {s} {s}{s} 2>&1",
                 {
-                    st.selected_compiler,
+                    builds.quote_arg(st.selected_compiler),
                     st.include_flags,
-                    compile_output,
-                    st.c_file,
+                    builds.quote_arg(compile_output),
+                    builds.quote_arg(st.c_file),
                     st.link_flags
                 }
             )
@@ -665,11 +685,11 @@ fn build_cmd_alt(ctx: ref context.Context, st: mut ref AltState) void = trust {
             st.cmd = @fmtalloc(
                 "{s} {s}{s} -o {s} {s}{s} 2>&1",
                 {
-                    st.selected_compiler,
+                    builds.quote_arg(st.selected_compiler),
                     st.cc_flags,
                     st.include_flags,
-                    compile_output,
-                    st.c_file,
+                    builds.quote_arg(compile_output),
+                    builds.quote_arg(st.c_file),
                     st.link_flags
                 }
             )
@@ -711,7 +731,7 @@ fn execute_alt(ctx: ref context.Context, st: mut ref AltState) i32 = trust {
                     stdio.print("{s}", {display})
                 }
                 if ctx.opts.test_mode {
-                    val run_res_alt = os.run(st.test_output)
+                    val run_res_alt = os.run(builds.quote_arg(st.test_output))
                     if run_res_alt != 0 {
                         stdio.puts("Test binary failed.")
                         os.delete(st.c_file)
@@ -720,7 +740,7 @@ fn execute_alt(ctx: ref context.Context, st: mut ref AltState) i32 = trust {
                     os.delete(st.test_output)
                 }
                 if ctx.run_mode {
-                    val run_res_alt: i32 = os.run(st.final_output)
+                    val run_res_alt: i32 = os.run(builds.quote_arg(st.final_output))
                     os.delete(st.c_file)
                     return run_res_alt
                 }

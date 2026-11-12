@@ -142,7 +142,11 @@ fn compile_target_asm(ctx: mut ref context.Context, st: mut ref CrossState) bool
     }
     val asm_cc_cmd: ref u8 = @fmtalloc(
         "clang --target={s} -c {s} -o {s} 2>&1",
-        {st.triple, ctx.asm_file, st.asm_obj}
+        {
+            st.triple,
+            builds.quote_arg(ctx.asm_file),
+            builds.quote_arg(st.asm_obj)
+        }
     )
     if ctx.opts.show_cmd {
         stdio.print("{s}\n", {asm_cc_cmd})
@@ -206,7 +210,13 @@ fn prepare_runtime(ctx: mut ref context.Context, st: mut ref CrossState) bool = 
             val rt_tmp: ref u8 = @fmtalloc("{s}.tmp", {st.runtime_obj})
             val rt_cmd: ref u8 = @fmtalloc(
                 "clang --target={s} {s}{s} -c {s} -o {s} 2>&1",
-                {st.triple, rt_flags, rt_arch_flags, runtime_c, rt_tmp}
+                {
+                    st.triple,
+                    rt_flags,
+                    rt_arch_flags,
+                    builds.quote_arg(runtime_c),
+                    builds.quote_arg(rt_tmp)
+                }
             )
             if ctx.opts.show_cmd {
                 stdio.print("{s}\n", {rt_cmd})
@@ -277,7 +287,11 @@ fn prepare_runtime(ctx: mut ref context.Context, st: mut ref CrossState) bool = 
                 val start_tmp: ref u8 = @fmtalloc("{s}.tmp", {st.start_obj})
                 val start_cmd: ref u8 = @fmtalloc(
                     "clang --target={s} -c {s} -o {s} 2>&1",
-                    {st.triple, start_source, start_tmp}
+                    {
+                        st.triple,
+                        builds.quote_arg(start_source),
+                        builds.quote_arg(start_tmp)
+                    }
                 )
                 if ctx.opts.show_cmd {
                     stdio.print("{s}\n", {start_cmd})
@@ -353,11 +367,11 @@ fn prepare_runtime(ctx: mut ref context.Context, st: mut ref CrossState) bool = 
                 val sys_cmd: ref u8 = @fmtalloc(
                     "{s} {s} -c -runtime:freestanding -target:{s}.{s} -o {s} 2>&1",
                     {
-                        self_exe,
-                        sys_src,
+                        builds.quote_arg(self_exe),
+                        builds.quote_arg(sys_src),
                         ctx.target_platform,
                         ctx.target_arch,
-                        sys_base
+                        builds.quote_arg(sys_base)
                     }
                 )
                 if ctx.opts.show_cmd {
@@ -415,7 +429,7 @@ fn compile_shim(ctx: mut ref context.Context, st: mut ref CrossState) bool = tru
         }
         val include_flags_x: mut ref u8 = c" -I."
         for inc_path in ctx.opts.inc_paths {
-            include_flags_x = @fmtalloc("{s} -I{s}", {include_flags_x, inc_path})
+            include_flags_x = @fmtalloc("{s} -I\"{s}\"", {include_flags_x, inc_path})
         }
         if cstr.len(ctx.xwin_root) > 0 && !ctx.freestanding_runtime {
             include_flags_x = @fmtalloc(
@@ -440,8 +454,8 @@ fn compile_shim(ctx: mut ref context.Context, st: mut ref CrossState) bool = tru
             {
                 st.triple,
                 shim_extra_flags,
-                st.shim_obj,
-                shim_c_file_x,
+                builds.quote_arg(st.shim_obj),
+                builds.quote_arg(shim_c_file_x),
                 include_flags_x
             }
         )
@@ -487,7 +501,12 @@ fn compile_win_compat(ctx: mut ref context.Context, st: mut ref CrossState) void
             val compat_obj: ref u8 = builds.get_unique_tmp_path(c"spectre_hosted_win_compat.obj")
             val compat_cmd: ref u8 = @fmtalloc(
                 "clang --target={s} -std=c99 -c {s} -o {s}{s} 2>&1",
-                {st.triple, compat_c, compat_obj, st.xwin_inc}
+                {
+                    st.triple,
+                    builds.quote_arg(compat_c),
+                    builds.quote_arg(compat_obj),
+                    st.xwin_inc
+                }
             )
             if ctx.opts.show_cmd {
                 stdio.print("{s}\n", {compat_cmd})
@@ -523,7 +542,12 @@ fn build_link_cmd(ctx: mut ref context.Context, st: mut ref CrossState) bool = t
                 val extra_obj: ref u8 = builds.get_unique_tmp_path(c"spectre_link.obj")
                 val extra_cmd: ref u8 = @fmtalloc(
                     "clang --target={s} -std=c99 -Wno-error=int-conversion -c {s} -o {s}{s} 2>&1",
-                    {st.triple, link_flag, extra_obj, st.xwin_inc}
+                    {
+                        st.triple,
+                        builds.quote_arg(link_flag),
+                        builds.quote_arg(extra_obj),
+                        st.xwin_inc
+                    }
                 )
                 if ctx.opts.show_cmd {
                     stdio.print("{s}\n", {extra_cmd})
@@ -557,7 +581,10 @@ fn build_link_cmd(ctx: mut ref context.Context, st: mut ref CrossState) bool = t
                     }
                     return false
                 }
-                win_inputs = @fmtalloc("{s} {s}", {win_inputs, extra_obj})
+                win_inputs = @fmtalloc(
+                    "{s} {s}",
+                    {win_inputs, builds.quote_arg(extra_obj)}
+                )
             } elif cstr.ends_with(link_flag, c".o") {
                 if !ctx.opts.quiet {
                     stdio.print(
@@ -566,23 +593,41 @@ fn build_link_cmd(ctx: mut ref context.Context, st: mut ref CrossState) bool = t
                     )
                 }
             } elif cstr.len(link_flag) > 0 {
-                win_inputs = @fmtalloc("{s} {s}", {win_inputs, link_flag})
+                win_inputs = @fmtalloc(
+                    "{s} {s}",
+                    {win_inputs, builds.quote_arg(link_flag)}
+                )
             }
         }
         if cstr.len(st.shim_obj) > 0 {
-            win_inputs = @fmtalloc("{s} {s}", {win_inputs, st.shim_obj})
+            win_inputs = @fmtalloc(
+                "{s} {s}",
+                {win_inputs, builds.quote_arg(st.shim_obj)}
+            )
         }
         if cstr.len(st.runtime_obj) > 0 {
-            win_inputs = @fmtalloc("{s} {s}", {win_inputs, st.runtime_obj})
+            win_inputs = @fmtalloc(
+                "{s} {s}",
+                {win_inputs, builds.quote_arg(st.runtime_obj)}
+            )
         }
         if cstr.len(st.sys_rt_obj) > 0 {
-            win_inputs = @fmtalloc("{s} {s}", {win_inputs, st.sys_rt_obj})
+            win_inputs = @fmtalloc(
+                "{s} {s}",
+                {win_inputs, builds.quote_arg(st.sys_rt_obj)}
+            )
         }
         if cstr.len(st.start_obj) > 0 {
-            win_inputs = @fmtalloc("{s} {s}", {win_inputs, st.start_obj})
+            win_inputs = @fmtalloc(
+                "{s} {s}",
+                {win_inputs, builds.quote_arg(st.start_obj)}
+            )
         }
         if cstr.len(st.win_compat_obj) > 0 {
-            win_inputs = @fmtalloc("{s} {s}", {win_inputs, st.win_compat_obj})
+            win_inputs = @fmtalloc(
+                "{s} {s}",
+                {win_inputs, builds.quote_arg(st.win_compat_obj)}
+            )
         }
         val subsystem_x: mut ref u8 = c"/subsystem:console"
         if ctx.opts.build_dll {
@@ -612,11 +657,11 @@ fn build_link_cmd(ctx: mut ref context.Context, st: mut ref CrossState) bool = t
         st.cmd = @fmtalloc(
             "lld-link /nologo /out:{s} {s} {s} {s} {s} {s} {s} 2>&1",
             {
-                st.final_output,
+                builds.quote_arg(st.final_output),
                 subsystem_x,
                 entry_flag,
                 win_lib_paths,
-                st.asm_obj,
+                builds.quote_arg(st.asm_obj),
                 win_inputs,
                 win_libs
             }
@@ -631,28 +676,49 @@ fn build_link_cmd(ctx: mut ref context.Context, st: mut ref CrossState) bool = t
         }
         for link_flag in st.links {
             if cstr.len(link_flag) > 0 {
-                link_flags_x = @fmtalloc("{s} {s}", {link_flags_x, link_flag})
+                val link_arg: mut ref u8 = link_flag
+                if !cstr.starts_with(link_arg, c"-") {
+                    link_arg = builds.quote_arg(link_arg)
+                }
+                link_flags_x = @fmtalloc("{s} {s}", {link_flags_x, link_arg})
             }
         }
         if cstr.len(st.shim_obj) > 0 {
-            link_flags_x = @fmtalloc("{s} {s}", {link_flags_x, st.shim_obj})
+            link_flags_x = @fmtalloc(
+                "{s} {s}",
+                {link_flags_x, builds.quote_arg(st.shim_obj)}
+            )
         }
         if ctx.freestanding_runtime {
             val fs_link_flags: mut ref u8 = c" -nostdlib -static -Wl,--gc-sections"
             if cstr.len(st.runtime_obj) > 0 {
-                fs_link_flags = @fmtalloc("{s} {s}", {fs_link_flags, st.runtime_obj})
+                fs_link_flags = @fmtalloc(
+                    "{s} {s}",
+                    {fs_link_flags, builds.quote_arg(st.runtime_obj)}
+                )
             }
             if cstr.len(st.sys_rt_obj) > 0 {
-                fs_link_flags = @fmtalloc("{s} {s}", {fs_link_flags, st.sys_rt_obj})
+                fs_link_flags = @fmtalloc(
+                    "{s} {s}",
+                    {fs_link_flags, builds.quote_arg(st.sys_rt_obj)}
+                )
             }
             if cstr.len(st.start_obj) > 0 {
-                fs_link_flags = @fmtalloc("{s} {s}", {fs_link_flags, st.start_obj})
+                fs_link_flags = @fmtalloc(
+                    "{s} {s}",
+                    {fs_link_flags, builds.quote_arg(st.start_obj)}
+                )
             }
             link_flags_x = @fmtalloc("{s}{s}", {fs_link_flags, link_flags_x})
         }
         st.cmd = @fmtalloc(
             "clang --target={s} -fuse-ld=lld {s} -o {s}{s} 2>&1",
-            {st.triple, st.asm_obj, st.final_output, link_flags_x}
+            {
+                st.triple,
+                builds.quote_arg(st.asm_obj),
+                builds.quote_arg(st.final_output),
+                link_flags_x
+            }
         )
     }
     return true
@@ -700,11 +766,11 @@ fn execute_link(ctx: mut ref context.Context, st: mut ref CrossState) i32 = trus
         return 1
     }
     if ctx.run_mode {
-        val run_res: i32 = os.run(st.final_output)
+        val run_res: i32 = os.run(builds.quote_arg(st.final_output))
         return run_res
     }
     if ctx.opts.test_mode {
-        val test_res: i32 = os.run(st.final_output)
+        val test_res: i32 = os.run(builds.quote_arg(st.final_output))
         os.delete(st.final_output)
         return test_res
     }
