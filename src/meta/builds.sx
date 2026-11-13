@@ -1189,8 +1189,10 @@ pub fn append_debug_runtime_links(
     if cstr.cmp(platform, c"windows") == 0 {
         if compiler_uses_msvc_flags(kind) {
             @append(links, c"bcrypt.lib")
+            @append(links, c"ws2_32.lib")
         } else {
             @append(links, c"-lbcrypt")
+            @append(links, c"-lws2_32")
         }
     }
     if release_mode {
