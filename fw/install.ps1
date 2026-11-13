@@ -158,9 +158,6 @@ function Import-MsvcEnvironment($vsPath) {
     }
 
     $envDump = cmd.exe /d /c "`"$vcvars`" >nul 2>&1 && set"
-    if ($LASTEXITCODE -ne 0) {
-        Err "Failed to initialize the MSVC environment."
-    }
 
     foreach ($line in $envDump) {
         $separator = $line.IndexOf("=")
