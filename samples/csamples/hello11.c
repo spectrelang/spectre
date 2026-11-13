@@ -11,5 +11,6 @@ int count_chars(const u8* text) {
 }
 
 int main() {
-    printf("%d\n", count_chars("hey"));
+    char text[] = "hey";
+    printf("%d\n", count_chars(text));
 }

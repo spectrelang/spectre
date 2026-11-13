@@ -18,6 +18,8 @@ val bind_normalize_type_sources: mut list[ref u8] = none
 val bind_normalize_type_results: mut list[ref u8] = none
 val bind_normalize_const_sources: mut list[ref u8] = none
 val bind_normalize_const_results: mut list[ref u8] = none
+val field_name_sources: mut list[ref u8] = none
+val field_name_results: mut list[ref u8] = none
 
 fn talloc(size: usize) ref void = trust {
     return mem.alloc(size)
@@ -120,6 +122,7 @@ type LoweredExpr = {
 type FnPtrInfo = {
     is_ok: mut bool
     name: mut ref u8
+    raw_name: mut ref u8
     type_name: mut ref u8
 }
 
@@ -246,6 +249,8 @@ fn reset_bind_normalization(enabled: bool) void = trust {
     bind_normalize_type_results = mem.new[ref u8]()
     bind_normalize_const_sources = mem.new[ref u8]()
     bind_normalize_const_results = mem.new[ref u8]()
+    field_name_sources = mem.new[ref u8]()
+    field_name_results = mem.new[ref u8]()
 }
 
 fn view_to_cstr(value: str.StringView) ref u8 = trust {
@@ -350,6 +355,39 @@ fn sanitize_expr_identifier(name: ref u8) ref u8 = {
         return sanitize_const_identifier(name)
     }
     return sanitize_identifier(name)
+}
+
+fn lookup_field_name(name: ref u8) option[ref u8] = trust {
+    val nlen: i64 = @len(field_name_sources) as i64
+    val i: mut i64 = 0
+    for {
+        if i >= nlen {
+            break
+        }
+        val source_opt = @get(field_name_sources, i as usize)
+        val result_opt = @get(field_name_results, i as usize)
+        if source_opt is some source {
+            if cstr.cmp(source as ref u8, name) == 0 {
+                if result_opt is some result {
+                    return some result as ref u8
+                }
+            }
+        }
+        i++
+    }
+    return none
+}
+
+fn sanitize_field_identifier(name: ref u8) ref u8 = trust {
+    if lookup_field_name(name) is some known {
+        return known as ref u8
+    }
+    val sanitized: ref u8 = sanitize_identifier(name)
+    val snake: str.StringView = naming.to_snake(str.from_cstr(sanitized))
+    val result: ref u8 = view_to_cstr(snake)
+    @append(field_name_sources, name)
+    @append(field_name_results, result)
+    return result
 }
 
 fn sanitize_identifier(name: ref u8) ref u8 = {
@@ -2663,6 +2701,100 @@ fn qualify_enum_constants(ctx: ref TranslationCtx, text: ref u8) ref u8 = {
     return trust take_cstr(built)
 }
 
+fn rename_field_accesses(text: ref u8) ref u8 = {
+    val trimmed: ref u8 = trim_cstr(text)
+    val len: i64 = cstr.len(trimmed)
+    val sb: ref void = builder.StringBuilder.new()
+    val in_string: mut bool = false
+    val in_char: mut bool = false
+    val escaped: mut bool = false
+    val i: mut i64 = 0
+    for {
+        if i >= len {
+            break
+        }
+        val c: u8 = trust @load8(@ptradd(trimmed, i)) as u8
+        if in_string {
+            trust builder.StringBuilder.append_char(sb, c)
+            if escaped {
+                escaped = false
+            } elif c == 92 {
+                escaped = true
+            } elif c == 34 {
+                in_string = false
+            }
+            i++
+            continue
+        }
+        if in_char {
+            trust builder.StringBuilder.append_char(sb, c)
+            if escaped {
+                escaped = false
+            } elif c == 92 {
+                escaped = true
+            } elif c == 39 {
+                in_char = false
+            }
+            i++
+            continue
+        }
+        if c == 34 {
+            in_string = true
+            trust builder.StringBuilder.append_char(sb, c)
+            i++
+            continue
+        }
+        if c == 39 {
+            in_char = true
+            trust builder.StringBuilder.append_char(sb, c)
+            i++
+            continue
+        }
+        if is_ident_start(c) {
+            val start: i64 = i
+            i++
+            for {
+                if i >= len {
+                    break
+                }
+                val cc: u8 = trust @load8(@ptradd(trimmed, i)) as u8
+                if !is_ident_part(cc) {
+                    break
+                }
+                i++
+            }
+            val ident: ref u8 = trust tsubstr(trimmed, start, i - start)
+            val prev_non_space: mut u8 = 0
+            val j: mut i64 = start - 1
+            for {
+                if j < 0 {
+                    break
+                }
+                val pc: u8 = trust @load8(@ptradd(trimmed, j)) as u8
+                if !is_space(pc) {
+                    prev_non_space = pc
+                    break
+                }
+                j--
+            }
+            if prev_non_space == 46 {
+                val known_opt = trust lookup_field_name(ident)
+                if known_opt is some field_name {
+                    trust builder.StringBuilder.append_cstr(sb, field_name as ref u8)
+                    continue
+                }
+            }
+            trust builder.StringBuilder.append_cstr(sb, ident)
+            continue
+        }
+        trust builder.StringBuilder.append_char(sb, c)
+        i++
+    }
+    val built: ref void = trust builder.StringBuilder.build(sb)
+    trust builder.StringBuilder.free(sb)
+    return trust take_cstr(built)
+}
+
 fn rewrite_identifiers(text: ref u8) ref u8 = {
     val trimmed: ref u8 = trim_cstr(text)
     val len: i64 = cstr.len(trimmed)
@@ -4864,12 +4996,51 @@ fn translate_designated_initializer(text: ref u8) ref u8 = {
     }
     val sb: ref void = builder.StringBuilder.new()
     val len: i64 = cstr.len(trimmed)
+    val in_string: mut bool = false
+    val in_char: mut bool = false
+    val escaped: mut bool = false
     val i: mut i64 = 0
     for {
         if i >= len {
             break
         }
         val c: u8 = trust @load8(@ptradd(trimmed, i)) as u8
+        if in_string {
+            trust builder.StringBuilder.append_char(sb, c)
+            if escaped {
+                escaped = false
+            } elif c == 92 {
+                escaped = true
+            } elif c == 34 {
+                in_string = false
+            }
+            i++
+            continue
+        }
+        if in_char {
+            trust builder.StringBuilder.append_char(sb, c)
+            if escaped {
+                escaped = false
+            } elif c == 92 {
+                escaped = true
+            } elif c == 39 {
+                in_char = false
+            }
+            i++
+            continue
+        }
+        if c == 34 {
+            in_string = true
+            trust builder.StringBuilder.append_char(sb, c)
+            i++
+            continue
+        }
+        if c == 39 {
+            in_char = true
+            trust builder.StringBuilder.append_char(sb, c)
+            i++
+            continue
+        }
         if c == 46 && i + 1 < len {
             val next: u8 = trust @load8(@ptradd(trimmed, i + 1)) as u8
             if is_ident_start(next) {
@@ -4886,7 +5057,7 @@ fn translate_designated_initializer(text: ref u8) ref u8 = {
                     i++
                 }
                 val field: ref u8 = trust tsubstr(trimmed, start, i - start)
-                trust builder.StringBuilder.append_cstr(sb, field)
+                trust builder.StringBuilder.append_cstr(sb, sanitize_field_identifier(field))
                 for {
                     if i >= len {
                         break
@@ -5267,7 +5438,10 @@ fn emit_condition_assignment(
     out: ref void
 ) ref u8 = {
     val lhs_arrow: ref u8 = replace_arrow_access(lhs)
-    val lhs_rewritten: ref u8 = rewrite_identifiers(translate_addr_deref_expr(ctx, lhs_arrow))
+    val lhs_rewritten: ref u8 = rewrite_identifiers(rename_field_accesses(translate_addr_deref_expr(
+                ctx,
+                lhs_arrow
+            )))
     val lowered_rhs: ref LoweredExpr = lower_incdec_expr(ctx, rhs, indent, out)
     val rhs_expr0: ref u8 = lowered_rhs.expr
     val rhs_expr: mut ref u8 = rhs_expr0
@@ -5328,7 +5502,8 @@ fn translate_expr_text(ctx: ref TranslationCtx, text: ref u8) ref u8 = {
     val with_init: ref u8 = translate_designated_initializer(no_semicolon)
     val with_sizeof: ref u8 = translate_sizeof_expr(ctx, with_init)
     val with_arrow: ref u8 = replace_arrow_access(with_sizeof)
-    val with_qualified_enums: ref u8 = qualify_enum_constants(ctx, with_arrow)
+    val with_fields: ref u8 = rename_field_accesses(with_arrow)
+    val with_qualified_enums: ref u8 = qualify_enum_constants(ctx, with_fields)
     val with_rewritten: ref u8 = rewrite_identifiers(with_qualified_enums)
     val with_addr_deref: ref u8 = translate_addr_deref_expr(ctx, with_rewritten)
     val with_casts: ref u8 = translate_c_casts_in_expr(ctx, with_addr_deref)
@@ -5632,7 +5807,10 @@ fn translate_body_statement(
             }
         }
         val lhs_arrow: ref u8 = replace_arrow_access(lhs)
-        val lhs_rewritten: ref u8 = rewrite_identifiers(translate_addr_deref_expr(ctx, lhs_arrow))
+        val lhs_rewritten: ref u8 = rewrite_identifiers(rename_field_accesses(translate_addr_deref_expr(
+                    ctx,
+                    lhs_arrow
+                )))
         val index_target: ref u8 = parse_index_target(lhs_rewritten)
         if cstr.cmp(index_target, c"") != 0 {
             val index_expr: ref u8 = parse_index_expr(lhs_rewritten)
@@ -6974,7 +7152,10 @@ fn translate_struct_decl(
                 append_line(
                     fields_out,
                     indent + 1,
-                    trust tfmt("{s}: {s}", {info.name, info.type_name})
+                    trust tfmt("{s}: {s}", {
+                        sanitize_field_identifier(info.raw_name),
+                        info.type_name
+                    })
                 )
                 continue
             }
@@ -7001,14 +7182,15 @@ fn translate_struct_decl(
                 continue
             }
             val field_type: mut ref u8 = decl.type_name
+            val field_name: ref u8 = trust sanitize_field_identifier(decl.raw_name)
             if cstr.starts_with(field_type, c"[]") {
                 field_type = trust tfmt("ref {s}", {@ptradd(field_type, 2)})
-                remember_flex_field(ctx, alias, decl.name, field_type)
+                remember_flex_field(ctx, alias, field_name, field_type)
             }
             append_line(
                 fields_out,
                 indent + 1,
-                trust tfmt("{s}: {s}", {decl.name, render_mutable_type(field_type)})
+                trust tfmt("{s}: {s}", {field_name, render_mutable_type(field_type)})
             )
         }
     }
@@ -7153,7 +7335,7 @@ fn emit_union_type(
             if !decl.its_ok || cstr.cmp(decl.name, c"") == 0 {
                 continue
             }
-            val variant_name: ref u8 = sanitize_identifier(decl.name)
+            val variant_name: ref u8 = trust sanitize_field_identifier(decl.raw_name)
             val payload_type0: ref u8 = decl.type_name
             val payload_type: mut ref u8 = payload_type0
             if is_array_type_name(payload_type0) {
@@ -7202,7 +7384,7 @@ fn translate_anonymous_union_field(
     if cstr.cmp(header_tail, c"") != 0 {
         return none
     }
-    val field_name: ref u8 = sanitize_identifier(extract_identifier_before(
+    val field_name: ref u8 = trust sanitize_field_identifier(extract_identifier_before(
             after,
             cstr.len(after)
         ))
@@ -7274,6 +7456,7 @@ fn parse_c_fnptr_type(
     val info: mut ref FnPtrInfo = trust talloc(@sizeof(FnPtrInfo) as usize) as ref FnPtrInfo
     info.is_ok = false
     info.name = fallback_name
+    info.raw_name = fallback_name
     info.type_name = c""
     val len: i64 = cstr.len(text)
     val open_i: mut i64 = -1
@@ -7316,10 +7499,11 @@ fn parse_c_fnptr_type(
             close_i - star_i - 1
         ))
     if cstr.cmp(name_src, c"") != 0 {
-        info.name = sanitize_identifier(extract_identifier_before(
-                name_src,
-                cstr.len(name_src)
-            ))
+        info.raw_name = extract_identifier_before(
+            name_src,
+            cstr.len(name_src)
+        )
+        info.name = sanitize_identifier(info.raw_name)
     }
     val params_open: mut i64 = close_i + 1
     for {
