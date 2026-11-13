@@ -487,6 +487,17 @@ fn build_link_flags_alt(ctx: mut ref context.Context, st: mut ref AltState) void
             )
         }
     }
+    if !ctx.freestanding_runtime
+    && cstr.cmp(ctx.target_platform, c"windows") == 0
+    && !ctx.opts.compile_obj && !ctx.opts.build_dll {
+        val subsystem_flag: ref u8 = builds.windows_subsystem_flag(st.compiler_kind)
+        if cstr.len(subsystem_flag) > 0 {
+            st.link_flags = @fmtalloc(
+                "{s} {s}",
+                {st.link_flags, subsystem_flag}
+            )
+        }
+    }
     if ctx.freestanding_runtime && !ctx.opts.compile_obj {
         if cstr.cmp(ctx.target_platform, c"windows") == 0 {
             st.link_flags = @fmtalloc(

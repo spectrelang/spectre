@@ -388,15 +388,26 @@ pub fn freestanding_c_flags() ref u8 = {
     return c"-ffreestanding -nostdinc -fno-builtin -fno-stack-protector -fno-common -fno-asynchronous-unwind-tables -ffunction-sections -fdata-sections"
 }
 
+/// Linker flag selecting the Windows console subsystem for a compiler driver.
+pub fn windows_subsystem_flag(kind: ref u8) ref u8 = {
+    if cstr.cmp(kind, c"tcc") == 0 {
+        return c""
+    }
+    if compiler_uses_msvc_flags(kind) {
+        return c"/link /subsystem:console"
+    }
+    return c"-Wl,/subsystem:console"
+}
+
 /// Link flags for the freestanding Windows runtime.
 pub fn freestanding_windows_link_flags(kind: ref u8) ref u8 = {
     if cstr.cmp(kind, c"tcc") == 0 {
         return c"-nostdlib"
     }
     if cstr.cmp(kind, c"msvc") == 0 {
-        return c"/link /nodefaultlib /entry:mainCRTStartup /opt:ref"
+        return c"/link /nodefaultlib /entry:mainCRTStartup /opt:ref /subsystem:console"
     }
-    return c"-nostdlib -Wl,/nodefaultlib,/entry:mainCRTStartup"
+    return c"-nostdlib -Wl,/nodefaultlib,/entry:mainCRTStartup,/subsystem:console"
 }
 
 /// Optional architecture flags for freestanding compiles.

@@ -40,6 +40,18 @@ test "build helpers do not leak" {
         assert builds.supports_static_linking(check.cptr("linux"))
         assert !builds.supports_static_linking(check.cptr("windows"))
         assert str.eql(parsed_alt_arg("-alt:clang"), "clang")
+        assert str.eql(
+            str.from_cstr(builds.windows_subsystem_flag(check.cptr("gnu"))),
+            "-Wl,/subsystem:console"
+        )
+        assert str.eql(
+            str.from_cstr(builds.windows_subsystem_flag(check.cptr("msvc"))),
+            "/link /subsystem:console"
+        )
+        assert str.eql(
+            str.from_cstr(builds.windows_subsystem_flag(check.cptr("tcc"))),
+            ""
+        )
 
         val plain: ref u8 = builds.get_tmp_path(check.cptr("spectre-checkmem.txt"))
         assert str.len(str.from_cstr(plain)) > 0
