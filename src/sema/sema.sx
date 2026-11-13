@@ -5551,6 +5551,86 @@ fn resolve_generic_inst_inference(ctx: mut ref SemaCtx, callee: mut ref parser.N
     callee.d1 = rl as i64
 }
 
+/// Build a type node from an inferred concrete type name, preserving any
+/// `ref`/`mut` prefixes in the name and the argument's ref-ness.
+fn make_infer_type_node(
+    ctx: ref SemaCtx,
+    name_in: ref u8,
+    is_ref: i64
+) ref parser.Node = trust {
+    val name: mut ref u8 = name_in
+    val force_ref: mut bool = is_ref == 1
+    val force_mut: mut bool = false
+    if cstr.starts_with(name, c"mut ref ") {
+        name = @ptradd(name, 8)
+        force_ref = true
+        force_mut = true
+    } elif cstr.starts_with(name, c"ref ") {
+        name = @ptradd(name, 4)
+        force_ref = true
+    } elif cstr.starts_with(name, c"mut ") {
+        name = @ptradd(name, 4)
+        force_mut = true
+    }
+    val named: mut ref parser.Node = parser.make_node(ctx.arena, parser.TY_NAMED, 0)
+    parser.node_store_string_slot(@addr(named.d0), name)
+    val cur: mut ref parser.Node = named
+    if force_ref {
+        val r: mut ref parser.Node = parser.make_node(ctx.arena, parser.TY_REF, 0)
+        parser.node_store_slot[ref parser.Node](@addr(r.d0), cur)
+        cur = r
+    }
+    if force_mut {
+        val m: mut ref parser.Node = parser.make_node(ctx.arena, parser.TY_MUT, 0)
+        parser.node_store_slot[ref parser.Node](@addr(m.d0), cur)
+        cur = m
+    }
+    return cur
+}
+
+/// Declared return type node of a resolved call expression.
+fn infer_call_ret_node(ctx: ref SemaCtx, expr: ref parser.Node) ref parser.Node = trust {
+    if expr == none || expr.kind != parser.NK_CALL {
+        return none
+    }
+    val fn_node: ref parser.Node = resolve_called_fn(ctx, parser.call_callee(expr))
+    if fn_node == none {
+        return none
+    }
+    if fn_node.kind == parser.NK_FN || fn_node.kind == parser.NK_GENERIC_FN {
+        return fn_node.d4 as ref parser.Node
+    }
+    if fn_node.kind == parser.NK_EXTERN_FN {
+        return fn_node.d5 as ref parser.Node
+    }
+    return none
+}
+
+/// Ref-ness of a call argument for generic inference. Unlike
+/// infer_expr_scope_is_ref, this also consults the stored type node for
+/// variables whose ref-ness was inferred from an initializer.
+fn infer_arg_is_ref(ctx: ref SemaCtx, arg: ref parser.Node) i64 = trust {
+    if expr_is_ref_value(ctx, arg) == 1 {
+        return 1
+    }
+    if arg != none && arg.kind == parser.NK_IDENT {
+        val tn: ref parser.Node = scope_lookup_type_node(
+            ctx,
+            parser.node_str_raw(arg.d0)
+        )
+        if tn != none && sema_ty_is_ref(tn) == 1 {
+            return 1
+        }
+    }
+    if arg != none && arg.kind == parser.NK_CALL {
+        val rt: ref parser.Node = infer_call_ret_node(ctx, arg)
+        if rt != none && sema_ty_is_ref(rt) == 1 {
+            return 1
+        }
+    }
+    return 0
+}
+
 /// For a given type-parameter name, find the first function param whose declared
 /// type (after peeling `mut`/`ref`) is exactly that name, then return a TY_NAMED
 /// node with the inferred concrete type of the matching call argument.
@@ -5584,13 +5664,8 @@ fn infer_targ_for_tparam(ctx: ref SemaCtx, tparam_name: ref u8,
                             resolved_tn,
                             c""
                         ) && !cstr.eql(resolved_tn, c"unknown") {
-                            val out: mut ref parser.Node = parser.make_node(
-                                ctx.arena,
-                                parser.TY_NAMED,
-                                0
-                            )
-                            parser.node_store_string_slot(@addr(out.d0), resolved_tn)
-                            return out
+                            val is_ref: i64 = infer_arg_is_ref(ctx, arg_node)
+                            return make_infer_type_node(ctx, resolved_tn, is_ref)
                         }
                     }
                 }
@@ -5622,9 +5697,31 @@ fn resolve_arg_originating_type(ctx: ref SemaCtx, arg: ref parser.Node) ref u8 =
     }
     if cur != none && cur.kind == parser.NK_IDENT {
         val ident_name: ref u8 = parser.node_str_raw(cur.d0)
+        val ident_ty: ref parser.Node = scope_lookup_type_node(ctx, ident_name)
+        if ident_ty != none {
+            val from_node: ref u8 = extract_type_name(ident_ty)
+            if from_node != none && !cstr.eql(from_node, c"") &&
+            !cstr.eql(from_node, c"unknown") {
+                return from_node
+            }
+        }
+        val declared: ref u8 = infer_expr_scope_type_name(ctx, cur)
+        if declared != none && !cstr.eql(declared, c"") &&
+        !cstr.eql(declared, c"unknown") {
+            return declared
+        }
         val origin: ref u8 = lookup_var_origin(ctx, ident_name)
         if origin != none {
             return origin
+        }
+    }
+    if cur != none && cur.kind == parser.NK_CALL {
+        val rt: ref parser.Node = infer_call_ret_node(ctx, cur)
+        if rt != none {
+            val tn: ref u8 = extract_type_name(rt)
+            if tn != none && !cstr.eql(tn, c"") && !cstr.eql(tn, c"unknown") {
+                return tn
+            }
         }
     }
     val from_expr: ref u8 = extract_constructor_namespace(ctx, arg)

@@ -1,0 +1,17 @@
+val string = use("std/string")
+val cstr   = use("std/string/cstr")
+val os     = use("std/os")
+val stdio  = use("std/stdio")
+
+fn string_len[T](s: T) i64 = trust {
+    return cstr.len(string.as_cstr[T](s))
+}
+
+pub fn main() void = trust {
+    val path = os.getenv(c"PATH")
+    if path != none {
+        val n: i64 = string_len[_](path)
+        stdio.print("PATH length: {d}\n", {n})
+        assert n > 0
+    }
+}

@@ -1,0 +1,25 @@
+val string = use("std/string")
+val cstr   = use("std/string/cstr")
+val stdio  = use("std/stdio")
+
+fn string_len[T](s: T) i64 = trust {
+    return cstr.len(string.as_cstr[T](s))
+}
+
+fn same_ref(s: ref u8) ref u8 = trust {
+    return s
+}
+
+pub fn main() void = trust {
+    val raw: ref u8 = c"spectre"
+    val view: StringView = "spectre"
+
+    val n_raw: i64 = string_len[_](raw)
+    val n_view: i64 = string_len[_](view)
+    val n_call: i64 = string_len[_](same_ref(raw))
+
+    stdio.print("{d} {d} {d}\n", {n_raw, n_view, n_call})
+    assert n_raw == 7
+    assert n_view == 7
+    assert n_call == 7
+}

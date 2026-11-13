@@ -1,0 +1,33 @@
+val string = use("std/string")
+val cstr   = use("std/string/cstr")
+val stdio  = use("std/stdio")
+
+fn string_eq[T, U](a: T, b: U) bool = trust {
+    return cstr.eql(string.as_cstr[T](a), string.as_cstr[U](b))
+}
+
+fn classify(cmd: ref u8) i32 = trust {
+    if string_eq[_, _](cmd, "quit") {
+        return 1
+    } elif string_eq[_, _](cmd, "run") {
+        return 2
+    } elif string_eq[_, _](cmd, "help") {
+        return 3
+    } elif string_eq[_, _](cmd, "version") {
+        return 4
+    }
+    return 0
+}
+
+pub fn main() void = trust {
+    val a: i32 = classify(c"quit")
+    val b: i32 = classify(c"run")
+    val c: i32 = classify(c"help")
+    val d: i32 = classify(c"version")
+
+    stdio.print("{d} {d} {d} {d}\n", {a, b, c, d})
+    assert a == 1
+    assert b == 2
+    assert c == 3
+    assert d == 4
+}
