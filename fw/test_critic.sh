@@ -99,7 +99,7 @@ elif ! cmp -s "$mut_actual" "$FIXTURES/mut_good.sx"; then
 	echo "[FAIL] mut fix mode (output differs from mut_good.sx)"
 	diff -u "$FIXTURES/mut_good.sx" "$mut_actual" | head -40 | sed 's/^/    /'
 	failed=$((failed + 1))
-elif ! "$COMPILER" "$mut_actual" -syntax-check >/dev/null 2>&1; then
+elif ! "$COMPILER" check "$mut_actual" >/dev/null 2>&1; then
 	fail "mut fix mode (fixed file does not compile)"
 else
 	pass "mut fix mode"
@@ -114,7 +114,7 @@ elif ! cmp -s "$mut_calls_actual" "$FIXTURES/mut_calls_good.sx"; then
 	echo "[FAIL] mut calls fix mode (output differs from mut_calls_good.sx)"
 	diff -u "$FIXTURES/mut_calls_good.sx" "$mut_calls_actual" | head -40 | sed 's/^/    /'
 	failed=$((failed + 1))
-elif ! "$COMPILER" "$mut_calls_actual" -syntax-check >/dev/null 2>&1; then
+elif ! "$COMPILER" check "$mut_calls_actual" >/dev/null 2>&1; then
 	fail "mut calls fix mode (fixed file does not compile)"
 else
 	pass "mut calls fix mode"

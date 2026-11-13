@@ -700,7 +700,7 @@ A program that requires direct memory access uses the raw memory intrinsics from
 
 The reference compiler performs the following stages. The lexer converts source bytes into tokens. The parser constructs an abstract syntax tree. Module resolution loads imported modules, detects cycles, and assembles the module tree. Semantic analysis registers names, checks declarations and types where implemented, applies the contract and trust checks, and reports diagnostics. Code generation lowers the checked program to QBE intermediate representation, which is then lowered to the target assembly and linked. The alternative backend translates the intermediate representation to C or another target representation and invokes a platform C compiler.
 
-The compiler can print intermediate forms with `-ast`, `-syntax-check`, `-emit-ssa`, `-emit-alt`, and `-emit-asm`. The `port-c` command translates C source into a single Spectre source file. The `bind-c` command generates public Spectre extern bindings from C headers. The `-emit-shim` option writes the QBE runtime shim alongside `-emit-ssa`.
+The compiler can print intermediate forms with `-ast`, `-emit-ssa`, `-emit-alt`, and `-emit-asm`. The `check` command runs the frontend and semantic analysis without generating code. The `port-c` command translates C source into a single Spectre source file. The `bind-c` command generates public Spectre extern bindings from C headers. The `-emit-shim` option writes the QBE runtime shim alongside `-emit-ssa`.
 
 ### 9.2 Target selection
 
@@ -708,7 +708,9 @@ The target platform for `when` selection is the host platform unless the compile
 
 ### 9.3 Command-line interface
 
-The compiler is invoked as `spectre <input.sx> [options]` for a single source file, or as `spectre <command> [arguments]` for a toolchain command. The principal commands are `init`, `fmt`, `critic`, `build`, `run`, `doc`, `add`, `remove`, `upgrade`, `restore`, `graph`, `ref`, `clean`, `doctor`, `port-c`, and `bind-c`. The principal compilation options are `-ast`, `-syntax-check`, `-emit-ssa`, `-emit-alt`, `-emit-asm`, `-src-target=<os>`, `-inc-path=<dir>`, `-show-cmd`, `-test`, `-release`, `-dynamic`, `-dll`, `-a` or `-alt`, `-b` or `-bootstrap`, `-c` or `-compile`, `-d:<NAME>=<value>`, `-o <file>`, `-l` or `-loud`, `-v` or `-version`, and `-h` or `-help`. The option `-I:<headers>` is accepted only by the alternative backend.
+The compiler is invoked as `spectre <input.sx> [options]` for a single source file, or as `spectre <command> [arguments]` for a toolchain command. The principal commands are `init`, `fmt`, `critic`, `build`, `run`, `check`, `doc`, `add`, `remove`, `upgrade`, `restore`, `graph`, `ref`, `clean`, `doctor`, `port-c`, and `bind-c`. The principal compilation options are `-ast`, `-emit-ssa`, `-emit-alt`, `-emit-asm`, `-src-target=<os>`, `-inc-path=<dir>`, `-show-cmd`, `-test`, `-release`, `-dynamic`, `-dll`, `-a` or `-alt`, `-b` or `-bootstrap`, `-c` or `-compile`, `-d:<NAME>=<value>`, `-o <file>`, `-l` or `-loud`, `-v` or `-version`, and `-h` or `-help`. The option `-I:<headers>` is accepted only by the alternative backend.
+
+The `check` command accepts `spectre check <input.sx> [options]`. It runs the frontend and semantic analysis and reports diagnostics without generating code.
 
 The `port-c` command accepts `spectre port-c <input.c|input.h> [-o <file>]`. The `bind-c` command accepts one or more files or directories and writes one `.sx` per input under `./src-out` by default. It uses the host C preprocessor, emits declarations from the target file and its local quoted includes, skips static functions, and can emit scalar object-like macros. Its options include `-o <dir>`, `-normalize`, `-link <name>`, `-target:<os>.<arch>`, `-I <dir>`, `-D <name[=value]>`, and `-U <name>`.
 

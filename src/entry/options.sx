@@ -242,9 +242,6 @@ pub fn parse(
             } elif cstr.cmp(arg, c"-c") == 0 || cstr.cmp(arg, c"-compile") == 0 {
                 opts.compile_obj = true
                 arg_i++
-            } elif cstr.cmp(arg, c"-syntax-check") == 0 {
-                opts.syntax_check = true
-                arg_i++
             } elif cstr.cmp(arg, c"-ast") == 0 {
                 opts.print_ast = true
                 arg_i++

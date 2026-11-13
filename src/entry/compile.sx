@@ -302,7 +302,8 @@ pub fn run(
     run_mode: bool,
     exe_path: ref u8,
     arena: allocators.Arena,
-    frontend_arena: allocators.ScopedArenaAllocator
+    frontend_arena: allocators.ScopedArenaAllocator,
+    check_mode: bool
 ) i32 = trust {
     if fs.is_directory_cstr(input) {
         stdio.print("error: '{s}' is a directory, not a source file\n", {input})
@@ -322,6 +323,9 @@ pub fn run(
     val opts: mut ref options.Options = options.new()
     if !options.parse(opts, args, argc, input_arg_i, input) {
         return 1
+    }
+    if check_mode {
+        opts.syntax_check = true
     }
 
     val ctx: mut ref context.Context = context.new(

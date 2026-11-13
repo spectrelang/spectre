@@ -196,6 +196,29 @@ pub fn run(
         return tools.port_c(args, input_arg_i, arena)
     }
 
+    if cstr.cmp(input, c"check") == 0 {
+        input_arg_i++
+        val check_input_opt = @get(args, input_arg_i)
+        if check_input_opt is some a {
+            input = a as ref u8
+        } else {
+            stdio.puts("error: check requires an input file\n")
+            meta.print_usage()
+            return 1
+        }
+        return compile.run(
+            args,
+            argc,
+            input_arg_i,
+            input,
+            false,
+            exe_path,
+            arena,
+            frontend_arena,
+            true
+        )
+    }
+
     if cstr.cmp(input, c"bind-c") == 0 {
         return tools.bind_c(args, input_arg_i, arena)
     }
@@ -208,6 +231,7 @@ pub fn run(
         run_mode,
         exe_path,
         arena,
-        frontend_arena
+        frontend_arena,
+        false
     )
 }
