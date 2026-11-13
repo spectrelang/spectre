@@ -1829,10 +1829,93 @@ fn doctor_row(field: ref u8, value: ref u8) void = trust {
     stdio.print("{s}\n", {value})
 }
 
+when windows {
+    fn powershell_quote(value: ref u8) ref u8 = trust {
+        val sb: ref void = builder.StringBuilder.new()
+        builder.StringBuilder.append_char(sb, 39)
+        val n: i64 = cstr.len(value)
+        val i: mut i64 = 0
+        for {
+            if i >= n {
+                break
+            }
+            val c: u8 = @load8(@ptradd(value, i)) as u8
+            builder.StringBuilder.append_char(sb, c)
+            if c == 39 {
+                builder.StringBuilder.append_char(sb, 39)
+            }
+            i++
+        }
+        builder.StringBuilder.append_char(sb, 39)
+        val built: ref void = builder.StringBuilder.build(sb)
+        val raw: ref u8 = ostr.as_cstr(built)
+        val out: ref u8 = @alloc(cstr.len(raw) + 1) as ref u8
+        @memcpy(out, raw, cstr.len(raw) as usize)
+        @store8(@ptradd(out, cstr.len(raw)), 0)
+        builder.StringBuilder.free(sb)
+        return out
+    }
+}
+
+fn doctor_file_mtime(path: ref u8) ref u8 = trust {
+    when windows {
+        return tool_version(@fmtalloc(
+            "powershell -NoProfile -Command \"(Get-Item -LiteralPath {s}).LastWriteTime.ToString('yyyy-MM-dd HH:mm:ss')\" 2>&1",
+            {powershell_quote(path)}
+        ))
+    }
+    when linux {
+        return tool_version(@fmtalloc(
+            "date -r {s} 2>&1",
+            {shell_quote(path)}
+        ))
+    }
+    when android {
+        return tool_version(@fmtalloc(
+            "date -r {s} 2>&1",
+            {shell_quote(path)}
+        ))
+    }
+    when darwin {
+        return tool_version(@fmtalloc(
+            "ls -ldT {s} 2>&1 | awk '{{print $6, $7, $8, $9}}'",
+            {shell_quote(path)}
+        ))
+    }
+    when freebsd {
+        return tool_version(@fmtalloc(
+            "ls -ldT {s} 2>&1 | awk '{{print $6, $7, $8, $9}}'",
+            {shell_quote(path)}
+        ))
+    }
+    when openbsd {
+        return tool_version(@fmtalloc(
+            "ls -ldT {s} 2>&1 | awk '{{print $6, $7, $8, $9}}'",
+            {shell_quote(path)}
+        ))
+    }
+    when netbsd {
+        return tool_version(@fmtalloc(
+            "ls -ldT {s} 2>&1 | awk '{{print $6, $7, $8, $9}}'",
+            {shell_quote(path)}
+        ))
+    }
+    when dragonflybsd {
+        return tool_version(@fmtalloc(
+            "ls -ldT {s} 2>&1 | awk '{{print $6, $7, $8, $9}}'",
+            {shell_quote(path)}
+        ))
+    }
+    return c"unknown"
+}
+
 pub fn cmd_doctor() i32 = {
     trust doctor_row(c"spectre", meta.get_spectre_version().ptr)
     trust doctor_row(c"hash", meta.get_commit_hash().ptr)
     trust doctor_row(c"os", tool_version(c"uname -srm 2>&1"))
+    val arch_arena: allocators.Arena = trust allocators.Arena.new(4096 as usize)?
+    trust doctor_row(c"arch", reflection.current_arch_name[allocators.Arena](arch_arena))
+    trust allocators.Arena.free(arch_arena)
 
     trust doctor_uqbe()
 
@@ -1852,6 +1935,10 @@ pub fn cmd_doctor() i32 = {
     val doctor_arena: allocators.Arena = trust allocators.Arena.new(4096 as usize)?
     val doctor_exe: ref u8 = trust reflection.get_exe_path[allocators.Arena](doctor_arena)
     val doctor_dir: ref u8 = trust path.dir_cstr(doctor_exe)
+    val install_dir: ref u8 = trust path.canonicalize_path_cstr(doctor_dir)
+    trust doctor_row(c"install", install_dir)
+    trust doctor_row(c"binary", doctor_exe)
+    trust doctor_row(c"modified", doctor_file_mtime(doctor_exe))
     val rt_source: ref u8 = trust builds.freestanding_runtime_source(doctor_dir)
     if os.exists(rt_source) {
         trust doctor_row(c"runtime", c"freestanding available")
