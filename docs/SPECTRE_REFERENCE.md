@@ -153,7 +153,7 @@ The reference representation of a list value is an 8-byte handle that refers to 
 
 ### 3.9 Fixed arrays and slices
 
-A fixed array type `[N]T` denotes `N` consecutive elements of type `T`. A slice type `[]T` denotes a reference to a sequence together with its length; the reference representation uses two 64-bit words. Fixed arrays are laid out consecutively and are packed in non-extern aggregates. A fixed array value may be written as a bracket expression list `[e1, e2, ...]`, whose length shall match the declared array size. The core does not provide an indexing expression. Element access is performed with `@get` for checked access or with pointer arithmetic and a load operation for unchecked access.
+A fixed array type `[N]T` denotes `N` consecutive elements of type `T`. A slice type `[]T` denotes a reference to a sequence together with its length; the reference representation uses two 64-bit words. Fixed arrays are laid out consecutively and are packed in non-extern aggregates. A fixed array value may be written as a bracket expression list `[e1, e2, ...]`, whose length shall match the declared array size. When the type is omitted from a local `val` declaration initialized with a non-empty bracket expression list, the fixed array type and its length are inferred from the literal; an empty literal requires an explicit type annotation. The core does not provide an indexing expression. Element access is performed with `@get` for checked access or with pointer arithmetic and a load operation for unchecked access.
 
 ### 3.10 Function types
 

@@ -1,0 +1,31 @@
+val stdio = use("std/stdio")
+
+type Point = {
+    x: i64
+    y: i64
+}
+
+pub fn main() void = {
+    val words = ["hello", "world", "this", "is", "a", "test"]
+    for word in words {
+        trust stdio.print("{s}\n", {word})
+    }
+
+    val numbers = [1, 2, 3]
+    for number in numbers {
+        trust stdio.print("{d}\n", {number})
+    }
+
+    val grid = [[1, 2], [3, 4]]
+    for row in grid {
+        for value in row {
+            trust stdio.print("{d} ", {value})
+        }
+        trust stdio.print("\n", {})
+    }
+
+    val points = [Point{x: 1, y: 2}, Point{x: 3, y: 4}]
+    for point in points {
+        trust stdio.print("{d},{d}\n", {point.x, point.y})
+    }
+}

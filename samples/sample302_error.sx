@@ -1,0 +1,4 @@
+pub fn main() void = {
+    val empty = []
+    trust @print("{d}\n", {empty.len})
+}

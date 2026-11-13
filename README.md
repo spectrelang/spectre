@@ -64,7 +64,7 @@ val stdio = use("std/stdio")
 val str   = use("std/string")
 
 pub fn main() void = {
-    val xs: [_]str.StringView = [
+    val xs = [
         "hello", "world", "this", "is", "a", "test"
     ]
     for x in xs {

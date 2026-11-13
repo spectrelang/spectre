@@ -9258,6 +9258,195 @@ fn infer_simple_literal_type_name(expr: ref parser.Node) ref u8 = trust {
     return none
 }
 
+fn sema_make_named_type_node(
+    ctx: ref SemaCtx,
+    name: ref u8,
+    line: i64
+) ref parser.Node = trust {
+    if name == none || cstr.eql(name, c"") {
+        return none
+    }
+    val n: mut ref parser.Node = parser.make_node(ctx.arena, parser.TY_NAMED, line)
+    parser.node_store_string_slot(@addr(n.d0), name)
+    return n
+}
+
+fn sema_make_ref_type_node(
+    ctx: ref SemaCtx,
+    inner: ref parser.Node,
+    line: i64
+) ref parser.Node = trust {
+    if inner == none {
+        return none
+    }
+    val n: mut ref parser.Node = parser.make_node(ctx.arena, parser.TY_REF, line)
+    parser.node_store_slot[ref parser.Node](@addr(n.d0), inner)
+    return n
+}
+
+fn sema_make_option_type_node(
+    ctx: ref SemaCtx,
+    inner: ref parser.Node,
+    line: i64
+) ref parser.Node = trust {
+    if inner == none {
+        return none
+    }
+    val n: mut ref parser.Node = parser.make_node(ctx.arena, parser.TY_OPTION, line)
+    parser.node_store_slot[ref parser.Node](@addr(n.d0), inner)
+    return n
+}
+
+/// Infer the type node of a list-literal element. Returns null when the
+/// element type cannot be determined without an explicit annotation.
+fn sema_infer_list_elem_type_node(
+    ctx: ref SemaCtx,
+    expr: ref parser.Node
+) ref parser.Node = trust {
+    if expr == none {
+        return none
+    }
+    val k: i64 = expr.kind
+    val line: i64 = expr.line
+    if k == parser.NK_INT_LIT {
+        return sema_make_named_type_node(ctx, c"i64", line)
+    }
+    if k == parser.NK_FLOAT_LIT {
+        return sema_make_named_type_node(ctx, c"f64", line)
+    }
+    if k == parser.NK_BOOL {
+        return sema_make_named_type_node(ctx, c"bool", line)
+    }
+    if k == parser.NK_CHAR_LIT {
+        return sema_make_named_type_node(ctx, c"u8", line)
+    }
+    if k == parser.NK_STR_LIT {
+        if parser.str_lit_is_cstr(expr) {
+            val u8_ty: ref parser.Node = sema_make_named_type_node(ctx, c"u8", line)
+            return sema_make_ref_type_node(ctx, u8_ty, line)
+        }
+        return sema_make_named_type_node(ctx, c"StringView", line)
+    }
+    if k == parser.NK_STRUCT_LIT {
+        return sema_make_named_type_node(
+            ctx,
+            parser.struct_lit_type_name_raw(expr),
+            line
+        )
+    }
+    if k == parser.NK_CAST {
+        return expr.d1 as ref parser.Node
+    }
+    if k == parser.NK_LIST_LIT {
+        return sema_infer_list_lit_type_node(ctx, expr)
+    }
+    if k == parser.NK_TRUST || k == parser.NK_TRY || k == parser.NK_UNOP {
+        return sema_infer_list_elem_type_node(ctx, expr.d0 as ref parser.Node)
+    }
+    if k == parser.NK_SOME {
+        val inner: ref parser.Node = sema_infer_list_elem_type_node(
+            ctx,
+            expr.d0 as ref parser.Node
+        )
+        return sema_make_option_type_node(ctx, inner, line)
+    }
+    if k == parser.NK_IDENT {
+        return scope_lookup_type_node(ctx, parser.node_str_raw(expr.d0))
+    }
+    if k == parser.NK_CALL {
+        return expr_type_node(ctx, expr)
+    }
+    if k == parser.NK_FIELD {
+        val base: ref parser.Node = parser.field_base(expr)
+        val base_ty: ref u8 = expr_container_type_name(ctx, base)
+        if base_ty != none && !cstr.eql(base_ty, c"") {
+            val field_ty: ref parser.Node = find_field_type_node(
+                ctx,
+                base_ty,
+                parser.field_name_raw(expr)
+            )
+            if field_ty != none {
+                return field_ty
+            }
+        }
+    }
+    return none
+}
+
+/// Build a fixed-array type node from a list literal, inferring both the
+/// element type and the length. Returns null for an empty literal or when the
+/// element type of the first element cannot be determined.
+fn sema_infer_list_lit_type_node(
+    ctx: ref SemaCtx,
+    init: ref parser.Node
+) ref parser.Node = trust {
+    if init == none || init.kind != parser.NK_LIST_LIT {
+        return none
+    }
+    val elems: ref void = init.d0 as ref void
+    if elems == none {
+        return none
+    }
+    val count: i64 = @len(elems as list[ref parser.Node]) as i64
+    if count == 0 {
+        return none
+    }
+    val first_opt = @get(elems as list[ref parser.Node], 0 as usize)
+    if first_opt is some first {
+        val elem_ty: ref parser.Node = sema_infer_list_elem_type_node(
+            ctx,
+            first as ref parser.Node
+        )
+        if elem_ty == none {
+            return none
+        }
+        val arr_ty: mut ref parser.Node = parser.make_node(
+            ctx.arena,
+            parser.TY_FIXED_ARR,
+            init.line
+        )
+        arr_ty.d0 = count
+        parser.node_store_slot[ref parser.Node](@addr(arr_ty.d1), elem_ty)
+        parser.node_store_string_slot(@addr(arr_ty.d2), c"")
+        return arr_ty
+    }
+    return none
+}
+
+/// Attach an inferred fixed-array type to a `val` whose initializer is a list
+/// literal and whose declaration omitted the type. Declarations with an
+/// explicit type are left untouched.
+fn sema_infer_val_list_decl_type(
+    ctx: ref SemaCtx,
+    val_node: ref parser.Node,
+    filename: ref u8
+) void = trust {
+    if val_node == none || val_node.d2 != 0 as i64 {
+        return
+    }
+    val init: ref parser.Node = val_node.d3 as ref parser.Node
+    if init == none || init.kind != parser.NK_LIST_LIT {
+        return
+    }
+    val inferred: ref parser.Node = sema_infer_list_lit_type_node(ctx, init)
+    if inferred == none {
+        val buf: ref u8 = allocators.ScopedArena.alloc_or_none(
+            ctx.arena,
+            (512) as usize
+        ) as ref u8
+        @snprintf(
+            buf,
+            512,
+            "{s}:{lld}: cannot infer type of array literal; annotate the declaration with its element type",
+            {filename, val_node.line}
+        )
+        add_error(ctx, buf)
+        return
+    }
+    val node: mut ref parser.Node = val_node
+    node.d2 = inferred
+}
+
 fn val_decl_type_name(
     ctx: ref SemaCtx,
     ty_node: ref parser.Node,
@@ -9402,6 +9591,7 @@ fn check_stmt(ctx: mut ref SemaCtx, stmt: ref parser.Node, filename: ref u8) voi
     val line: i64 = stmt.line
 
     if k == parser.NK_VAL {
+        sema_infer_val_list_decl_type(ctx, stmt, filename)
         val name: ref u8 = parser.node_str_raw(stmt.d0)
         val mutable: i64 = stmt.d1
         check_no_module_to_module_type(ctx, stmt.d2 as ref parser.Node, line, filename)
