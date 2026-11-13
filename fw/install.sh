@@ -492,7 +492,7 @@ Darwin)
 	;;
 esac
 
-log "CC Stage I (C sources)..."
+log "CC Stage I..."
 cc -O2 -c "${PANIC_HANDLER_SRC}" -o "${PANIC_HANDLER_OBJ}"
 if [ -f "${QBE_RUNTIME_SRC}" ]; then
 	cc -O2 -c "${QBE_RUNTIME_SRC}" -o "${QBE_RUNTIME_OBJ}"
