@@ -70,12 +70,17 @@ pub fn assemble(ctx: mut ref context.Context) bool = trust {
     if !ctx.opts.release_mode {
         dbg_flag = c"-emit-dbg "
     }
+    val cpu_flag: mut ref u8 = c""
+    if ctx.opts.native_mode {
+        cpu_flag = c"-cpu:native "
+    }
     val qbe_cmd: mut ref u8 = c""
     if cstr.cmp(qbe_target_name, c"") != 0 {
         qbe_cmd = @fmtalloc(
-            "uqbe -t {s} {s}-o {s} {s} 2>&1",
+            "uqbe -t {s} {s}{s}-o {s} {s} 2>&1",
             {
                 qbe_target_name,
+                cpu_flag,
                 dbg_flag,
                 builds.quote_arg(asm_file),
                 builds.quote_arg(qbe_file)
@@ -83,8 +88,13 @@ pub fn assemble(ctx: mut ref context.Context) bool = trust {
         )
     } else {
         qbe_cmd = @fmtalloc(
-            "uqbe {s}-o {s} {s} 2>&1",
-            {dbg_flag, builds.quote_arg(asm_file), builds.quote_arg(qbe_file)}
+            "uqbe {s}{s}-o {s} {s} 2>&1",
+            {
+                cpu_flag,
+                dbg_flag,
+                builds.quote_arg(asm_file),
+                builds.quote_arg(qbe_file)
+            }
         )
     }
     val qbe_res = os.exec(qbe_cmd)
