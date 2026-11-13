@@ -6290,8 +6290,12 @@ fn emit_string_data(ctx: mut ref CgCtx) void = trust {
                 val c: u8 = @load8(@ptradd(s.ptr, j))
                 if c == 10 {
                     emit(ctx, c"\\n")
+                } elif c == 13 {
+                    emit(ctx, c"\\r")
                 } elif c == 9 {
                     emit(ctx, c"\\t")
+                } elif c == 0 {
+                    emit(ctx, c"\\0")
                 } elif c == 34 {
                     emit(ctx, c"\\\"")
                 } elif c == 92 {
