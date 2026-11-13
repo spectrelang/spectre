@@ -215,6 +215,31 @@ pub fn run(
             exe_path,
             arena,
             frontend_arena,
+            true,
+            false
+        )
+    }
+
+    if cstr.cmp(input, c"ast") == 0 {
+        input_arg_i++
+        val ast_input_opt = @get(args, input_arg_i)
+        if ast_input_opt is some a {
+            input = a as ref u8
+        } else {
+            stdio.puts("error: ast requires an input file\n")
+            meta.print_usage()
+            return 1
+        }
+        return compile.run(
+            args,
+            argc,
+            input_arg_i,
+            input,
+            false,
+            exe_path,
+            arena,
+            frontend_arena,
+            false,
             true
         )
     }
@@ -232,6 +257,7 @@ pub fn run(
         exe_path,
         arena,
         frontend_arena,
+        false,
         false
     )
 }

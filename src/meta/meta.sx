@@ -29,6 +29,7 @@ pub fn print_usage() void = {
     stdio.puts("  build   <config>     Build using a config from sx.mod")
     stdio.puts("  run     <input.sx>   Compile and immediately run a program")
     stdio.puts("  check   <input.sx>   Check syntax without compiling")
+    stdio.puts("  ast     <input.sx>   Print the AST in a unicode tree and exit")
     stdio.puts("  doc     <path>       Generate docs for a file or directory")
     stdio.puts("  add     <git-url>    Clone a git dependency into ./lib/ and record it")
     stdio.puts("  install <git-url>    Build and install a Spectre project from a repository")
@@ -44,7 +45,6 @@ pub fn print_usage() void = {
     stdio.puts("  bind-c  <file|dir>   Generate Spectre bindings from C headers")
     stdio.puts("")
     stdio.puts("options:")
-    stdio.puts("  -ast                 Print the AST in a unicode tree and exit")
     when posix {
         stdio.puts("  -emit-ssa            Print QBE IR to stdout and exit")
         stdio.puts("  -emit-shim:<file>    Write the QBE shim alongside -emit-ssa")
@@ -214,6 +214,16 @@ pub fn print_help(topic: str.StringView) i32 = trust {
         return 0
     }
 
+    if str.eql_cstr(topic, c"ast") {
+        stdio.puts("ast - Print the AST in a unicode tree and exit")
+        stdio.puts("")
+        stdio.puts("usage:")
+        stdio.puts("  spectre ast <input.sx>")
+        stdio.puts("")
+        stdio.puts("Parses the source file and prints its abstract syntax tree.")
+        return 0
+    }
+
     if str.eql_cstr(topic, c"doc") {
         stdio.puts("doc - Generate documentation for a source file")
         stdio.puts("")
@@ -359,15 +369,6 @@ pub fn print_help(topic: str.StringView) i32 = trust {
         stdio.puts("Examples:")
         stdio.puts("  spectre help fmt")
         stdio.puts("  spectre help -emit-ssa")
-        return 0
-    }
-
-    if str.eql_cstr(topic, c"-ast") {
-        print_flag_help(
-            "-ast",
-            "Print the AST in a unicode tree and exit.",
-            "spectre <input.sx> -ast"
-        )
         return 0
     }
 
