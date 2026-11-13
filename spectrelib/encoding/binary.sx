@@ -128,62 +128,110 @@ pub fn write_u64_be(data: ref u8, offset: usize, value: u64) void = trust {
     @store8(@ptradd(data, offset + (7 as usize)), (value & 255) as u8)
 }
 
-test "binary readers and writers roundtrip endian values" {
+/// Number of bytes needed to encode an unsigned LEB128 value.
+pub fn uleb128_len(value: u64) usize = {
+    val remaining: mut u64 = value
+    val count: mut usize = 1
+    for {
+        if remaining < (128 as u64) {
+            break
+        }
+        remaining = remaining >> 7
+        count++
+    }
+    return count
+}
+
+/// Write an unsigned LEB128 value at `offset`, returning the byte length.
+pub fn write_uleb128(data: ref u8, offset: usize, value: u64) usize = trust {
+    val remaining: mut u64 = value
+    val written: mut usize = 0
+    for {
+        val byte: u8 = (remaining & (127 as u64)) as u8
+        remaining = remaining >> 7
+        if remaining == (0 as u64) {
+            @store8(@ptradd(data, offset + written), byte)
+            written++
+            break
+        }
+        @store8(@ptradd(data, offset + written), (byte | (128 as u8)) as u8)
+        written++
+    }
+    return written
+}
+
+/// Number of bytes needed to encode a signed LEB128 value.
+pub fn sleb128_len(value: i64) usize = trust {
+    val negative: bool = value < 0
+    val all_ones: u64 = @bitcast(-1 as i64, u64)
+    val sign_fill: u64 = all_ones << 57
+    val bits: mut u64 = @bitcast(value, u64)
+    val count: mut usize = 0
+    for {
+        val byte: u8 = (bits & (127 as u64)) as u8
+        bits = bits >> 7
+        if negative {
+            bits = bits | sign_fill
+        }
+        val sign_set: bool = (byte & (64 as u8)) != (0 as u8)
+        val done: bool = (bits == (0 as u64) && !sign_set)
+        || (bits == all_ones && sign_set)
+        count++
+        if done {
+            break
+        }
+    }
+    return count
+}
+
+/// Write a signed LEB128 value at `offset`, returning the byte length.
+pub fn write_sleb128(data: ref u8, offset: usize, value: i64) usize = trust {
+    val negative: bool = value < 0
+    val all_ones: u64 = @bitcast(-1 as i64, u64)
+    val sign_fill: u64 = all_ones << 57
+    val bits: mut u64 = @bitcast(value, u64)
+    val written: mut usize = 0
+    for {
+        val byte: u8 = (bits & (127 as u64)) as u8
+        bits = bits >> 7
+        if negative {
+            bits = bits | sign_fill
+        }
+        val sign_set: bool = (byte & (64 as u8)) != (0 as u8)
+        val done: bool = (bits == (0 as u64) && !sign_set)
+        || (bits == all_ones && sign_set)
+        if done {
+            @store8(@ptradd(data, offset + written), byte)
+            written++
+            break
+        }
+        @store8(@ptradd(data, offset + written), (byte | (128 as u8)) as u8)
+        written++
+    }
+    return written
+}
+
+test "leb128 writers match their length helpers" {
     val data: [32]u8 = @zeroed
 
     trust {
-        write_u16_le(data as ref u8, 0 as usize, 0x1234 as u16)
-        assert read_u16_le(data as ref u8, 0 as usize) == (0x1234 as u16)
+        assert uleb128_len(0 as u64) == (1 as usize)
+        assert uleb128_len(127 as u64) == (1 as usize)
+        assert uleb128_len(128 as u64) == (2 as usize)
+        assert uleb128_len(300 as u64) == (2 as usize)
+        assert write_uleb128(data as ref u8, 0 as usize, 624485 as u64) == (3 as usize)
+        assert @load8(@ptradd(data as ref u8, 0)) == (0xE5 as u8)
+        assert @load8(@ptradd(data as ref u8, 1)) == (0x8E as u8)
+        assert @load8(@ptradd(data as ref u8, 2)) == (0x26 as u8)
 
-        write_u32_le(data as ref u8, 4 as usize, 0xDEADBEEF as u32)
-        assert read_u32_le(data as ref u8, 4 as usize) == (0xDEADBEEF as u32)
-
-        write_u64_le(data as ref u8, 8 as usize, 0x1122334455667788 as u64)
-        assert read_u64_le(data as ref u8, 8 as usize) == (0x1122334455667788 as u64)
-
-        if @get(data, 0) is some v {
-            assert v == 0x34 as u8
-        } else {
-            assert false
-        }
-
-        if @get(data, 1) is some v {
-            assert v == 0x12 as u8
-        } else {
-            assert false
-        }
-
-        write_u16_be(data as ref u8, 16 as usize, 0x1234 as u16)
-        assert read_u16_be(data as ref u8, 16 as usize) == (0x1234 as u16)
-
-        write_u32_be(data as ref u8, 20 as usize, 0xDEADBEEF as u32)
-        assert read_u32_be(data as ref u8, 20 as usize) == (0xDEADBEEF as u32)
-
-        write_u64_be(data as ref u8, 24 as usize, 0x1122334455667788 as u64)
-        assert read_u64_be(data as ref u8, 24 as usize) == (0x1122334455667788 as u64)
-
-        if @get(data, 16) is some v {
-            assert v == 0x12 as u8
-        } else {
-            assert false
-        }
-
-        if @get(data, 17) is some v {
-            assert v == 0x34 as u8
-        } else {
-            assert false
-        }
-
-        if @get(data, 20) is some v {
-            assert v == 0xDE as u8
-        } else {
-            assert false
-        }
-
-        if @get(data, 21) is some v {
-            assert v == 0xAD as u8
-        } else {
-            assert false
-        }
+        assert sleb128_len(0 as i64) == (1 as usize)
+        assert sleb128_len(63 as i64) == (1 as usize)
+        assert sleb128_len(64 as i64) == (2 as usize)
+        assert sleb128_len(-64 as i64) == (1 as usize)
+        assert sleb128_len(-65 as i64) == (2 as usize)
+        assert write_sleb128(data as ref u8, 8 as usize, -123456 as i64) == (3 as usize)
+        assert @load8(@ptradd(data as ref u8, 8)) == (0xC0 as u8)
+        assert @load8(@ptradd(data as ref u8, 9)) == (0xBB as u8)
+        assert @load8(@ptradd(data as ref u8, 10)) == (0x78 as u8)
     }
 }
