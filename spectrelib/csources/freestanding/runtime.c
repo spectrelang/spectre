@@ -770,6 +770,9 @@ int sprintf(char *buf, const char *fmt, ...) {
 #define SX_SYS_rt_sigaction 13
 #define SX_SYS_kill 62
 #define SX_SYS_getpid 39
+#define SX_SYS_pread64 17
+#define SX_SYS_pwrite64 18
+#define SX_SYS_ptrace 101
 #else
 #define SX_SYS_read 63
 #define SX_SYS_write 64
@@ -815,6 +818,9 @@ int sprintf(char *buf, const char *fmt, ...) {
 #define SX_SYS_rt_sigaction 134
 #define SX_SYS_kill 129
 #define SX_SYS_getpid 172
+#define SX_SYS_pread64 67
+#define SX_SYS_pwrite64 68
+#define SX_SYS_ptrace 117
 #endif
 
 #if defined(__x86_64__)
@@ -988,6 +994,15 @@ static int sx_open_path(const char *path, int flags, int mode) {
                      flags, mode);
 }
 static int sx_close_fd(int fd) { return (int)sx_sc1(SX_SYS_close, fd); }
+
+sx_ssize_t pread(int fd, void *buf, sx_size_t n, sx_i64 offset) {
+  return (sx_ssize_t)sx_sc4(SX_SYS_pread64, fd, (sx_i64)(sx_uintptr_t)buf,
+                            (sx_i64)n, offset);
+}
+sx_ssize_t pwrite(int fd, const void *buf, sx_size_t n, sx_i64 offset) {
+  return (sx_ssize_t)sx_sc4(SX_SYS_pwrite64, fd, (sx_i64)(sx_uintptr_t)buf,
+                            (sx_i64)n, offset);
+}
 
 void exit(int code) {
   sx_sc1(SX_SYS_exit_group, code);
@@ -1385,9 +1400,8 @@ static const int sx_days_before_month[12] = {0,   31,  59,  90,  120, 151,
                                              181, 212, 243, 273, 304, 334};
 /* Random */
 /* Processes */
-int fork(void) {
-  return (int)sx_sc0(SX_SYS_clone); /* not used; clone needs flags on Linux */
-}
+static sx_i64 sx_clone_process(void);
+int fork(void) { return (int)sx_clone_process(); }
 static sx_i64 sx_clone_process(void) {
 #if defined(__x86_64__)
   /* clone(SIGCHLD, 0, 0, 0, 0) */
@@ -1406,6 +1420,60 @@ int dup(int fd) { return (int)sx_sc1(SX_SYS_dup, fd); }
 int execve(const char *path, char *const argv[], char *const envp[]) {
   return (int)sx_sc3(SX_SYS_execve, (sx_i64)(sx_uintptr_t)path,
                      (sx_i64)(sx_uintptr_t)argv, (sx_i64)(sx_uintptr_t)envp);
+}
+static const char *sx_env_value(const char *name) {
+  if (!environ || !name)
+    return SX_NULL;
+  sx_size_t n = strlen(name);
+  for (char **e = environ; *e; e++) {
+    if (strncmp(*e, name, n) == 0 && (*e)[n] == '=')
+      return *e + n + 1;
+  }
+  return SX_NULL;
+}
+int execvp(const char *file, char *const argv[]) {
+  if (!file || !*file)
+    return -1;
+  if (strchr(file, '/')) {
+    execve(file, argv, environ);
+    return -1;
+  }
+  const char *path = sx_env_value("PATH");
+  if (!path || !*path)
+    path = "/usr/local/bin:/usr/bin:/bin";
+  char candidate[4096];
+  while (*path) {
+    const char *end = strchr(path, ':');
+    sx_size_t dirlen = end ? (sx_size_t)(end - path) : strlen(path);
+    sx_size_t filelen = strlen(file);
+    if (dirlen == 0) {
+      if (filelen + 1 > sizeof(candidate))
+        break;
+      strcpy(candidate, file);
+    } else {
+      if (dirlen + 1 + filelen + 1 > sizeof(candidate))
+        break;
+      memcpy(candidate, path, dirlen);
+      candidate[dirlen] = '/';
+      strcpy(candidate + dirlen + 1, file);
+    }
+    if (sx_sc4(SX_SYS_faccessat, SX_AT_FDCWD, (sx_i64)(sx_uintptr_t)candidate,
+               1, 0) == 0) {
+      execve(candidate, argv, environ);
+    }
+    if (!end)
+      break;
+    path = end + 1;
+  }
+  return -1;
+}
+int getpid(void) { return (int)sx_sc0(SX_SYS_getpid); }
+int kill(int pid, int sig) {
+  return (int)sx_sc2(SX_SYS_kill, pid, sig);
+}
+long ptrace(int request, int pid, void *addr, void *data) {
+  return (long)sx_sc4(SX_SYS_ptrace, request, pid, (sx_i64)(sx_uintptr_t)addr,
+                      (sx_i64)(sx_uintptr_t)data);
 }
 int waitpid(int pid, int *status, int options) {
   return (int)sx_sc4(SX_SYS_wait4, pid, (sx_i64)(sx_uintptr_t)status, options,
