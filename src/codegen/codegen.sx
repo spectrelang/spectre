@@ -2428,7 +2428,7 @@ fn cg_build_c_shim(ctx: ref CgCtx) ref u8 = trust {
 
     // Headers such as dbghelp.h depend on windows.h being included first.
     val sb: ref void = builder.StringBuilder.new()
-    if want_headers {
+    if want_headers && !runtime_is_freestanding() {
         builder.StringBuilder.append_cstr(
             sb,
             c"#if defined(_WIN32)\n#include <windows.h>\n#endif\n"
