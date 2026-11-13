@@ -2813,6 +2813,21 @@ fn is_known_c_type_name(ctx: ref TranslationCtx, text: ref u8) bool = {
     if cstr.cmp(base, c"u8") == 0 {
         return true
     }
+    if cstr.cmp(base, c"char") == 0 || cstr.cmp(base, c"unsigned char") == 0 {
+        return true
+    }
+    if cstr.cmp(base, c"signed char") == 0 {
+        return true
+    }
+    if cstr.cmp(base, c"long double") == 0 {
+        return true
+    }
+    if cstr.cmp(base, c"wchar_t") == 0 {
+        return true
+    }
+    if cstr.cmp(base, c"ptrdiff_t") == 0 {
+        return true
+    }
     if cstr.cmp(base, c"short") == 0 {
         return true
     }
@@ -5914,12 +5929,6 @@ fn keyword_ignored(word: ref u8) bool = {
     if cstr.cmp(word, c"typedef") == 0 {
         return true
     }
-    if cstr.cmp(word, c"signed") == 0 {
-        return true
-    }
-    if cstr.cmp(word, c"__signed__") == 0 {
-        return true
-    }
     if cstr.cmp(word, c"__extension__") == 0 {
         return true
     }
@@ -5975,7 +5984,11 @@ fn normalize_type_phrase(text: ref u8) ref u8 = {
             if !first {
                 trust builder.StringBuilder.append_char(sb, 32 as u8)
             }
-            trust builder.StringBuilder.append_cstr(sb, word)
+            if cstr.cmp(word, c"__signed__") == 0 || cstr.cmp(word, c"__signed") == 0 {
+                trust builder.StringBuilder.append_cstr(sb, c"signed")
+            } else {
+                trust builder.StringBuilder.append_cstr(sb, word)
+            }
             first = false
         }
     }
@@ -6070,6 +6083,24 @@ fn map_base_type(ctx: ref TranslationCtx, base: ref u8) ref u8 = {
     }
     if cstr.cmp(base, c"u8") == 0 {
         return c"u8"
+    }
+    if cstr.cmp(base, c"char") == 0 || cstr.cmp(base, c"unsigned char") == 0 {
+        return c"u8"
+    }
+    if cstr.cmp(base, c"signed char") == 0 {
+        return c"i8"
+    }
+    if cstr.cmp(base, c"long double") == 0 {
+        return c"f64"
+    }
+    if cstr.cmp(base, c"wchar_t") == 0 {
+        if ctx != none && cstr.cmp(ctx.target_platform, c"windows") == 0 {
+            return c"u16"
+        }
+        return c"i32"
+    }
+    if cstr.cmp(base, c"ptrdiff_t") == 0 {
+        return c"isize"
     }
     if cstr.cmp(base, c"short") == 0 {
         return c"i16"
