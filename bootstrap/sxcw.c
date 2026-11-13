@@ -418,7 +418,7 @@ static char sx__str13[]="/spectrelib/env/core.sx";
 static char sx__str14[]="/src/meta/env.sx";
 static char sx__str15[]="v0.0.16";
 static char sx__str16[]="VERSION";
-static char sx__str17[]="3636906";
+static char sx__str17[]="0e2ab3d";
 static char sx__str18[]="unknown";
 static char sx__str19[]="usage:";
 static char sx__str20[]="  spectre <command> [args] | <input.sx> [options]";
@@ -106484,7 +106484,7 @@ int64_t t_e=sx__rp3[1];
 (void)(printf((const char*)(intptr_t)sx__str934,(t_e)));
 return(int32_t)(0);
 }}
-if((((((!((*(int32_t*)((char*)(intptr_t)((*(int64_t*)((char*)(intptr_t)(t_ctx)+0)))+32)))))?((!((*(int32_t*)((char*)(intptr_t)((*(int64_t*)((char*)(intptr_t)(t_ctx)+0)))+68))))):(0)))?((!((*(int32_t*)((char*)(intptr_t)((*(int64_t*)((char*)(intptr_t)(t_ctx)+0)))+72))))):(0)))
+if((((((((!((*(int32_t*)((char*)(intptr_t)((*(int64_t*)((char*)(intptr_t)(t_ctx)+0)))+32)))))?((!((*(int32_t*)((char*)(intptr_t)((*(int64_t*)((char*)(intptr_t)(t_ctx)+0)))+68))))):(0)))?((!((*(int32_t*)((char*)(intptr_t)((*(int64_t*)((char*)(intptr_t)(t_ctx)+0)))+72))))):(0)))?((!((*(int32_t*)((char*)(intptr_t)((*(int64_t*)((char*)(intptr_t)(t_ctx)+0)))+60))))):(0)))
 {
 (void)(module__attach_panic_module((*(int64_t*)((char*)(intptr_t)(t_ctx)+32)),(*(int64_t*)((char*)(intptr_t)(t_ctx)+128)),(*(int64_t*)((char*)(intptr_t)(t_ctx)+56))));
 }
