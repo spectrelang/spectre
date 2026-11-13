@@ -1878,31 +1878,31 @@ fn doctor_file_mtime(path: ref u8) ref u8 = trust {
     }
     when darwin {
         return tool_version(@fmtalloc(
-            "ls -ldT {s} 2>&1 | awk '{{print $6, $7, $8, $9}}'",
+            "ls -ldT {s} 2>&1 | awk '\{print $6, $7, $8, $9\}'",
             {shell_quote(path)}
         ))
     }
     when freebsd {
         return tool_version(@fmtalloc(
-            "ls -ldT {s} 2>&1 | awk '{{print $6, $7, $8, $9}}'",
+            "ls -ldT {s} 2>&1 | awk '\{print $6, $7, $8, $9\}'",
             {shell_quote(path)}
         ))
     }
     when openbsd {
         return tool_version(@fmtalloc(
-            "ls -ldT {s} 2>&1 | awk '{{print $6, $7, $8, $9}}'",
+            "ls -ldT {s} 2>&1 | awk '\{print $6, $7, $8, $9\}'",
             {shell_quote(path)}
         ))
     }
     when netbsd {
         return tool_version(@fmtalloc(
-            "ls -ldT {s} 2>&1 | awk '{{print $6, $7, $8, $9}}'",
+            "ls -ldT {s} 2>&1 | awk '\{print $6, $7, $8, $9\}'",
             {shell_quote(path)}
         ))
     }
     when dragonflybsd {
         return tool_version(@fmtalloc(
-            "ls -ldT {s} 2>&1 | awk '{{print $6, $7, $8, $9}}'",
+            "ls -ldT {s} 2>&1 | awk '\{print $6, $7, $8, $9\}'",
             {shell_quote(path)}
         ))
     }
