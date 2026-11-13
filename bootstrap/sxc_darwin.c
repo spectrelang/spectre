@@ -395,7 +395,7 @@ static char sx__str7[]="/spectrelib/env/core.sx";
 static char sx__str8[]="/src/meta/env.sx";
 static char sx__str9[]="v0.0.16";
 static char sx__str10[]="VERSION";
-static char sx__str11[]="4d80852";
+static char sx__str11[]="3c823dc";
 static char sx__str12[]="unknown";
 static char sx__str13[]="usage:";
 static char sx__str14[]="  spectre <command> [args] | <input.sx> [options]";
@@ -1375,11 +1375,11 @@ static char sx__str987[]="<img src=\"{s}\" alt=\"{s}\" loading=\"lazy\">";
 static char sx__str988[]="<a href=\"{s}\">";
 static char sx__str989[]="</a>";
 static char sx__str990[]="<code>";
-static char sx__str991[]="h{lld}";
-static char sx__str992[]="<{s}>";
-static char sx__str993[]="</{s}>";
-static char sx__str994[]="- ";
-static char sx__str995[]="* ";
+static char sx__str991[]="- ";
+static char sx__str992[]="* ";
+static char sx__str993[]="h{lld}";
+static char sx__str994[]="<{s}>";
+static char sx__str995[]="</{s}>";
 static char sx__str996[]="<ul>";
 static char sx__str997[]="<li>";
 static char sx__str998[]="```";
@@ -1887,23 +1887,23 @@ static char sx__str1499[]="$PATH.insert(0, %s)";
 static char sx__str1500[]="set path = ( %s $path )";
 static char sx__str1501[]="export PATH=%s:$PATH";
 static char sx__str1502[]="bash";
-static char sx__str1503[]=".bashrc";
-static char sx__str1504[]=".bash_profile";
-static char sx__str1505[]=".bash_login";
-static char sx__str1506[]=".profile";
-static char sx__str1507[]="zsh";
-static char sx__str1508[]=".zshrc";
-static char sx__str1509[]=".zprofile";
-static char sx__str1510[]="fish/config.fish";
-static char sx__str1511[]="nushell/config.nu";
-static char sx__str1512[]="elvish/rc.elv";
-static char sx__str1513[]="powershell/profile.ps1";
-static char sx__str1514[]="xonsh/rc.xsh";
-static char sx__str1515[]=".tcshrc";
-static char sx__str1516[]=".cshrc";
-static char sx__str1517[]="ksh";
-static char sx__str1518[]=".kshrc";
-static char sx__str1519[]="cmd";
+static char sx__str1503[]="zsh";
+static char sx__str1504[]="ksh";
+static char sx__str1505[]="cmd";
+static char sx__str1506[]=".bashrc";
+static char sx__str1507[]=".bash_profile";
+static char sx__str1508[]=".bash_login";
+static char sx__str1509[]=".profile";
+static char sx__str1510[]=".zshrc";
+static char sx__str1511[]=".zprofile";
+static char sx__str1512[]="fish/config.fish";
+static char sx__str1513[]="nushell/config.nu";
+static char sx__str1514[]="elvish/rc.elv";
+static char sx__str1515[]="powershell/profile.ps1";
+static char sx__str1516[]="xonsh/rc.xsh";
+static char sx__str1517[]=".tcshrc";
+static char sx__str1518[]=".cshrc";
+static char sx__str1519[]=".kshrc";
 static char sx__str1520[]="\n%s\n%s\n%s\n";
 static char sx__str1521[]="Add this directory to PATH manually:\n  %s\n";
 static char sx__str1522[]="POSIX shells (bash, zsh, sh, ...):";
@@ -1938,48 +1938,48 @@ static char sx__str1550[]="Installed %s -> %s\n";
 static char sx__str1551[]="Open a new terminal (or restart your shell) to use it.";
 static char sx__str1552[]="warning: %s is not on PATH yet\n";
 static char sx__str1553[]="-test-depth";
-static char sx__str1554[]="error: invalid test depth '%s'\n";
-static char sx__str1555[]="error: -test-depth requires a number";
-static char sx__str1556[]="-test-depth:";
+static char sx__str1554[]="-test-depth:";
+static char sx__str1555[]="error: invalid test depth '%s'\n";
+static char sx__str1556[]="error: -test-depth requires a number";
 static char sx__str1557[]="error: -test-depth must be zero or greater";
 static char sx__str1558[]="-config";
 static char sx__str1559[]="--config";
 static char sx__str1560[]="-build";
-static char sx__str1561[]="error: -config requires a build configuration name";
-static char sx__str1562[]="-config:";
-static char sx__str1563[]="-shell";
-static char sx__str1564[]="--shell";
-static char sx__str1565[]="error: -shell requires a shell name";
-static char sx__str1566[]="-shell:";
-static char sx__str1567[]="-bin-dir";
-static char sx__str1568[]="--bin-dir";
-static char sx__str1569[]="error: -bin-dir requires a directory";
-static char sx__str1570[]="-bin-dir:";
+static char sx__str1561[]="-config:";
+static char sx__str1562[]="-shell";
+static char sx__str1563[]="--shell";
+static char sx__str1564[]="-shell:";
+static char sx__str1565[]="-bin-dir";
+static char sx__str1566[]="--bin-dir";
+static char sx__str1567[]="-bin-dir:";
+static char sx__str1568[]="error: -config requires a build configuration name";
+static char sx__str1569[]="error: -shell requires a shell name";
+static char sx__str1570[]="error: -bin-dir requires a directory";
 static char sx__str1571[]="error: unknown install option '%s'\n";
 static char sx__str1572[]="error: install accepts a single repository URL";
-static char sx__str1573[]="error: -o requires a directory";
-static char sx__str1574[]="-o:";
-static char sx__str1575[]="-read";
-static char sx__str1576[]="error: -read requires a markdown file";
-static char sx__str1577[]="-read:";
+static char sx__str1573[]="-o:";
+static char sx__str1574[]="-read";
+static char sx__str1575[]="-read:";
+static char sx__str1576[]="error: -o requires a directory";
+static char sx__str1577[]="error: -read requires a markdown file";
 static char sx__str1578[]="error: unknown doc option '%s'\n";
 static char sx__str1579[]="error: port-c -o requires a value";
 static char sx__str1580[]="error: unknown port-c flag: %s\n";
 static char sx__str1581[]="error: port-c requires an input .c or .h file";
 static char sx__str1582[]="./src-out/%s.sx";
 static char sx__str1583[]="-normalize";
-static char sx__str1584[]="error: bind-c -o requires a directory";
-static char sx__str1585[]="-link";
-static char sx__str1586[]="error: bind-c -link requires a library name";
-static char sx__str1587[]="error: bind-c -target requires <os>.<arch>";
-static char sx__str1588[]="-target:";
-static char sx__str1589[]="-I";
-static char sx__str1590[]="error: bind-c -I requires a directory";
-static char sx__str1591[]="-I:";
-static char sx__str1592[]="-inc-path:";
-static char sx__str1593[]="-D";
-static char sx__str1594[]="error: bind-c -D requires NAME or NAME=VALUE";
-static char sx__str1595[]="-U";
+static char sx__str1584[]="-link";
+static char sx__str1585[]="-target:";
+static char sx__str1586[]="-I";
+static char sx__str1587[]="-I:";
+static char sx__str1588[]="-inc-path:";
+static char sx__str1589[]="-D";
+static char sx__str1590[]="-U";
+static char sx__str1591[]="error: bind-c -o requires a directory";
+static char sx__str1592[]="error: bind-c -link requires a library name";
+static char sx__str1593[]="error: bind-c -target requires <os>.<arch>";
+static char sx__str1594[]="error: bind-c -I requires a directory";
+static char sx__str1595[]="error: bind-c -D requires NAME or NAME=VALUE";
 static char sx__str1596[]="error: bind-c -U requires a macro name";
 static char sx__str1597[]="error: unknown bind-c flag: %s\n";
 static char sx__str1598[]="error: invalid bind-c target '%s', expected <os>.<arch>\n";
@@ -3572,22 +3572,22 @@ static char sx__str3184[]="%s%s : %lld\n";
 static char sx__str3185[]="(Empty AST)";
 static char sx__str3186[]="-no-single-flags";
 static char sx__str3187[]="SPECTRE_MOD_VERSION";
-static char sx__str3188[]="error: -o requires a value";
-static char sx__str3189[]="error: invalid define '%s', expected NAME=VALUE\n";
-static char sx__str3190[]="error: -d requires a NAME=VALUE argument";
-static char sx__str3191[]="error: invalid define '%s', expected -d:NAME=VALUE\n";
-static char sx__str3192[]="-emit-ll";
-static char sx__str3193[]="error: -target requires <os>.<arch>, e.g. -target:windows.x86_64";
-static char sx__str3194[]="-src-target:";
-static char sx__str3195[]="-runtime:";
-static char sx__str3196[]="error: -runtime requires hosted or freestanding";
-static char sx__str3197[]="error: unknown runtime mode '%s'; expected hosted or freestanding\n";
-static char sx__str3198[]="-xwin:";
-static char sx__str3199[]="error: -xwin requires a directory, e.g. -xwin:$HOME/.xwin";
-static char sx__str3200[]="-import-map:";
-static char sx__str3201[]="-sysroot:";
-static char sx__str3202[]="-rt-lib:";
-static char sx__str3203[]="-emit-shim:";
+static char sx__str3188[]="-emit-ll";
+static char sx__str3189[]="-src-target:";
+static char sx__str3190[]="-runtime:";
+static char sx__str3191[]="-xwin:";
+static char sx__str3192[]="-import-map:";
+static char sx__str3193[]="-sysroot:";
+static char sx__str3194[]="-rt-lib:";
+static char sx__str3195[]="-emit-shim:";
+static char sx__str3196[]="error: -o requires a value";
+static char sx__str3197[]="error: invalid define '%s', expected NAME=VALUE\n";
+static char sx__str3198[]="error: -d requires a NAME=VALUE argument";
+static char sx__str3199[]="error: invalid define '%s', expected -d:NAME=VALUE\n";
+static char sx__str3200[]="error: -target requires <os>.<arch>, e.g. -target:windows.x86_64";
+static char sx__str3201[]="error: -runtime requires hosted or freestanding";
+static char sx__str3202[]="error: unknown runtime mode '%s'; expected hosted or freestanding\n";
+static char sx__str3203[]="error: -xwin requires a directory, e.g. -xwin:$HOME/.xwin";
 static char sx__str3204[]="error: -inc-path requires a value";
 static char sx__str3205[]="error: unknown flag: %s\n";
 static char sx__str3206[]="error: could not write C shim to '%s'\n";
@@ -4124,9 +4124,9 @@ static int64_t sx__svs368[2] = {(int64_t)(intptr_t)sx__str980, 66};
 static int64_t sx__svs369[2] = {(int64_t)(intptr_t)sx__str982, 69};
 static int64_t sx__svs370[2] = {(int64_t)(intptr_t)sx__str987, 40};
 static int64_t sx__svs371[2] = {(int64_t)(intptr_t)sx__str988, 14};
-static int64_t sx__svs372[2] = {(int64_t)(intptr_t)sx__str991, 6};
-static int64_t sx__svs373[2] = {(int64_t)(intptr_t)sx__str992, 5};
-static int64_t sx__svs374[2] = {(int64_t)(intptr_t)sx__str993, 6};
+static int64_t sx__svs372[2] = {(int64_t)(intptr_t)sx__str993, 6};
+static int64_t sx__svs373[2] = {(int64_t)(intptr_t)sx__str994, 5};
+static int64_t sx__svs374[2] = {(int64_t)(intptr_t)sx__str995, 6};
 static int64_t sx__svs375[2] = {(int64_t)(intptr_t)sx__str1000, 32};
 static int64_t sx__svs376[2] = {(int64_t)(intptr_t)sx__str1002, 25};
 static int64_t sx__svs377[2] = {(int64_t)(intptr_t)sx__str1007, 11099};
@@ -4260,27 +4260,27 @@ static int64_t sx__svs504[2] = {(int64_t)(intptr_t)sx__str1534, 66};
 static int64_t sx__svs505[2] = {(int64_t)(intptr_t)sx__str1535, 51};
 static int64_t sx__svs506[2] = {(int64_t)(intptr_t)sx__str1543, 79};
 static int64_t sx__svs507[2] = {(int64_t)(intptr_t)sx__str1551, 54};
-static int64_t sx__svs508[2] = {(int64_t)(intptr_t)sx__str1555, 36};
+static int64_t sx__svs508[2] = {(int64_t)(intptr_t)sx__str1556, 36};
 static int64_t sx__svs509[2] = {(int64_t)(intptr_t)sx__str1557, 42};
 static int64_t sx__svs510[2] = {(int64_t)(intptr_t)sx__str76, 3};
 static int64_t sx__svs511[2] = {(int64_t)(intptr_t)sx__str86, 6};
 static int64_t sx__svs512[2] = {(int64_t)(intptr_t)sx__str99, 7};
-static int64_t sx__svs513[2] = {(int64_t)(intptr_t)sx__str1561, 50};
-static int64_t sx__svs514[2] = {(int64_t)(intptr_t)sx__str1565, 35};
-static int64_t sx__svs515[2] = {(int64_t)(intptr_t)sx__str1569, 36};
+static int64_t sx__svs513[2] = {(int64_t)(intptr_t)sx__str1568, 50};
+static int64_t sx__svs514[2] = {(int64_t)(intptr_t)sx__str1569, 35};
+static int64_t sx__svs515[2] = {(int64_t)(intptr_t)sx__str1570, 36};
 static int64_t sx__svs516[2] = {(int64_t)(intptr_t)sx__str1572, 46};
 static int64_t sx__svs517[2] = {(int64_t)(intptr_t)sx__str125, 3};
-static int64_t sx__svs518[2] = {(int64_t)(intptr_t)sx__str1573, 30};
-static int64_t sx__svs519[2] = {(int64_t)(intptr_t)sx__str1576, 37};
+static int64_t sx__svs518[2] = {(int64_t)(intptr_t)sx__str1576, 30};
+static int64_t sx__svs519[2] = {(int64_t)(intptr_t)sx__str1577, 37};
 static int64_t sx__svs520[2] = {(int64_t)(intptr_t)sx__str169, 6};
 static int64_t sx__svs521[2] = {(int64_t)(intptr_t)sx__str1579, 33};
 static int64_t sx__svs522[2] = {(int64_t)(intptr_t)sx__str1581, 45};
 static int64_t sx__svs523[2] = {(int64_t)(intptr_t)sx__str174, 6};
-static int64_t sx__svs524[2] = {(int64_t)(intptr_t)sx__str1584, 37};
-static int64_t sx__svs525[2] = {(int64_t)(intptr_t)sx__str1586, 43};
-static int64_t sx__svs526[2] = {(int64_t)(intptr_t)sx__str1587, 42};
-static int64_t sx__svs527[2] = {(int64_t)(intptr_t)sx__str1590, 37};
-static int64_t sx__svs528[2] = {(int64_t)(intptr_t)sx__str1594, 44};
+static int64_t sx__svs524[2] = {(int64_t)(intptr_t)sx__str1591, 37};
+static int64_t sx__svs525[2] = {(int64_t)(intptr_t)sx__str1592, 43};
+static int64_t sx__svs526[2] = {(int64_t)(intptr_t)sx__str1593, 42};
+static int64_t sx__svs527[2] = {(int64_t)(intptr_t)sx__str1594, 37};
+static int64_t sx__svs528[2] = {(int64_t)(intptr_t)sx__str1595, 44};
 static int64_t sx__svs529[2] = {(int64_t)(intptr_t)sx__str1596, 38};
 static int64_t sx__svs530[2] = {(int64_t)(intptr_t)sx__str294, 2};
 static int64_t sx__svs531[2] = {(int64_t)(intptr_t)sx__str386, 3};
@@ -4320,11 +4320,11 @@ static int64_t sx__svs564[2] = {(int64_t)(intptr_t)sx__str2726, 22};
 static int64_t sx__svs565[2] = {(int64_t)(intptr_t)sx__str2734, 1424};
 static int64_t sx__svs566[2] = {(int64_t)(intptr_t)sx__str3185, 11};
 static int64_t sx__svs567[2] = {(int64_t)(intptr_t)sx__str3187, 19};
-static int64_t sx__svs568[2] = {(int64_t)(intptr_t)sx__str3188, 26};
-static int64_t sx__svs569[2] = {(int64_t)(intptr_t)sx__str3190, 40};
-static int64_t sx__svs570[2] = {(int64_t)(intptr_t)sx__str3193, 64};
-static int64_t sx__svs571[2] = {(int64_t)(intptr_t)sx__str3196, 47};
-static int64_t sx__svs572[2] = {(int64_t)(intptr_t)sx__str3199, 57};
+static int64_t sx__svs568[2] = {(int64_t)(intptr_t)sx__str3196, 26};
+static int64_t sx__svs569[2] = {(int64_t)(intptr_t)sx__str3198, 40};
+static int64_t sx__svs570[2] = {(int64_t)(intptr_t)sx__str3200, 64};
+static int64_t sx__svs571[2] = {(int64_t)(intptr_t)sx__str3201, 47};
+static int64_t sx__svs572[2] = {(int64_t)(intptr_t)sx__str3203, 57};
 static int64_t sx__svs573[2] = {(int64_t)(intptr_t)sx__str3204, 33};
 static int64_t sx__svs574[2] = {(int64_t)(intptr_t)sx__str3208, 26};
 static int64_t sx__svs575[2] = {(int64_t)(intptr_t)sx__str3213, 24};
@@ -6171,6 +6171,9 @@ static int64_t sema__dotted_chain_name(int64_t,int64_t);
 static int64_t sema__extract_constructor_namespace(int64_t,int64_t);
 static int32_t sema__generic_inst_has_infer(int64_t);
 static int32_t sema__resolve_generic_inst_inference(int64_t,int64_t,int64_t,int64_t,int64_t,int64_t);
+static int64_t sema__make_infer_type_node(int64_t,int64_t,int64_t);
+static int64_t sema__infer_call_ret_node(int64_t,int64_t);
+static int64_t sema__infer_arg_is_ref(int64_t,int64_t);
 static int64_t sema__infer_targ_for_tparam(int64_t,int64_t,int64_t,int64_t);
 static int64_t sema__resolve_arg_originating_type(int64_t,int64_t);
 static int64_t sema__peel_mut_ref(int64_t);
@@ -6832,6 +6835,7 @@ static int64_t alt_codegen__cc_field_size_of_expr(int64_t,int64_t);
 static int64_t alt_codegen__cc_field_ctype_of_expr(int64_t,int64_t);
 static int32_t alt_codegen__gen_stmts(int64_t,int64_t);
 static int32_t alt_codegen__gen_stmt(int64_t,int64_t);
+static int32_t alt_codegen__capture_cond(int64_t,int64_t,int64_t,int64_t);
 static int32_t alt_codegen__gen_if_stmt(int64_t,int64_t);
 static int64_t alt_codegen__cc_autovec_offset(int64_t,int64_t);
 static int64_t alt_codegen__cc_autovec_load_expr(int64_t,int64_t,int64_t);
@@ -7062,9 +7066,9 @@ static int64_t sx__std__str__as_cstr__GENMONO__String(int64_t);
 static int64_t sx__mem__new__GENMONO__String(void);
 static int32_t sx__parser__node_store_slot__GENMONO__i64(int64_t,int64_t);
 static int64_t sx__mem__new__GENMONO__ref_ScopeEntry(void);
+static int32_t sx__parser__node_store_slot__GENMONO__ref_parser__Node(int64_t,int64_t);
 static int64_t sx__mem__new__GENMONO__bool(void);
 static int64_t sx__mem__new__GENMONO__ref_GlobalInit(void);
-static int32_t sx__parser__node_store_slot__GENMONO__ref_parser__Node(int64_t,int64_t);
 static int64_t sx__parser__ptr_to_i64__GENMONO__ref_u8(int64_t);
 static uint64_t sx__parser__ptr_to_usize__GENMONO__ref_parser__Node(int64_t);
 static int64_t sx__std__allocators__alloc_in__GENMONO__allocators__HeapAllocator(int64_t* sx__ret,int64_t t_ac,uint64_t t_size){
@@ -9078,6 +9082,11 @@ int64_t sx__val0 = sx__try0[1];
 return(int64_t)(sx__val0);
 }
 
+static int32_t sx__parser__node_store_slot__GENMONO__ref_parser__Node(int64_t t_slot,int64_t t_value){
+(void)((*(int64_t*)(intptr_t)(t_slot)=(int64_t)(t_value)));
+return 0;
+}
+
 static int64_t sx__mem__new__GENMONO__bool(void){
 int64_t t_ac=(int64_t)(mem__allocator());
 int64_t* sx__try0 = (int64_t*)(intptr_t)(sx__rt_list_alloc(sx__allocadapt_allocators_ListArena_alloc,sx__allocadapt_allocators_ListArena_free,sx__allocadapt_allocators_ListArena_realloc,(int64_t)(t_ac)));
@@ -9098,11 +9107,6 @@ return (int64_t)(intptr_t)sx__try0;
 }
 int64_t sx__val0 = sx__try0[1];
 return(int64_t)(sx__val0);
-}
-
-static int32_t sx__parser__node_store_slot__GENMONO__ref_parser__Node(int64_t t_slot,int64_t t_value){
-(void)((*(int64_t*)(intptr_t)(t_slot)=(int64_t)(t_value)));
-return 0;
 }
 
 static int64_t sx__parser__ptr_to_i64__GENMONO__ref_u8(int64_t t_p){
@@ -31167,7 +31171,7 @@ int64_t sx__ap1[16]={(int64_t)(t_tag),(int64_t)(0),(int64_t)(0),(int64_t)(0),(in
 (void)(docs__append_markdown_inline_html(t_sb,t_heading_text));
 int64_t sx__ap2[16]={(int64_t)(t_tag),(int64_t)(0),(int64_t)(0),(int64_t)(0),(int64_t)(0),(int64_t)(0),(int64_t)(0),(int64_t)(0),(int64_t)(0),(int64_t)(0),(int64_t)(0),(int64_t)(0),(int64_t)(0),(int64_t)(0),(int64_t)(0),(int64_t)(0)};
 (void)(builder__StringBuilder__append_cstr(t_sb,docs__dfmt(((int64_t)(intptr_t)sx__svs374),(int64_t)(intptr_t)sx__ap2)));
-}else if(((cstr__starts_with(t_trimmed,((int64_t)(intptr_t)sx__str994)))?(1):(cstr__starts_with(t_trimmed,((int64_t)(intptr_t)sx__str995)))))
+}else if(((cstr__starts_with(t_trimmed,((int64_t)(intptr_t)sx__str991)))?(1):(cstr__starts_with(t_trimmed,((int64_t)(intptr_t)sx__str992)))))
 {
 t_paragraph=(docs__flush_markdown_paragraph_html(t_sb,t_paragraph));
 if((!(t_in_list)))
@@ -31238,7 +31242,7 @@ int64_t sx__ap6[16]={(int64_t)(t_tag),(int64_t)(0),(int64_t)(0),(int64_t)(0),(in
 (void)(docs__append_markdown_inline_html(t_sb,t_heading_text));
 int64_t sx__ap7[16]={(int64_t)(t_tag),(int64_t)(0),(int64_t)(0),(int64_t)(0),(int64_t)(0),(int64_t)(0),(int64_t)(0),(int64_t)(0),(int64_t)(0),(int64_t)(0),(int64_t)(0),(int64_t)(0),(int64_t)(0),(int64_t)(0),(int64_t)(0),(int64_t)(0)};
 (void)(builder__StringBuilder__append_cstr(t_sb,docs__dfmt(((int64_t)(intptr_t)sx__svs374),(int64_t)(intptr_t)sx__ap7)));
-}else if(((cstr__starts_with(t_trimmed,((int64_t)(intptr_t)sx__str994)))?(1):(cstr__starts_with(t_trimmed,((int64_t)(intptr_t)sx__str995)))))
+}else if(((cstr__starts_with(t_trimmed,((int64_t)(intptr_t)sx__str991)))?(1):(cstr__starts_with(t_trimmed,((int64_t)(intptr_t)sx__str992)))))
 {
 t_paragraph=(docs__flush_markdown_paragraph_html(t_sb,t_paragraph));
 if((!(t_in_list)))
@@ -51021,46 +51025,46 @@ int64_t t_home=(int64_t)(installer__home_dir());
 int64_t t_cfg=(int64_t)(installer__config_home());
 if(((cstr__cmp(t_shell,((int64_t)(intptr_t)sx__str1502)))==(INT64_C(0))))
 {
-(void)(sx__rt_append_f((int64_t*)&t_out,(int64_t)(pathutil__join_cstr(t_home,((int64_t)(intptr_t)sx__str1503)))));
-(void)(installer__add_if_exists(t_out,pathutil__join_cstr(t_home,((int64_t)(intptr_t)sx__str1504))));
-(void)(installer__add_if_exists(t_out,pathutil__join_cstr(t_home,((int64_t)(intptr_t)sx__str1505))));
 (void)(sx__rt_append_f((int64_t*)&t_out,(int64_t)(pathutil__join_cstr(t_home,((int64_t)(intptr_t)sx__str1506)))));
-}else if(((cstr__cmp(t_shell,((int64_t)(intptr_t)sx__str1507)))==(INT64_C(0))))
+(void)(installer__add_if_exists(t_out,pathutil__join_cstr(t_home,((int64_t)(intptr_t)sx__str1507))));
+(void)(installer__add_if_exists(t_out,pathutil__join_cstr(t_home,((int64_t)(intptr_t)sx__str1508))));
+(void)(sx__rt_append_f((int64_t*)&t_out,(int64_t)(pathutil__join_cstr(t_home,((int64_t)(intptr_t)sx__str1509)))));
+}else if(((cstr__cmp(t_shell,((int64_t)(intptr_t)sx__str1503)))==(INT64_C(0))))
 {
-(void)(sx__rt_append_f((int64_t*)&t_out,(int64_t)(pathutil__join_cstr(t_home,((int64_t)(intptr_t)sx__str1508)))));
-(void)(installer__add_if_exists(t_out,pathutil__join_cstr(t_home,((int64_t)(intptr_t)sx__str1509))));
+(void)(sx__rt_append_f((int64_t*)&t_out,(int64_t)(pathutil__join_cstr(t_home,((int64_t)(intptr_t)sx__str1510)))));
+(void)(installer__add_if_exists(t_out,pathutil__join_cstr(t_home,((int64_t)(intptr_t)sx__str1511))));
 }else if(((cstr__cmp(t_shell,((int64_t)(intptr_t)sx__str1486)))==(INT64_C(0))))
 {
-(void)(sx__rt_append_f((int64_t*)&t_out,(int64_t)(pathutil__join_cstr(t_cfg,((int64_t)(intptr_t)sx__str1510)))));
+(void)(sx__rt_append_f((int64_t*)&t_out,(int64_t)(pathutil__join_cstr(t_cfg,((int64_t)(intptr_t)sx__str1512)))));
 }else if(((((cstr__cmp(t_shell,((int64_t)(intptr_t)sx__str1487)))==(INT64_C(0))))?(1):(((cstr__cmp(t_shell,((int64_t)(intptr_t)sx__str1488)))==(INT64_C(0))))))
 {
-(void)(sx__rt_append_f((int64_t*)&t_out,(int64_t)(pathutil__join_cstr(t_cfg,((int64_t)(intptr_t)sx__str1511)))));
+(void)(sx__rt_append_f((int64_t*)&t_out,(int64_t)(pathutil__join_cstr(t_cfg,((int64_t)(intptr_t)sx__str1513)))));
 }else if(((cstr__cmp(t_shell,((int64_t)(intptr_t)sx__str1489)))==(INT64_C(0))))
 {
-(void)(sx__rt_append_f((int64_t*)&t_out,(int64_t)(pathutil__join_cstr(t_cfg,((int64_t)(intptr_t)sx__str1512)))));
+(void)(sx__rt_append_f((int64_t*)&t_out,(int64_t)(pathutil__join_cstr(t_cfg,((int64_t)(intptr_t)sx__str1514)))));
 }else if(((((cstr__cmp(t_shell,((int64_t)(intptr_t)sx__str1490)))==(INT64_C(0))))?(1):(((cstr__cmp(t_shell,((int64_t)(intptr_t)sx__str1491)))==(INT64_C(0))))))
 {
-(void)(sx__rt_append_f((int64_t*)&t_out,(int64_t)(pathutil__join_cstr(t_cfg,((int64_t)(intptr_t)sx__str1513)))));
+(void)(sx__rt_append_f((int64_t*)&t_out,(int64_t)(pathutil__join_cstr(t_cfg,((int64_t)(intptr_t)sx__str1515)))));
 }else if(((cstr__cmp(t_shell,((int64_t)(intptr_t)sx__str1492)))==(INT64_C(0))))
 {
-(void)(sx__rt_append_f((int64_t*)&t_out,(int64_t)(pathutil__join_cstr(t_cfg,((int64_t)(intptr_t)sx__str1514)))));
+(void)(sx__rt_append_f((int64_t*)&t_out,(int64_t)(pathutil__join_cstr(t_cfg,((int64_t)(intptr_t)sx__str1516)))));
 }else if(((((cstr__cmp(t_shell,((int64_t)(intptr_t)sx__str1493)))==(INT64_C(0))))?(1):(((cstr__cmp(t_shell,((int64_t)(intptr_t)sx__str1494)))==(INT64_C(0))))))
 {
-(void)(installer__add_if_exists(t_out,pathutil__join_cstr(t_home,((int64_t)(intptr_t)sx__str1515))));
-(void)(installer__add_if_exists(t_out,pathutil__join_cstr(t_home,((int64_t)(intptr_t)sx__str1516))));
+(void)(installer__add_if_exists(t_out,pathutil__join_cstr(t_home,((int64_t)(intptr_t)sx__str1517))));
+(void)(installer__add_if_exists(t_out,pathutil__join_cstr(t_home,((int64_t)(intptr_t)sx__str1518))));
 if((((int64_t)((t_out==0?0:(*(int64_t*)((char*)(intptr_t)(t_out)+8)))))==(INT64_C(0))))
 {
-(void)(sx__rt_append_f((int64_t*)&t_out,(int64_t)(pathutil__join_cstr(t_home,((int64_t)(intptr_t)sx__str1515)))));
+(void)(sx__rt_append_f((int64_t*)&t_out,(int64_t)(pathutil__join_cstr(t_home,((int64_t)(intptr_t)sx__str1517)))));
 }
-}else if(((cstr__cmp(t_shell,((int64_t)(intptr_t)sx__str1517)))==(INT64_C(0))))
+}else if(((cstr__cmp(t_shell,((int64_t)(intptr_t)sx__str1504)))==(INT64_C(0))))
 {
-(void)(sx__rt_append_f((int64_t*)&t_out,(int64_t)(pathutil__join_cstr(t_home,((int64_t)(intptr_t)sx__str1506)))));
-(void)(installer__add_if_exists(t_out,pathutil__join_cstr(t_home,((int64_t)(intptr_t)sx__str1518))));
-}else if(((cstr__cmp(t_shell,((int64_t)(intptr_t)sx__str1519)))==(INT64_C(0))))
+(void)(sx__rt_append_f((int64_t*)&t_out,(int64_t)(pathutil__join_cstr(t_home,((int64_t)(intptr_t)sx__str1509)))));
+(void)(installer__add_if_exists(t_out,pathutil__join_cstr(t_home,((int64_t)(intptr_t)sx__str1519))));
+}else if(((cstr__cmp(t_shell,((int64_t)(intptr_t)sx__str1505)))==(INT64_C(0))))
 {
 return(int64_t)(t_out);
 }else{
-(void)(sx__rt_append_f((int64_t*)&t_out,(int64_t)(pathutil__join_cstr(t_home,((int64_t)(intptr_t)sx__str1506)))));
+(void)(sx__rt_append_f((int64_t*)&t_out,(int64_t)(pathutil__join_cstr(t_home,((int64_t)(intptr_t)sx__str1509)))));
 }
 return(int64_t)(t_out);
 }
@@ -51170,14 +51174,14 @@ static int64_t installer__all_shells(void){
 int64_t sx__gv1=sx__mem__new__GENMONO__ref_u8();
 int64_t t_out=(int64_t)(sx__gv1);
 (void)(sx__rt_append_f((int64_t*)&t_out,(int64_t)(((int64_t)(intptr_t)sx__str1502))));
-(void)(sx__rt_append_f((int64_t*)&t_out,(int64_t)(((int64_t)(intptr_t)sx__str1507))));
+(void)(sx__rt_append_f((int64_t*)&t_out,(int64_t)(((int64_t)(intptr_t)sx__str1503))));
 (void)(sx__rt_append_f((int64_t*)&t_out,(int64_t)(((int64_t)(intptr_t)sx__str1486))));
 (void)(sx__rt_append_f((int64_t*)&t_out,(int64_t)(((int64_t)(intptr_t)sx__str1487))));
 (void)(sx__rt_append_f((int64_t*)&t_out,(int64_t)(((int64_t)(intptr_t)sx__str1489))));
 (void)(sx__rt_append_f((int64_t*)&t_out,(int64_t)(((int64_t)(intptr_t)sx__str1490))));
 (void)(sx__rt_append_f((int64_t*)&t_out,(int64_t)(((int64_t)(intptr_t)sx__str1492))));
 (void)(sx__rt_append_f((int64_t*)&t_out,(int64_t)(((int64_t)(intptr_t)sx__str1471))));
-(void)(sx__rt_append_f((int64_t*)&t_out,(int64_t)(((int64_t)(intptr_t)sx__str1517))));
+(void)(sx__rt_append_f((int64_t*)&t_out,(int64_t)(((int64_t)(intptr_t)sx__str1504))));
 (void)(sx__rt_append_f((int64_t*)&t_out,(int64_t)(((int64_t)(intptr_t)sx__str1493))));
 return(int64_t)(t_out);
 }
@@ -51413,14 +51417,14 @@ int64_t t_v=sx__rp8[1];
 t_max_depth=(t_v);
 }else{
 int64_t t__=sx__rp8[1];
-(void)(printf((const char*)(intptr_t)sx__str1554,(t_next_val)));
+(void)(printf((const char*)(intptr_t)sx__str1555,(t_next_val)));
 return(int32_t)(INT64_C(1));
 }}
 }else{
 (void)(std__stdio__puts(((int64_t)(intptr_t)sx__svs508)));
 return(int32_t)(INT64_C(1));
 }}
-}else if(cstr__starts_with(t_a,((int64_t)(intptr_t)sx__str1556)))
+}else if(cstr__starts_with(t_a,((int64_t)(intptr_t)sx__str1554)))
 {
 int64_t t_text=(int64_t)(cstr__substr(t_a,INT64_C(12),((cstr__len(t_a))-(INT64_C(12)))));
 int64_t sx__rb9[3];
@@ -51432,7 +51436,7 @@ int64_t t_v=sx__rp10[1];
 t_max_depth=(t_v);
 }else{
 int64_t t__=sx__rp10[1];
-(void)(printf((const char*)(intptr_t)sx__str1554,(t_text)));
+(void)(printf((const char*)(intptr_t)sx__str1555,(t_text)));
 return(int32_t)(INT64_C(1));
 }}
 }else if(cstr__starts_with(t_a,((int64_t)(intptr_t)sx__str882)))
@@ -51546,10 +51550,10 @@ t_install_arg_i=(t_next_i);
 (void)(std__stdio__puts(((int64_t)(intptr_t)sx__svs513)));
 return(int32_t)(INT64_C(1));
 }}
-}else if(cstr__starts_with(t_arg,((int64_t)(intptr_t)sx__str1562)))
+}else if(cstr__starts_with(t_arg,((int64_t)(intptr_t)sx__str1561)))
 {
 t_install_config=(cstr__substr(t_arg,INT64_C(8),((cstr__len(t_arg))-(INT64_C(8)))));
-}else if(((((cstr__cmp(t_arg,((int64_t)(intptr_t)sx__str1563)))==(INT64_C(0))))?(1):(((cstr__cmp(t_arg,((int64_t)(intptr_t)sx__str1564)))==(INT64_C(0))))))
+}else if(((((cstr__cmp(t_arg,((int64_t)(intptr_t)sx__str1562)))==(INT64_C(0))))?(1):(((cstr__cmp(t_arg,((int64_t)(intptr_t)sx__str1563)))==(INT64_C(0))))))
 {
 int64_t t_next_i=(int64_t)(((t_install_arg_i)+(INT64_C(1))));
 int64_t sx__w6[3];sx__w6[0]=0;sx__w6[1]=0;sx__w6[2]=0;
@@ -51564,10 +51568,10 @@ t_install_arg_i=(t_next_i);
 (void)(std__stdio__puts(((int64_t)(intptr_t)sx__svs514)));
 return(int32_t)(INT64_C(1));
 }}
-}else if(cstr__starts_with(t_arg,((int64_t)(intptr_t)sx__str1566)))
+}else if(cstr__starts_with(t_arg,((int64_t)(intptr_t)sx__str1564)))
 {
 t_install_shell=(cstr__substr(t_arg,INT64_C(7),((cstr__len(t_arg))-(INT64_C(7)))));
-}else if(((((cstr__cmp(t_arg,((int64_t)(intptr_t)sx__str1567)))==(INT64_C(0))))?(1):(((cstr__cmp(t_arg,((int64_t)(intptr_t)sx__str1568)))==(INT64_C(0))))))
+}else if(((((cstr__cmp(t_arg,((int64_t)(intptr_t)sx__str1565)))==(INT64_C(0))))?(1):(((cstr__cmp(t_arg,((int64_t)(intptr_t)sx__str1566)))==(INT64_C(0))))))
 {
 int64_t t_next_i=(int64_t)(((t_install_arg_i)+(INT64_C(1))));
 int64_t sx__w9[3];sx__w9[0]=0;sx__w9[1]=0;sx__w9[2]=0;
@@ -51582,7 +51586,7 @@ t_install_arg_i=(t_next_i);
 (void)(std__stdio__puts(((int64_t)(intptr_t)sx__svs515)));
 return(int32_t)(INT64_C(1));
 }}
-}else if(cstr__starts_with(t_arg,((int64_t)(intptr_t)sx__str1570)))
+}else if(cstr__starts_with(t_arg,((int64_t)(intptr_t)sx__str1567)))
 {
 t_install_bin_dir=(cstr__substr(t_arg,INT64_C(9),((cstr__len(t_arg))-(INT64_C(9)))));
 }else if(cstr__starts_with(t_arg,((int64_t)(intptr_t)sx__str882)))
@@ -51647,7 +51651,7 @@ t_doc_arg_i=(t_next_i);
 (void)(std__stdio__puts(((int64_t)(intptr_t)sx__svs518)));
 return(int32_t)(INT64_C(1));
 }}
-}else if(cstr__starts_with(t_arg,((int64_t)(intptr_t)sx__str1574)))
+}else if(cstr__starts_with(t_arg,((int64_t)(intptr_t)sx__str1573)))
 {
 int64_t t_out_len=(int64_t)((((int64_t)(cstr__len(t_arg)))-(INT64_C(3))));
 if(((t_out_len)<=(INT64_C(0))))
@@ -51656,7 +51660,7 @@ if(((t_out_len)<=(INT64_C(0))))
 return(int32_t)(INT64_C(1));
 }
 t_output_arg=(cstr__substr(t_arg,INT64_C(3),t_out_len));
-}else if(((cstr__cmp(t_arg,((int64_t)(intptr_t)sx__str1575)))==(INT64_C(0))))
+}else if(((cstr__cmp(t_arg,((int64_t)(intptr_t)sx__str1574)))==(INT64_C(0))))
 {
 int64_t t_next_i=(int64_t)(((t_doc_arg_i)+(INT64_C(1))));
 int64_t sx__w6[3];sx__w6[0]=0;sx__w6[1]=0;sx__w6[2]=0;
@@ -51671,7 +51675,7 @@ t_doc_arg_i=(t_next_i);
 (void)(std__stdio__puts(((int64_t)(intptr_t)sx__svs519)));
 return(int32_t)(INT64_C(1));
 }}
-}else if(cstr__starts_with(t_arg,((int64_t)(intptr_t)sx__str1577)))
+}else if(cstr__starts_with(t_arg,((int64_t)(intptr_t)sx__str1575)))
 {
 int64_t t_read_len=(int64_t)((((int64_t)(cstr__len(t_arg)))-(INT64_C(6))));
 if(((t_read_len)<=(INT64_C(0))))
@@ -51791,7 +51795,7 @@ t_bind_output_dir=((int64_t)(t_ov));
 (void)(std__stdio__puts(((int64_t)(intptr_t)sx__svs524)));
 return(int32_t)(INT64_C(1));
 }}
-}else if(((cstr__cmp(t_arg,((int64_t)(intptr_t)sx__str1585)))==(INT64_C(0))))
+}else if(((cstr__cmp(t_arg,((int64_t)(intptr_t)sx__str1584)))==(INT64_C(0))))
 {
 t_bi++;
 int64_t sx__w10[3];sx__w10[0]=0;sx__w10[1]=0;sx__w10[2]=0;
@@ -51819,10 +51823,10 @@ t_bind_target=((int64_t)(t_tv2));
 (void)(std__stdio__puts(((int64_t)(intptr_t)sx__svs526)));
 return(int32_t)(INT64_C(1));
 }}
-}else if(cstr__starts_with(t_arg,((int64_t)(intptr_t)sx__str1588)))
+}else if(cstr__starts_with(t_arg,((int64_t)(intptr_t)sx__str1585)))
 {
 t_bind_target=(cstr__substr(t_arg,INT64_C(8),((cstr__len(t_arg))-(INT64_C(8)))));
-}else if(((cstr__cmp(t_arg,((int64_t)(intptr_t)sx__str1589)))==(INT64_C(0))))
+}else if(((cstr__cmp(t_arg,((int64_t)(intptr_t)sx__str1586)))==(INT64_C(0))))
 {
 t_bi++;
 int64_t sx__w16[3];sx__w16[0]=0;sx__w16[1]=0;sx__w16[2]=0;
@@ -51836,16 +51840,16 @@ int64_t t_iv=*((int64_t*)(intptr_t)(&sx__mp18[1]));
 (void)(std__stdio__puts(((int64_t)(intptr_t)sx__svs527)));
 return(int32_t)(INT64_C(1));
 }}
-}else if(cstr__starts_with(t_arg,((int64_t)(intptr_t)sx__str1591)))
+}else if(cstr__starts_with(t_arg,((int64_t)(intptr_t)sx__str1587)))
 {
 (void)(sx__rt_append_f((int64_t*)&t_bind_includes,(int64_t)(cstr__substr(t_arg,INT64_C(3),((cstr__len(t_arg))-(INT64_C(3)))))));
-}else if(cstr__starts_with(t_arg,((int64_t)(intptr_t)sx__str1592)))
+}else if(cstr__starts_with(t_arg,((int64_t)(intptr_t)sx__str1588)))
 {
 (void)(sx__rt_append_f((int64_t*)&t_bind_includes,(int64_t)(cstr__substr(t_arg,INT64_C(10),((cstr__len(t_arg))-(INT64_C(10)))))));
-}else if(((cstr__starts_with(t_arg,((int64_t)(intptr_t)sx__str1589)))?(((cstr__len(t_arg))>(INT64_C(2)))):(0)))
+}else if(((cstr__starts_with(t_arg,((int64_t)(intptr_t)sx__str1586)))?(((cstr__len(t_arg))>(INT64_C(2)))):(0)))
 {
 (void)(sx__rt_append_f((int64_t*)&t_bind_includes,(int64_t)(cstr__substr(t_arg,INT64_C(2),((cstr__len(t_arg))-(INT64_C(2)))))));
-}else if(((cstr__cmp(t_arg,((int64_t)(intptr_t)sx__str1593)))==(INT64_C(0))))
+}else if(((cstr__cmp(t_arg,((int64_t)(intptr_t)sx__str1589)))==(INT64_C(0))))
 {
 t_bi++;
 int64_t sx__w19[3];sx__w19[0]=0;sx__w19[1]=0;sx__w19[2]=0;
@@ -51859,13 +51863,13 @@ int64_t t_dv=*((int64_t*)(intptr_t)(&sx__mp21[1]));
 (void)(std__stdio__puts(((int64_t)(intptr_t)sx__svs528)));
 return(int32_t)(INT64_C(1));
 }}
-}else if(((cstr__starts_with(t_arg,((int64_t)(intptr_t)sx__str1593)))?(((cstr__len(t_arg))>(INT64_C(2)))):(0)))
+}else if(((cstr__starts_with(t_arg,((int64_t)(intptr_t)sx__str1589)))?(((cstr__len(t_arg))>(INT64_C(2)))):(0)))
 {
 (void)(sx__rt_append_f((int64_t*)&t_bind_defines,(int64_t)(cstr__substr(t_arg,INT64_C(2),((cstr__len(t_arg))-(INT64_C(2)))))));
 }else if(cstr__starts_with(t_arg,((int64_t)(intptr_t)sx__str284)))
 {
 (void)(sx__rt_append_f((int64_t*)&t_bind_defines,(int64_t)(cstr__substr(t_arg,INT64_C(3),((cstr__len(t_arg))-(INT64_C(3)))))));
-}else if(((cstr__cmp(t_arg,((int64_t)(intptr_t)sx__str1595)))==(INT64_C(0))))
+}else if(((cstr__cmp(t_arg,((int64_t)(intptr_t)sx__str1590)))==(INT64_C(0))))
 {
 t_bi++;
 int64_t sx__w22[3];sx__w22[0]=0;sx__w22[1]=0;sx__w22[2]=0;
@@ -51879,7 +51883,7 @@ int64_t t_uv=*((int64_t*)(intptr_t)(&sx__mp24[1]));
 (void)(std__stdio__puts(((int64_t)(intptr_t)sx__svs529)));
 return(int32_t)(INT64_C(1));
 }}
-}else if(((cstr__starts_with(t_arg,((int64_t)(intptr_t)sx__str1595)))?(((cstr__len(t_arg))>(INT64_C(2)))):(0)))
+}else if(((cstr__starts_with(t_arg,((int64_t)(intptr_t)sx__str1590)))?(((cstr__len(t_arg))>(INT64_C(2)))):(0)))
 {
 (void)(sx__rt_append_f((int64_t*)&t_bind_undefines,(int64_t)(cstr__substr(t_arg,INT64_C(2),((cstr__len(t_arg))-(INT64_C(2)))))));
 }else if(cstr__starts_with(t_arg,((int64_t)(intptr_t)sx__str882)))
@@ -63516,6 +63520,89 @@ int64_t t_rl=(int64_t)(t_resolved);
 return 0;
 }
 
+static int64_t sema__make_infer_type_node(int64_t t_ctx,int64_t t_name_in,int64_t t_is_ref){
+int64_t t_name=(int64_t)(t_name_in);
+int32_t t_force_ref=(int32_t)(((t_is_ref)==(INT64_C(1))));
+int32_t t_force_mut=(int32_t)(0);
+if(cstr__starts_with(t_name,((int64_t)(intptr_t)sx__str1101)))
+{
+t_name=((int64_t)(intptr_t)((char*)(intptr_t)(t_name)+(INT64_C(8))));
+t_force_ref=(1);
+t_force_mut=(1);
+}else if(cstr__starts_with(t_name,((int64_t)(intptr_t)sx__str1100)))
+{
+t_name=((int64_t)(intptr_t)((char*)(intptr_t)(t_name)+(INT64_C(4))));
+t_force_ref=(1);
+}else if(cstr__starts_with(t_name,((int64_t)(intptr_t)sx__str878)))
+{
+t_name=((int64_t)(intptr_t)((char*)(intptr_t)(t_name)+(INT64_C(4))));
+t_force_mut=(1);
+}
+int64_t t_named=(int64_t)(parser__make_node((*(int64_t*)((char*)(intptr_t)(t_ctx)+288)),(100),INT64_C(0)));
+(void)(parser__node_store_string_slot((int64_t)(intptr_t)((char*)(intptr_t)(t_named)+16),t_name));
+int64_t t_cur=(int64_t)(t_named);
+if(t_force_ref)
+{
+int64_t t_r=(int64_t)(parser__make_node((*(int64_t*)((char*)(intptr_t)(t_ctx)+288)),(101),INT64_C(0)));
+sx__parser__node_store_slot__GENMONO__ref_parser__Node((int64_t)(intptr_t)((char*)(intptr_t)(t_r)+16),t_cur);
+(void)(((void)0));
+t_cur=(t_r);
+}
+if(t_force_mut)
+{
+int64_t t_m=(int64_t)(parser__make_node((*(int64_t*)((char*)(intptr_t)(t_ctx)+288)),(102),INT64_C(0)));
+sx__parser__node_store_slot__GENMONO__ref_parser__Node((int64_t)(intptr_t)((char*)(intptr_t)(t_m)+16),t_cur);
+(void)(((void)0));
+t_cur=(t_m);
+}
+return(int64_t)(t_cur);
+}
+
+static int64_t sema__infer_call_ret_node(int64_t t_ctx,int64_t t_expr){
+if(((((t_expr)==(0)))?(1):((((*(int64_t*)((char*)(intptr_t)(t_expr)+0)))!=((71))))))
+{
+return(int64_t)(0);
+}
+int64_t t_fn_node=(int64_t)(sema__resolve_called_fn(t_ctx,parser__call_callee(t_expr)));
+if(((t_fn_node)==(0)))
+{
+return(int64_t)(0);
+}
+if((((((*(int64_t*)((char*)(intptr_t)(t_fn_node)+0)))==((1))))?(1):((((*(int64_t*)((char*)(intptr_t)(t_fn_node)+0)))==((48))))))
+{
+return(int64_t)((int64_t)((*(int64_t*)((char*)(intptr_t)(t_fn_node)+48))));
+}
+if((((*(int64_t*)((char*)(intptr_t)(t_fn_node)+0)))==((7))))
+{
+return(int64_t)((int64_t)((*(int64_t*)((char*)(intptr_t)(t_fn_node)+56))));
+}
+return(int64_t)(0);
+}
+
+static int64_t sema__infer_arg_is_ref(int64_t t_ctx,int64_t t_arg){
+if(((sema__expr_is_ref_value(t_ctx,t_arg))==(INT64_C(1))))
+{
+return(int64_t)(INT64_C(1));
+}
+if(((((t_arg)!=(0)))?((((*(int64_t*)((char*)(intptr_t)(t_arg)+0)))==((63)))):(0)))
+{
+int64_t t_tn=(int64_t)(sema__scope_lookup_type_node(t_ctx,parser__node_str_raw((*(int64_t*)((char*)(intptr_t)(t_arg)+16)))));
+if(((((t_tn)!=(0)))?(((sema__sema_ty_is_ref(t_tn))==(INT64_C(1)))):(0)))
+{
+return(int64_t)(INT64_C(1));
+}
+}
+if(((((t_arg)!=(0)))?((((*(int64_t*)((char*)(intptr_t)(t_arg)+0)))==((71)))):(0)))
+{
+int64_t t_rt=(int64_t)(sema__infer_call_ret_node(t_ctx,t_arg));
+if(((((t_rt)!=(0)))?(((sema__sema_ty_is_ref(t_rt))==(INT64_C(1)))):(0)))
+{
+return(int64_t)(INT64_C(1));
+}
+}
+return(int64_t)(INT64_C(0));
+}
+
 static int64_t sema__infer_targ_for_tparam(int64_t t_ctx,int64_t t_tparam_name,int64_t t_fn_params,int64_t t_cargs){
 if(((t_fn_params)==(0)))
 {
@@ -63556,9 +63643,8 @@ int64_t t_arg_node=(int64_t)((int64_t)(t_ca));
 int64_t t_resolved_tn=(int64_t)(sema__resolve_arg_originating_type(t_ctx,t_arg_node));
 if(((((((t_resolved_tn)!=(0)))?((!(cstr__eql(t_resolved_tn,((int64_t)(intptr_t)sx__str0))))):(0)))?((!(cstr__eql(t_resolved_tn,((int64_t)(intptr_t)sx__str12))))):(0)))
 {
-int64_t t_out=(int64_t)(parser__make_node((*(int64_t*)((char*)(intptr_t)(t_ctx)+288)),(100),INT64_C(0)));
-(void)(parser__node_store_string_slot((int64_t)(intptr_t)((char*)(intptr_t)(t_out)+16),t_resolved_tn));
-return(int64_t)(t_out);
+int64_t t_is_ref=(int64_t)(sema__infer_arg_is_ref(t_ctx,t_arg_node));
+return(int64_t)(sema__make_infer_type_node(t_ctx,t_resolved_tn,t_is_ref));
 }
 }else{
 }}
@@ -63593,10 +63679,36 @@ break;
 if(((((t_cur)!=(0)))?((((*(int64_t*)((char*)(intptr_t)(t_cur)+0)))==((63)))):(0)))
 {
 int64_t t_ident_name=(int64_t)(parser__node_str_raw((*(int64_t*)((char*)(intptr_t)(t_cur)+16))));
+int64_t t_ident_ty=(int64_t)(sema__scope_lookup_type_node(t_ctx,t_ident_name));
+if(((t_ident_ty)!=(0)))
+{
+int64_t t_from_node=(int64_t)(sema__extract_type_name(t_ident_ty));
+if(((((((t_from_node)!=(0)))?((!(cstr__eql(t_from_node,((int64_t)(intptr_t)sx__str0))))):(0)))?((!(cstr__eql(t_from_node,((int64_t)(intptr_t)sx__str12))))):(0)))
+{
+return(int64_t)(t_from_node);
+}
+}
+int64_t t_declared=(int64_t)(sema__infer_expr_scope_type_name(t_ctx,t_cur));
+if(((((((t_declared)!=(0)))?((!(cstr__eql(t_declared,((int64_t)(intptr_t)sx__str0))))):(0)))?((!(cstr__eql(t_declared,((int64_t)(intptr_t)sx__str12))))):(0)))
+{
+return(int64_t)(t_declared);
+}
 int64_t t_origin=(int64_t)(sema__lookup_var_origin(t_ctx,t_ident_name));
 if(((t_origin)!=(0)))
 {
 return(int64_t)(t_origin);
+}
+}
+if(((((t_cur)!=(0)))?((((*(int64_t*)((char*)(intptr_t)(t_cur)+0)))==((71)))):(0)))
+{
+int64_t t_rt=(int64_t)(sema__infer_call_ret_node(t_ctx,t_cur));
+if(((t_rt)!=(0)))
+{
+int64_t t_tn=(int64_t)(sema__extract_type_name(t_rt));
+if(((((((t_tn)!=(0)))?((!(cstr__eql(t_tn,((int64_t)(intptr_t)sx__str0))))):(0)))?((!(cstr__eql(t_tn,((int64_t)(intptr_t)sx__str12))))):(0)))
+{
+return(int64_t)(t_tn);
+}
 }
 }
 int64_t t_from_expr=(int64_t)(sema__extract_constructor_namespace(t_ctx,t_arg));
@@ -100022,6 +100134,19 @@ return 0;
 return 0;
 }
 
+static int32_t alt_codegen__capture_cond(int64_t t_ctx,int64_t t_node,int64_t t_conds,int64_t t_pres){
+int64_t t_saved_sb=(int64_t)((*(int64_t*)((char*)(intptr_t)(t_ctx)+0)));
+int64_t t_pre_sb=(int64_t)(builder__StringBuilder__new());
+*(int64_t*)(intptr_t)((int64_t)(intptr_t)((char*)(intptr_t)(t_ctx)+0))=(int64_t)(t_pre_sb);
+int64_t t_cond=(int64_t)(alt_codegen__gen_expr(t_ctx,t_node));
+*(int64_t*)(intptr_t)((int64_t)(intptr_t)((char*)(intptr_t)(t_ctx)+0))=(int64_t)(t_saved_sb);
+(void)(sx__rt_append_f((int64_t*)&t_conds,(int64_t)(t_cond)));
+(void)(sx__rt_append_f((int64_t*)&t_pres,(int64_t)(alt_codegen__cc_sb_build_cstr(t_ctx,t_pre_sb))));
+(void)(builder__StringBuilder__free(t_pre_sb));
+(void)(alt_codegen__cc_expr_drain(t_ctx));
+return 0;
+}
+
 static int32_t alt_codegen__gen_if_stmt(int64_t t_ctx,int64_t t_stmt){
 if((((*(int64_t*)((char*)(intptr_t)(t_ctx)+564)))!=(0)))
 {
@@ -100029,13 +100154,11 @@ int64_t t_plan=(int64_t)((int64_t)((*(int64_t*)((char*)(intptr_t)(t_ctx)+564))))
 (void)(alt_codegen__cc_autovec_select(t_ctx,t_plan,t_stmt));
 return 0;
 }
-int64_t t_cond=(int64_t)(alt_codegen__gen_expr(t_ctx,(int64_t)((*(int64_t*)((char*)(intptr_t)(t_stmt)+16)))));
-int64_t t_buf=(int64_t)((int64_t)(std__allocators__ScopedArena__alloc_or_none((*(int64_t*)((char*)(intptr_t)(t_ctx)+8)),(uint64_t)(INT64_C(4096)))));
-(void)(snprintf((char*)(intptr_t)(t_buf),(size_t)(INT64_C(4096)),(const char*)(intptr_t)(sx__str2653),(t_cond)));
-(void)(alt_codegen__emit(t_ctx,t_buf));
-(void)(alt_codegen__emitln(t_ctx,((int64_t)(intptr_t)sx__str1273)));
-(void)(alt_codegen__cc_expr_drain(t_ctx));
-(void)(alt_codegen__gen_stmts(t_ctx,(int64_t)((*(int64_t*)((char*)(intptr_t)(t_stmt)+24)))));
+int64_t sx__gv1=sx__mem__new__GENMONO__ref_u8();
+int64_t t_conds=(int64_t)(sx__gv1);
+int64_t sx__gv2=sx__mem__new__GENMONO__ref_u8();
+int64_t t_pres=(int64_t)(sx__gv2);
+(void)(alt_codegen__capture_cond(t_ctx,(int64_t)((*(int64_t*)((char*)(intptr_t)(t_stmt)+16))),t_conds,t_pres));
 int64_t t_elif_list=(int64_t)((int64_t)((*(int64_t*)((char*)(intptr_t)(t_stmt)+32))));
 if(((((t_elif_list)!=(0)))?(((((int64_t)(t_elif_list)==0?0:(*(int64_t*)((char*)(intptr_t)((int64_t)(t_elif_list))+8))))>(INT64_C(0)))):(0)))
 {
@@ -100046,22 +100169,85 @@ if(((t_ei)>=(t_elen)))
 {
 break;
 }
-int64_t sx__w0[3];sx__w0[0]=0;sx__w0[1]=0;sx__w0[2]=0;
-int64_t* sx__lh1=(int64_t*)(intptr_t)((int64_t)(t_elif_list));int64_t sx__li1=(int64_t)((uint64_t)(t_ei));if(sx__lh1&&sx__li1>=0&&sx__li1<sx__lh1[1]){int64_t* sx__ld1=(int64_t*)(intptr_t)sx__lh1[0];sx__w0[0]=1;sx__w0[1]=sx__ld1[sx__li1];}
-int64_t t_ep_opt=(int64_t)(((int64_t)(intptr_t)sx__w0));
-{int64_t* sx__mp2=(int64_t*)(intptr_t)(t_ep_opt);if(sx__mp2[0]!=0)
+int64_t sx__w2[3];sx__w2[0]=0;sx__w2[1]=0;sx__w2[2]=0;
+int64_t* sx__lh3=(int64_t*)(intptr_t)((int64_t)(t_elif_list));int64_t sx__li3=(int64_t)((uint64_t)(t_ei));if(sx__lh3&&sx__li3>=0&&sx__li3<sx__lh3[1]){int64_t* sx__ld3=(int64_t*)(intptr_t)sx__lh3[0];sx__w2[0]=1;sx__w2[1]=sx__ld3[sx__li3];}
+int64_t t_ep_opt=(int64_t)(((int64_t)(intptr_t)sx__w2));
+{int64_t* sx__mp4=(int64_t*)(intptr_t)(t_ep_opt);if(sx__mp4[0]!=0)
 {
-int64_t t_ep=*((int64_t*)(intptr_t)(&sx__mp2[1]));
-int64_t t_econd=(int64_t)(alt_codegen__gen_expr(t_ctx,(int64_t)((*(int64_t*)((char*)(intptr_t)((int64_t)(t_ep))+16)))));
+int64_t t_ep=*((int64_t*)(intptr_t)(&sx__mp4[1]));
+(void)(alt_codegen__capture_cond(t_ctx,(int64_t)((*(int64_t*)((char*)(intptr_t)((int64_t)(t_ep))+16))),t_conds,t_pres));
+}else{
+}}
+t_ei++;
+}
+}
+int64_t t_plen=(int64_t)((int64_t)((t_pres==0?0:(*(int64_t*)((char*)(intptr_t)(t_pres)+8)))));
+int64_t t_pi=(int64_t)(INT64_C(0));
+for(;;){
+if(((t_pi)>=(t_plen)))
+{
+break;
+}
+int64_t sx__w5[3];sx__w5[0]=0;sx__w5[1]=0;sx__w5[2]=0;
+int64_t* sx__lh6=(int64_t*)(intptr_t)(t_pres);int64_t sx__li6=(int64_t)((uint64_t)(t_pi));if(sx__lh6&&sx__li6>=0&&sx__li6<sx__lh6[1]){int64_t* sx__ld6=(int64_t*)(intptr_t)sx__lh6[0];sx__w5[0]=1;sx__w5[1]=sx__ld6[sx__li6];}
+int64_t t_p_opt=(int64_t)(((int64_t)(intptr_t)sx__w5));
+{int64_t* sx__mp7=(int64_t*)(intptr_t)(t_p_opt);if(sx__mp7[0]!=0)
+{
+int64_t t_p=*((int64_t*)(intptr_t)(&sx__mp7[1]));
+(void)(alt_codegen__emit(t_ctx,(int64_t)(t_p)));
+}else{
+}}
+t_pi++;
+}
+int64_t sx__w8[3];sx__w8[0]=0;sx__w8[1]=0;sx__w8[2]=0;
+int64_t* sx__lh9=(int64_t*)(intptr_t)(t_conds);int64_t sx__li9=(int64_t)((uint64_t)(INT64_C(0)));if(sx__lh9&&sx__li9>=0&&sx__li9<sx__lh9[1]){int64_t* sx__ld9=(int64_t*)(intptr_t)sx__lh9[0];sx__w8[0]=1;sx__w8[1]=sx__ld9[sx__li9];}
+int64_t t_c0_opt=(int64_t)(((int64_t)(intptr_t)sx__w8));
+int64_t t_cond=(int64_t)(((int64_t)(intptr_t)sx__str967));
+{int64_t* sx__mp10=(int64_t*)(intptr_t)(t_c0_opt);if(sx__mp10[0]!=0)
+{
+int64_t t_c0=*((int64_t*)(intptr_t)(&sx__mp10[1]));
+t_cond=((int64_t)(t_c0));
+}else{
+}}
+int64_t t_buf=(int64_t)((int64_t)(std__allocators__ScopedArena__alloc_or_none((*(int64_t*)((char*)(intptr_t)(t_ctx)+8)),(uint64_t)(INT64_C(4096)))));
+(void)(snprintf((char*)(intptr_t)(t_buf),(size_t)(INT64_C(4096)),(const char*)(intptr_t)(sx__str2653),(t_cond)));
+(void)(alt_codegen__emit(t_ctx,t_buf));
+(void)(alt_codegen__emitln(t_ctx,((int64_t)(intptr_t)sx__str1273)));
+(void)(alt_codegen__gen_stmts(t_ctx,(int64_t)((*(int64_t*)((char*)(intptr_t)(t_stmt)+24)))));
+if(((((t_elif_list)!=(0)))?(((((int64_t)(t_elif_list)==0?0:(*(int64_t*)((char*)(intptr_t)((int64_t)(t_elif_list))+8))))>(INT64_C(0)))):(0)))
+{
+int64_t t_elen2=(int64_t)((int64_t)(((int64_t)(t_elif_list)==0?0:(*(int64_t*)((char*)(intptr_t)((int64_t)(t_elif_list))+8)))));
+int64_t t_ei2=(int64_t)(INT64_C(0));
+for(;;){
+if(((t_ei2)>=(t_elen2)))
+{
+break;
+}
+int64_t sx__w11[3];sx__w11[0]=0;sx__w11[1]=0;sx__w11[2]=0;
+int64_t* sx__lh12=(int64_t*)(intptr_t)((int64_t)(t_elif_list));int64_t sx__li12=(int64_t)((uint64_t)(t_ei2));if(sx__lh12&&sx__li12>=0&&sx__li12<sx__lh12[1]){int64_t* sx__ld12=(int64_t*)(intptr_t)sx__lh12[0];sx__w11[0]=1;sx__w11[1]=sx__ld12[sx__li12];}
+int64_t t_ep_opt2=(int64_t)(((int64_t)(intptr_t)sx__w11));
+{int64_t* sx__mp13=(int64_t*)(intptr_t)(t_ep_opt2);if(sx__mp13[0]!=0)
+{
+int64_t t_ep2=*((int64_t*)(intptr_t)(&sx__mp13[1]));
+int64_t t_ci=(int64_t)(((t_ei2)+(INT64_C(1))));
+int64_t sx__w14[3];sx__w14[0]=0;sx__w14[1]=0;sx__w14[2]=0;
+int64_t* sx__lh15=(int64_t*)(intptr_t)(t_conds);int64_t sx__li15=(int64_t)((uint64_t)(t_ci));if(sx__lh15&&sx__li15>=0&&sx__li15<sx__lh15[1]){int64_t* sx__ld15=(int64_t*)(intptr_t)sx__lh15[0];sx__w14[0]=1;sx__w14[1]=sx__ld15[sx__li15];}
+int64_t t_econd_opt=(int64_t)(((int64_t)(intptr_t)sx__w14));
+int64_t t_econd=(int64_t)(((int64_t)(intptr_t)sx__str967));
+{int64_t* sx__mp16=(int64_t*)(intptr_t)(t_econd_opt);if(sx__mp16[0]!=0)
+{
+int64_t t_ec=*((int64_t*)(intptr_t)(&sx__mp16[1]));
+t_econd=((int64_t)(t_ec));
+}else{
+}}
 int64_t t_eb=(int64_t)((int64_t)(std__allocators__ScopedArena__alloc_or_none((*(int64_t*)((char*)(intptr_t)(t_ctx)+8)),(uint64_t)(INT64_C(4096)))));
 (void)(snprintf((char*)(intptr_t)(t_eb),(size_t)(INT64_C(4096)),(const char*)(intptr_t)(sx__str2654),(t_econd)));
 (void)(alt_codegen__emit(t_ctx,t_eb));
 (void)(alt_codegen__emitln(t_ctx,((int64_t)(intptr_t)sx__str1273)));
-(void)(alt_codegen__cc_expr_drain(t_ctx));
-(void)(alt_codegen__gen_stmts(t_ctx,(int64_t)((*(int64_t*)((char*)(intptr_t)((int64_t)(t_ep))+24)))));
+(void)(alt_codegen__gen_stmts(t_ctx,(int64_t)((*(int64_t*)((char*)(intptr_t)((int64_t)(t_ep2))+24)))));
 }else{
 }}
-t_ei++;
+t_ei2++;
 }
 }
 if((((*(int64_t*)((char*)(intptr_t)(t_stmt)+40)))!=(INT64_C(0))))
@@ -104512,7 +104698,7 @@ int64_t t_dv=*((int64_t*)(intptr_t)(&sx__mp21[1]));
 int64_t t_def_spec=(int64_t)((int64_t)(t_dv));
 if((!(defines__add_spec(std__str__from_cstr(t_def_spec)))))
 {
-(void)(printf((const char*)(intptr_t)sx__str3189,(t_def_spec)));
+(void)(printf((const char*)(intptr_t)sx__str3197,(t_def_spec)));
 return(int32_t)(0);
 }
 }else{
@@ -104529,7 +104715,7 @@ return(int32_t)(0);
 int64_t t_def_spec=(int64_t)(cstr__substr(t_arg,INT64_C(3),((cstr__len(t_arg))-(INT64_C(3)))));
 if((!(defines__add_spec(std__str__from_cstr(t_def_spec)))))
 {
-(void)(printf((const char*)(intptr_t)sx__str3191,(t_arg)));
+(void)(printf((const char*)(intptr_t)sx__str3199,(t_arg)));
 return(int32_t)(0);
 }
 t_arg_i++;
@@ -104537,7 +104723,7 @@ t_arg_i++;
 {
 *(int32_t*)(intptr_t)((int64_t)(intptr_t)((char*)(intptr_t)(t_opts)+4))=(int32_t)(1);
 t_arg_i++;
-}else if(((cstr__cmp(t_arg,((int64_t)(intptr_t)sx__str3192)))==(INT64_C(0))))
+}else if(((cstr__cmp(t_arg,((int64_t)(intptr_t)sx__str3188)))==(INT64_C(0))))
 {
 *(int32_t*)(intptr_t)((int64_t)(intptr_t)((char*)(intptr_t)(t_opts)+8))=(int32_t)(1);
 t_arg_i++;
@@ -104617,7 +104803,7 @@ if(((cstr__cmp(t_compiler_str,((int64_t)(intptr_t)sx__str0)))!=(INT64_C(0))))
 *(int64_t*)(intptr_t)((int64_t)(intptr_t)((char*)(intptr_t)(t_opts)+80))=(int64_t)(t_compiler_str);
 }
 t_arg_i++;
-}else if(cstr__starts_with(t_arg,((int64_t)(intptr_t)sx__str1588)))
+}else if(cstr__starts_with(t_arg,((int64_t)(intptr_t)sx__str1585)))
 {
 int64_t t_tgt_len=(int64_t)((((int64_t)(cstr__len(t_arg)))-(INT64_C(8))));
 if(((t_tgt_len)<=(INT64_C(0))))
@@ -104627,7 +104813,7 @@ return(int32_t)(0);
 }
 *(int64_t*)(intptr_t)((int64_t)(intptr_t)((char*)(intptr_t)(t_opts)+112))=(int64_t)(cstr__substr(t_arg,INT64_C(8),t_tgt_len));
 t_arg_i++;
-}else if(cstr__starts_with(t_arg,((int64_t)(intptr_t)sx__str3194)))
+}else if(cstr__starts_with(t_arg,((int64_t)(intptr_t)sx__str3189)))
 {
 int64_t t_tgt_len=(int64_t)((((int64_t)(cstr__len(t_arg)))-(INT64_C(12))));
 if(((t_tgt_len)>(INT64_C(0))))
@@ -104635,7 +104821,7 @@ if(((t_tgt_len)>(INT64_C(0))))
 *(int64_t*)(intptr_t)((int64_t)(intptr_t)((char*)(intptr_t)(t_opts)+104))=(int64_t)(cstr__substr(t_arg,INT64_C(12),t_tgt_len));
 }
 t_arg_i++;
-}else if(cstr__starts_with(t_arg,((int64_t)(intptr_t)sx__str3195)))
+}else if(cstr__starts_with(t_arg,((int64_t)(intptr_t)sx__str3190)))
 {
 int64_t t_rt_len=(int64_t)((((int64_t)(cstr__len(t_arg)))-(INT64_C(9))));
 if(((t_rt_len)<=(INT64_C(0))))
@@ -104646,11 +104832,11 @@ return(int32_t)(0);
 *(int64_t*)(intptr_t)((int64_t)(intptr_t)((char*)(intptr_t)(t_opts)+120))=(int64_t)(cstr__substr(t_arg,INT64_C(9),t_rt_len));
 if(((((cstr__cmp((*(int64_t*)((char*)(intptr_t)(t_opts)+120)),((int64_t)(intptr_t)sx__str482)))!=(INT64_C(0))))?(((cstr__cmp((*(int64_t*)((char*)(intptr_t)(t_opts)+120)),((int64_t)(intptr_t)sx__str481)))!=(INT64_C(0)))):(0)))
 {
-(void)(printf((const char*)(intptr_t)sx__str3197,((*(int64_t*)((char*)(intptr_t)(t_opts)+120)))));
+(void)(printf((const char*)(intptr_t)sx__str3202,((*(int64_t*)((char*)(intptr_t)(t_opts)+120)))));
 return(int32_t)(0);
 }
 t_arg_i++;
-}else if(cstr__starts_with(t_arg,((int64_t)(intptr_t)sx__str3198)))
+}else if(cstr__starts_with(t_arg,((int64_t)(intptr_t)sx__str3191)))
 {
 int64_t t_xwin_len=(int64_t)((((int64_t)(cstr__len(t_arg)))-(INT64_C(6))));
 if(((t_xwin_len)<=(INT64_C(0))))
@@ -104664,7 +104850,7 @@ t_arg_i++;
 {
 *(int32_t*)(intptr_t)((int64_t)(intptr_t)((char*)(intptr_t)(t_opts)+136))=(int32_t)(1);
 t_arg_i++;
-}else if(cstr__starts_with(t_arg,((int64_t)(intptr_t)sx__str3200)))
+}else if(cstr__starts_with(t_arg,((int64_t)(intptr_t)sx__str3192)))
 {
 int64_t t_n=(int64_t)((((int64_t)(cstr__len(t_arg)))-(INT64_C(12))));
 if(((t_n)>(INT64_C(0))))
@@ -104672,7 +104858,7 @@ if(((t_n)>(INT64_C(0))))
 *(int64_t*)(intptr_t)((int64_t)(intptr_t)((char*)(intptr_t)(t_opts)+140))=(int64_t)(cstr__substr(t_arg,INT64_C(12),t_n));
 }
 t_arg_i++;
-}else if(cstr__starts_with(t_arg,((int64_t)(intptr_t)sx__str3201)))
+}else if(cstr__starts_with(t_arg,((int64_t)(intptr_t)sx__str3193)))
 {
 int64_t t_n=(int64_t)((((int64_t)(cstr__len(t_arg)))-(INT64_C(9))));
 if(((t_n)>(INT64_C(0))))
@@ -104680,7 +104866,7 @@ if(((t_n)>(INT64_C(0))))
 *(int64_t*)(intptr_t)((int64_t)(intptr_t)((char*)(intptr_t)(t_opts)+148))=(int64_t)(cstr__substr(t_arg,INT64_C(9),t_n));
 }
 t_arg_i++;
-}else if(cstr__starts_with(t_arg,((int64_t)(intptr_t)sx__str3202)))
+}else if(cstr__starts_with(t_arg,((int64_t)(intptr_t)sx__str3194)))
 {
 int64_t t_n=(int64_t)((((int64_t)(cstr__len(t_arg)))-(INT64_C(8))));
 if(((t_n)>(INT64_C(0))))
@@ -104688,7 +104874,7 @@ if(((t_n)>(INT64_C(0))))
 *(int64_t*)(intptr_t)((int64_t)(intptr_t)((char*)(intptr_t)(t_opts)+156))=(int64_t)(cstr__substr(t_arg,INT64_C(8),t_n));
 }
 t_arg_i++;
-}else if(cstr__starts_with(t_arg,((int64_t)(intptr_t)sx__str3203)))
+}else if(cstr__starts_with(t_arg,((int64_t)(intptr_t)sx__str3195)))
 {
 int64_t t_shim_len=(int64_t)((((int64_t)(cstr__len(t_arg)))-(INT64_C(11))));
 if(((t_shim_len)>(INT64_C(0))))
@@ -104696,7 +104882,7 @@ if(((t_shim_len)>(INT64_C(0))))
 *(int64_t*)(intptr_t)((int64_t)(intptr_t)((char*)(intptr_t)(t_opts)+164))=(int64_t)(cstr__substr(t_arg,INT64_C(11),t_shim_len));
 }
 t_arg_i++;
-}else if(cstr__starts_with(t_arg,((int64_t)(intptr_t)sx__str1592)))
+}else if(cstr__starts_with(t_arg,((int64_t)(intptr_t)sx__str1588)))
 {
 int64_t t_path_str=(int64_t)(cstr__substr(t_arg,INT64_C(10),((cstr__len(t_arg))-(INT64_C(10)))));
 if(((cstr__cmp(t_path_str,((int64_t)(intptr_t)sx__str0)))==(INT64_C(0))))
@@ -107154,7 +107340,7 @@ int64_t t_spec_val=*((int64_t*)(intptr_t)(&sx__mp5[1]));
 int64_t t_def_spec=(int64_t)((int64_t)(t_spec_val));
 if((!(defines__add_spec(std__str__from_cstr(t_def_spec)))))
 {
-(void)(printf((const char*)(intptr_t)sx__str3189,(t_def_spec)));
+(void)(printf((const char*)(intptr_t)sx__str3197,(t_def_spec)));
 return(int32_t)(INT64_C(1));
 }
 t_input_arg_i=(((t_spec_i)+(INT64_C(1))));
@@ -107167,7 +107353,7 @@ return(int32_t)(INT64_C(1));
 int64_t t_def_spec=(int64_t)(cstr__substr(t_pre_arg,INT64_C(3),((cstr__len(t_pre_arg))-(INT64_C(3)))));
 if((!(defines__add_spec(std__str__from_cstr(t_def_spec)))))
 {
-(void)(printf((const char*)(intptr_t)sx__str3191,(t_pre_arg)));
+(void)(printf((const char*)(intptr_t)sx__str3199,(t_pre_arg)));
 return(int32_t)(INT64_C(1));
 }
 t_input_arg_i++;
