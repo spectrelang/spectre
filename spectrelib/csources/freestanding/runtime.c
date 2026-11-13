@@ -1911,7 +1911,8 @@ __declspec(dllimport) void *__stdcall CommandLineToArgvW(const unsigned short *,
 __declspec(dllimport) void *__stdcall LocalFree(void *);
 __declspec(dllimport) DWORD __stdcall GetModuleFileNameA(HMODULE, char *,
                                                          DWORD);
-__declspec(dllimport) int __stdcall WSAGetLastError(void);
+__declspec(dllimport) HMODULE __stdcall LoadLibraryA(const char *);
+__declspec(dllimport) void *__stdcall GetProcAddress(HMODULE, const char *);
 
 typedef void *SOCKET;
 typedef struct {
@@ -1927,43 +1928,62 @@ typedef struct {
   unsigned short iMaxUdpDg;
   char *lpVendorInfo;
 } SX_WSADATA;
-__declspec(dllimport) int __stdcall WSAStartup(unsigned short, SX_WSADATA *);
-__declspec(dllimport) int __stdcall WSACleanup(void);
-#define SX_WS(name) sx_ws2_##name
-#define SX_WSA(name) __attribute__((dllimport)) name
-__attribute__((dllimport))
-SOCKET __stdcall SX_WS(socket)(int, int, int) __asm__("socket");
-__attribute__((dllimport)) int __stdcall SX_WS(bind)(SOCKET,
-                                                     const SX_SOCKADDR *,
-                                                     int) __asm__("bind");
-__attribute__((dllimport)) int __stdcall SX_WS(listen)(SOCKET,
-                                                       int) __asm__("listen");
-__attribute__((dllimport))
-SOCKET __stdcall SX_WS(accept)(SOCKET, SX_SOCKADDR *, int *) __asm__("accept");
-__attribute__((dllimport)) int __stdcall SX_WS(connect)(SOCKET,
-                                                        const SX_SOCKADDR *,
-                                                        int) __asm__("connect");
-__attribute__((dllimport)) int __stdcall SX_WS(send)(SOCKET, const char *, int,
-                                                     int) __asm__("send");
-__attribute__((dllimport)) int __stdcall SX_WS(recv)(SOCKET, char *, int,
-                                                     int) __asm__("recv");
-__attribute__((dllimport)) int __stdcall SX_WS(sendto)(SOCKET, const char *,
-                                                       int, int,
-                                                       const SX_SOCKADDR *,
-                                                       int) __asm__("sendto");
-__attribute__((dllimport)) int __stdcall SX_WS(recvfrom)(
-    SOCKET, char *, int, int, SX_SOCKADDR *, int *) __asm__("recvfrom");
-__attribute__((dllimport)) int __stdcall SX_WS(setsockopt)(
-    SOCKET, int, int, const char *, int) __asm__("setsockopt");
-__attribute__((dllimport)) int __stdcall SX_WS(closesocket)(SOCKET) __asm__(
-    "closesocket");
-__declspec(dllimport) unsigned short __stdcall htons(unsigned short);
-__declspec(dllimport) unsigned short __stdcall ntohs(unsigned short);
-__declspec(dllimport) int __stdcall WSAPoll(void *, unsigned long, int);
-__declspec(dllimport) int __stdcall ioctlsocket(SOCKET, long, unsigned long *);
-__declspec(dllimport) int __stdcall BCryptGenRandom(void *, unsigned char *,
-                                                    unsigned long,
-                                                    unsigned long);
+
+/* ws2_32 and bcrypt are optional runtime dependencies.  Resolve their
+ * entry points lazily so programs that never use networking or secure
+ * randomness do not import those DLLs. */
+static void *sx_win_dll_proc(HMODULE *mod, const char *dll, const char *name) {
+  if (!*mod)
+    *mod = LoadLibraryA(dll);
+  if (!*mod)
+    return SX_NULL;
+  return (void *)GetProcAddress(*mod, name);
+}
+
+static HMODULE sx_ws2_mod;
+#define SX_WS2_DECL(ret, name, args)                                           \
+  typedef ret(__stdcall *SX_FN_##name) args;                                   \
+  static SX_FN_##name sx_ws2_##name;
+#define SX_WS2(name)                                                           \
+  (sx_ws2_##name ? sx_ws2_##name                                               \
+                 : (sx_ws2_##name =                                            \
+                        (SX_FN_##name)sx_win_dll_proc(&sx_ws2_mod, "ws2_32.dll", \
+                                                      #name)))
+
+SX_WS2_DECL(int, WSAStartup, (unsigned short, SX_WSADATA *))
+SX_WS2_DECL(int, WSACleanup, (void))
+SX_WS2_DECL(SOCKET, socket, (int, int, int))
+SX_WS2_DECL(int, bind, (SOCKET, const SX_SOCKADDR *, int))
+SX_WS2_DECL(int, listen, (SOCKET, int))
+SX_WS2_DECL(SOCKET, accept, (SOCKET, SX_SOCKADDR *, int *))
+SX_WS2_DECL(int, connect, (SOCKET, const SX_SOCKADDR *, int))
+SX_WS2_DECL(int, send, (SOCKET, const char *, int, int))
+SX_WS2_DECL(int, recv, (SOCKET, char *, int, int))
+SX_WS2_DECL(int, sendto,
+            (SOCKET, const char *, int, int, const SX_SOCKADDR *, int))
+SX_WS2_DECL(int, recvfrom,
+            (SOCKET, char *, int, int, SX_SOCKADDR *, int *))
+SX_WS2_DECL(int, setsockopt, (SOCKET, int, int, const char *, int))
+SX_WS2_DECL(int, closesocket, (SOCKET))
+SX_WS2_DECL(int, WSAPoll, (void *, unsigned long, int))
+SX_WS2_DECL(int, ioctlsocket, (SOCKET, long, unsigned long *))
+
+static HMODULE sx_bcrypt_mod;
+typedef long(__stdcall *SX_FN_BCryptGenRandom)(void *, unsigned char *,
+                                               unsigned long, unsigned long);
+static SX_FN_BCryptGenRandom sx_bcrypt_gen_random;
+
+static SX_FN_BCryptGenRandom sx_bcrypt_random(void) {
+  if (!sx_bcrypt_gen_random)
+    sx_bcrypt_gen_random = (SX_FN_BCryptGenRandom)sx_win_dll_proc(
+        &sx_bcrypt_mod, "bcrypt.dll", "BCryptGenRandom");
+  return sx_bcrypt_gen_random;
+}
+
+unsigned short htons(unsigned short v) {
+  return (unsigned short)((v << 8) | (v >> 8));
+}
+unsigned short ntohs(unsigned short v) { return htons(v); }
 
 typedef struct {
   int fd;
@@ -2505,52 +2525,89 @@ typedef unsigned sx_socklen;
 int socket(int d, int t, int p) {
   static int started = 0;
   if (!started) {
-    SX_WSADATA w;
-    WSAStartup(0x0202, &w);
+    SX_FN_WSAStartup startup = SX_WS2(WSAStartup);
+    if (startup) {
+      SX_WSADATA w;
+      startup(0x0202, &w);
+    }
     started = 1;
   }
-  return (int)(sx_intptr_t)SX_WS(socket)(d, t, p);
+  SX_FN_socket fn = SX_WS2(socket);
+  if (!fn)
+    return -1;
+  return (int)(sx_intptr_t)fn(d, t, p);
 }
 int bind(int fd, const void *addr, sx_socklen len) {
-  return SX_WS(bind)((SOCKET)(sx_intptr_t)fd, (const SX_SOCKADDR *)addr,
-                     (int)len);
+  SX_FN_bind fn = SX_WS2(bind);
+  if (!fn)
+    return -1;
+  return fn((SOCKET)(sx_intptr_t)fd, (const SX_SOCKADDR *)addr, (int)len);
 }
 int listen(int fd, int backlog) {
-  return SX_WS(listen)((SOCKET)(sx_intptr_t)fd, backlog);
+  SX_FN_listen fn = SX_WS2(listen);
+  if (!fn)
+    return -1;
+  return fn((SOCKET)(sx_intptr_t)fd, backlog);
 }
 int accept(int fd, void *addr, sx_socklen *len) {
-  return (int)(sx_intptr_t)SX_WS(accept)((SOCKET)(sx_intptr_t)fd,
-                                         (SX_SOCKADDR *)addr, (int *)len);
+  SX_FN_accept fn = SX_WS2(accept);
+  if (!fn)
+    return -1;
+  return (int)(sx_intptr_t)fn((SOCKET)(sx_intptr_t)fd, (SX_SOCKADDR *)addr,
+                              (int *)len);
 }
 int connect(int fd, const void *addr, sx_socklen len) {
-  return SX_WS(connect)((SOCKET)(sx_intptr_t)fd, (const SX_SOCKADDR *)addr,
-                        (int)len);
+  SX_FN_connect fn = SX_WS2(connect);
+  if (!fn)
+    return -1;
+  return fn((SOCKET)(sx_intptr_t)fd, (const SX_SOCKADDR *)addr, (int)len);
 }
 sx_ssize_t send(int fd, const void *buf, sx_size_t len, int flags) {
-  return SX_WS(send)((SOCKET)(sx_intptr_t)fd, (const char *)buf, (int)len,
-                     flags);
+  SX_FN_send fn = SX_WS2(send);
+  if (!fn)
+    return -1;
+  return fn((SOCKET)(sx_intptr_t)fd, (const char *)buf, (int)len, flags);
 }
 sx_ssize_t recv(int fd, void *buf, sx_size_t len, int flags) {
-  return SX_WS(recv)((SOCKET)(sx_intptr_t)fd, (char *)buf, (int)len, flags);
+  SX_FN_recv fn = SX_WS2(recv);
+  if (!fn)
+    return -1;
+  return fn((SOCKET)(sx_intptr_t)fd, (char *)buf, (int)len, flags);
 }
 int sendto(int fd, const void *buf, sx_size_t len, int flags, const void *addr,
            sx_socklen alen) {
-  return SX_WS(sendto)((SOCKET)(sx_intptr_t)fd, (const char *)buf, (int)len,
-                       flags, (const SX_SOCKADDR *)addr, (int)alen);
+  SX_FN_sendto fn = SX_WS2(sendto);
+  if (!fn)
+    return -1;
+  return fn((SOCKET)(sx_intptr_t)fd, (const char *)buf, (int)len, flags,
+            (const SX_SOCKADDR *)addr, (int)alen);
 }
 int recvfrom(int fd, void *buf, sx_size_t len, int flags, void *addr,
              sx_socklen *alen) {
-  return SX_WS(recvfrom)((SOCKET)(sx_intptr_t)fd, (char *)buf, (int)len, flags,
-                         (SX_SOCKADDR *)addr, (int *)alen);
+  SX_FN_recvfrom fn = SX_WS2(recvfrom);
+  if (!fn)
+    return -1;
+  return fn((SOCKET)(sx_intptr_t)fd, (char *)buf, (int)len, flags,
+            (SX_SOCKADDR *)addr, (int *)alen);
 }
 int setsockopt(int fd, int level, int opt, const void *val, sx_socklen len) {
-  return SX_WS(setsockopt)((SOCKET)(sx_intptr_t)fd, level, opt,
-                           (const char *)val, (int)len);
+  SX_FN_setsockopt fn = SX_WS2(setsockopt);
+  if (!fn)
+    return -1;
+  return fn((SOCKET)(sx_intptr_t)fd, level, opt, (const char *)val, (int)len);
 }
 int poll(void *fds, unsigned long n, int timeout) {
-  return WSAPoll(fds, n, timeout);
+  SX_FN_WSAPoll fn = SX_WS2(WSAPoll);
+  if (!fn)
+    return -1;
+  return fn(fds, n, timeout);
 }
-int closesocket(int fd) { return SX_WS(closesocket)((SOCKET)(sx_intptr_t)fd); }
+int closesocket(int fd) {
+  SX_FN_closesocket fn = SX_WS2(closesocket);
+  if (!fn)
+    return -1;
+  return fn((SOCKET)(sx_intptr_t)fd);
+}
 int getsockopt(int fd, int level, int opt, void *val, sx_socklen *len) {
   (void)fd;
   (void)level;
@@ -2804,6 +2861,26 @@ int sx_poll(void *fds, unsigned long n, int timeout) {
 }
 unsigned short sx_htons(unsigned short v) { return htons(v); }
 unsigned short sx_ntohs(unsigned short v) { return ntohs(v); }
+#if defined(SX_WINDOWS)
+int sx_wsa_startup(unsigned short version, void *data) {
+  SX_FN_WSAStartup fn = SX_WS2(WSAStartup);
+  if (!fn)
+    return -1;
+  return fn(version, (SX_WSADATA *)data);
+}
+int sx_wsa_cleanup(void) {
+  SX_FN_WSACleanup fn = SX_WS2(WSACleanup);
+  if (!fn)
+    return -1;
+  return fn();
+}
+int sx_ioctlsocket(unsigned long long fd, int cmd, unsigned int *argp) {
+  SX_FN_ioctlsocket fn = SX_WS2(ioctlsocket);
+  if (!fn)
+    return -1;
+  return fn((SOCKET)(sx_intptr_t)fd, (long)cmd, (unsigned long *)argp);
+}
+#endif
 #if defined(SX_LINUX)
 int sx_closesocket(int fd) { return close(fd); }
 #else
@@ -2915,7 +2992,8 @@ sx_i64 __sx_sys_nanosleep_us(sx_i64 us) {
   return 0;
 }
 sx_i64 __sx_sys_getrandom(void *buf, sx_size_t n) {
-  if (BCryptGenRandom(SX_NULL, (unsigned char *)buf, (unsigned long)n, 2) == 0)
+  SX_FN_BCryptGenRandom fn = sx_bcrypt_random();
+  if (fn && fn(SX_NULL, (unsigned char *)buf, (unsigned long)n, 2) == 0)
     return (sx_i64)n;
   return -1;
 }

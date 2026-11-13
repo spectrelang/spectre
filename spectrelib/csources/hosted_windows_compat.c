@@ -68,11 +68,20 @@ int gettimeofday(void *tv, void *tz) {
 int usleep(unsigned usec) { Sleep(usec / 1000u); return 0; }
 int sleep(unsigned seconds) { Sleep(seconds * 1000u); return 0; }
 
-HRESULT __stdcall BCryptGenRandom(void *, unsigned char *, unsigned long, unsigned long);
+typedef HRESULT (WINAPI *bcrypt_gen_random_fn)(void *, unsigned char *, ULONG, ULONG);
 
 int getrandom(void *buf, size_t len, unsigned flags) {
+    static bcrypt_gen_random_fn fn;
+    static int loaded;
     (void)flags;
-    if (BCryptGenRandom(NULL, (unsigned char *)buf, (unsigned long)len, 2) == 0) {
+    if (!loaded) {
+        HMODULE mod = LoadLibraryA("bcrypt.dll");
+        if (mod) {
+            fn = (bcrypt_gen_random_fn)GetProcAddress(mod, "BCryptGenRandom");
+        }
+        loaded = 1;
+    }
+    if (fn && fn(NULL, (unsigned char *)buf, (ULONG)len, 2) == 0) {
         return (int)len;
     }
     return -1;

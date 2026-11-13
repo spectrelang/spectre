@@ -1,8 +1,13 @@
 val allocators = use("../allocators")
 
 when windows {
-    link "-lws2_32"
-    extern "winsock2.h"
+    when freestanding {
+        // The freestanding runtime resolves ws2_32 entry points lazily.
+    }
+    otherwise {
+        link "-lws2_32"
+        extern "winsock2.h"
+    }
 }
 
 when posix {
@@ -52,25 +57,48 @@ when posix {
 }
 
 when windows {
-    extern (C, header) fn WSAStartup(version: u16, data: ref void) i32 = "WSAStartup"
-    extern (C, header) fn WSACleanup() i32 = "WSACleanup"
-    extern (C, header) fn win_socket(domain: i32, type_: i32, protocol: i32) u64 = "socket"
-    extern (C, header) fn win_bind(fd: u64, addr: ref void, addrlen: i32) i32 = "bind"
-    extern (C, header) fn win_listen(fd: u64, backlog: i32) i32 = "listen"
-    extern (C, header) fn win_accept(fd: u64, addr: ref void, addrlen: ref void) u64 = "accept"
-    extern (C, header) fn win_send(fd: u64, buf: ref void, len: i32, flags: i32) i32 = "send"
-    extern (C, header) fn win_recv(fd: u64, buf: ref void, len: i32, flags: i32) i32 = "recv"
-    extern (C, header) fn closesocket(fd: u64) i32 = "closesocket"
-    extern (C, header) fn win_htons(port: u16) u16 = "htons"
-    extern (C, header) fn win_setsockopt(
-        fd: u64,
-        level: i32,
-        opt: i32,
-        vl: ref void,
-        len: i32
-    ) i32 = "setsockopt"
-    extern (C, header) fn WSAPoll(fds: ref void, count: u32, timeout: i32) i32 = "WSAPoll"
-    extern (C, header) fn ioctlsocket(fd: u64, cmd: i32, argp: ref u32) i32 = "ioctlsocket"
+    when freestanding {
+        extern (C) fn WSAStartup(version: u16, data: ref void) i32 = "sx_wsa_startup"
+        extern (C) fn WSACleanup() i32 = "sx_wsa_cleanup"
+        extern (C) fn win_socket(domain: i32, type_: i32, protocol: i32) u64 = "sx_socket"
+        extern (C) fn win_bind(fd: u64, addr: ref void, addrlen: i32) i32 = "sx_bind"
+        extern (C) fn win_listen(fd: u64, backlog: i32) i32 = "sx_listen"
+        extern (C) fn win_accept(fd: u64, addr: ref void, addrlen: ref void) u64 = "sx_accept"
+        extern (C) fn win_send(fd: u64, buf: ref void, len: i32, flags: i32) i64 = "sx_send"
+        extern (C) fn win_recv(fd: u64, buf: ref void, len: i32, flags: i32) i64 = "sx_recv"
+        extern (C) fn closesocket(fd: u64) i32 = "sx_closesocket"
+        extern (C) fn win_htons(port: u16) u16 = "sx_htons"
+        extern (C) fn win_setsockopt(
+            fd: u64,
+            level: i32,
+            opt: i32,
+            vl: ref void,
+            len: i32
+        ) i32 = "sx_setsockopt"
+        extern (C) fn WSAPoll(fds: ref void, count: u32, timeout: i32) i32 = "sx_poll"
+        extern (C) fn ioctlsocket(fd: u64, cmd: i32, argp: ref u32) i32 = "sx_ioctlsocket"
+    }
+    otherwise {
+        extern (C, header) fn WSAStartup(version: u16, data: ref void) i32 = "WSAStartup"
+        extern (C, header) fn WSACleanup() i32 = "WSACleanup"
+        extern (C, header) fn win_socket(domain: i32, type_: i32, protocol: i32) u64 = "socket"
+        extern (C, header) fn win_bind(fd: u64, addr: ref void, addrlen: i32) i32 = "bind"
+        extern (C, header) fn win_listen(fd: u64, backlog: i32) i32 = "listen"
+        extern (C, header) fn win_accept(fd: u64, addr: ref void, addrlen: ref void) u64 = "accept"
+        extern (C, header) fn win_send(fd: u64, buf: ref void, len: i32, flags: i32) i32 = "send"
+        extern (C, header) fn win_recv(fd: u64, buf: ref void, len: i32, flags: i32) i32 = "recv"
+        extern (C, header) fn closesocket(fd: u64) i32 = "closesocket"
+        extern (C, header) fn win_htons(port: u16) u16 = "htons"
+        extern (C, header) fn win_setsockopt(
+            fd: u64,
+            level: i32,
+            opt: i32,
+            vl: ref void,
+            len: i32
+        ) i32 = "setsockopt"
+        extern (C, header) fn WSAPoll(fds: ref void, count: u32, timeout: i32) i32 = "WSAPoll"
+        extern (C, header) fn ioctlsocket(fd: u64, cmd: i32, argp: ref u32) i32 = "ioctlsocket"
+    }
 }
 
 pub val AF_INET = 2

@@ -113,10 +113,15 @@ fn compile_shim_native(ctx: mut ref context.Context, st: mut ref NativeState) bo
         }
 
         st.shim_obj = builds.get_unique_tmp_path(c"spectre_c_shim.o")
+        val shim_win_flag: mut ref u8 = c""
+        if cstr.cmp(ctx.host_platform, c"windows") == 0 {
+            shim_win_flag = c" -DWIN32_LEAN_AND_MEAN"
+        }
         val shim_cmd = @fmtalloc(
-            "{s} -std=c99 -Wno-error=int-conversion -c -o {s} {s}{s} 2>&1",
+            "{s} -std=c99{s} -Wno-error=int-conversion -c -o {s} {s}{s} 2>&1",
             {
                 native_cc(ctx),
+                shim_win_flag,
                 builds.quote_arg(st.shim_obj),
                 builds.quote_arg(st.shim_c_file),
                 include_flags
@@ -184,7 +189,10 @@ fn build_link_flags_native(ctx: ref context.Context, st: mut ref NativeState) vo
     }
     if cstr.cmp(ctx.host_platform, c"windows") == 0
     && !ctx.opts.compile_obj && !ctx.opts.build_dll {
-        st.link_flags = @fmtalloc("{s} -Wl,/subsystem:console", {st.link_flags})
+        st.link_flags = @fmtalloc(
+            "{s} -Wl,/subsystem:console,/opt:ref",
+            {st.link_flags}
+        )
     }
     if ctx.opts.compile_obj {
         st.link_flags = c""

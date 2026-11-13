@@ -61,6 +61,7 @@ fn resolve_target(ctx: mut ref context.Context) bool = trust {
         ctx.host_platform,
         ctx.host_arch
     )
+    module.set_target_platform(ctx.target_platform)
     return true
 }
 

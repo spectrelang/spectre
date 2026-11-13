@@ -309,7 +309,7 @@ fn prepare_win_compat(ctx: mut ref context.Context, st: mut ref AltState) void =
         if os.exists(compat_c) {
             val compat_obj: ref u8 = builds.get_unique_tmp_path(c"spectre_hosted_win_compat.obj")
             val compat_cmd: ref u8 = @fmtalloc(
-                "clang --target={s} -std=c99 -c {s} -o {s}{s} 2>&1",
+                "clang --target={s} -std=c99 -ffunction-sections -fdata-sections -c {s} -o {s}{s} 2>&1",
                 {
                     builds.target_triple(ctx.target_platform, ctx.target_arch),
                     builds.quote_arg(compat_c),
@@ -447,6 +447,11 @@ fn build_link_flags_alt(ctx: mut ref context.Context, st: mut ref AltState) void
         st.link_flags = @fmtalloc("{s} {s}", {st.link_flags, st.strip_flag})
     }
     for link_flag in st.links {
+        if ctx.freestanding_runtime
+        && builds.target_is_windows(ctx.target_platform)
+        && builds.is_freestanding_windows_optional_link(link_flag) {
+            continue
+        }
         val translated_link: mut ref u8 = c""
         if windows_cross_link {
             if cstr.starts_with(link_flag, c"-l") {
@@ -505,7 +510,7 @@ fn build_link_flags_alt(ctx: mut ref context.Context, st: mut ref AltState) void
                 {
                     st.link_flags,
                     builds.freestanding_windows_link_flags(st.compiler_kind),
-                    builds.freestanding_windows_import_flags(ctx.target_arch),
+                    builds.freestanding_windows_import_flags(ctx.target_arch, st.links),
                     builds.quote_arg(st.runtime_obj),
                     builds.quote_arg(st.sys_rt_obj),
                     builds.quote_arg(st.start_obj)

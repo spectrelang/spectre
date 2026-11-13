@@ -45,10 +45,8 @@ pub fn print_usage() void = {
     stdio.puts("  bind-c  <file|dir>   Generate Spectre bindings from C headers")
     stdio.puts("")
     stdio.puts("options:")
-    when posix {
-        stdio.puts("  -emit-ssa            Print QBE IR to stdout and exit")
-        stdio.puts("  -emit-shim:<file>    Write the QBE shim alongside -emit-ssa")
-    }
+    stdio.puts("  -emit-ssa            Print QBE IR to stdout and exit")
+    stdio.puts("  -emit-shim:<file>    Write the QBE shim alongside -emit-ssa")
     stdio.puts("  -emit-alt            Print alternative IR to stdout and exit")
     stdio.puts("  -emit-asm            Print assembly to stdout and exit")
     stdio.puts("  -target:<os>.<arch>  Cross-compile (linux/windows, x86_64/aarch64)")
@@ -71,9 +69,7 @@ pub fn print_usage() void = {
     stdio.puts("  -no-simd             Disable autovectorization, use scalar fallback")
     stdio.puts("  -dynamic             Link dynamically instead of statically")
     stdio.puts("  -dll                 Build a shared library")
-    when posix {
-        stdio.puts("  -a, -alt             Compile with fallback backend")
-    }
+    stdio.puts("  -a, -alt             Compile with fallback backend")
     stdio.puts("  -b, -bootstrap       Display backend output on error")
     stdio.puts("  -c, -compile         Compile only to produce object file, without linking")
     stdio.puts("  -d:<NAME>=<value>    Define a compile-time environment variable")

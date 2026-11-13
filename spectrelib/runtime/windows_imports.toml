@@ -56,6 +56,8 @@ WideCharToMultiByte = "kernel32"
 GetCommandLineW = "kernel32"
 LocalFree = "kernel32"
 GetModuleFileNameA = "kernel32"
+LoadLibraryA = "kernel32"
+GetProcAddress = "kernel32"
 SetConsoleOutputCP = "kernel32"
 
 # shell32.dll

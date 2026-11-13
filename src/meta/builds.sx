@@ -394,9 +394,9 @@ pub fn windows_subsystem_flag(kind: ref u8) ref u8 = {
         return c""
     }
     if compiler_uses_msvc_flags(kind) {
-        return c"/link /subsystem:console"
+        return c"/link /subsystem:console /opt:ref"
     }
-    return c"-Wl,/subsystem:console"
+    return c"-Wl,/subsystem:console,/opt:ref"
 }
 
 /// Link flags for the freestanding Windows runtime.
@@ -407,7 +407,7 @@ pub fn freestanding_windows_link_flags(kind: ref u8) ref u8 = {
     if cstr.cmp(kind, c"msvc") == 0 {
         return c"/link /nodefaultlib /entry:mainCRTStartup /opt:ref /subsystem:console"
     }
-    return c"-nostdlib -Wl,/nodefaultlib,/entry:mainCRTStartup,/subsystem:console"
+    return c"-nostdlib -Wl,/nodefaultlib,/entry:mainCRTStartup,/opt:ref,/subsystem:console"
 }
 
 /// Optional architecture flags for freestanding compiles.
@@ -418,9 +418,44 @@ pub fn freestanding_arch_flags(arch: ref u8) ref u8 = {
     return c""
 }
 
+/// Whether a single link flag asks for a Windows import library.
+pub fn link_uses_library(flag: ref u8, name: ref u8) bool = trust {
+    val lib_suffix: ref u8 = @fmtalloc("{s}.lib", {name})
+    val dll_suffix: ref u8 = @fmtalloc("{s}.dll", {name})
+    val short_flag: ref u8 = @fmtalloc("-l{s}", {name})
+    return cstr.cmp(flag, short_flag) == 0
+        || cstr.cmp(flag, name) == 0
+        || cstr.ends_with(flag, lib_suffix)
+        || cstr.ends_with(flag, dll_suffix)
+}
+
+/// Whether a collected link list asks for a Windows import library.
+pub fn links_use_library(links: list[ref u8], name: ref u8) bool = trust {
+    for flag in links {
+        if link_uses_library(flag, name) {
+            return true
+        }
+    }
+    return false
+}
+
+/// Optional Windows DLLs are synthesized for freestanding builds and must
+/// not also be passed through as SDK library names.
+pub fn is_freestanding_windows_optional_link(flag: ref u8) bool = trust {
+    return link_uses_library(flag, c"bcrypt")
+        || link_uses_library(flag, c"ws2_32")
+}
+
 /// Default import libraries used by the freestanding Windows runtime.
-pub fn freestanding_windows_import_libs() ref u8 = {
-    return c"kernel32.lib shell32.lib bcrypt.lib ws2_32.lib"
+pub fn freestanding_windows_import_libs(links: list[ref u8]) ref u8 = trust {
+    val out: mut ref u8 = c"kernel32.lib shell32.lib"
+    if links_use_library(links, c"bcrypt") {
+        out = @fmtalloc("{s} bcrypt.lib", {out})
+    }
+    if links_use_library(links, c"ws2_32") {
+        out = @fmtalloc("{s} ws2_32.lib", {out})
+    }
+    return out
 }
 
 /// Build a deterministic import library from a DLL and symbol list using
@@ -502,8 +537,13 @@ pub fn windows_import_cache_dir(arch: ref u8) ref u8 = trust {
 
 /// Returns a comma-separated list of import libraries synthesized for the
 /// freestanding Windows runtime.
-pub fn freestanding_windows_import_flags(arch: ref u8) ref u8 = trust {
+pub fn freestanding_windows_import_flags(
+    arch: ref u8,
+    links: list[ref u8]
+) ref u8 = trust {
     val cache: ref u8 = windows_import_cache_dir(arch)
+    val need_bcrypt: bool = links_use_library(links, c"bcrypt")
+    val need_ws2: bool = links_use_library(links, c"ws2_32")
     val kernel: mut list[ref u8] = mem.new[ref u8]()
     @append(kernel, c"GetStdHandle")
     @append(kernel, c"WriteFile")
@@ -553,6 +593,8 @@ pub fn freestanding_windows_import_flags(arch: ref u8) ref u8 = trust {
     @append(kernel, c"GetCommandLineW")
     @append(kernel, c"LocalFree")
     @append(kernel, c"GetModuleFileNameA")
+    @append(kernel, c"LoadLibraryA")
+    @append(kernel, c"GetProcAddress")
     @append(kernel, c"SetConsoleOutputCP")
 
     val shell: mut list[ref u8] = mem.new[ref u8]()
@@ -583,8 +625,14 @@ pub fn freestanding_windows_import_flags(arch: ref u8) ref u8 = trust {
     val out: mut ref u8 = c""
     val kernel_lib: ref u8 = generate_windows_import_library(cache, c"kernel32", kernel, arch)
     val shell_lib: ref u8 = generate_windows_import_library(cache, c"shell32", shell, arch)
-    val bcrypt_lib: ref u8 = generate_windows_import_library(cache, c"bcrypt", bcrypt, arch)
-    val ws2_lib: ref u8 = generate_windows_import_library(cache, c"ws2_32", ws2, arch)
+    val bcrypt_lib: mut ref u8 = c""
+    val ws2_lib: mut ref u8 = c""
+    if need_bcrypt {
+        bcrypt_lib = generate_windows_import_library(cache, c"bcrypt", bcrypt, arch)
+    }
+    if need_ws2 {
+        ws2_lib = generate_windows_import_library(cache, c"ws2_32", ws2, arch)
+    }
     if cstr.len(kernel_lib) > 0 {
         out = @fmtalloc("{s} {s}", {out, quote_arg(kernel_lib)})
     }
@@ -622,6 +670,7 @@ pub fn links_require_hosted(links: list[ref u8]) bool = trust {
             || cstr.cmp(name, c"gcc_s") == 0
             || cstr.cmp(name, c"pthread") == 0
             || cstr.cmp(name, c"bcrypt") == 0
+            || cstr.cmp(name, c"ws2_32") == 0
             || cstr.cmp(name, c"dbghelp") == 0 {
                 continue
             }

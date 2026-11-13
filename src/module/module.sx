@@ -16,12 +16,23 @@ val commands   = use("../meta/commands.sx")
 /// compiler front end sets this before module resolution and updates it if a
 /// program has to fall back to the hosted toolchain.
 val module_runtime_mode: mut ref u8 = c"hosted"
+val module_target_platform: mut ref u8 = c""
 
 pub fn set_runtime_mode(mode: ref u8) void = {
     if mode == none || cstr.cmp(mode, c"") == 0 {
         module_runtime_mode = c"hosted"
     } else {
         module_runtime_mode = mode
+    }
+}
+
+/// Target platform used when collecting `when` link directives.  This can
+/// differ from the host during cross compilation.
+pub fn set_target_platform(platform: ref u8) void = {
+    if platform == none || cstr.cmp(platform, c"") == 0 {
+        module_target_platform = c""
+    } else {
+        module_target_platform = platform
     }
 }
 
@@ -1881,7 +1892,9 @@ fn collect_links_with_root(
     val links: mut list[ref u8] = mem.new[ref u8]()
     val p: i64 = reflection.get_current_platform[allocators.Arena](arena) as i64
     val platform: mut ref u8 = c"unknown"
-    if p == 0 {
+    if cstr.len(module_target_platform) > 0 {
+        platform = module_target_platform
+    } elif p == 0 {
         platform = c"windows"
     } elif p == 1 {
         platform = c"linux"

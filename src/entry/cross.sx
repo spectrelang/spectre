@@ -447,6 +447,12 @@ fn compile_shim(ctx: mut ref context.Context, st: mut ref CrossState) bool = tru
                 {builds.freestanding_c_flags()}
             )
         }
+        if cstr.cmp(ctx.target_platform, c"windows") == 0 {
+            shim_extra_flags = @fmtalloc(
+                "{s} -DWIN32_LEAN_AND_MEAN",
+                {shim_extra_flags}
+            )
+        }
         val shim_cmd_x: ref u8 = @fmtalloc(
             "clang --target={s} -std=c99 -Wno-error=int-conversion{s} -c -o {s} {s}{s} 2>&1",
             {
@@ -498,7 +504,7 @@ fn compile_win_compat(ctx: mut ref context.Context, st: mut ref CrossState) void
         if os.exists(compat_c) {
             val compat_obj: ref u8 = builds.get_unique_tmp_path(c"spectre_hosted_win_compat.obj")
             val compat_cmd: ref u8 = @fmtalloc(
-                "clang --target={s} -std=c99 -c {s} -o {s}{s} 2>&1",
+                "clang --target={s} -std=c99 -ffunction-sections -fdata-sections -c {s} -o {s}{s} 2>&1",
                 {
                     st.triple,
                     builds.quote_arg(compat_c),
@@ -531,7 +537,10 @@ fn build_link_cmd(ctx: mut ref context.Context, st: mut ref CrossState) bool = t
     if cstr.cmp(ctx.target_platform, c"windows") == 0 {
         val win_inputs: mut ref u8 = c""
         for link_flag in st.links {
-            if cstr.starts_with(link_flag, c"-l") {
+            if ctx.freestanding_runtime
+            && builds.is_freestanding_windows_optional_link(link_flag) {
+                // supplied by the synthesized freestanding import libraries
+            } elif cstr.starts_with(link_flag, c"-l") {
                 win_inputs = @fmtalloc(
                     "{s} {s}",
                     {win_inputs, builds.translate_lld_link_flag(link_flag)}
@@ -635,9 +644,9 @@ fn build_link_cmd(ctx: mut ref context.Context, st: mut ref CrossState) bool = t
         val win_lib_paths: mut ref u8 = c""
         val entry_flag: mut ref u8 = c""
         if ctx.freestanding_runtime {
-            win_libs = builds.freestanding_windows_import_flags(ctx.target_arch)
+            win_libs = builds.freestanding_windows_import_flags(ctx.target_arch, st.links)
             if cstr.len(win_libs) == 0 {
-                win_libs = builds.freestanding_windows_import_libs()
+                win_libs = builds.freestanding_windows_import_libs(st.links)
                 win_lib_paths = builds.xwin_lib_path_flags(ctx.xwin_root, ctx.target_arch)
             }
             entry_flag = c"/nodefaultlib /entry:mainCRTStartup /opt:ref"
@@ -651,6 +660,7 @@ fn build_link_cmd(ctx: mut ref context.Context, st: mut ref CrossState) bool = t
                 ctx.xwin_root,
                 ctx.target_arch
             )
+            entry_flag = c"/opt:ref"
         }
         val win_debug: mut ref u8 = c""
         if !ctx.opts.release_mode && !ctx.opts.compile_obj {
