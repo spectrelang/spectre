@@ -73,9 +73,9 @@ when freestanding {
         }
     }
     otherwise {
-        fn panic_emit_bytes(p: ref u8, n: i64) void = {}
+        fn panic_emit_bytes(_: ref u8, _: i64) void = {}
 
-        pub fn sx_panic_report(sig: i32, frames: ref void, count: i32) void = {}
+        pub fn sx_panic_report(_: i32, _: ref void, _: i32) void = {}
 
         pub fn sx_panic_init() void = {}
     }
