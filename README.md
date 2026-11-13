@@ -19,6 +19,7 @@ Resources:
 - [Neovim Extension](https://github.com/spectrelang/spectre-nvim)
 - [Language Server](https://github.com/spectrelang/spectre-ls)
 - [Debugger](https://github.com/spectrelang/phantom)
+- [Version Manager](https://github.com/spectrelang/svm)
 - [Libraries and Ecosystem](https://spectrelang.org/spectreforge)
 
 ## Installation
