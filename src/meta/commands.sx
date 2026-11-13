@@ -1767,6 +1767,53 @@ fn tool_version(cmd: ref u8) ref u8 = {
     }
 }
 
+/// Return the final whitespace-separated word in a C string.
+fn last_word(value: ref u8) ref u8 = trust {
+    val n: i64 = cstr.len(value)
+    val end: mut i64 = n
+    for {
+        if end <= 0 {
+            break
+        }
+        val c: u8 = @load8(@ptradd(value, end - 1)) as u8
+        if c == 32 || c == 9 {
+            end--
+        } else {
+            break
+        }
+    }
+    val start: mut i64 = end
+    for {
+        if start <= 0 {
+            break
+        }
+        val c: u8 = @load8(@ptradd(value, start - 1)) as u8
+        if c == 32 || c == 9 {
+            break
+        }
+        start--
+    }
+    if start == end {
+        return c"unknown"
+    }
+    return cstr.substr(value, start, end - start)
+}
+
+fn doctor_uqbe() void = trust {
+    val probe: ref u8 = tool_version(c"uqbe -h 2>&1 | head -1")
+    if cstr.contains(probe, c"not found") {
+        doctor_row(c"uqbe", c"not installed")
+        return
+    }
+    doctor_row(c"uqbe", c"installed")
+    val version: ref u8 = tool_version(c"uqbe -v 2>&1")
+    val hash: mut ref u8 = c"unknown"
+    if !cstr.contains(version, c"not found") {
+        hash = last_word(version)
+    }
+    doctor_row(c"uqbe hash", hash)
+}
+
 fn doctor_row(field: ref u8, value: ref u8) void = trust {
     stdio.print("{s}", {field})
     val field_len: i64 = cstr.len(field)
@@ -1776,7 +1823,7 @@ fn doctor_row(field: ref u8, value: ref u8) void = trust {
         if pad >= pad_to {
             break
         }
-        stdio.printv(" ")
+        stdio.print(" ", {})
         pad++
     }
     stdio.print("{s}\n", {value})
@@ -1787,16 +1834,7 @@ pub fn cmd_doctor() i32 = {
     trust doctor_row(c"hash", meta.get_commit_hash().ptr)
     trust doctor_row(c"os", tool_version(c"uname -srm 2>&1"))
 
-    val uqbe_ver: ref u8 = tool_version(c"uqbe -h 2>&1 | head -1")
-    val uqbe_installed_str: mut ref u8 = c"installed"
-    val arena: allocators.Arena = trust allocators.Arena.new(512 as usize)?
-    val uqbe_ver_string = trust ostr.from_cstr[allocators.Arena](arena, uqbe_ver)
-    val not_found = trust ostr.from_cstr[allocators.Arena](arena, c"not found")
-    if ostr.contains(uqbe_ver_string, not_found) {
-        uqbe_installed_str = c"not installed"
-    }
-    trust allocators.Arena.free(arena)
-    trust doctor_row(c"uqbe", uqbe_installed_str)
+    trust doctor_uqbe()
 
     trust doctor_row(c"cc", tool_version(c"cc --version 2>&1 | head -1"))
     trust doctor_row(c"clang", tool_version(c"clang --version 2>&1 | head -1"))
