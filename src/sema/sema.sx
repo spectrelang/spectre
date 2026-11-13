@@ -5966,6 +5966,21 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
                 add_error(ctx, buf)
             }
         }
+        if op == parser.OP_DIV || op == parser.OP_REM {
+            val rhs: ref parser.Node = parser.binop_right(expr)
+            if sema_expr_is_static_int_zero(ctx, rhs) {
+                val buf: ref u8 = allocators.ScopedArena.alloc_or_none(
+                    ctx.arena,
+                    (256) as usize
+                ) as ref u8
+                if op == parser.OP_DIV {
+                    @snprintf(buf, 256, "{s}:{lld}: division by zero", {filename, line})
+                } else {
+                    @snprintf(buf, 256, "{s}:{lld}: remainder by zero", {filename, line})
+                }
+                add_error(ctx, buf)
+            }
+        }
         return
     }
     if k == parser.NK_UNOP {
@@ -8010,6 +8025,41 @@ fn sema_check_invariant_lit(ctx: ref SemaCtx, typedef_node: ref parser.Node,
 
 fn sema_const_eval_no_fields(expr: ref parser.Node) SemaConstVal = trust {
     return sema_const_eval(expr, none)
+}
+
+/// Returns true when `expr` has a statically known float type.
+fn sema_expr_is_float_typed(ctx: ref SemaCtx, expr: ref parser.Node) bool = trust {
+    val cur: ref parser.Node = sema_unwrap_trust_expr(expr)
+    if cur == none {
+        return false
+    }
+    if cur.kind == parser.NK_FLOAT_LIT {
+        return true
+    }
+    if cur.kind == parser.NK_UNOP {
+        return sema_expr_is_float_typed(ctx, parser.unop_inner(cur))
+    }
+    val ty: ref parser.Node = expr_type_node(ctx, cur)
+    if ty != none {
+        val tname: ref u8 = unqualified_type_name(extract_type_name(ty))
+        if sema_is_float_type_name(tname) {
+            return true
+        }
+    }
+    val inferred: ref u8 = infer_expr_scope_type_name(ctx, cur)
+    return inferred != none && !cstr.eql(inferred, c"") &&
+    sema_is_float_type_name(unqualified_type_name(inferred))
+}
+
+/// Returns true when `expr` is a compile-time integer constant with value zero.
+/// Float-typed divisors are excluded because their division semantics do not
+/// treat a zero divisor as an error.
+fn sema_expr_is_static_int_zero(ctx: ref SemaCtx, expr: ref parser.Node) bool = trust {
+    if expr == none || sema_expr_is_float_typed(ctx, expr) {
+        return false
+    }
+    val v: SemaConstVal = sema_const_eval(expr, ctx.const_env)
+    return v.known && !v.is_float && v.value == 0
 }
 
 fn sema_is_float_type_name(name: ref u8) bool = trust {

@@ -1,0 +1,4 @@
+pub fn main() void = {
+    val x = 1 / 0
+    trust @print("{d}", {x})
+}
