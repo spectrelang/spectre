@@ -418,7 +418,7 @@ static char sx__str13[]="/spectrelib/env/core.sx";
 static char sx__str14[]="/src/meta/env.sx";
 static char sx__str15[]="v0.0.16";
 static char sx__str16[]="VERSION";
-static char sx__str17[]="c05bb6c";
+static char sx__str17[]="daf5e50";
 static char sx__str18[]="unknown";
 static char sx__str19[]="usage:";
 static char sx__str20[]="  spectre <command> [args] | <input.sx> [options]";
@@ -71534,7 +71534,7 @@ if((((!(t_want_headers)))?((!(t_want_panic))):(0)))
 return(int64_t)(((int64_t)(intptr_t)sx__str0));
 }
 int64_t t_sb=(int64_t)(builder__StringBuilder__new());
-if(t_want_headers)
+if(((t_want_headers)?((!(codegen__runtime_is_freestanding()))):(0)))
 {
 (void)(builder__StringBuilder__append_cstr(t_sb,((int64_t)(intptr_t)sx__str1888)));
 }
