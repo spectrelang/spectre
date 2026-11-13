@@ -42479,9 +42479,9 @@ export function w $commands__resolve_build_rule(l %cfg, l %target) {
 function l $commands__build_config_cmd(l %cfg, l %exe_path, l %entry) {
 @start
     %t1 =l alloc8 8
-    %t52 =l alloc8 8
-    %t65 =l alloc8 8
+    %t55 =l alloc8 8
     %t68 =l alloc8 8
+    %t71 =l alloc8 8
     %t0 =l copy $__str55
     storel %t0, %t1
     %t3 =l add %cfg, 16
@@ -42498,119 +42498,122 @@ function l $commands__build_config_cmd(l %cfg, l %exe_path, l %entry) {
     storel %t10, %t1
     jmp @lbl6422
 @lbl6423
-    %t11 =l copy $__str766
-    %t12 =l call $commands__mem_concat3(l %exe_path, l %t11, l %entry)
-    %t13 =l copy $__str767
-    %t14 =l call $commands__mem_concat2(l %t12, l %t13)
-    storel %t14, %t1
+    %t11 =l call $builds__quote_arg(l %exe_path)
+    %t12 =l copy $__str766
+    %t13 =l call $builds__quote_arg(l %entry)
+    %t14 =l call $commands__mem_concat3(l %t11, l %t12, l %t13)
+    %t15 =l copy $__str767
+    %t16 =l call $commands__mem_concat2(l %t14, l %t15)
+    storel %t16, %t1
     jmp @lbl6422
 @lbl6422
-    %t16 =l add %cfg, 24
-    %t15 =l loadl %t16
-    %t17 =l copy $__str55
-    %t18 =l call $cstr__cmp(l %t15, l %t17)
-    %t19 =l copy 0
-    %t20 =w cnel %t18, %t19
-    jnz %t20, @lbl6424, @lbl6425
+    %t18 =l add %cfg, 24
+    %t17 =l loadl %t18
+    %t19 =l copy $__str55
+    %t20 =l call $cstr__cmp(l %t17, l %t19)
+    %t21 =l copy 0
+    %t22 =w cnel %t20, %t21
+    jnz %t22, @lbl6424, @lbl6425
 @lbl6424
-    %t21 =l loadl %t1
-    %t22 =l copy $__str766
-    %t24 =l add %cfg, 24
-    %t23 =l loadl %t24
-    %t25 =l call $commands__mem_concat3(l %t21, l %t22, l %t23)
-    storel %t25, %t1
+    %t23 =l loadl %t1
+    %t24 =l copy $__str766
+    %t26 =l add %cfg, 24
+    %t25 =l loadl %t26
+    %t27 =l call $commands__mem_concat3(l %t23, l %t24, l %t25)
+    storel %t27, %t1
     jmp @lbl6425
 @lbl6425
-    %t27 =l add %cfg, 32
-    %t26 =l loadl %t27
-    %t28 =l copy $__str55
-    %t29 =l call $cstr__cmp(l %t26, l %t28)
-    %t30 =l copy 0
-    %t31 =w cnel %t29, %t30
-    jnz %t31, @lbl6427, @lbl6428
+    %t29 =l add %cfg, 32
+    %t28 =l loadl %t29
+    %t30 =l copy $__str55
+    %t31 =l call $cstr__cmp(l %t28, l %t30)
+    %t32 =l copy 0
+    %t33 =w cnel %t31, %t32
+    jnz %t33, @lbl6427, @lbl6428
 @lbl6427
-    %t32 =l loadl %t1
-    %t33 =l copy $__str768
-    %t35 =l add %cfg, 32
-    %t34 =l loadl %t35
-    %t36 =l call $commands__mem_concat3(l %t32, l %t33, l %t34)
-    storel %t36, %t1
+    %t34 =l loadl %t1
+    %t35 =l copy $__str768
+    %t37 =l add %cfg, 32
+    %t36 =l loadl %t37
+    %t38 =l call $builds__quote_arg(l %t36)
+    %t39 =l call $commands__mem_concat3(l %t34, l %t35, l %t38)
+    storel %t39, %t1
     jmp @lbl6428
 @lbl6428
-    %t38 =l add %cfg, 48
-    %t39 =l loadl %t38
-    %t40 =l call $sxqbe_list_len(l %t39)
-    %t41 =l copy %t40
-    %t42 =l copy 0
-    %t43 =w csgtl %t41, %t42
-    jnz %t43, @lbl6430, @lbl6431
+    %t41 =l add %cfg, 48
+    %t42 =l loadl %t41
+    %t43 =l call $sxqbe_list_len(l %t42)
+    %t44 =l copy %t43
+    %t45 =l copy 0
+    %t46 =w csgtl %t44, %t45
+    jnz %t46, @lbl6430, @lbl6431
 @lbl6430
-    %t45 =l add %cfg, 16
-    %t44 =l loadl %t45
-    %t46 =l copy $__str55
-    %t47 =l call $cstr__cmp(l %t44, l %t46)
-    %t48 =l copy 0
-    %t49 =w ceql %t47, %t48
-    jnz %t49, @lbl6433, @lbl6435
+    %t48 =l add %cfg, 16
+    %t47 =l loadl %t48
+    %t49 =l copy $__str55
+    %t50 =l call $cstr__cmp(l %t47, l %t49)
+    %t51 =l copy 0
+    %t52 =w ceql %t50, %t51
+    jnz %t52, @lbl6433, @lbl6435
 @lbl6433
-    %t51 =l add %cfg, 48
-    %t50 =l loadl %t51
-    storel 0, %t52
-    %t53 =l call $sxqbe_list_len(l %t50)
+    %t54 =l add %cfg, 48
+    %t53 =l loadl %t54
+    storel 0, %t55
+    %t56 =l call $sxqbe_list_len(l %t53)
 @lbl6436
-    %t54 =l loadl %t52
-    %t55 =w csltl %t54, %t53
-    jnz %t55, @lbl6437, @lbl6438
+    %t57 =l loadl %t55
+    %t58 =w csltl %t57, %t56
+    jnz %t58, @lbl6437, @lbl6438
 @lbl6437
-    %t56 =l call $sxqbe_list_buf(l %t50)
-    %t57 =l mul %t54, 8
-    %t58 =l add %t56, %t57
-    %t59 =l loadl %t58
-    %t60 =l loadl %t1
-    %t61 =l copy $__str769
-    %t62 =l call $commands__mem_concat3(l %t60, l %t61, l %t59)
-    storel %t62, %t1
+    %t59 =l call $sxqbe_list_buf(l %t53)
+    %t60 =l mul %t57, 8
+    %t61 =l add %t59, %t60
+    %t62 =l loadl %t61
+    %t63 =l loadl %t1
+    %t64 =l copy $__str769
+    %t65 =l call $commands__mem_concat3(l %t63, l %t64, l %t62)
+    storel %t65, %t1
 @lbl6439
-    %t63 =l add %t54, 1
-    storel %t63, %t52
+    %t66 =l add %t57, 1
+    storel %t66, %t55
     jmp @lbl6436
 @lbl6438
     jmp @lbl6434
 @lbl6435
-    %t64 =l copy $__str55
-    storel %t64, %t65
-    %t67 =l add %cfg, 48
-    %t66 =l loadl %t67
-    storel 0, %t68
-    %t69 =l call $sxqbe_list_len(l %t66)
+    %t67 =l copy $__str55
+    storel %t67, %t68
+    %t70 =l add %cfg, 48
+    %t69 =l loadl %t70
+    storel 0, %t71
+    %t72 =l call $sxqbe_list_len(l %t69)
 @lbl6440
-    %t70 =l loadl %t68
-    %t71 =w csltl %t70, %t69
-    jnz %t71, @lbl6441, @lbl6442
+    %t73 =l loadl %t71
+    %t74 =w csltl %t73, %t72
+    jnz %t74, @lbl6441, @lbl6442
 @lbl6441
-    %t72 =l call $sxqbe_list_buf(l %t66)
-    %t73 =l mul %t70, 8
-    %t74 =l add %t72, %t73
-    %t75 =l loadl %t74
-    %t76 =l loadl %t65
-    %t77 =l copy $__str766
-    %t78 =l call $commands__mem_concat3(l %t76, l %t75, l %t77)
-    storel %t78, %t65
+    %t75 =l call $sxqbe_list_buf(l %t69)
+    %t76 =l mul %t73, 8
+    %t77 =l add %t75, %t76
+    %t78 =l loadl %t77
+    %t79 =l loadl %t68
+    %t80 =l copy $__str766
+    %t81 =l call $commands__mem_concat3(l %t79, l %t78, l %t80)
+    storel %t81, %t68
 @lbl6443
-    %t79 =l add %t70, 1
-    storel %t79, %t68
+    %t82 =l add %t73, 1
+    storel %t82, %t71
     jmp @lbl6440
 @lbl6442
-    %t80 =l loadl %t65
-    %t81 =l loadl %t1
-    %t82 =l call $commands__mem_concat2(l %t80, l %t81)
-    storel %t82, %t1
+    %t83 =l loadl %t68
+    %t84 =l loadl %t1
+    %t85 =l call $commands__mem_concat2(l %t83, l %t84)
+    storel %t85, %t1
     jmp @lbl6434
 @lbl6434
     jmp @lbl6431
 @lbl6431
-    %t83 =l loadl %t1
-    ret %t83
+    %t86 =l loadl %t1
+    ret %t86
 }
 
 function l $commands__basename_of(l %path) {
@@ -305855,7 +305858,7 @@ data $__str65 = { b "/spectrelib/env/core.sx", b 0 }
 data $__str66 = { b "/src/meta/env.sx", b 0 }
 data $__str67 = { b "v0.0.16", b 0 }
 data $__str68 = { b "VERSION", b 0 }
-data $__str69 = { b "09c257a", b 0 }
+data $__str69 = { b "c05bb6c", b 0 }
 data $__str70 = { b "unknown", b 0 }
 data $__str71 = { b "usage:", b 0 }
 data $__str72 = { b "  spectre <command> [args] | <input.sx> [options]", b 0 }

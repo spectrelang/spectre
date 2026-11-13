@@ -790,13 +790,16 @@ fn build_config_cmd(cfg: ref SxBuildRule, exe_path: ref u8, entry: ref u8) ref u
     if cstr.cmp(cfg.action, c"") != 0 {
         cmd = mem_dup_cstr(cfg.action)
     } else {
-        cmd = mem_concat2(mem_concat3(exe_path, c" ", entry), c" -no-single-flags")
+        cmd = mem_concat2(
+            mem_concat3(builds.quote_arg(exe_path), c" ", builds.quote_arg(entry)),
+            c" -no-single-flags"
+        )
     }
     if cstr.cmp(cfg.flags, c"") != 0 {
         cmd = mem_concat3(cmd, c" ", cfg.flags)
     }
     if cstr.cmp(cfg.output, c"") != 0 {
-        cmd = mem_concat3(cmd, c" -o ", cfg.output)
+        cmd = mem_concat3(cmd, c" -o ", builds.quote_arg(cfg.output))
     }
     val nenv: i64 = @len(cfg.envs) as i64
     if nenv > 0 {

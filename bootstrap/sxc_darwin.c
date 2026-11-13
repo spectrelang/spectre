@@ -393,7 +393,7 @@ static char sx__str7[]="/spectrelib/env/core.sx";
 static char sx__str8[]="/src/meta/env.sx";
 static char sx__str9[]="v0.0.16";
 static char sx__str10[]="VERSION";
-static char sx__str11[]="09c257a";
+static char sx__str11[]="c05bb6c";
 static char sx__str12[]="unknown";
 static char sx__str13[]="usage:";
 static char sx__str14[]="  spectre <command> [args] | <input.sx> [options]";
@@ -27295,7 +27295,7 @@ if(((cstr__cmp((*(int64_t*)((char*)(intptr_t)(t_cfg)+16)),((int64_t)(intptr_t)sx
 {
 t_cmd=(commands__mem_dup_cstr((*(int64_t*)((char*)(intptr_t)(t_cfg)+16))));
 }else{
-t_cmd=(commands__mem_concat2(commands__mem_concat3(t_exe_path,((int64_t)(intptr_t)sx__str692),t_entry),((int64_t)(intptr_t)sx__str693)));
+t_cmd=(commands__mem_concat2(commands__mem_concat3(builds__quote_arg(t_exe_path),((int64_t)(intptr_t)sx__str692),builds__quote_arg(t_entry)),((int64_t)(intptr_t)sx__str693)));
 }
 if(((cstr__cmp((*(int64_t*)((char*)(intptr_t)(t_cfg)+24)),((int64_t)(intptr_t)sx__str0)))!=(INT64_C(0))))
 {
@@ -27303,7 +27303,7 @@ t_cmd=(commands__mem_concat3(t_cmd,((int64_t)(intptr_t)sx__str692),(*(int64_t*)(
 }
 if(((cstr__cmp((*(int64_t*)((char*)(intptr_t)(t_cfg)+32)),((int64_t)(intptr_t)sx__str0)))!=(INT64_C(0))))
 {
-t_cmd=(commands__mem_concat3(t_cmd,((int64_t)(intptr_t)sx__str694),(*(int64_t*)((char*)(intptr_t)(t_cfg)+32))));
+t_cmd=(commands__mem_concat3(t_cmd,((int64_t)(intptr_t)sx__str694),builds__quote_arg((*(int64_t*)((char*)(intptr_t)(t_cfg)+32)))));
 }
 int64_t t_nenv=(int64_t)((int64_t)(((*(int64_t*)((char*)(intptr_t)(t_cfg)+48))==0?0:(*(int64_t*)((char*)(intptr_t)((*(int64_t*)((char*)(intptr_t)(t_cfg)+48)))+8)))));
 if(((t_nenv)>(INT64_C(0))))
