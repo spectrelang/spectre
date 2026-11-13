@@ -278,7 +278,8 @@ fn generate_qbe(ctx: mut ref context.Context) void = trust {
             ctx.root_mod,
             ctx.opts.release_mode,
             ctx.opts.src_target,
-            ctx.opts.leak_check
+            ctx.opts.leak_check,
+            !ctx.opts.release_mode
         )
         ctx.qbe_ir = cg_out.qbe
         ctx.c_shim_source = cg_out.shim
@@ -287,7 +288,8 @@ fn generate_qbe(ctx: mut ref context.Context) void = trust {
             ctx.root_mod,
             ctx.opts.release_mode,
             ctx.opts.src_target,
-            ctx.opts.leak_check
+            ctx.opts.leak_check,
+            !ctx.opts.release_mode
         )
         ctx.qbe_ir = cg_out.qbe
         ctx.c_shim_source = cg_out.shim

@@ -7153,9 +7153,9 @@ fn translate_struct_decl(
                     fields_out,
                     indent + 1,
                     trust tfmt("{s}: {s}", {
-                        sanitize_field_identifier(info.raw_name),
-                        info.type_name
-                    })
+                            sanitize_field_identifier(info.raw_name),
+                            info.type_name
+                        })
                 )
                 continue
             }

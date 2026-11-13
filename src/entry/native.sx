@@ -205,6 +205,43 @@ fn build_link_flags_native(ctx: ref context.Context, st: mut ref NativeState) vo
     }
 }
 
+fn debug_link_flags_native(ctx: ref context.Context) ref u8 = trust {
+    if ctx.opts.release_mode || ctx.opts.compile_obj {
+        return c""
+    }
+    if cstr.cmp(ctx.host_platform, c"windows") != 0 {
+        return c""
+    }
+    return c" -Wl,/debug"
+}
+
+fn run_dsymutil_native(ctx: ref context.Context, output: ref u8) void = trust {
+    if ctx.opts.release_mode || ctx.opts.compile_obj {
+        return
+    }
+    if cstr.cmp(ctx.host_platform, c"darwin") != 0 {
+        return
+    }
+    val cmd: ref u8 = @fmtalloc("dsymutil {s} 2>&1", {builds.quote_arg(output)})
+    if ctx.opts.show_cmd {
+        stdio.print("{s}\n", {cmd})
+    }
+    val res = os.exec(cmd)
+    match res {
+        ok v => {
+            val vstr: ref u8 = ostr.as_cstr(v)
+            if cstr.len(vstr) > 0 {
+                stdio.print("{s}", {vstr})
+            }
+        }
+        err _ => {
+            if !ctx.opts.quiet {
+                stdio.print("warning: could not run dsymutil for '{s}'\n", {output})
+            }
+        }
+    }
+}
+
 fn build_cc_flags_native(ctx: ref context.Context, st: mut ref NativeState) void = trust {
     if !ctx.opts.release_mode {
         st.cc_flags = c"-g"
@@ -287,6 +324,10 @@ fn build_output(ctx: mut ref context.Context, st: mut ref NativeState) void = tr
             final_output = @fmtalloc("{s}{s}", {binary_name, st.output_ext})
         }
         st.run_output = final_output
+        st.link_flags = @fmtalloc(
+            "{s}{s}",
+            {st.link_flags, debug_link_flags_native(ctx)}
+        )
         if cstr.cmp(st.cc_flags, c"") == 0 {
             st.cc_cmd = @fmtalloc(
                 "{s} -o {s} {s}{s}",
@@ -317,6 +358,10 @@ fn build_output(ctx: mut ref context.Context, st: mut ref NativeState) void = tr
             final_output = @fmtalloc("./s-out/{s}{s}", {binary_name, st.output_ext})
         }
         st.run_output = final_output
+        st.link_flags = @fmtalloc(
+            "{s}{s}",
+            {st.link_flags, debug_link_flags_native(ctx)}
+        )
         if cstr.cmp(st.cc_flags, c"") == 0 {
             st.cc_cmd = @fmtalloc(
                 "{s} -o {s} {s}{s}",
@@ -358,6 +403,7 @@ fn execute_native(ctx: mut ref context.Context, st: mut ref NativeState) i32 = t
                 stdio.puts("linking failed.")
                 st.exit_code = 1
             } else {
+                run_dsymutil_native(ctx, st.run_output)
                 if !ctx.opts.quiet && !ctx.opts.emit_qbe {
                     stdio.print("{s}", {st.success_msg})
                 }

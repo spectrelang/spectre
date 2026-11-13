@@ -813,6 +813,31 @@ pub fn target_object_ext(platform: ref u8) ref u8 = {
     return c".o"
 }
 
+/// Return the companion PDB path for an executable or DLL.
+pub fn pdb_path_for(output: ref u8) ref u8 = trust {
+    val n: i64 = cstr.len(output)
+    val last_sep: mut i64 = -1
+    val last_dot: mut i64 = -1
+    val i: mut i64 = 0
+    for {
+        if i >= n {
+            break
+        }
+        val c: u8 = @load8(@ptradd(output, i))
+        if c == 47 || c == 92 {
+            last_sep = i
+            last_dot = -1
+        } elif c == 46 {
+            last_dot = i
+        }
+        i++
+    }
+    if last_dot > last_sep {
+        return @fmtalloc("{s}.pdb", {cstr.substr(output, 0, last_dot)})
+    }
+    return @fmtalloc("{s}.pdb", {output})
+}
+
 pub fn target_needs_cross(
     platform: ref u8,
     arch: ref u8,

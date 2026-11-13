@@ -127,6 +127,8 @@ pub type CgCtx = {
     current_fn_display: mut ref u8
     current_fn_file: mut ref u8
     current_fn_line: mut i64
+    emit_dbg: mut bool
+    dbg_file: mut ref u8
     aggregate_heap: mut i64
     stack_agg_values: mut list[ref u8]
 }
@@ -185,6 +187,8 @@ fn cg_new() ref CgCtx = trust {
     ctx.current_fn_display = c""
     ctx.current_fn_file = c""
     ctx.current_fn_line = 0
+    ctx.emit_dbg = false
+    ctx.dbg_file = c""
     ctx.expected_ty = none
     ctx.strs = mem.new[str.StringView]()
     ctx.str_cnt = 0
@@ -2421,7 +2425,7 @@ fn cg_build_c_shim(ctx: ref CgCtx) ref u8 = trust {
     val n_adapters: i64 = @len(ctx.alloc_adapter_lines as list[ref u8]) as i64
     val want_panic: bool = cg_wants_panic_shim(ctx)
     val want_headers: bool = n_consts != 0 || ctx.alloc_runtime || n_adapters != 0
-        || ctx.leak_check
+    || ctx.leak_check
     if !want_headers && !want_panic {
         return c""
     }
@@ -4954,6 +4958,56 @@ fn emitln(ctx: mut ref CgCtx, s: ref u8) void = trust {
 fn emitln_view(ctx: mut ref CgCtx, s: str.StringView) void = trust {
     builder.StringBuilder.append(cg_sb(ctx), s)
     builder.StringBuilder.append_char(cg_sb(ctx), 10 as u8)
+}
+
+/// Normalize a source path for assembler debug directives.
+fn cg_dbg_path(ctx: ref CgCtx, filename: ref u8) ref u8 = trust {
+    val n: i64 = cstr.len(filename)
+    val out: ref u8 = allocators.ScopedArena.alloc_or_none(
+        ctx.arena,
+        (n + 1) as usize
+    ) as ref u8
+    val i: mut i64 = 0
+    for {
+        if i >= n {
+            break
+        }
+        val c: u8 = @load8(@ptradd(filename, i))
+        if c == 92 {
+            @store8(@ptradd(out, i), 47)
+        } else {
+            @store8(@ptradd(out, i), c)
+        }
+        i++
+    }
+    @store8(@ptradd(out, n), 0)
+    return out
+}
+
+fn cg_emit_dbgfile(ctx: mut ref CgCtx, filename: ref u8) void = trust {
+    if !ctx.emit_dbg || filename == none || cstr.len(filename) == 0 {
+        return
+    }
+    if cstr.cmp(ctx.dbg_file, filename) == 0 {
+        return
+    }
+    ctx.dbg_file = filename
+    val path: ref u8 = cg_dbg_path(ctx, filename)
+    val buf: ref u8 = allocators.ScopedArena.alloc_or_none(
+        ctx.arena,
+        (cstr.len(path) + 32) as usize
+    ) as ref u8
+    @snprintf(buf, (cstr.len(path) + 32) as usize, "dbgfile \"{s}\"\n", {path})
+    emit(ctx, buf)
+}
+
+fn cg_emit_dbg_loc(ctx: mut ref CgCtx, line: i64) void = trust {
+    if !ctx.emit_dbg || line <= 0 {
+        return
+    }
+    val buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 64 as usize) as ref u8
+    @snprintf(buf, 64, "    dbgloc {lld}\n", {line})
+    emit(ctx, buf)
 }
 
 /// Returns true if the type name maps to QBE word type (w).
@@ -16019,6 +16073,7 @@ fn gen_stmts(ctx: mut ref CgCtx, stmts: ref parser.Node) void = trust {
                 i = j
                 continue
             } else {
+                cg_emit_dbg_loc(ctx, snode.line)
                 gen_stmt(ctx, snode)
                 if snode.kind == parser.NK_WHEN_STMT {
                     if when_stmt_terminated(ctx, snode) {
@@ -18980,6 +19035,7 @@ fn gen_fn_prefixed(ctx: mut ref CgCtx, fn_node: ref parser.Node, mod_prefix: ref
     }
     emitln(ctx, c") {")
     emitln(ctx, c"@start")
+    cg_emit_dbg_loc(ctx, fn_node.line)
 
     if is_main {
         emitln(ctx, c"    %sx_argc_val =l extsw %argc")
@@ -20795,7 +20851,8 @@ pub fn gen_module_resolved(
     root: ref module.ResolvedModule,
     release_mode: bool,
     src_target: ref u8,
-    leak_check: bool
+    leak_check: bool,
+    emit_dbg: bool
 ) ref CgOutput = trust {
     val ctx: mut ref CgCtx = cg_new()
     defer {
@@ -20805,6 +20862,7 @@ pub fn gen_module_resolved(
     }
     ctx.release_mode = release_mode
     ctx.leak_check = leak_check
+    ctx.emit_dbg = emit_dbg
     ctx.src_target = src_target
     ctx.panic_present = module.module_tree_has_file(
         root,
@@ -20909,6 +20967,7 @@ pub fn gen_module_resolved(
                 } else {
                     ctx.current_filename = c""
                 }
+                cg_emit_dbgfile(ctx, ctx.current_filename)
                 val is_root2: bool = cstr.cmp(pfx as ref u8, c"") == 0
                 val is_used2: bool = cg_is_prefix_used(ctx, pfx as ref u8)
                 val has_links: bool = items_have_external_links(items)
@@ -21159,7 +21218,8 @@ pub fn gen_module_resolved_test(
     root: ref module.ResolvedModule,
     release_mode: bool,
     src_target: ref u8,
-    leak_check: bool
+    leak_check: bool,
+    emit_dbg: bool
 ) ref CgOutput = trust {
     val ctx: mut ref CgCtx = cg_new()
     defer {
@@ -21169,6 +21229,7 @@ pub fn gen_module_resolved_test(
     }
     ctx.release_mode = release_mode
     ctx.leak_check = leak_check
+    ctx.emit_dbg = emit_dbg
     ctx.src_target = src_target
     ctx.panic_present = module.module_tree_has_file(
         root,
@@ -21305,6 +21366,7 @@ pub fn gen_module_resolved_test(
             } else {
                 ctx.current_filename = c""
             }
+            cg_emit_dbgfile(ctx, ctx.current_filename)
             val is_root: bool = cstr.cmp(pfx as ref u8, c"") == 0
             val is_used: bool = cg_is_prefix_used(ctx, pfx as ref u8)
 

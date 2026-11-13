@@ -652,12 +652,21 @@ fn build_link_cmd(ctx: mut ref context.Context, st: mut ref CrossState) bool = t
                 ctx.target_arch
             )
         }
+        val win_debug: mut ref u8 = c""
+        if !ctx.opts.release_mode && !ctx.opts.compile_obj {
+            val pdb: ref u8 = builds.pdb_path_for(st.final_output)
+            win_debug = @fmtalloc(
+                "/debug /pdb:{s}",
+                {builds.quote_arg(pdb)}
+            )
+        }
         st.cmd = @fmtalloc(
-            "lld-link /nologo /out:{s} {s} {s} {s} {s} {s} {s} 2>&1",
+            "lld-link /nologo /out:{s} {s} {s} {s} {s} {s} {s} {s} 2>&1",
             {
                 builds.quote_arg(st.final_output),
                 subsystem_x,
                 entry_flag,
+                win_debug,
                 win_lib_paths,
                 builds.quote_arg(st.asm_obj),
                 win_inputs,

@@ -10693,13 +10693,19 @@ fn emit_c_preamble(ctx: ref CCtx) void = trust {
         emitln_fwd(ctx, c"#if defined(_WIN64)")
         emitln_fwd(ctx, c"typedef char *va_list;")
         emitln_fwd(ctx, c"#define va_start(ap,last) __builtin_va_start(ap,last)")
-        emitln_fwd(ctx, c"#define va_arg(ap,ty) ((sizeof(ty) > 8 || (sizeof(ty) & (sizeof(ty) - 1))) ? **(ty **)((ap += 8) - 8) : *(ty *)((ap += 8) - 8))")
+        emitln_fwd(
+            ctx,
+            c"#define va_arg(ap,ty) ((sizeof(ty) > 8 || (sizeof(ty) & (sizeof(ty) - 1))) ? **(ty **)((ap += 8) - 8) : *(ty *)((ap += 8) - 8))"
+        )
         emitln_fwd(ctx, c"#define va_copy(dest,src) ((dest) = (src))")
         emitln_fwd(ctx, c"#define va_end(ap)")
         emitln_fwd(ctx, c"#else")
         emitln_fwd(ctx, c"typedef char *va_list;")
         emitln_fwd(ctx, c"#define va_start(ap,last) ap = ((char *)&(last)) + ((sizeof(last)+3)&~3)")
-        emitln_fwd(ctx, c"#define va_arg(ap,ty) (ap += (sizeof(ty)+3)&~3, *(ty *)(ap - ((sizeof(ty)+3)&~3)))")
+        emitln_fwd(
+            ctx,
+            c"#define va_arg(ap,ty) (ap += (sizeof(ty)+3)&~3, *(ty *)(ap - ((sizeof(ty)+3)&~3)))"
+        )
         emitln_fwd(ctx, c"#define va_copy(dest,src) ((dest) = (src))")
         emitln_fwd(ctx, c"#define va_end(ap)")
         emitln_fwd(ctx, c"#endif")

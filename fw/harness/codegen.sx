@@ -33,6 +33,7 @@ test "codegen does not leak" {
             root,
             false,
             check.cptr(src_target),
+            false,
             false
         )
         if output.qbe != none && cstr.len(output.qbe) > 0 {
