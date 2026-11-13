@@ -1,0 +1,544 @@
+/// Panic reporting for fatal signals and unhandled exceptions.
+///
+/// SPDX-License-Identifier: GPL-3.0-only
+/// (C) Navid Momtahen - 2026
+///
+/// The compiler attaches this module to debug builds.  `sx_panic_init` installs
+/// the platform handler; `sx_panic_report` receives a captured frame array and
+/// prints the signal or exception together with a symbolic trace.  The QBE
+/// backend emits a small C trampoline that captures the frames with unwind
+/// information, because QBE itself does not emit any.
+
+when freestanding {
+    when posix {
+        extern (C) fn panic_signal(sig: i32, handler: usize) usize = "sx_signal"
+        extern (C) fn panic_raise(sig: i32) i32 = "sx_raise"
+        extern (C) fn panic_raw_write(fd: i32, buf: ref void, n: usize) i64 = "__sx_sys_write"
+        extern (C) fn panic_frame_pointer() ref void = "sx_frame_pointer"
+
+        fn panic_emit_bytes(p: ref u8, n: i64) void = trust {
+            panic_raw_write(2, p as ref void, n as usize)
+        }
+
+        fn panic_capture(frames: ref void, capacity: i32) i32 = trust {
+            val fp: mut ref void = panic_frame_pointer()
+            val count: mut i32 = 0
+            for {
+                if fp == none || count >= capacity {
+                    break
+                }
+                val next: ref void = @load(fp) as ref void
+                val pc: u64 = @load64(@ptradd(fp, 8)) as u64
+                @store64(@ptradd(frames, (count as i64) * 8), pc)
+                count = count + 1
+                if next == none || @bitcast(next, usize) <= @bitcast(fp, usize) {
+                    break
+                }
+                fp = next
+            }
+            return count
+        }
+
+        pub fn sx_panic_report(sig: i32, frames: ref void, count: i32) void = trust {
+            panic_emit_text(c"spectre: panic - ")
+            panic_emit_text(panic_signal_name(sig))
+            panic_emit_text(c"\ntrace:\n")
+            if frames == none {
+                return
+            }
+            for i = 0, i < count, i++ {
+                val pc: u64 = @load64(@ptradd(frames, (i as i64) * 8)) as u64
+                panic_emit_text(c"  #")
+                panic_emit_number(i as u64, 2, 10, false, true, 32)
+                panic_emit_text(c" [0x")
+                panic_emit_number(pc, 16, 16, false, false, 48)
+                panic_emit_text(c"]\n")
+            }
+        }
+
+        fn panic_on_signal(sig: i32) void = trust {
+            panic_signal(sig, 0)
+            val frames: mut [512]u8 = @zeroed
+            val count: i32 = panic_capture(@addr(frames) as ref void, 64)
+            sx_panic_report(sig, @addr(frames) as ref void, count)
+            panic_raise(sig)
+        }
+
+        pub fn sx_panic_init() void = trust {
+            panic_signal(11, panic_on_signal as usize)
+            panic_signal(6, panic_on_signal as usize)
+            panic_signal(panic_bus_number(), panic_on_signal as usize)
+            panic_signal(8, panic_on_signal as usize)
+            panic_signal(4, panic_on_signal as usize)
+        }
+    }
+    otherwise {
+        fn panic_emit_bytes(p: ref u8, n: i64) void = {}
+
+        pub fn sx_panic_report(sig: i32, frames: ref void, count: i32) void = {}
+
+        pub fn sx_panic_init() void = {}
+    }
+}
+
+when hosted {
+    when posix {
+        extern "execinfo.h"
+
+        extern (C, header) fn panic_backtrace(frames: ref void, size: i32) i32 = "backtrace"
+        extern (C, header) fn panic_backtrace_symbols(
+            frames: ref void,
+            size: i32
+        ) ref void = "backtrace_symbols"
+        extern (C, header) fn panic_backtrace_symbols_fd(
+            frames: ref void,
+            size: i32,
+            fd: i32
+        ) void = "backtrace_symbols_fd"
+        extern (C, header) fn panic_write(fd: i32, bytes: ref u8, count: usize) i64 = "write"
+        extern (C, header) fn panic_free(ptr: ref void) void = "free"
+        extern (C, header) fn panic_signal(sig: i32, handler: usize) usize = "signal"
+        extern (C, header) fn panic_raise(sig: i32) i32 = "raise"
+        extern (C, header) fn panic_popen(cmd: ref u8, mode: ref u8) ref void = "popen"
+        extern (C, header) fn panic_pclose(pipe: ref void) i32 = "pclose"
+        extern (C, header) fn panic_fgets(buf: ref u8, size: i32, stream: ref void) ref u8 = "fgets"
+
+        fn panic_emit_bytes(p: ref u8, n: i64) void = trust {
+            panic_write(2, p, n as usize)
+        }
+
+        fn panic_print_frame(index: i32, sym: ref u8) i32 = trust {
+            val paren: i64 = panic_find_byte(sym, 0, 40)
+            val plus: mut i64 = -1
+            val close: mut i64 = -1
+            if paren >= 0 {
+                plus = panic_find_byte(sym, paren + 1, 43)
+            }
+            if plus >= 0 {
+                close = panic_find_byte(sym, plus + 1, 41)
+            }
+
+            if paren <= 0 || plus < 0 || close <= plus + 1 {
+                panic_emit_text(c"  #")
+                panic_emit_number(index as u64, 2, 10, false, true, 32)
+                panic_emit_text(c" ")
+                panic_emit_text(sym)
+                panic_emit_text(c"\n")
+                return 1
+            }
+
+            val cmd: mut [2048]u8 = @zeroed
+            val cp: ref u8 = @addr(cmd) as ref u8
+            val pos: mut i64 = 0
+            pos = panic_append_into(cp, pos, c"addr2line -e ")
+            pos = panic_copy_into(cp, pos, sym, 0, paren)
+            pos = panic_append_into(cp, pos, c" -f -p ")
+            pos = panic_copy_into(cp, pos, sym, plus + 1, close)
+            pos = panic_append_into(cp, pos, c" 2>/dev/null")
+            @store8(@ptradd(cp, pos), 0)
+
+            val pipe: ref void = panic_popen(cp, c"r")
+            if pipe == none {
+                panic_emit_text(c"  #")
+                panic_emit_number(index as u64, 2, 10, false, true, 32)
+                panic_emit_text(c" ")
+                panic_emit_text(sym)
+                panic_emit_text(c"\n")
+                return 1
+            }
+
+            val resolved: mut [512]u8 = @zeroed
+            val rp: ref u8 = @addr(resolved) as ref u8
+            @store8(rp, 0)
+            val line = panic_fgets(rp, 512, pipe)
+            panic_pclose(pipe)
+            if line != none {
+                val rn: mut i64 = panic_strlen(rp)
+                if rn > 0 && @load8(@ptradd(rp, rn - 1)) == 10 {
+                    @store8(@ptradd(rp, rn - 1), 0)
+                    rn = rn - 1
+                }
+            }
+
+            if panic_contains(rp, c"panic/core.sx")
+                || panic_contains(rp, c"panic_handler.c")
+                || panic_contains(rp, c"spectre_c_shim") {
+                return 0
+            }
+
+            panic_emit_text(c"  -> ")
+            panic_emit_number(index as u64, 2, 10, false, true, 32)
+            panic_emit_text(c" ")
+            panic_emit_text(sym)
+            panic_emit_text(c"\n")
+
+            if panic_strlen(rp) > 0 && @load8(rp) != 63 {
+                val at: i64 = panic_find_text(rp, c" at ")
+                if at >= 0 {
+                    @store8(@ptradd(rp, at), 0)
+                }
+                val formatted: mut [512]u8 = @zeroed
+                val fp: ref u8 = @addr(formatted) as ref u8
+                panic_format_func(rp, fp, 511)
+                panic_emit_text(c"       at ")
+                panic_emit_text(fp)
+                panic_emit_text(c"\n")
+            }
+            return 1
+        }
+
+        pub fn sx_panic_report(sig: i32, frames: ref void, count: i32) void = trust {
+            panic_emit_text(c"spectre: panic - ")
+            panic_emit_text(panic_signal_name(sig))
+            panic_emit_text(c"\ntrace:\n")
+
+            if count <= 0 {
+                return
+            }
+
+            val syms: ref void = panic_backtrace_symbols(frames, count)
+            if syms == none {
+                panic_backtrace_symbols_fd(frames, count, 2)
+                return
+            }
+
+            val printed: mut i32 = 0
+            for i = 0, i < count, i++ {
+                val sym: ref u8 = @load(@ptradd(syms, (i as i64) * 8)) as ref u8
+                if sym != none {
+                    printed = printed + panic_print_frame(printed, sym)
+                }
+            }
+            panic_free(syms)
+        }
+
+        fn panic_on_signal(sig: i32) void = trust {
+            panic_signal(sig, 0)
+            val frames: mut [512]u8 = @zeroed
+            val count: i32 = panic_backtrace(@addr(frames) as ref void, 64)
+            sx_panic_report(sig, @addr(frames) as ref void, count)
+            panic_raise(sig)
+        }
+
+        pub fn sx_panic_init() void = trust {
+            panic_signal(11, panic_on_signal as usize)
+            panic_signal(6, panic_on_signal as usize)
+            panic_signal(panic_bus_number(), panic_on_signal as usize)
+            panic_signal(8, panic_on_signal as usize)
+            panic_signal(4, panic_on_signal as usize)
+        }
+    }
+    or when windows {
+        extern "dbghelp.h"
+
+        extern (C, header) fn panic_get_current_process() ref void = "GetCurrentProcess"
+        extern (C, header) fn panic_sym_initialize(
+            process: ref void,
+            search: ref u8,
+            invade: i32
+        ) i32 = "SymInitialize"
+        extern (C, header) fn panic_sym_from_addr(
+            process: ref void,
+            address: u64,
+            displacement: ref void,
+            symbol: ref void
+        ) i32 = "SymFromAddr"
+        extern (C, header) fn panic_capture_stack(
+            first: u32,
+            count: u32,
+            frames: ref void,
+            hash: ref void
+        ) u16 = "RtlCaptureStackBackTrace"
+        extern (C, header) fn panic_set_filter(filter: usize) ref void = "SetUnhandledExceptionFilter"
+        extern (C, header) fn panic_std_handle(kind: i32) ref void = "GetStdHandle"
+        extern (C, header) fn panic_write_file(
+            handle: ref void,
+            bytes: ref void,
+            count: u32,
+            written: ref u32,
+            overlapped: ref void
+        ) i32 = "WriteFile"
+
+        fn panic_emit_bytes(p: ref u8, n: i64) void = trust {
+            val handle: ref void = panic_std_handle(-12)
+            val written: mut [4]u8 = @zeroed
+            panic_write_file(handle, p as ref void, n as u32, @addr(written) as ref void, none)
+        }
+
+        fn panic_exception_name(code: i32) ref u8 = trust {
+            val u: u32 = code as u32
+            if u == 0xC0000005 {
+                return c"access violation"
+            }
+            if u == 0xC00000FD {
+                return c"stack overflow"
+            }
+            if u == 0xC000001D {
+                return c"illegal instruction (sigill)"
+            }
+            if u == 0xC0000094 {
+                return c"integer divide by zero (sigfpe)"
+            }
+            if u == 0xC000008E {
+                return c"float divide by zero (sigfpe)"
+            }
+            return c"unhandled exception"
+        }
+
+        pub fn sx_panic_report(code: i32, frames: ref void, count: i32) void = trust {
+            panic_emit_text(c"\nspectre: panic - ")
+            panic_emit_text(panic_exception_name(code))
+            panic_emit_text(c"\ntrace:\n")
+
+            if count <= 0 {
+                return
+            }
+
+            val process: ref void = panic_get_current_process()
+            panic_sym_initialize(process, none, 1)
+
+            val symbol_size: i64 = 88 + 256
+            val symbol: ref u8 = @alloc(symbol_size as usize) as ref u8
+            if symbol == none {
+                return
+            }
+            @memset(symbol, 0, symbol_size as usize)
+            @store32(@ptradd(symbol, 0), 88)
+            @store32(@ptradd(symbol, 80), 255)
+
+            for i = 0, i < count, i++ {
+                val address: u64 = @load(@ptradd(frames, (i as i64) * 8)) as u64
+                val displacement: mut [4]u8 = @zeroed
+                panic_sym_from_addr(
+                    process,
+                    address,
+                    @addr(displacement) as ref void,
+                    symbol as ref void
+                )
+                val name: ref u8 = @ptradd(symbol, 84) as ref u8
+                val resolved_address: u64 = @load(@ptradd(symbol, 56)) as u64
+                panic_emit_text(c"  #")
+                panic_emit_number(i as u64, 2, 10, false, true, 32)
+                panic_emit_text(c" ")
+                panic_emit_text(name)
+                panic_emit_text(c" (0x")
+                panic_emit_number(resolved_address, 16, 16, false, false, 48)
+                panic_emit_text(c")\n")
+            }
+            @free(symbol as ref void)
+        }
+
+        fn panic_on_exception(info: ref void) i32 = trust {
+            val record: ref void = @load(info)
+            val code: i32 = @load32(record)
+            val frames: mut [512]u8 = @zeroed
+            val count: u16 = panic_capture_stack(0, 64, @addr(frames) as ref void, none)
+            sx_panic_report(code, @addr(frames) as ref void, count as i32)
+            return 1
+        }
+
+        pub fn sx_panic_init() void = trust {
+            panic_set_filter(panic_on_exception as usize)
+        }
+    }
+    otherwise {
+        fn panic_emit_bytes(p: ref u8, n: i64) void = {}
+
+        pub fn sx_panic_report(sig: i32, frames: ref void, count: i32) void = {}
+
+        pub fn sx_panic_init() void = {}
+    }
+
+}
+
+fn panic_strlen(s: ref u8) i64 = trust {
+    if s == none {
+        return 0
+    }
+    val n: mut i64 = 0
+    for {
+        if @load8(@ptradd(s, n)) == 0 {
+            break
+        }
+        n = n + 1
+    }
+    return n
+}
+
+fn panic_emit_text(s: ref u8) void = trust {
+    val n: i64 = panic_strlen(s)
+    if n > 0 {
+        panic_emit_bytes(s, n)
+    }
+}
+
+fn panic_emit_fill(ch: u8, count: i64) void = trust {
+    if count <= 0 {
+        return
+    }
+    val buf: mut [64]u8 = @zeroed
+    val p: ref u8 = @addr(buf) as ref u8
+    val limit: mut i64 = count
+    if limit > 64 {
+        limit = 64
+    }
+    for i = 0, i < limit, i++ {
+        @store8(@ptradd(p, i), ch)
+    }
+    panic_emit_bytes(p, limit)
+}
+
+fn panic_emit_number(
+    value: u64,
+    width: i64,
+    base: u64,
+    upper: bool,
+    left: bool,
+    pad: u8
+) void = trust {
+    val tmp: mut [32]u8 = @zeroed
+    val tp: ref u8 = @addr(tmp) as ref u8
+    val digits: mut i64 = 0
+    val v: mut u64 = value
+    if v == 0 {
+        @store8(tp, 48)
+        digits = 1
+    } else {
+        for {
+            if v == 0 {
+                break
+            }
+            val d: u64 = v % base
+            val ch: mut u8 = (87 + d) as u8
+            if d < 10 {
+                ch = (48 + d) as u8
+            } elif upper {
+                ch = (55 + d) as u8
+            }
+            @store8(@ptradd(tp, digits), ch)
+            digits = digits + 1
+            v = v / base
+        }
+    }
+    val padding: i64 = width - digits
+    if padding > 0 && !left {
+        panic_emit_fill(pad, padding)
+    }
+    val out: mut [32]u8 = @zeroed
+    val op: ref u8 = @addr(out) as ref u8
+    for i = 0, i < digits, i++ {
+        @store8(@ptradd(op, i), @load8(@ptradd(tp, digits - 1 - i)))
+    }
+    panic_emit_bytes(op, digits)
+    if padding > 0 && left {
+        panic_emit_fill(pad, padding)
+    }
+}
+
+//!suppress "unused-function"
+fn panic_find_byte(s: ref u8, from: i64, want: u8) i64 = trust {
+    val n: i64 = panic_strlen(s)
+    for i = from, i < n, i++ {
+        if @load8(@ptradd(s, i)) == want {
+            return i
+        }
+    }
+    return -1
+}
+
+fn panic_find_text(hay: ref u8, needle: ref u8) i64 = trust {
+    val hn: i64 = panic_strlen(hay)
+    val nn: i64 = panic_strlen(needle)
+    if nn == 0 {
+        return 0
+    }
+    if nn > hn {
+        return -1
+    }
+    for i = 0, i + nn <= hn, i++ {
+        val matched: mut bool = true
+        for j = 0, j < nn, j++ {
+            if @load8(@ptradd(hay, i + j)) != @load8(@ptradd(needle, j)) {
+                matched = false
+                break
+            }
+        }
+        if matched {
+            return i
+        }
+    }
+    return -1
+}
+
+//!suppress "unused-function"
+fn panic_contains(hay: ref u8, needle: ref u8) bool = trust {
+    return panic_find_text(hay, needle) >= 0
+}
+
+fn panic_copy_into(dst: ref u8, pos: i64, src: ref u8, from: i64, to: i64) i64 = trust {
+    val n: i64 = to - from
+    for i = 0, i < n, i++ {
+        @store8(@ptradd(dst, pos + i), @load8(@ptradd(src, from + i)))
+    }
+    return pos + n
+}
+
+//!suppress "unused-function"
+fn panic_append_into(dst: ref u8, pos: i64, src: ref u8) i64 = trust {
+    return panic_copy_into(dst, pos, src, 0, panic_strlen(src))
+}
+
+//!suppress "unused-function"
+fn panic_format_func(src: ref u8, dst: ref u8, cap: i64) i64 = trust {
+    val n: i64 = panic_strlen(src)
+    val i: mut i64 = 0
+    val j: mut i64 = 0
+    for {
+        if i >= n || j + 1 >= cap {
+            break
+        }
+        if @load8(@ptradd(src, i)) == 95 && i + 1 < n
+            && @load8(@ptradd(src, i + 1)) == 95 {
+            @store8(@ptradd(dst, j), 46)
+            j = j + 1
+            i = i + 2
+        } else {
+            @store8(@ptradd(dst, j), @load8(@ptradd(src, i)))
+            j = j + 1
+            i = i + 1
+        }
+    }
+    @store8(@ptradd(dst, j), 0)
+    return j
+}
+
+fn panic_bus_number() i32 = trust {
+    when darwin {
+        return 10
+    }
+    or when bsd {
+        return 10
+    }
+    otherwise {
+        return 7
+    }
+}
+
+fn panic_signal_name(sig: i32) ref u8 = trust {
+    if sig == 11 {
+        return c"segmentation fault (sigsegv)"
+    }
+    if sig == 6 {
+        return c"abort (sigabrt)"
+    }
+    if sig == panic_bus_number() {
+        return c"bus error (sigbus)"
+    }
+    if sig == 8 {
+        return c"floating point exception (sigfpe)"
+    }
+    if sig == 4 {
+        return c"illegal instruction (sigill)"
+    }
+    return c"fatal signal"
+}

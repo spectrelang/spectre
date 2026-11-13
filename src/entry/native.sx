@@ -82,8 +82,6 @@ fn collect_links_native(ctx: mut ref context.Context, st: mut ref NativeState) b
     if !ctx.opts.compile_obj && !ctx.freestanding_runtime {
         builds.append_debug_runtime_links(
             st.links,
-            ctx.exe_dir,
-            ctx.opts.quiet,
             ctx.opts.release_mode,
             native_cc(ctx),
             ctx.host_platform

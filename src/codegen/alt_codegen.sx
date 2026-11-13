@@ -80,6 +80,7 @@ pub type CCtx = {
     expr_arena_owned: mut list[bool]
     release_mode: mut bool
     leak_check: mut bool
+    panic_present: mut bool
     current_ret_ctype: mut ref u8
     current_ret_is_void: mut bool
     current_ret_ty: mut ref parser.Node
@@ -166,6 +167,7 @@ fn cc_new() ref CCtx = trust {
     ctx.expr_arena_owned = mem.new[bool]()
     ctx.release_mode = false
     ctx.leak_check = false
+    ctx.panic_present = false
     ctx.current_ret_ctype = c"int64_t"
     ctx.current_ret_is_void = false
     ctx.current_ret_unboxed = false
@@ -9878,8 +9880,8 @@ fn gen_fn_prefixed(ctx: mut ref CCtx, fn_node: ref parser.Node, mod_prefix: ref 
     if is_main {
         emitln(ctx, c"sx__argc=(int64_t)argc;sx__argv=(int64_t)(intptr_t)argv;")
         emitln(ctx, c"sx__init();")
-        if !ctx.release_mode {
-            emitln(ctx, c"__sx_panic_init();")
+        if ctx.panic_present && !ctx.release_mode {
+            emitln(ctx, c"sx_panic_init();")
         }
     }
     gen_stmts(ctx, body)
@@ -11011,12 +11013,6 @@ fn emit_c_preamble(ctx: ref CCtx) void = trust {
     }
 }
 
-fn emit_c_panic_handler(ctx: ref CCtx) void = trust {
-    if !ctx.release_mode {
-        emitln_fwd(ctx, c"extern void __sx_panic_init(void);")
-    }
-}
-
 fn emit_string_data(ctx: ref CCtx) void = trust {
     val slen: i64 = @len(ctx.strs as list[ref u8]) as i64
     val si: mut i64 = 0
@@ -11527,8 +11523,8 @@ fn gen_test_main_c(
     emitln(ctx, c"int main(int argc,char**argv) {")
     emitln(ctx, c"sx__argc=(int64_t)argc;sx__argv=(int64_t)(intptr_t)argv;")
     emitln(ctx, c"sx__init();")
-    if !ctx.release_mode {
-        emitln(ctx, c"__sx_panic_init();")
+    if ctx.panic_present && !ctx.release_mode {
+        emitln(ctx, c"sx_panic_init();")
     }
     val tlen: i64 = @len(test_ids) as i64
     val ti: mut i64 = 0
@@ -11592,6 +11588,10 @@ pub fn gen_module_c_test(
     }
     ctx.release_mode = release_mode
     ctx.leak_check = leak_check
+    ctx.panic_present = module.module_tree_has_file(
+        root,
+        c"spectrelib/panic/core.sx"
+    )
     ctx.src_target = src_target
     ctx.simd_backend = simd_backend
     val out_prefixes: mut list[ref u8] = mem.new[ref u8]()
@@ -11613,7 +11613,6 @@ pub fn gen_module_c_test(
     for inc in extra_includes {
         emitln_fwd(ctx, cstr.concat(c"#include \"", cstr.concat(inc, c"\"")))
     }
-    emit_c_panic_handler(ctx)
     val li: mut i64 = 0
     for {
         if li >= layers {
@@ -11728,6 +11727,10 @@ pub fn gen_module_c(
     }
     ctx.release_mode = release_mode
     ctx.leak_check = leak_check
+    ctx.panic_present = module.module_tree_has_file(
+        root,
+        c"spectrelib/panic/core.sx"
+    )
     ctx.src_target = src_target
     ctx.simd_backend = simd_backend
     val out_prefixes: mut list[ref u8] = mem.new[ref u8]()
@@ -11749,7 +11752,6 @@ pub fn gen_module_c(
     for inc in extra_includes {
         emitln_fwd(ctx, cstr.concat(c"#include \"", cstr.concat(inc, c"\"")))
     }
-    emit_c_panic_handler(ctx)
     emitln_fwd(ctx, c"static void sx__init(void);")
     val li: mut i64 = 0
     for {

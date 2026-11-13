@@ -1,3 +1,6 @@
+#if defined(_WIN32)
+#include <windows.h>
+#endif
 
 #ifdef SX_FREESTANDING
 typedef __SIZE_TYPE__ size_t;
@@ -69,3 +72,39 @@ extern void std__allocators__HeapAllocator__realloc(long long*,long long,long lo
 long long sx__allocadapt_allocators__HeapAllocator_alloc(long long ctx,unsigned long long size){long long r[3]={0,0,0};std__allocators__HeapAllocator__alloc(r,ctx,size);return (r[0]!=0&&r[1]!=0)?r[1]+1:0;}
 int sx__allocadapt_allocators__HeapAllocator_free(long long ctx,long long ptr){std__allocators__HeapAllocator__free(ctx,ptr);return 0;}
 long long sx__allocadapt_allocators__HeapAllocator_realloc(long long ctx,long long ptr,unsigned long long size){long long r[3]={0,0,0};std__allocators__HeapAllocator__realloc(r,ctx,ptr,size);return (r[0]!=0&&r[1]!=0)?r[1]+1:0;}
+#include "execinfo.h"
+
+
+#if defined(_WIN32)
+#include <windows.h>
+#include <dbghelp.h>
+extern void sx_panic_report(int, void*, int);
+static LONG WINAPI sx__panic_filter(EXCEPTION_POINTERS* info) {
+    void* frames[64];
+    WORD count = CaptureStackBackTrace(0, 64, frames, 0);
+    int code = (int)info->ExceptionRecord->ExceptionCode;
+    sx_panic_report(code, frames, (int)count);
+    return EXCEPTION_EXECUTE_HANDLER;
+}
+void sx__panic_shim_init(void) {
+    SetUnhandledExceptionFilter(sx__panic_filter);
+}
+#else
+#include <signal.h>
+#include <execinfo.h>
+extern void sx_panic_report(int, void*, int);
+static void sx__panic_trampoline(int sig) {
+    signal(sig, SIG_DFL);
+    void* frames[64];
+    int count = backtrace(frames, 64);
+    sx_panic_report(sig, frames, count);
+    raise(sig);
+}
+void sx__panic_shim_init(void) {
+    signal(SIGSEGV, sx__panic_trampoline);
+    signal(SIGABRT, sx__panic_trampoline);
+    signal(SIGBUS, sx__panic_trampoline);
+    signal(SIGFPE, sx__panic_trampoline);
+    signal(SIGILL, sx__panic_trampoline);
+}
+#endif

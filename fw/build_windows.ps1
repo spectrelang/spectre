@@ -17,13 +17,9 @@ try {
 } catch {
 }
 
-Write-Host "Building runtime objects..."
-clang -O2 -Wno-error=int-conversion -c spectrelib/csources/panic_handler.c -o spectrelib/csources/panic_handler.o
-
 Write-Host "Building Windows bootstrap compiler..."
 clang -O3 -Wno-everything -Wno-error=int-conversion `
     bootstrap/sxcw.c `
-    spectrelib/csources/panic_handler.c `
     -lDbghelp `
     -lbcrypt `
     -o stage0.exe

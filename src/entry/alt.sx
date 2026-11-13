@@ -429,8 +429,6 @@ fn collect_links_alt(ctx: mut ref context.Context, st: mut ref AltState) bool = 
     if !ctx.opts.compile_obj && !ctx.freestanding_runtime {
         builds.append_debug_runtime_links(
             st.links,
-            ctx.exe_dir,
-            ctx.opts.quiet,
             ctx.opts.release_mode,
             st.selected_compiler,
             ctx.target_platform

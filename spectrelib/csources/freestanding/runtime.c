@@ -769,6 +769,7 @@ int sprintf(char *buf, const char *fmt, ...) {
 #define SX_SYS_ioctl 16
 #define SX_SYS_rt_sigaction 13
 #define SX_SYS_kill 62
+#define SX_SYS_getpid 39
 #else
 #define SX_SYS_read 63
 #define SX_SYS_write 64
@@ -813,6 +814,7 @@ int sprintf(char *buf, const char *fmt, ...) {
 #define SX_SYS_ioctl 29
 #define SX_SYS_rt_sigaction 134
 #define SX_SYS_kill 129
+#define SX_SYS_getpid 172
 #endif
 
 #if defined(__x86_64__)
@@ -1480,11 +1482,38 @@ int pclose(FILE *f) {
 
 /* Signals (software dispatch; real asynchronous delivery is best effort). */
 static void (*sx_signal_handlers[65])(int);
+
+#if defined(__x86_64__)
+__attribute__((naked)) static void sx_restore_rt(void) {
+  __asm__ volatile("mov $15, %rax\n\tsyscall\n\tud2");
+}
+#endif
+
+static void sx_signal_trampoline(int sig) {
+  if (sig > 0 && sig < 65) {
+    void (*handler)(int) = sx_signal_handlers[sig];
+    if (handler)
+      handler(sig);
+  }
+}
+
+int sigaction(int sig, const void *act, void *old);
 void (*signal(int sig, void (*handler)(int)))(int) {
   void (*old)(int) = SX_NULL;
   if (sig > 0 && sig < 65) {
     old = sx_signal_handlers[sig];
     sx_signal_handlers[sig] = handler;
+    /* The kernel sigaction layout agrees across the supported Linux targets
+       when flags, restorer and mask are zero, so a zeroed buffer is enough. */
+    unsigned long act[16];
+    memset(act, 0, sizeof act);
+    act[0] = (unsigned long)(handler ? sx_signal_trampoline : SX_NULL);
+#if defined(__x86_64__)
+    /* x86-64 requires the caller to supply the sigreturn restorer. */
+    act[1] = 0x04000000UL; /* SA_RESTORER */
+    act[2] = (unsigned long)sx_restore_rt;
+#endif
+    sigaction(sig, act, SX_NULL);
   }
   return old;
 }
@@ -1493,7 +1522,7 @@ int raise(int sig) {
     sx_signal_handlers[sig](sig);
     return 0;
   }
-  return (int)sx_sc2(SX_SYS_kill, 0, sig);
+  return (int)sx_sc2(SX_SYS_kill, sx_sc0(SX_SYS_getpid), sig);
 }
 
 /* struct utsname: six 65-byte fields is the Linux ABI. */
@@ -2659,8 +2688,6 @@ void mainCRTStartup(void) {
 }
 
 #endif /* platform */
-/* Exposed to generated code and the Spectre runtime. */
-void __sx_panic_init(void) {}
 
 char **__sx_get_argv(void) {
 #if defined(SX_LINUX)
@@ -2787,6 +2814,9 @@ void (*sx_signal(int sig, void (*handler)(int)))(int) {
   return signal(sig, handler);
 }
 int sx_raise(int sig) { return raise(sig); }
+
+/* Frame pointer of the caller; used by the freestanding panic reporter. */
+void *sx_frame_pointer(void) { return __builtin_frame_address(0); }
 
 /* ------------------------------------------------------------------------- */
 /* Raw syscall boundary used by the Spectre runtime                          */

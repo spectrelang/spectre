@@ -475,8 +475,6 @@ if [ -n "$SPECTRE_VERSION" ]; then
 fi
 
 CSOURCES_DIR="${SPECTRE_DIR}/spectrelib/csources"
-PANIC_HANDLER_SRC="${CSOURCES_DIR}/panic_handler.c"
-PANIC_HANDLER_OBJ="${CSOURCES_DIR}/panic_handler.o"
 QBE_RUNTIME_SRC="${CSOURCES_DIR}/qbe_runtime.c"
 QBE_RUNTIME_OBJ="${CSOURCES_DIR}/qbe_runtime.o"
 OS="$(uname -s)"
@@ -493,7 +491,6 @@ Darwin)
 esac
 
 log "CC Stage I..."
-cc -O2 -c "${PANIC_HANDLER_SRC}" -o "${PANIC_HANDLER_OBJ}"
 if [ -f "${QBE_RUNTIME_SRC}" ]; then
 	cc -O2 -c "${QBE_RUNTIME_SRC}" -o "${QBE_RUNTIME_OBJ}"
 fi
@@ -530,7 +527,6 @@ if [ "$QBE_OK" -eq 1 ]; then
 	cc -O2 \
 		"${BOOTSTRAP_OUT}.s" \
 		"${QBE_RUNTIME_OBJ}" \
-		"${PANIC_HANDLER_OBJ}" \
 		-o "${BOOTSTRAP_OUT}"
 else
 	[ -f "$POSIX_BOOTSTRAP_SRC" ] || err "Missing C bootstrap at ${POSIX_BOOTSTRAP_SRC}"
@@ -540,7 +536,6 @@ else
 	log "CC Stage II (C bootstrap)..."
 	(cd "$SPECTRE_DIR" && cc -O2 \
 		"${POSIX_BOOTSTRAP_SRC}" \
-		"${PANIC_HANDLER_OBJ}" \
 		-Wno-everything \
 		-o "${POSIX_BOOTSTRAP_OUT}")
 fi

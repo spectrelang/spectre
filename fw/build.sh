@@ -19,7 +19,6 @@ for arg in "$@"; do
 	esac
 done
 
-cc -c spectrelib/csources/panic_handler.c -o spectrelib/csources/panic_handler.o || exit 1
 cc -c spectrelib/csources/qbe_runtime.c -o spectrelib/csources/qbe_runtime.o || exit 1
 
 GIT_HASH="unknown"

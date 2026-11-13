@@ -117,8 +117,6 @@ fn collect_links_x(ctx: mut ref context.Context, st: mut ref CrossState) bool = 
     if !ctx.opts.compile_obj && !ctx.freestanding_runtime {
         builds.append_debug_runtime_links(
             st.links,
-            ctx.exe_dir,
-            ctx.opts.quiet,
             ctx.opts.release_mode,
             c"clang",
             ctx.target_platform

@@ -1429,6 +1429,54 @@ pub fn resolve_module(
     return resolved
 }
 
+/// Report whether `suffix` names a file anywhere in the resolved module tree.
+pub fn module_tree_has_file(m: ref ResolvedModule, suffix: ref u8) bool = trust {
+    if m == none {
+        return false
+    }
+    if cstr.ends_with(ostr.as_cstr(m.filename), suffix) {
+        return true
+    }
+    for child in m.import_modules {
+        if module_tree_has_file(child, suffix) {
+            return true
+        }
+    }
+    return false
+}
+
+/// Attach the panic-reporting module to `root` as an implicit import.
+///
+/// The module is only added when the standard library copy is readable, so a
+/// compiler installed without `spectrelib` keeps building programs that do not
+/// use the standard library. Returns true when the module is part of the tree.
+pub fn attach_panic_module(
+    arena: allocators.ScopedArenaAllocator,
+    root: ref ResolvedModule,
+    exe_dir: ref u8
+) bool = trust {
+    val suffix: ref u8 = c"spectrelib/panic/core.sx"
+    if module_tree_has_file(root, suffix) {
+        return true
+    }
+    val use_path: mut ref u8 = c"std/panic"
+    val resolved: ref u8 = resolve_use_path(use_path, exe_dir, exe_dir, exe_dir)
+    if !file_exists(resolved) {
+        return false
+    }
+    match resolve_module(arena, resolved, mem.new[ref u8](), exe_dir, none) {
+        ok child => {
+            val alias: String = arena_string(arena, c"panic_rt")
+            @append(root.import_names, str.as_cstr[String](alias))
+            @append(root.import_modules, child as ref void)
+            return true
+        }
+        err _ => {
+            return false
+        }
+    }
+}
+
 /// Look up a direct import of `m` by its alias name.
 /// Returns the child ResolvedModule if found, or null if not found.
 pub fn find_import_by_name(m: ref ResolvedModule, name: ref u8) ref ResolvedModule = trust {

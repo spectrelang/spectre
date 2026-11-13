@@ -18,7 +18,6 @@ fi
 echo "Building stage0 from $BOOTSTRAP_SRC..."
 cc -O2 \
 	"$BOOTSTRAP_SRC" \
-	spectrelib/csources/panic_handler.c \
 	-w \
 	-Wno-error=int-conversion \
 	-o spectre-stage0

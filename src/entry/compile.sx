@@ -199,6 +199,9 @@ fn prepare_module(ctx: mut ref context.Context) bool = trust {
             return false
         }
     }
+    if !ctx.opts.release_mode && !ctx.opts.syntax_check && !ctx.opts.print_ast {
+        module.attach_panic_module(ctx.frontend_arena, ctx.root_mod, ctx.exe_dir)
+    }
     return true
 }
 

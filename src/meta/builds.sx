@@ -3,7 +3,6 @@ val cstr       = use("std/string/cstr")
 val ostr       = use("std/string/owned")
 val builder    = use("std/string/builder")
 val fs         = use("std/fs")
-val stdio      = use("std/stdio")
 val path       = use("std/path")
 val reflection = use("std/reflection")
 val allocators = use("std/allocators")
@@ -1179,8 +1178,6 @@ pub fn pick_alt_backend(
 
 pub fn append_debug_runtime_links(
     links: mut list[ref u8],
-    exe_dir: ref u8,
-    quiet: bool,
     release_mode: bool,
     compiler: ref u8,
     platform: ref u8
@@ -1197,21 +1194,6 @@ pub fn append_debug_runtime_links(
     }
     if release_mode {
         return
-    }
-    val panic_c: ref u8 = path.join_cstr(exe_dir, c"spectrelib/csources/panic_handler.c")
-    val panic_o: ref u8 = path.join_cstr(exe_dir, c"spectrelib/csources/panic_handler.o")
-    val panic_cf = fs.open_cstr(panic_c, c"r")
-    if panic_cf is some hc {
-        fs.close(hc)
-        @append(links, panic_c)
-    } else {
-        val panic_of = fs.open_cstr(panic_o, c"r")
-        if panic_of is some ho {
-            fs.close(ho)
-            @append(links, panic_o)
-        } elif !quiet {
-            stdio.print("warning: panic_handler.c not found at: {s}\n", {panic_c})
-        }
     }
     if cstr.cmp(platform, c"windows") == 0 {
         if compiler_uses_msvc_flags(kind) {

@@ -103,6 +103,7 @@ pub type CgCtx = {
     global_inits: mut list[ref GlobalInit]
     release_mode: mut bool
     leak_check: mut bool
+    panic_present: mut bool
     src_target: mut ref u8
     inv_tnames: mut list[ref u8]
     inv_tlists: mut list[ref void]
@@ -250,6 +251,7 @@ fn cg_new() ref CgCtx = trust {
     ctx.global_inits = mem.new[ref GlobalInit]()
     ctx.release_mode = false
     ctx.leak_check = false
+    ctx.panic_present = false
     ctx.src_target = c""
     ctx.inv_tnames = mem.new[ref u8]()
     ctx.inv_tlists = mem.new[ref void]()
@@ -2369,14 +2371,69 @@ pub fn leak_runtime_c_source() str.StringView = trust {
 }
 
 /// Build the C translation unit that exposes C header constants to QBE.
+fn cg_wants_panic_shim(ctx: ref CgCtx) bool = trust {
+    return ctx.panic_present && !ctx.release_mode && !runtime_is_freestanding()
+}
+
+/// C trampoline installed by the QBE backend.  QBE does not emit unwind tables,
+/// so the signal handler itself must be compiled by the C compiler for the
+/// backtrace to reach the interrupted frames.  The reporting stays in Spectre.
+fn cg_panic_shim_c_source() str.StringView = trust {
+    return \\
+    \\#if defined(_WIN32)
+    \\#include <windows.h>
+    \\#include <dbghelp.h>
+    \\extern void sx_panic_report(int, void*, int);
+    \\static LONG WINAPI sx__panic_filter(EXCEPTION_POINTERS* info) {
+    \\    void* frames[64];
+    \\    WORD count = CaptureStackBackTrace(0, 64, frames, 0);
+    \\    int code = (int)info->ExceptionRecord->ExceptionCode;
+    \\    sx_panic_report(code, frames, (int)count);
+    \\    return EXCEPTION_EXECUTE_HANDLER;
+    \\}
+    \\void sx__panic_shim_init(void) {
+    \\    SetUnhandledExceptionFilter(sx__panic_filter);
+    \\}
+    \\#else
+    \\#include <signal.h>
+    \\#include <execinfo.h>
+    \\extern void sx_panic_report(int, void*, int);
+    \\static void sx__panic_trampoline(int sig) {
+    \\    signal(sig, SIG_DFL);
+    \\    void* frames[64];
+    \\    int count = backtrace(frames, 64);
+    \\    sx_panic_report(sig, frames, count);
+    \\    raise(sig);
+    \\}
+    \\void sx__panic_shim_init(void) {
+    \\    signal(SIGSEGV, sx__panic_trampoline);
+    \\    signal(SIGABRT, sx__panic_trampoline);
+    \\    signal(SIGBUS, sx__panic_trampoline);
+    \\    signal(SIGFPE, sx__panic_trampoline);
+    \\    signal(SIGILL, sx__panic_trampoline);
+    \\}
+    \\#endif
+    \\
+}
+
 fn cg_build_c_shim(ctx: ref CgCtx) ref u8 = trust {
     val n_consts: i64 = @len(ctx.c_consts) as i64
     val n_adapters: i64 = @len(ctx.alloc_adapter_lines as list[ref u8]) as i64
-    if n_consts == 0 && !ctx.alloc_runtime && n_adapters == 0 && !ctx.leak_check {
+    val want_panic: bool = cg_wants_panic_shim(ctx)
+    val want_headers: bool = n_consts != 0 || ctx.alloc_runtime || n_adapters != 0
+        || ctx.leak_check
+    if !want_headers && !want_panic {
         return c""
     }
 
+    // Headers such as dbghelp.h depend on windows.h being included first.
     val sb: ref void = builder.StringBuilder.new()
+    if want_headers {
+        builder.StringBuilder.append_cstr(
+            sb,
+            c"#if defined(_WIN32)\n#include <windows.h>\n#endif\n"
+        )
+    }
     if ctx.leak_check {
         builder.StringBuilder.append(sb, leak_runtime_c_source())
     }
@@ -2394,16 +2451,18 @@ fn cg_build_c_shim(ctx: ref CgCtx) ref u8 = trust {
         }
         ai++
     }
-    for header in ctx.c_headers {
-        val inc: ref u8 = allocators.ScopedArena.alloc_or_none(
-            ctx.arena,
-            (cstr.len(header) + 16) as usize
-        ) as ref u8
-        @snprintf(inc, cstr.len(header) + 16, "#include \"{s}\"\n", {header})
-        builder.StringBuilder.append_cstr(sb, inc)
-    }
-    if (@len(ctx.c_headers) as i64) > 0 {
-        builder.StringBuilder.append_cstr(sb, c"\n")
+    if want_headers {
+        for header in ctx.c_headers {
+            val inc: ref u8 = allocators.ScopedArena.alloc_or_none(
+                ctx.arena,
+                (cstr.len(header) + 16) as usize
+            ) as ref u8
+            @snprintf(inc, cstr.len(header) + 16, "#include \"{s}\"\n", {header})
+            builder.StringBuilder.append_cstr(sb, inc)
+        }
+        if (@len(ctx.c_headers) as i64) > 0 {
+            builder.StringBuilder.append_cstr(sb, c"\n")
+        }
     }
     if runtime_is_freestanding() {
         builder.StringBuilder.append(sb, \\
@@ -2458,6 +2517,10 @@ fn cg_build_c_shim(ctx: ref CgCtx) ref u8 = trust {
             }
         }
         i++
+    }
+
+    if want_panic {
+        builder.StringBuilder.append(sb, cg_panic_shim_c_source())
     }
 
     val built: ref void = builder.StringBuilder.build(sb)
@@ -18922,8 +18985,12 @@ fn gen_fn_prefixed(ctx: mut ref CgCtx, fn_node: ref parser.Node, mod_prefix: ref
         emitln(ctx, c"    %sx_argc_val =l extsw %argc")
         emitln(ctx, c"    storel %sx_argc_val, $sx_argc_store")
         emitln(ctx, c"    storel %argv, $sx_argv_store")
-        if !ctx.release_mode {
-            emitln(ctx, c"    call $__sx_panic_init()")
+        if ctx.panic_present && !ctx.release_mode {
+            if runtime_is_freestanding() {
+                emitln(ctx, c"    call $sx_panic_init()")
+            } else {
+                emitln(ctx, c"    call $sx__panic_shim_init()")
+            }
         }
         emitln(ctx, c"    call $__sx_global_init()")
     }
@@ -19571,7 +19638,10 @@ fn preregister_items(
                     ctx.arena,
                     512 as usize
                 ) as ref u8
-                if cstr.cmp(mod_prefix, c"") == 0 {
+                if cstr.starts_with(name, c"sx_") || cstr.starts_with(name, c"__sx_") {
+                    // Runtime ABI functions keep their exact symbol name.
+                    @snprintf(mangled, 512, "{s}", {name})
+                } elif cstr.cmp(mod_prefix, c"") == 0 {
                     if cstr.cmp(base, c"main") == 0 {
                         @snprintf(mangled, 512, "{s}", {base})
                     } else {
@@ -20736,6 +20806,10 @@ pub fn gen_module_resolved(
     ctx.release_mode = release_mode
     ctx.leak_check = leak_check
     ctx.src_target = src_target
+    ctx.panic_present = module.module_tree_has_file(
+        root,
+        c"spectrelib/panic/core.sx"
+    )
     ctx.current_filename = module.module_filename(root)
     cg_build_alias_map(ctx, root)
     emit_runtime_helpers(ctx)
@@ -21024,8 +21098,12 @@ fn gen_test_main(
     emitln(ctx, c"    %sx_argc_val =l extsw %argc")
     emitln(ctx, c"    storel %sx_argc_val, $sx_argc_store")
     emitln(ctx, c"    storel %argv, $sx_argv_store")
-    if !ctx.release_mode {
-        emitln(ctx, c"    call $__sx_panic_init()")
+    if ctx.panic_present && !ctx.release_mode {
+        if runtime_is_freestanding() {
+            emitln(ctx, c"    call $sx_panic_init()")
+        } else {
+            emitln(ctx, c"    call $sx__panic_shim_init()")
+        }
     }
     emitln(ctx, c"    call $__sx_global_init()")
     val tlen: i64 = @len(test_ids) as i64
@@ -21092,6 +21170,10 @@ pub fn gen_module_resolved_test(
     ctx.release_mode = release_mode
     ctx.leak_check = leak_check
     ctx.src_target = src_target
+    ctx.panic_present = module.module_tree_has_file(
+        root,
+        c"spectrelib/panic/core.sx"
+    )
     ctx.current_filename = module.module_filename(root)
     cg_build_alias_map(ctx, root)
     emit_runtime_helpers(ctx)

@@ -492,14 +492,10 @@ if (-not (Test-Path $BOOTSTRAP_SRC)) {
     Err "Missing bootstrap source at $BOOTSTRAP_SRC"
 }
 
-$CSOURCES_DIR = "$SPECTRE_DIR\spectrelib\csources"
-$PANIC_HANDLER_SRC = "$CSOURCES_DIR\panic_handler.c"
-
 Log "Compiling bootstrap..."
 
 clang -O3 -Wno-everything `
     $BOOTSTRAP_SRC `
-    $PANIC_HANDLER_SRC `
     -lDbghelp `
     -lbcrypt `
     -o $BOOTSTRAP_OUT
