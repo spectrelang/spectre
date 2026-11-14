@@ -1,0 +1,6 @@
+val stdio = use("std/stdio")
+
+pub fn main() i32 = trust {
+    stdio.puts("multi_actions_app ok")
+    return 0
+}

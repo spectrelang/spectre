@@ -3,7 +3,7 @@ version "v0.0.1"
 spectre_version "v0.0.17"
 
 var {
-    CC=gcc // OUT is reserved; it always resolves to {project-root}/.sx/.
+    CC=gcc // OUT is reserved; it resolves to {project-root}/.sx/{platform}.{arch}/.
     SOME_OTHER_VAR=something
 }
 

@@ -650,13 +650,13 @@ pub fn cmd_install(
         entry = m.entry
     }
 
-    if cstr.len(rule.action) == 0 && cstr.len(entry) == 0 {
+    if !commands.rule_has_actions(rule) && cstr.len(entry) == 0 {
         stdio.print("error: build config '{s}' does not define an entry file\n", {cfg.name})
         cleanup(clone_dir)
         return 1
     }
 
-    if cstr.len(rule.action) > 0 && cstr.len(rule.output) == 0 {
+    if commands.rule_has_actions(rule) && cstr.len(rule.output) == 0 {
         stdio.print(
             "error: build config '{s}' uses an action but does not declare an output\n",
             {cfg.name}

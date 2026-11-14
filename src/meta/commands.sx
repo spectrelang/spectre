@@ -16,7 +16,7 @@ val os         = use("std/os")
 pub type SxBuildRule = {
     platform: mut ref u8
     arch: mut ref u8
-    action: mut ref u8
+    actions: mut list[ref u8]
     flags: mut ref u8
     output: mut ref u8
     entry: mut ref u8
@@ -337,18 +337,40 @@ fn ctx_read_joined_value(ctx: mut ref ParseCtx) ref u8 = trust {
     return join_tokens(ctx_read_list(ctx))
 }
 
-fn lookup_var_n(m: ref SxMod, name: ref u8, n: i64) ref u8 = trust {
+fn target_dir_name(target: ref u8) ref u8 = trust {
+    val arena: allocators.Arena = allocators.Arena.new(256 as usize)?
+    val platform: mut ref u8 = reflection.current_platform_name[allocators.Arena](arena)
+    val arch: mut ref u8 = reflection.current_arch_name[allocators.Arena](arena)
+    if cstr.len(target) > 0 {
+        val target_platform: ref u8 = builds.target_platform_of(target)
+        val target_arch: ref u8 = builds.target_arch_of(target)
+        if cstr.len(target_platform) > 0 {
+            platform = target_platform
+        }
+        if cstr.len(target_arch) > 0 {
+            arch = target_arch
+        }
+    }
+    val name: ref u8 = mem.alloc(512 as usize) as ref u8
+    @snprintf(name, 512, "{s}.{s}", {platform, arch})
+    allocators.Arena.free(arena)
+    return name
+}
+
+fn lookup_var_n(
+    m: ref SxMod,
+    root: ref u8,
+    target: ref u8,
+    name: ref u8,
+    n: i64
+) ref u8 = trust {
     if n == 3 {
         if @load8(@ptradd(name, 0)) == 79
         && @load8(@ptradd(name, 1)) == 85
         && @load8(@ptradd(name, 2)) == 84 {
-            val cwd_opt = fs.cwd_cstr()
-            if cwd_opt is some cwd {
-                val out_dir: ref u8 = path.join_cstr(cwd, c".sx")
-                @free(cwd)
-                return out_dir
-            }
-            return c".sx"
+            val target_name: ref u8 = target_dir_name(target)
+            val out_dir: ref u8 = @fmtalloc("{s}/.sx/{s}", {root, target_name})
+            return out_dir
         }
     }
     for entry in m.vars {
@@ -378,7 +400,14 @@ fn lookup_var_n(m: ref SxMod, name: ref u8, n: i64) ref u8 = trust {
     return none
 }
 
-fn resolve_var_ref(m: ref SxMod, s: ref u8, n: i64, dollar: i64) ref VarRef = trust {
+fn resolve_var_ref(
+    m: ref SxMod,
+    root: ref u8,
+    target: ref u8,
+    s: ref u8,
+    n: i64,
+    dollar: i64
+) ref VarRef = trust {
     val ns: mut i64 = dollar + 1
     val braced: mut bool = false
     if ns < n && @load8(@ptradd(s, ns)) == 123 {
@@ -409,12 +438,18 @@ fn resolve_var_ref(m: ref SxMod, s: ref u8, n: i64, dollar: i64) ref VarRef = tr
         after = ns + 1
     }
     val r: mut ref VarRef = mem.alloc(@sizeof(VarRef) as usize) as ref VarRef
-    r.value = lookup_var_n(m, @ptradd(s, name_start) as ref u8, ns - name_start)
+    r.value = lookup_var_n(
+        m,
+        root,
+        target,
+        @ptradd(s, name_start) as ref u8,
+        ns - name_start
+    )
     r.after = after
     return r
 }
 
-fn expand_var_refs(m: ref SxMod, s: ref u8) ref u8 = trust {
+fn expand_var_refs(m: ref SxMod, root: ref u8, target: ref u8, s: ref u8) ref u8 = trust {
     if s == none {
         return s
     }
@@ -426,7 +461,7 @@ fn expand_var_refs(m: ref SxMod, s: ref u8) ref u8 = trust {
             break
         }
         if @load8(@ptradd(s, i)) == 36 {
-            val vr_opt = resolve_var_ref(m, s, n, i)
+            val vr_opt = resolve_var_ref(m, root, target, s, n, i)
             if vr_opt != none {
                 val vr: ref VarRef = vr_opt
                 if vr.value != none {
@@ -450,7 +485,7 @@ fn expand_var_refs(m: ref SxMod, s: ref u8) ref u8 = trust {
             break
         }
         if @load8(@ptradd(s, i)) == 36 {
-            val vr_opt = resolve_var_ref(m, s, n, i)
+            val vr_opt = resolve_var_ref(m, root, target, s, n, i)
             if vr_opt != none {
                 val vr: ref VarRef = vr_opt
                 if vr.value != none {
@@ -470,26 +505,31 @@ fn expand_var_refs(m: ref SxMod, s: ref u8) ref u8 = trust {
     return out
 }
 
-fn expand_envs(m: ref SxMod, envs: mut list[ref u8]) void = trust {
-    val n: i64 = @len(envs) as i64
+fn expand_list(
+    m: ref SxMod,
+    root: ref u8,
+    target: ref u8,
+    values: mut list[ref u8]
+) void = trust {
+    val n: i64 = @len(values) as i64
     val i: mut i64 = 0
     for {
         if i >= n {
             break
         }
-        val e = @get(envs, i as usize)
+        val e = @get(values, i as usize)
         if e is some entry {
-            @set(envs, i as usize, expand_var_refs(m, entry as ref u8))
+            @set(values, i as usize, expand_var_refs(m, root, target, entry as ref u8))
         }
         i++
     }
 }
 
-fn expand_mod_strings(m: mut ref SxMod) void = trust {
-    m.entry = expand_var_refs(m, m.entry)
-    m.version = expand_var_refs(m, m.version)
-    m.spectre_version = expand_var_refs(m, m.spectre_version)
-    m.single_flags = expand_var_refs(m, m.single_flags)
+fn expand_mod_strings(m: mut ref SxMod, root: ref u8, target: ref u8) void = trust {
+    m.entry = expand_var_refs(m, root, target, m.entry)
+    m.version = expand_var_refs(m, root, target, m.version)
+    m.spectre_version = expand_var_refs(m, root, target, m.spectre_version)
+    m.single_flags = expand_var_refs(m, root, target, m.single_flags)
 
     val dn: i64 = @len(m.deps) as i64
     val di: mut i64 = 0
@@ -500,19 +540,8 @@ fn expand_mod_strings(m: mut ref SxMod) void = trust {
         val dep_opt = @get(m.deps, di as usize)
         if dep_opt is some dep_val {
             val dep: mut ref SxDep = dep_val as ref SxDep
-            dep.url = expand_var_refs(m, dep.url)
-            val an: i64 = @len(dep.actions) as i64
-            val ai: mut i64 = 0
-            for {
-                if ai >= an {
-                    break
-                }
-                val a = @get(dep.actions, ai as usize)
-                if a is some action {
-                    @set(dep.actions, ai as usize, expand_var_refs(m, action as ref u8))
-                }
-                ai++
-            }
+            dep.url = expand_var_refs(m, root, target, dep.url)
+            expand_list(m, root, target, dep.actions)
         }
         di++
     }
@@ -526,11 +555,11 @@ fn expand_mod_strings(m: mut ref SxMod) void = trust {
         val cfg_opt = @get(m.builds, bi as usize)
         if cfg_opt is some cfg_val {
             val cfg: mut ref SxBuildConfig = cfg_val as ref SxBuildConfig
-            cfg.base.action = expand_var_refs(m, cfg.base.action)
-            cfg.base.flags = expand_var_refs(m, cfg.base.flags)
-            cfg.base.output = expand_var_refs(m, cfg.base.output)
-            cfg.base.entry = expand_var_refs(m, cfg.base.entry)
-            expand_envs(m, cfg.base.envs)
+            expand_list(m, root, target, cfg.base.actions)
+            cfg.base.flags = expand_var_refs(m, root, target, cfg.base.flags)
+            cfg.base.output = expand_var_refs(m, root, target, cfg.base.output)
+            cfg.base.entry = expand_var_refs(m, root, target, cfg.base.entry)
+            expand_list(m, root, target, cfg.base.envs)
             val rn: i64 = @len(cfg.rules) as i64
             val ri: mut i64 = 0
             for {
@@ -540,11 +569,11 @@ fn expand_mod_strings(m: mut ref SxMod) void = trust {
                 val rule_opt = @get(cfg.rules, ri as usize)
                 if rule_opt is some rule_val {
                     val rule: mut ref SxBuildRule = rule_val as ref SxBuildRule
-                    rule.action = expand_var_refs(m, rule.action)
-                    rule.flags = expand_var_refs(m, rule.flags)
-                    rule.output = expand_var_refs(m, rule.output)
-                    rule.entry = expand_var_refs(m, rule.entry)
-                    expand_envs(m, rule.envs)
+                    expand_list(m, root, target, rule.actions)
+                    rule.flags = expand_var_refs(m, root, target, rule.flags)
+                    rule.output = expand_var_refs(m, root, target, rule.output)
+                    rule.entry = expand_var_refs(m, root, target, rule.entry)
+                    expand_list(m, root, target, rule.envs)
                 }
                 ri++
             }
@@ -597,6 +626,93 @@ fn parse_build_action_field(ctx: mut ref ParseCtx, dep: mut ref SxDep) void = tr
     }
 }
 
+fn ctx_read_action_text(ctx: mut ref ParseCtx) ref u8 = trust {
+    ctx_skip_ws(ctx)
+    val cap: mut i64 = 256
+    val buf: mut ref u8 = @alloc(cap) as ref u8
+    val i: mut i64 = 0
+    for {
+        val c: i64 = ctx_peek(ctx)
+        if c == -1 || c == 10 || c == 13 || c == 44 || c == 125 {
+            break
+        }
+        if i >= cap - 1 {
+            cap = cap * 2
+            buf = @realloc(buf, cap) as ref u8
+        }
+        @store8(@ptradd(buf, i), c as u8)
+        i++
+        ctx_advance(ctx)
+    }
+    for {
+        if i <= 0 {
+            break
+        }
+        val last: u8 = @load8(@ptradd(buf, i - 1)) as u8
+        if last == 32 || last == 9 {
+            i--
+        } else {
+            break
+        }
+    }
+    @store8(@ptradd(buf, i), 0)
+    if i == 0 {
+        @free(buf)
+        return c""
+    }
+    val result: ref u8 = mem.alloc((i + 1) as usize) as ref u8
+    @memcpy(result, buf, (i + 1) as usize)
+    @free(buf)
+    return result
+}
+
+fn parse_action_entry(ctx: mut ref ParseCtx, out: mut list[ref u8]) void = trust {
+    ctx_skip_ws(ctx)
+    val c: i64 = ctx_peek(ctx)
+    if c == 91 {
+        val tokens: list[ref u8] = ctx_read_list(ctx)
+        if (@len(tokens) as i64) > 0 {
+            @append(out, join_tokens(tokens))
+        }
+        return
+    }
+    if c == 34 {
+        val text: ref u8 = ctx_read_quoted(ctx)
+        if cstr.len(text) > 0 {
+            @append(out, text)
+        }
+        return
+    }
+    val text: ref u8 = ctx_read_action_text(ctx)
+    if cstr.len(text) > 0 {
+        @append(out, text)
+    }
+}
+
+fn parse_actions_field(ctx: mut ref ParseCtx, out: mut list[ref u8]) void = trust {
+    ctx_skip_ws(ctx)
+    if ctx_peek(ctx) != 123 {
+        parse_action_entry(ctx, out)
+        return
+    }
+    ctx_advance(ctx)
+    for {
+        ctx_skip_ws(ctx)
+        val c: i64 = ctx_peek(ctx)
+        if c == -1 || c == 125 {
+            break
+        }
+        parse_action_entry(ctx, out)
+        ctx_skip_ws(ctx)
+        if ctx_peek(ctx) == 44 {
+            ctx_advance(ctx)
+        }
+    }
+    if ctx_peek(ctx) == 125 {
+        ctx_advance(ctx)
+    }
+}
+
 fn parse_dep_body(ctx: mut ref ParseCtx, dep: mut ref SxDep) void = trust {
     ctx_skip_ws(ctx)
     if ctx_peek(ctx) != 123 {
@@ -613,7 +729,9 @@ fn parse_dep_body(ctx: mut ref ParseCtx, dep: mut ref SxDep) void = trust {
         if cstr.cmp(name, c"") == 0 {
             break
         }
-        if cstr.cmp(name, c"build_action") == 0
+        if cstr.cmp(name, c"build_actions") == 0 {
+            parse_actions_field(ctx, dep.actions)
+        } elif cstr.cmp(name, c"build_action") == 0
         || cstr.cmp(name, c"ext_build_action") == 0 {
             parse_build_action_field(ctx, dep)
         } else {
@@ -630,7 +748,7 @@ pub fn new_build_rule(platform: ref u8, arch: ref u8) ref SxBuildRule = trust {
     @memset(rule, 0, @sizeof(SxBuildRule))
     rule.platform = platform
     rule.arch = arch
-    rule.action = c""
+    rule.actions = mem.new[ref u8]()
     rule.flags = c""
     rule.output = c""
     rule.entry = c""
@@ -673,7 +791,14 @@ fn parse_override_field(
     name: ref u8
 ) bool = trust {
     if cstr.cmp(name, c"action") == 0 {
-        target.action = ctx_read_quoted(ctx)
+        val action: ref u8 = ctx_read_quoted(ctx)
+        if cstr.len(action) > 0 {
+            @append(target.actions, action)
+        }
+        return true
+    }
+    if cstr.cmp(name, c"actions") == 0 {
+        parse_actions_field(ctx, target.actions)
         return true
     }
     if cstr.cmp(name, c"flags") == 0 {
@@ -767,7 +892,7 @@ fn parse_build_body(ctx: mut ref ParseCtx, cfg: mut ref SxBuildConfig) void = tr
     }
 }
 
-pub fn parse_sxmod(content: ref u8) ref SxMod = trust {
+pub fn parse_sxmod(content: ref u8, root: ref u8, target: ref u8) ref SxMod = trust {
     val ctx: mut ref ParseCtx = new_ctx(content)
     val m: mut ref SxMod = mem.alloc(@sizeof(SxMod) as usize) as ref SxMod
     @memset(m, 0, @sizeof(SxMod) as usize)
@@ -818,7 +943,7 @@ pub fn parse_sxmod(content: ref u8) ref SxMod = trust {
         }
     }
     @free(ctx)
-    expand_mod_strings(m)
+    expand_mod_strings(m, root, target)
     return m
 }
 
@@ -863,7 +988,35 @@ fn validate_spectre_version(m: ref SxMod) bool = trust {
     return true
 }
 
-pub fn load_sxmod() option[ref SxMod] = {
+fn project_root_for(dir: ref u8) ref u8 = trust {
+    val len: i64 = cstr.len(dir)
+    if len > 0 {
+        val first: u8 = @load8(@ptradd(dir, 0))
+        if first == 47 || first == 92 {
+            return path.canonicalize_path_cstr(dir)
+        }
+        when windows {
+            if len >= 2 && @load8(@ptradd(dir, 1)) == 58 {
+                return path.canonicalize_path_cstr(dir)
+            }
+        }
+    }
+    val cwd_opt = fs.cwd_cstr()
+    match cwd_opt {
+        none => {
+            return path.canonicalize_path_cstr(dir)
+        }
+        some cwd => {
+            val joined: ref u8 = path.join_cstr(cwd, dir)
+            @free(cwd)
+            val root: ref u8 = path.canonicalize_path_cstr(joined)
+            @free(joined)
+            return root
+        }
+    }
+}
+
+pub fn load_sxmod_target(target: ref u8) option[ref SxMod] = {
     val size_opt = trust fs.file_size_cstr(c"sx.mod")
     val arena_cap: mut i64 = 4096
     if size_opt is some sz {
@@ -881,7 +1034,9 @@ pub fn load_sxmod() option[ref SxMod] = {
             return none
         }
         some content => {
-            val m: ref SxMod = trust parse_sxmod(content as ref u8)
+            val root: ref u8 = trust project_root_for(c".")
+            val m: ref SxMod = trust parse_sxmod(content as ref u8, root, target)
+            trust @free(root)
             trust allocators.Arena.free(arena)
             if !validate_sxmod(m) {
                 return none
@@ -889,6 +1044,10 @@ pub fn load_sxmod() option[ref SxMod] = {
             return some m
         }
     }
+}
+
+pub fn load_sxmod() option[ref SxMod] = {
+    return load_sxmod_target(c"")
 }
 
 fn parse_sxlock(content: ref u8) list[ref SxLockDep] = trust {
@@ -946,7 +1105,7 @@ fn load_sxlock() option[list[ref SxLockDep]] = {
     }
 }
 
-pub fn load_sxmod_at(dir: ref u8) option[ref SxMod] = trust {
+pub fn load_sxmod_at_target(dir: ref u8, target: ref u8) option[ref SxMod] = trust {
     val mod_path: ref u8 = path.join_cstr(dir, c"sx.mod")
     val size_opt = fs.file_size_cstr(mod_path)
     val arena_cap: mut i64 = 4096
@@ -967,11 +1126,17 @@ pub fn load_sxmod_at(dir: ref u8) option[ref SxMod] = trust {
             return none
         }
         some content => {
-            val m: ref SxMod = parse_sxmod(content as ref u8)
+            val root: ref u8 = project_root_for(dir)
+            val m: ref SxMod = parse_sxmod(content as ref u8, root, target)
+            @free(root)
             allocators.Arena.free(arena)
             return some m
         }
     }
+}
+
+pub fn load_sxmod_at(dir: ref u8) option[ref SxMod] = trust {
+    return load_sxmod_at_target(dir, c"")
 }
 
 /// True when an sx.mod in `dir` describes a project (entry/build configs).
@@ -1166,9 +1331,16 @@ fn build_rule_matches(rule: ref SxBuildRule) bool = trust {
     return true
 }
 
+pub fn rule_has_actions(rule: ref SxBuildRule) bool = {
+    return (@len(rule.actions) as i64) > 0
+}
+
 fn apply_build_rule(target: mut ref SxBuildRule, source: ref SxBuildRule) void = {
-    if cstr.cmp(source.action, c"") != 0 {
-        target.action = source.action
+    if (@len(source.actions) as i64) > 0 {
+        target.actions = mem.new[ref u8]()
+        for action in source.actions {
+            @append(target.actions, action)
+        }
     }
     if cstr.cmp(source.flags, c"") != 0 {
         target.flags = source.flags
@@ -1187,7 +1359,7 @@ fn apply_build_rule(target: mut ref SxBuildRule, source: ref SxBuildRule) void =
 pub fn resolve_build_rule(cfg: ref SxBuildConfig, target: mut ref SxBuildRule) void = trust {
     target.platform = c""
     target.arch = c""
-    target.action = c""
+    target.actions = mem.new[ref u8]()
     target.flags = c""
     target.output = c""
     target.entry = c""
@@ -1200,10 +1372,15 @@ pub fn resolve_build_rule(cfg: ref SxBuildConfig, target: mut ref SxBuildRule) v
     }
 }
 
-fn build_config_cmd(cfg: ref SxBuildRule, exe_path: ref u8, entry: ref u8) ref u8 = trust {
+fn build_config_cmd(
+    cfg: ref SxBuildRule,
+    action: ref u8,
+    exe_path: ref u8,
+    entry: ref u8
+) ref u8 = trust {
     val cmd: mut ref u8 = c""
-    if cstr.cmp(cfg.action, c"") != 0 {
-        cmd = mem_dup_cstr(cfg.action)
+    if cstr.cmp(action, c"") != 0 {
+        cmd = mem_dup_cstr(action)
     } else {
         cmd = mem_concat2(
             mem_concat3(builds.quote_arg(exe_path), c" ", builds.quote_arg(entry)),
@@ -1218,7 +1395,7 @@ fn build_config_cmd(cfg: ref SxBuildRule, exe_path: ref u8, entry: ref u8) ref u
     }
     val nenv: i64 = @len(cfg.envs) as i64
     if nenv > 0 {
-        if cstr.cmp(cfg.action, c"") == 0 {
+        if cstr.cmp(action, c"") == 0 {
             for e in cfg.envs {
                 cmd = mem_concat3(cmd, c" -d:", e)
             }
@@ -1690,7 +1867,11 @@ fn run_in_dir(dir: ref u8, cmd: ref u8) i32 = trust {
 }
 
 /// Clone any declared dependencies that are not present under `lib/`.
-fn ensure_deps_in_dir(base_dir: ref u8, visited: mut list[ref u8]) i32 = trust {
+fn ensure_deps_in_dir(
+    base_dir: ref u8,
+    visited: mut list[ref u8],
+    target: ref u8
+) i32 = trust {
     for v in visited {
         if cstr.cmp(v, base_dir) == 0 {
             return 0
@@ -1698,7 +1879,7 @@ fn ensure_deps_in_dir(base_dir: ref u8, visited: mut list[ref u8]) i32 = trust {
     }
     @append(visited, base_dir)
 
-    val sxmod_opt = load_sxmod_at(base_dir)
+    val sxmod_opt = load_sxmod_at_target(base_dir, target)
     val sxmod: mut ref SxMod = none
     match sxmod_opt {
         none => {
@@ -1742,7 +1923,7 @@ fn ensure_deps_in_dir(base_dir: ref u8, visited: mut list[ref u8]) i32 = trust {
                 }
             }
         }
-        val sub_code: i32 = ensure_deps_in_dir(lib_path, visited)
+        val sub_code: i32 = ensure_deps_in_dir(lib_path, visited, target)
         if sub_code != 0 {
             return sub_code
         }
@@ -1750,8 +1931,18 @@ fn ensure_deps_in_dir(base_dir: ref u8, visited: mut list[ref u8]) i32 = trust {
     return 0
 }
 
+fn ensure_out_dir(base_dir: ref u8, target: ref u8) void = trust {
+    val target_name: ref u8 = target_dir_name(target)
+    val dir: ref u8 = @fmtalloc("{s}/.sx/{s}", {base_dir, target_name})
+    fs.mkdir_path_cstr(dir)
+}
+
 /// Run every dep's build actions from inside that dep's directory.
-fn run_dep_actions_in_dir(base_dir: ref u8, visited: mut list[ref u8]) i32 = trust {
+fn run_dep_actions_in_dir(
+    base_dir: ref u8,
+    visited: mut list[ref u8],
+    target: ref u8
+) i32 = trust {
     for v in visited {
         if cstr.cmp(v, base_dir) == 0 {
             return 0
@@ -1759,7 +1950,7 @@ fn run_dep_actions_in_dir(base_dir: ref u8, visited: mut list[ref u8]) i32 = tru
     }
     @append(visited, base_dir)
 
-    val sxmod_opt = load_sxmod_at(base_dir)
+    val sxmod_opt = load_sxmod_at_target(base_dir, target)
     val sxmod: mut ref SxMod = none
     match sxmod_opt {
         none => {
@@ -1773,6 +1964,7 @@ fn run_dep_actions_in_dir(base_dir: ref u8, visited: mut list[ref u8]) i32 = tru
     if ndeps == 0 {
         return 0
     }
+    ensure_out_dir(base_dir, target)
 
     val lib_dir: ref u8 = @fmtalloc("{s}/lib", {base_dir})
     for dep in sxmod.deps {
@@ -1791,7 +1983,7 @@ fn run_dep_actions_in_dir(base_dir: ref u8, visited: mut list[ref u8]) i32 = tru
                 }
             }
         }
-        val sub_code: i32 = run_dep_actions_in_dir(lib_path, visited)
+        val sub_code: i32 = run_dep_actions_in_dir(lib_path, visited, target)
         if sub_code != 0 {
             return sub_code
         }
@@ -1799,48 +1991,152 @@ fn run_dep_actions_in_dir(base_dir: ref u8, visited: mut list[ref u8]) i32 = tru
     return 0
 }
 
-pub fn cmd_build(config_name: ref u8, exe_path: ref u8) i32 = {
-    match load_sxmod() {
+fn find_build_config(m: ref SxMod, config_name: ref u8) ref SxBuildConfig = {
+    for cfg in m.builds {
+        if cstr.cmp(cfg.name, config_name) == 0 {
+            return cfg
+        }
+    }
+    return none
+}
+
+fn target_from_flags(flags: ref u8) ref u8 = trust {
+    if flags == none {
+        return c""
+    }
+    val n: i64 = cstr.len(flags)
+    val needle: ref u8 = c"-target:"
+    val needle_len: i64 = 8
+    val i: mut i64 = 0
+    for {
+        if i + needle_len > n {
+            break
+        }
+        val matched: mut bool = true
+        val j: mut i64 = 0
+        for {
+            if j >= needle_len {
+                break
+            }
+            if @load8(@ptradd(flags, i + j)) != @load8(@ptradd(needle, j)) {
+                matched = false
+                break
+            }
+            j++
+        }
+        if matched {
+            val start: i64 = i + needle_len
+            val end: mut i64 = start
+            for {
+                if end >= n {
+                    break
+                }
+                val c: u8 = @load8(@ptradd(flags, end)) as u8
+                val alpha: bool = (c >= 65 && c <= 90) || (c >= 97 && c <= 122)
+                val digit: bool = c >= 48 && c <= 57
+                if !alpha && !digit && c != 46 && c != 95 && c != 45 {
+                    break
+                }
+                end++
+            }
+            if end > start {
+                return cstr.substr(flags, start, end - start)
+            }
+        }
+        i++
+    }
+    return c""
+}
+
+pub fn cmd_build(config_name: ref u8, exe_path: ref u8, target: ref u8) i32 = {
+    match load_sxmod_target(target) {
         none => {
             stdio.puts("error: sx.mod not found, run 'spectre init' first")
             return 1
         }
-        some m => {
-            if !trust validate_spectre_version(m) {
+        some initial_m => {
+            if !trust validate_spectre_version(initial_m) {
                 return 1
             }
 
-            val found_cfg: mut ref SxBuildConfig = none
-            val builds: list[ref SxBuildConfig] = m.builds
-            for cfg in builds {
-                if cstr.cmp(cfg.name, config_name) == 0 {
-                    found_cfg = cfg
-                    break
-                }
-            }
-            if found_cfg == none {
+            val initial_cfg: ref SxBuildConfig = find_build_config(initial_m, config_name)
+            if initial_cfg == none {
                 trust stdio.print("error: build config '{s}' not found in sx.mod\n", {config_name})
                 return 1
             }
 
-            val ensure_visited: mut list[ref u8] = mem.new[ref u8]()
-            if trust ensure_deps_in_dir(c".", ensure_visited) != 0 {
-                return 1
+            val initial_rule: mut ref SxBuildRule = trust new_build_rule(c"", c"")
+            trust resolve_build_rule(initial_cfg, initial_rule)
+            val effective_target: mut ref u8 = target
+            if cstr.len(effective_target) == 0 {
+                effective_target = trust target_from_flags(initial_rule.flags)
             }
-            trust fs.mkdir_path_cstr(c".sx")
-            val action_visited: mut list[ref u8] = mem.new[ref u8]()
-            if trust run_dep_actions_in_dir(c".", action_visited) != 0 {
-                return 1
+
+            val m: mut ref SxMod = initial_m
+            val found_cfg: mut ref SxBuildConfig = initial_cfg
+            if cstr.len(target) == 0 && cstr.len(effective_target) > 0 {
+                match load_sxmod_target(effective_target) {
+                    none => {
+                        stdio.puts("error: failed to reload sx.mod for the target")
+                        return 1
+                    }
+                    some reloaded => {
+                        m = reloaded
+                        found_cfg = find_build_config(m, config_name)
+                        if found_cfg == none {
+                            trust stdio.print(
+                                "error: build config '{s}' not found in sx.mod\n",
+                                {config_name}
+                            )
+                            return 1
+                        }
+                    }
+                }
             }
 
             val resolved: mut ref SxBuildRule = trust new_build_rule(c"", c"")
             trust resolve_build_rule(found_cfg, resolved)
+            if cstr.len(effective_target) > 0 {
+                val in_flags: ref u8 = trust target_from_flags(resolved.flags)
+                if cstr.cmp(in_flags, effective_target) != 0 {
+                    resolved.flags = trust mem_concat3(
+                        resolved.flags,
+                        c" -target:",
+                        effective_target
+                    )
+                }
+            }
+
+            val ensure_visited: mut list[ref u8] = mem.new[ref u8]()
+            if trust ensure_deps_in_dir(c".", ensure_visited, effective_target) != 0 {
+                return 1
+            }
+            trust fs.mkdir_path_cstr(c".sx")
+            trust ensure_out_dir(c".", effective_target)
+            val action_visited: mut list[ref u8] = mem.new[ref u8]()
+            if trust run_dep_actions_in_dir(c".", action_visited, effective_target) != 0 {
+                return 1
+            }
 
             val entry: mut ref u8 = m.entry
             if cstr.cmp(resolved.entry, c"") != 0 {
                 entry = resolved.entry
             }
-            val cmd: ref u8 = trust build_config_cmd(resolved, exe_path, entry)
+            if rule_has_actions(resolved) {
+                for action in resolved.actions {
+                    val action_cmd: ref u8 = trust build_config_cmd(
+                        resolved,
+                        action,
+                        exe_path,
+                        entry
+                    )
+                    if trust os.run(action_cmd) != 0 {
+                        return 1
+                    }
+                }
+                return 0
+            }
+            val cmd: ref u8 = trust build_config_cmd(resolved, c"", exe_path, entry)
             val exit_code: i32 = trust os.run(cmd)
             if exit_code != 0 {
                 return 1

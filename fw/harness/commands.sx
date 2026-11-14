@@ -22,9 +22,18 @@ test "commands parses sx.mod without leaking" {
         \\version "1.2.3"
         \\spectre_version "0.0.0"
         \\single_flags "-release -dynamic"
-        \\dep "https://example.com/lib.git"
+        \\dep "https://example.com/lib.git" {
+        \\    build_actions {
+        \\        ["ls", "-l"],
+        \\        "echo hello"
+        \\    }
+        \\}
         \\build dev {
         \\    action "./script.sh"
+        \\    actions {
+        \\        ["sh", "other.sh"],
+        \\        "echo free form"
+        \\    }
         \\    flags "-l"
         \\    output "./out"
         \\    env {
@@ -34,13 +43,21 @@ test "commands parses sx.mod without leaking" {
         \\        flags "-O2"
         \\    }
         \\}
-        val parsed = commands.parse_sxmod(check.cptr(content))
+        val parsed = commands.parse_sxmod(check.cptr(content), check.cptr("."), check.cptr(""))
         assert @len(parsed.deps) as i64 == 1
         assert @len(parsed.builds) as i64 == 1
+        val dep_opt = @get(parsed.deps, 0 as usize)
+        if dep_opt is some raw_dep {
+            val dep: ref commands.SxDep = raw_dep as ref commands.SxDep
+            assert @len(dep.actions) as i64 == 2
+        } else {
+            assert false
+        }
         val cfg_opt = @get(parsed.builds, 0 as usize)
         if cfg_opt is some raw_cfg {
             val cfg: ref commands.SxBuildConfig = raw_cfg as ref commands.SxBuildConfig
             assert @len(cfg.rules) as i64 == 1
+            assert @len(cfg.base.actions) as i64 == 3
             assert @len(cfg.base.envs) as i64 == 1
         } else {
             assert false
@@ -68,7 +85,8 @@ test "commands build does not leak" {
             assert chdir(check.cptr(dir)) == 0
             val code: i32 = commands.cmd_build(
                 check.cptr("checkmem"),
-                check.cptr("./spectre-checkmem")
+                check.cptr("./spectre-checkmem"),
+                check.cptr("")
             )
             assert chdir(check.cptr("../..")) == 0
             assert code == 0

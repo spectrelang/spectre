@@ -167,6 +167,59 @@ run_sample_app_build() {
 	fi
 }
 
+run_multi_actions_app_build() {
+	local config="$1"
+	local label="$2"
+	local binary="$3"
+	local sample_dir="./samples/multi_actions_app"
+	local log_file="$LOG_DIR/multi_actions_app_${label}.log"
+	local compiler_abs
+	compiler_abs="$(cd "$(dirname "$COMPILER")" && pwd)/$(basename "$COMPILER")"
+
+	((total++))
+	if (cd "$sample_dir" && rm -rf .sx && SPECTRE_BIN="$compiler_abs" "$compiler_abs" build "$config" && "./$binary") >"$log_file" 2>&1; then
+		if grep -q 'multi_actions_app ok' "$log_file" \
+			&& grep -q 'dep-first:list-form' "$log_file" \
+			&& grep -q 'dep-second:free-form' "$log_file" \
+			&& grep -q "prepare:$label" "$log_file"; then
+			echo "[PASS] multi_actions_app ($label)"
+			((passed++))
+		else
+			echo "[FAIL] multi_actions_app ($label) produced unexpected output"
+			echo "  log: $log_file"
+			sed 's/^/  /' "$log_file" | sed -n '1,240p'
+			((failed++))
+		fi
+	else
+		echo "[FAIL] multi_actions_app ($label)"
+		echo "  command: cd $sample_dir && $compiler_abs build $config && ./$binary"
+		echo "  log: $log_file"
+		sed 's/^/  /' "$log_file" | sed -n '1,240p'
+		((failed++))
+	fi
+}
+
+run_multi_actions_app_cross_out() {
+	local sample_dir="./samples/multi_actions_app"
+	local log_file="$LOG_DIR/multi_actions_app_cross_out.log"
+	local compiler_abs
+	compiler_abs="$(cd "$(dirname "$COMPILER")" && pwd)/$(basename "$COMPILER")"
+
+	((total++))
+	if (cd "$sample_dir" && rm -rf .sx && SPECTRE_BIN="$compiler_abs" "$compiler_abs" build artifacts -target:windows.x86_64 \
+		&& grep -q '^cross-target$' .sx/windows.x86_64/artifact.txt \
+		&& grep -q '^cross-target-free$' .sx/windows.x86_64/artifact_free.txt) >"$log_file" 2>&1; then
+		echo "[PASS] multi_actions_app (cross target output)"
+		((passed++))
+	else
+		echo "[FAIL] multi_actions_app (cross target output)"
+		echo "  command: cd $sample_dir && $compiler_abs build artifacts -target:windows.x86_64"
+		echo "  log: $log_file"
+		sed 's/^/  /' "$log_file" | sed -n '1,240p'
+		((failed++))
+	fi
+}
+
 if [ $BOOTSTRAP_ONLY -eq 0 ]; then
 	run_samples
 
@@ -199,6 +252,9 @@ if [ $BOOTSTRAP_ONLY -eq 0 ]; then
 
 	run_sample_app_build "" "dev"
 	run_sample_app_build "release" "release"
+	run_multi_actions_app_build "release" "release" "multi_actions_app"
+	run_multi_actions_app_build "free" "free" "multi_actions_app_free"
+	run_multi_actions_app_cross_out
 
 	"$COMPILER" ./src/ast/lexer.sx -l -test
 	"$COMPILER" ./src/ast/parser.sx -l -test

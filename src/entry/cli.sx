@@ -136,11 +136,28 @@ pub fn run(
 
     if cstr.cmp(input, c"build") == 0 {
         val config_name: mut ref u8 = c"dev"
-        val cfg_opt = @get(args, 2)
-        if cfg_opt is some v {
-            config_name = v as ref u8
+        val build_target: mut ref u8 = c""
+        val have_config: mut bool = false
+        val build_arg_i: mut i64 = 2
+        for {
+            val build_arg_opt = @get(args, build_arg_i)
+            if build_arg_opt is some build_arg_val {
+                val build_arg: ref u8 = build_arg_val as ref u8
+                if cstr.starts_with(build_arg, c"-target:") {
+                    val target_len: i64 = cstr.len(build_arg) - 8
+                    if target_len > 0 {
+                        build_target = cstr.substr(build_arg, 8, target_len)
+                    }
+                } elif !have_config && !cstr.starts_with(build_arg, c"-") {
+                    config_name = build_arg
+                    have_config = true
+                }
+            } else {
+                break
+            }
+            build_arg_i++
         }
-        return commands.cmd_build(config_name, exe_path)
+        return commands.cmd_build(config_name, exe_path, build_target)
     }
 
     if cstr.cmp(input, c"install") == 0 {
