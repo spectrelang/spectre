@@ -61,7 +61,6 @@ An example program is as follows:
 
 ```spectre
 val stdio = use("std/stdio")
-val str   = use("std/string")
 
 pub fn main() void = {
     val xs = [
