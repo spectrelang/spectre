@@ -919,7 +919,7 @@ fn render_fn_signature(node: ref parser.Node) ref u8 = trust {
         public_prefix = c"pub "
     }
     val receiver: mut ref u8 = c""
-    if node.d1 != 0 as i64 {
+    if parser.node_str_raw(node.d1) != none {
         receiver = dfmt("({s}) ", {parser.node_str_raw(node.d1)})
     }
     val type_params: mut ref u8 = c""
@@ -1021,7 +1021,7 @@ fn entry_name(node: ref parser.Node) ref u8 = trust {
 }
 
 fn entry_nav_name(node: ref parser.Node) ref u8 = trust {
-    if ((node.kind == parser.NK_FN || node.kind == parser.NK_GENERIC_FN) && node.d1 != 0 as i64) {
+    if ((node.kind == parser.NK_FN || node.kind == parser.NK_GENERIC_FN) && parser.node_str_raw(node.d1) != none) {
         return dfmt("{s}.{s}", {parser.node_str_raw(node.d1), parser.node_str_raw(node.d2)})
     }
     return entry_name(node)
@@ -1124,7 +1124,8 @@ fn collect_entries(
 fn load_module(
     parse_arena: allocators.ScopedArenaAllocator,
     source_path: ref u8,
-    rel_path: ref u8
+    rel_path: ref u8,
+    src_arenas: mut list[allocators.Arena]
 ) ref DocModule = trust {
     val src_size_opt = fs.file_size_cstr(source_path)
     val src_arena_cap: mut i64 = 4096
@@ -1148,7 +1149,7 @@ fn load_module(
     }
     val doc_map = extract_doc_map(str.from_cstr(src))
     val toks_res = lexer.tokenize_with(parse_arena, src)
-    allocators.Arena.free(src_arena)
+    @append(src_arenas, src_arena)
     val toks: mut list[ref lexer.Token] = mem.new[ref lexer.Token]()
     match toks_res {
         ok t => {
@@ -2695,7 +2696,11 @@ pub fn cmd_doc(
     ) as ref DocArenaState
     arena_state.arena = parse_arena
     doc_arena_state = arena_state
+    val src_arenas: mut list[allocators.Arena] = mem.new[allocators.Arena]()
     defer {
+        for src_arena in src_arenas {
+            allocators.Arena.free(src_arena)
+        }
         doc_arena_state = none
         allocators.ScopedArena.free(parse_arena)
     }
@@ -2738,7 +2743,7 @@ pub fn cmd_doc(
             } else {
                 source_path = dfmt("./{s}", {rel})
             }
-            @append(modules, load_module(parse_arena, source_path, rel))
+            @append(modules, load_module(parse_arena, source_path, rel, src_arenas))
             if source_owned {
                 @free(source_path)
             }
@@ -2796,7 +2801,7 @@ pub fn cmd_doc(
         return 1
     }
     val rel_path = normalize_rel_path(path_basename(target))
-    val module: mut ref DocModule = load_module(parse_arena, target, rel_path)
+    val module: mut ref DocModule = load_module(parse_arena, target, rel_path, src_arenas)
     module.is_root = true
     if markdown {
         module.output_path = c"index.md"
@@ -3047,6 +3052,36 @@ test "docs extracts comments, signatures and slugs" {
             }
         }
         err _ => {
+            assert false
+        }
+    }
+
+    val fn_tokens: mut list[ref lexer.Token] = mem.new[ref lexer.Token]()
+    match trust lexer.tokenize_with(test_arena, c"fn equals(x: i64) bool = {}") {
+        ok toks => {
+            fn_tokens = toks
+        }
+        err _ => {
+            assert false
+        }
+    }
+    val fn_items: mut list[ref parser.Node] = mem.new[ref parser.Node]()
+    match trust parser.parse_module_with(test_arena, fn_tokens, c"<test>") {
+        ok items => {
+            fn_items = items
+        }
+        err _ => {
+            assert false
+        }
+    }
+    assert @len(fn_items) as i64 == 1
+    match @get(fn_items, 0 as usize) {
+        some raw => {
+            val fn_node: ref parser.Node = raw as ref parser.Node
+            assert cstr.eql(trust render_fn_signature(fn_node), c"fn equals(x: i64) bool")
+            assert cstr.eql(trust entry_nav_name(fn_node), c"equals")
+        }
+        none => {
             assert false
         }
     }

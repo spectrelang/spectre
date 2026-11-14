@@ -96,8 +96,20 @@ pub fn format(
         return str.view(none, 0)
     }
     val written: i64 = @snprintf(out, cap, rfmt.ptr, args) as i64
-    if written < 0 || written >= cap {
+    if written < 0 {
         return str.view(none, 0)
     }
-    return str.view(out as ref u8, written)
+    if written < cap {
+        return str.view(out as ref u8, written)
+    }
+    val needed: i64 = written + 1
+    val grown: ref void = allocators.ScopedArena.alloc_or_none(arena, needed as usize)
+    if grown == none {
+        return str.view(none, 0)
+    }
+    val rewritten: i64 = @snprintf(grown, needed, rfmt.ptr, args) as i64
+    if rewritten < 0 || rewritten >= needed {
+        return str.view(none, 0)
+    }
+    return str.view(grown as ref u8, rewritten)
 }
