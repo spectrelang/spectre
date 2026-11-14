@@ -41,7 +41,7 @@ pub fn print_usage() void = {
     stdio.puts("  ref                  Generate the language reference in the current directory")
     stdio.puts("  clean                Remove build artifacts")
     stdio.puts("  doctor               Show system and Spectre installation information")
-    stdio.puts("  port-c  <file>       Translate C source into a single .sx file")
+    stdio.puts("  port-c  <file|dir>   Translate C source into Spectre source")
     stdio.puts("  bind-c  <file|dir>   Generate Spectre bindings from C headers")
     stdio.puts("")
     stdio.puts("options:")
@@ -322,16 +322,17 @@ pub fn print_help(topic: str.StringView) i32 = trust {
     }
 
     if str.eql_cstr(topic, c"port-c") {
-        stdio.puts("port-c - Translate C source into a single .sx file")
+        stdio.puts("port-c - Translate C source into Spectre source")
         stdio.puts("")
         stdio.puts("usage:")
-        stdio.puts("  spectre port-c <input.c|input.h> [-o <file>]")
+        stdio.puts("  spectre port-c <input.c|input.h|directory> [-o <file|dir>]")
         stdio.puts("")
         stdio.puts("options:")
-        stdio.puts("  -o <file>   Write the translated file to <file>")
+        stdio.puts("  -o <file>   Write one translated file to <file>")
+        stdio.puts("  -o <dir>    Write one file per input to <dir> for directories")
         stdio.puts("  -h, -help   Show this help message")
         stdio.puts("")
-        stdio.puts("Without -o, the result is written to ./src-out/<name>.sx.")
+        stdio.puts("Without -o, files are written to ./src-out/<name>.sx.")
         return 0
     }
 

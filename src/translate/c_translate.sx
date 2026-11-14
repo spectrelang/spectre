@@ -2347,6 +2347,9 @@ fn preprocess_source(path: ref u8) option[ref u8] = trust {
     } else {
         return none
     }
+    if arena_cap < 1 {
+        arena_cap = 4096
+    }
     val arena: allocators.Arena = allocators.Arena.new((arena_cap + 8) as usize)?
     val content_opt = fs.read_all_cstr[allocators.Arena](arena, path)
     match content_opt {
@@ -9043,6 +9046,10 @@ pub fn translate_bind_text(
 }
 
 pub fn translate_c(input_path: ref u8, output_path: ref u8) i32 = {
+    if trust fs.is_directory_cstr(input_path) {
+        trust stdio.print("error: '{s}' is a directory\n", {input_path})
+        return 1
+    }
     trust reset_bind_normalization(false)
     val body: ref void = builder.StringBuilder.new()
     defer {

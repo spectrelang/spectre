@@ -712,7 +712,7 @@ The compiler is invoked as `spectre <input.sx> [options]` for a single source fi
 
 The `check` command accepts `spectre check <input.sx> [options]`. It runs the frontend and semantic analysis and reports diagnostics without generating code.
 
-The `port-c` command accepts `spectre port-c <input.c|input.h> [-o <file>]`. The `bind-c` command accepts one or more files or directories and writes one `.sx` per input under `./src-out` by default. It uses the host C preprocessor, emits declarations from the target file and its local quoted includes, skips static functions, and can emit scalar object-like macros. Its options include `-o <dir>`, `-normalize`, `-link <name>`, `-target:<os>.<arch>`, `-I <dir>`, `-D <name[=value]>`, and `-U <name>`.
+The `port-c` command accepts `spectre port-c <input.c|input.h|directory> [-o <file|dir>]` and writes one `.sx` per input. The `bind-c` command accepts one or more files or directories and writes one `.sx` per input under `./src-out` by default. It uses the host C preprocessor, emits declarations from the target file and its local quoted includes, skips static functions, and can emit scalar object-like macros. Its options include `-o <dir>`, `-normalize`, `-link <name>`, `-target:<os>.<arch>`, `-I <dir>`, `-D <name[=value]>`, and `-U <name>`.
 
 The `-release` option selects release code generation, which omits ordinary pre- and postcondition checks and runtime invariant checks, but retains guarded contracts and assertions. The `-test` option selects the test runner described in Section 4.8. The `-dynamic` option requests dynamic linking instead of static linking where the platform supports it.
 

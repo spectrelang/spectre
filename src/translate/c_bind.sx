@@ -347,7 +347,7 @@ fn collect_dir(dir: str.StringView, out: mut list[str.StringView]) void = trust 
     }
 }
 
-fn collect_inputs(
+pub fn collect_inputs(
     inputs: list[ref u8],
     out: mut list[str.StringView]
 ) void = trust {

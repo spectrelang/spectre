@@ -18,6 +18,7 @@ val critic_mod  = use("../meta/critic.sx")
 val c_translate = use("../translate/c_translate.sx")
 val c_bind      = use("../translate/c_bind.sx")
 val path        = use("std/path")
+val fs          = use("std/fs")
 val builds      = use("../meta/builds.sx")
 val installer   = use("../meta/install.sx")
 
@@ -317,9 +318,34 @@ pub fn port_c(
         ti++
     }
     if cstr.cmp(tc_input, c"") == 0 {
-        stdio.puts("error: port-c requires an input .c or .h file")
+        stdio.puts("error: port-c requires an input .c, .h, or directory")
         return 1
     }
+
+    if fs.is_directory(str.from_cstr(tc_input)) {
+        val inputs: mut list[ref u8] = mem.new[ref u8]()
+        @append(inputs, tc_input)
+        val files: mut list[str.StringView] = mem.new[str.StringView]()
+        c_bind.collect_inputs(inputs, files)
+        if (@len(files) as i64) == 0 {
+            stdio.puts("error: no matching .c or .h files found")
+            return 1
+        }
+        val out_dir: mut ref u8 = c"./src-out"
+        if cstr.cmp(tc_output, c"") != 0 {
+            out_dir = tc_output
+        }
+        for file in files {
+            val stem: ref u8 = path.get_name_without_ext(arena, file)
+            val out_path: ref u8 = @fmtalloc("{s}/{s}.sx", {out_dir, stem})
+            val code: i32 = c_translate.translate_c(file.ptr as ref u8, out_path)
+            if code != 0 {
+                return code
+            }
+        }
+        return 0
+    }
+
     if cstr.cmp(tc_output, c"") == 0 {
         tc_output = @fmtalloc(
             "./src-out/{s}.sx",

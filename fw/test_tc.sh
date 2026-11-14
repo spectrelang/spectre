@@ -36,6 +36,21 @@ for cfile in "$SAMPLES_DIR"/*.c; do
 	echo
 done
 
+echo "== Testing port-c directory =="
+port_dir="./s-out/port-c-dir-test"
+rm -rf "$port_dir"
+mkdir -p "$port_dir/input"
+cp "$SAMPLES_DIR/hello.c" "$port_dir/input/hello.c"
+cp "$SAMPLES_DIR/hello2.c" "$port_dir/input/hello2.c"
+compiler_abs="$(cd "$(dirname "$COMPILER")" && pwd)/$(basename "$COMPILER")"
+if (cd "$port_dir" && "$compiler_abs" port-c . && [ -f "./src-out/hello.sx" ] && [ -f "./src-out/hello2.sx" ]); then
+	echo "[PASS] port-c directory"
+else
+	echo "[FAIL] port-c directory"
+	exit 1
+fi
+echo
+
 bind_header="./samples/csamples/bind_demo.h"
 if [ -f "$bind_header" ]; then
 	echo "== Testing bind-c =="
