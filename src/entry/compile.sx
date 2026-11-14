@@ -11,6 +11,7 @@ val allocators  = use("std/allocators")
 val reflection  = use("std/reflection")
 val mem         = use("../meta/mem.sx")
 val builds      = use("../meta/builds.sx")
+val diag        = use("../meta/diag.sx")
 val module      = use("../module/module.sx")
 val sema        = use("../sema/sema.sx")
 val codegen     = use("../codegen/codegen.sx")
@@ -196,7 +197,7 @@ fn prepare_module(ctx: mut ref context.Context) bool = trust {
             ctx.root_mod = m
         }
         err e => {
-            stdio.print("error: {s}\n", {e})
+            diag.error(e)
             return false
         }
     }
@@ -278,7 +279,7 @@ fn run_semantics(ctx: mut ref context.Context) bool = trust {
     val nerrors: i64 = @len(errors) as i64
     if nerrors > 0 {
         for e in errors {
-            stdio.print("error: {s}\n", {e})
+            diag.error(e)
         }
         return false
     }

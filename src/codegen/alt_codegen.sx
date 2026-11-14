@@ -17,6 +17,7 @@ val arenafmt   = use("../meta/arenafmt.sx")
 val parser     = use("../ast/parser.sx")
 val module     = use("../module/module.sx")
 val defines    = use("../meta/defines.sx")
+val diag       = use("../meta/diag.sx")
 val autovec    = use("autovec.sx")
 
 /// Runtime selection for this compilation (set by the front end).
@@ -6193,9 +6194,9 @@ fn gen_builtin(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
         val line: i64 = expr.line
         val filename: ref u8 = ctx.current_src_file
         if cstr.cmp(filename, c"") == 0 {
-            stdio.eprint("error: line {lld}: {s}\n", {line, msg})
+            diag.error(msg)
         } else {
-            stdio.eprint("error: {s}:{lld}: {s}\n", {filename, line, msg})
+            diag.error_at(filename, line, 0, msg)
         }
         os.exit(1)
     }
@@ -7513,9 +7514,11 @@ fn gen_struct_lit(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
 }
 
 fn gen_list_lit(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
-    stdio.eprint(
-        "error: {s}:{lld}: implicit dynamic list allocation is not allowed, use @list(ac, ...) or @listalloc[Alloc, T](ac), squared bracket syntax denotes an array literal and requires an explicit type annotation\n",
-        {ctx.current_src_file, expr.line}
+    diag.error_at(
+        ctx.current_src_file,
+        expr.line,
+        0,
+        c"implicit dynamic list allocation is not allowed, use @list(ac, ...) or @listalloc[Alloc, T](ac), squared bracket syntax denotes an array literal and requires an explicit type annotation"
     )
     os.exit(1)
     val elems: ref void = expr.d0 as ref void

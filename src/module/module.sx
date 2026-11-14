@@ -1290,7 +1290,7 @@ fn resolve_module_impl(
             tokens = t
         }
         err e => {
-            return err @fmtalloc("{s}: lex error: {s}", {canonical_path, e})
+            return err @fmtalloc("{s}:{s}", {canonical_path, e})
         }
     }
 
@@ -1302,7 +1302,7 @@ fn resolve_module_impl(
             items = i
         }
         err e => {
-            return err @fmtalloc("{s}: parse error: {s}", {canonical_path, e})
+            return err e
         }
     }
 
@@ -1392,10 +1392,7 @@ fn resolve_module_impl(
                     @append(m.import_modules, child as ref void)
                 }
                 err e => {
-                    return err @fmtalloc(
-                        "could not resolve import '{s}': {s}",
-                        {import_name, e}
-                    )
+                    return err e
                 }
             }
         }

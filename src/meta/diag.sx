@@ -1,0 +1,270 @@
+/// Source-located compiler diagnostics with an excerpt and caret.
+///
+/// SPDX-License-Identifier: GPL-3.0-only
+/// (C) Navid Momtahen - 2026
+
+val stdio = use("std/stdio")
+val fs    = use("std/fs")
+val cstr  = use("std/string/cstr")
+
+/// Prefix for every diagnostic.
+pub val LABEL: ref u8 = c"error"
+
+val WARNING_LABEL: ref u8 = c"warning"
+
+type SourceLocation = {
+    found: bool
+    filename: ref u8
+    line: i64
+    col: i64
+    message: ref u8
+}
+
+fn is_digit(c: i64) bool = {
+    return c >= 48 && c <= 57
+}
+
+fn copy_range(value: ref u8, start: i64, count: i64) ref u8 = trust {
+    val out: ref u8 = @alloc((count + 1) as usize) as ref u8
+    if out == none {
+        return c""
+    }
+    if count > 0 {
+        @memcpy(out, @ptradd(value, start), count as usize)
+    }
+    @store8(@ptradd(out, count), 0)
+    return out
+}
+
+/// Split `file:line:col: message` or `file:line: message` into its parts.
+fn locate(message: ref u8) SourceLocation = trust {
+    val n: i64 = cstr.len(message)
+    val i: mut i64 = 0
+    for {
+        if i >= n {
+            break
+        }
+        if @load8(@ptradd(message, i)) as i64 == 58 {
+            val number_start: i64 = i + 1
+            val after_line: mut i64 = number_start
+            val line: mut i64 = 0
+            for {
+                if after_line >= n {
+                    break
+                }
+                val c: i64 = @load8(@ptradd(message, after_line)) as i64
+                if !is_digit(c) {
+                    break
+                }
+                line = line * 10 + (c - 48)
+                after_line++
+            }
+            if after_line > number_start && after_line < n {
+                if @load8(@ptradd(message, after_line)) as i64 == 58 {
+                    val after_colon: i64 = after_line + 1
+                    if after_colon < n
+                    && @load8(@ptradd(message, after_colon)) as i64 == 32 {
+                        return {
+                            found: true,
+                            filename: copy_range(message, 0, i),
+                            line: line,
+                            col: 0,
+                            message: @ptradd(message, after_colon + 1) as ref u8
+                        }
+                    }
+
+                    val after_col: mut i64 = after_colon
+                    val col: mut i64 = 0
+                    for {
+                        if after_col >= n {
+                            break
+                        }
+                        val c: i64 = @load8(@ptradd(message, after_col)) as i64
+                        if !is_digit(c) {
+                            break
+                        }
+                        col = col * 10 + (c - 48)
+                        after_col++
+                    }
+                    if col > 0 && after_col + 1 < n
+                    && @load8(@ptradd(message, after_col)) as i64 == 58
+                    && @load8(@ptradd(message, after_col + 1)) as i64 == 32 {
+                        return {
+                            found: true,
+                            filename: copy_range(message, 0, i),
+                            line: line,
+                            col: col,
+                            message: @ptradd(message, after_col + 2) as ref u8
+                        }
+                    }
+                }
+            }
+        }
+        i++
+    }
+    return {found: false, filename: c"", line: 0, col: 0, message: message}
+}
+
+fn number_width(value: i64) i64 = trust {
+    val buf: ref u8 = @alloc(32) as ref u8
+    @snprintf(buf, 32, "{lld}", {value})
+    val width: i64 = cstr.len(buf)
+    @free(buf)
+    return width
+}
+
+fn spaces(count: i64) void = trust {
+    val i: mut i64 = 0
+    for {
+        if i >= count {
+            break
+        }
+        stdio.print(" ", {})
+        i++
+    }
+}
+
+fn report_at(
+    filename: ref u8,
+    line: i64,
+    col: i64,
+    label: ref u8,
+    message: ref u8
+) void = trust {
+    val width: i64 = number_width(line)
+    val requested_col: i64 = col
+    val content_opt = fs.read_all_heap_cstr(filename)
+    if content_opt is some content {
+        val start: mut i64 = 0
+        val current: mut i64 = 1
+        val pos: mut i64 = 0
+        for {
+            if current >= line {
+                break
+            }
+            val c: i64 = @load8(@ptradd(content, pos)) as i64
+            if c == 0 {
+                break
+            }
+            if c == 10 {
+                current++
+                start = pos + 1
+            }
+            pos++
+        }
+
+        if current == line {
+            val end: mut i64 = start
+            for {
+                val c: i64 = @load8(@ptradd(content, end)) as i64
+                if c == 0 || c == 10 || c == 13 {
+                    break
+                }
+                end++
+            }
+
+            val actual_col: mut i64 = requested_col
+            if actual_col <= 0 {
+                actual_col = 1
+                for {
+                    if start + actual_col - 1 >= end {
+                        break
+                    }
+                    val c: i64 = @load8(@ptradd(content, start + actual_col - 1)) as i64
+                    if c != 32 && c != 9 {
+                        break
+                    }
+                    actual_col++
+                }
+            }
+
+            stdio.print("{s}: {s}\n", {label, message})
+            stdio.print(" --> {s}:{lld}:{lld}\n", {filename, line, actual_col})
+            spaces(width)
+            stdio.print(" |\n", {})
+            stdio.print("{lld} | ", {line})
+            val excerpt_len: i64 = end - start
+            val excerpt: mut ref u8 = @alloc((excerpt_len + 1) as usize) as ref u8
+            if excerpt != none {
+                if excerpt_len > 0 {
+                    @memcpy(excerpt, @ptradd(content, start), excerpt_len as usize)
+                }
+                @store8(@ptradd(excerpt, excerpt_len), 0)
+                stdio.print("{s}", {excerpt})
+                @free(excerpt)
+            }
+            stdio.print("\n", {})
+            spaces(width)
+            stdio.print(" | ", {})
+            spaces(actual_col - 1)
+            stdio.print("^\n", {})
+            @free(content)
+            return
+        }
+        @free(content)
+    }
+
+    val fallback_col: i64 = requested_col
+    val shown_col: mut i64 = fallback_col
+    if shown_col <= 0 {
+        shown_col = 1
+    }
+    stdio.print("{s}: {s}\n", {label, message})
+    stdio.print(" --> {s}:{lld}:{lld}\n", {filename, line, shown_col})
+}
+
+/// Report a diagnostic. Strings of the form `file:line[:col]: message` are
+/// rendered with an excerpt; everything else is printed as a plain message.
+pub fn error(message: ref u8) void = trust {
+    val location: mut SourceLocation = locate(message)
+    if location.found {
+        report_at(
+            location.filename,
+            location.line,
+            location.col,
+            LABEL,
+            location.message
+        )
+        if location.filename != none && cstr.len(location.filename) > 0 {
+            @free(location.filename)
+        }
+    } else {
+        stdio.print("{s}: {s}\n", {LABEL, message})
+    }
+}
+
+pub fn warning(message: ref u8) void = trust {
+    val location: mut SourceLocation = locate(message)
+    if location.found {
+        report_at(
+            location.filename,
+            location.line,
+            location.col,
+            WARNING_LABEL,
+            location.message
+        )
+        if location.filename != none && cstr.len(location.filename) > 0 {
+            @free(location.filename)
+        }
+    } else {
+        stdio.print("{s}: {s}\n", {WARNING_LABEL, message})
+    }
+}
+
+pub fn error_at(
+    filename: ref u8,
+    line: i64,
+    col: i64,
+    message: ref u8
+) void = trust {
+    report_at(filename, line, col, LABEL, message)
+}
+
+pub fn warning_at(
+    filename: ref u8,
+    line: i64,
+    col: i64,
+    message: ref u8
+) void = trust {
+    report_at(filename, line, col, WARNING_LABEL, message)
+}

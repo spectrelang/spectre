@@ -15,6 +15,7 @@ val lexer       = use("../ast/lexer.sx")
 val parser      = use("../ast/parser.sx")
 val module      = use("../module/module.sx")
 val defines     = use("../meta/defines.sx")
+val diag        = use("../meta/diag.sx")
 val rt          = use("std/runtime")
 
 /// Runtime selection for this compilation.  The compiler front end sets this
@@ -13103,9 +13104,9 @@ fn gen_builtin(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
         val line: i64 = expr.line
         val filename: ref u8 = ctx.current_filename
         if cstr.cmp(filename, c"") == 0 {
-            stdio.eprint("error: line {lld}: {s}\n", {line, msg})
+            diag.error(msg)
         } else {
-            stdio.eprint("error: {s}:{lld}: {s}\n", {filename, line, msg})
+            diag.error_at(filename, line, 0, msg)
         }
         os.exit(1)
     }
@@ -15566,9 +15567,11 @@ fn gen_fixed_arr_lit(
 }
 
 fn gen_list_lit(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
-    stdio.eprint(
-        "error: {s}:{lld}: implicit dynamic list allocation is not allowed, use @list(ac, ...) or @listalloc[Alloc, T](ac), squared bracket syntax denotes an array literal and requires an explicit type annotation\n",
-        {ctx.current_filename, expr.line}
+    diag.error_at(
+        ctx.current_filename,
+        expr.line,
+        0,
+        c"implicit dynamic list allocation is not allowed, use @list(ac, ...) or @listalloc[Alloc, T](ac), squared bracket syntax denotes an array literal and requires an explicit type annotation"
     )
     os.exit(1)
     val elems: ref void = expr.d0 as ref void

@@ -926,7 +926,7 @@ fn tokenize_in(
             err _ => {}
         }
         val errbuf: ref u8 = @alloc(64) as ref u8
-        @snprintf(errbuf, 64, "unexpected character at {lld}:{lld}", {line, col})
+        @snprintf(errbuf, 64, "{lld}:{lld}: unexpected character", {line, col})
         @free(l)
         free_tokens(tokens)
         return err errbuf

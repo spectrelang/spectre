@@ -817,6 +817,15 @@ fn p_peek_line(p: ref Parser) i64 = trust {
     }
 }
 
+fn p_peek_col(p: ref Parser) i64 = trust {
+    val opt = @get(p.tokens, p.pos as usize)
+    if opt is some t {
+        return (t as ref lexer.Token).col
+    } else {
+        return 1
+    }
+}
+
 fn p_suppress_unused(p: ref Parser) bool = trust {
     return lexer.tok_suppress_unused(p.tokens, p.pos)
 }
@@ -843,8 +852,9 @@ fn p_line(p: ref Parser) i64 = trust {
 
 fn p_error(p: ref Parser, msg: ref u8) ref u8 = trust {
     val line: i64 = p_peek_line(p)
+    val col: i64 = p_peek_col(p)
     val buf: ref u8 = allocators.ScopedArena.alloc_or_none(p.arena, 512 as usize) as ref u8
-    @snprintf(buf, 512, "{s}:{lld}: {s}", {p.filename, line, msg})
+    @snprintf(buf, 512, "{s}:{lld}:{lld}: {s}", {p.filename, line, col, msg})
     return buf
 }
 
@@ -4336,6 +4346,13 @@ pub fn parse_item(p: mut ref Parser) result[ref Node, ref u8] = trust {
         node_store_slot[ref Node](@addr(nc.d2), vexpr)
         node_store_slot[ref Node](@addr(nc.d3), vty)
         return ok nc
+    }
+
+    match p_peek_kind(p) {
+        Ident _ => {
+            return err p_error(p, c"unrecognized top-level identifier")
+        }
+        else => { }
     }
 
     return err p_error(p, c"unexpected token at top level")
