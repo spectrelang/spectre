@@ -4,6 +4,7 @@
 /// in `std/string/builder`, and pointer-only operations in `std/string/cstr`.
 
 val allocators = use("../allocators")
+val ascii      = use("../ascii")
 val cstr       = use("std/string/cstr")
 val rt         = use("../runtime")
 
@@ -357,6 +358,44 @@ pub fn to_string[T: allocators.Allocator](ac: T, v: StringView) String = trust {
     return out
 }
 
+/// Copy a view into a new owned string with ASCII letters lowercased.
+pub fn to_lower[T: allocators.Allocator](ac: T, v: StringView) String = trust {
+    val out: String = alloc_string_in[T](ac, v.len)
+    if out == none {
+        return none
+    }
+    val dst: ref void = @load(out as ref void)
+    val i: mut i64 = 0
+    for {
+        if i >= v.len {
+            break
+        }
+        val c: u8 = @load8(@ptradd(v.ptr, i))
+        @store8(@ptradd(dst, i), ascii.lower(c))
+        i++
+    }
+    return out
+}
+
+/// Copy a view into a new owned string with ASCII letters uppercased.
+pub fn to_upper[T: allocators.Allocator](ac: T, v: StringView) String = trust {
+    val out: String = alloc_string_in[T](ac, v.len)
+    if out == none {
+        return none
+    }
+    val dst: ref void = @load(out as ref void)
+    val i: mut i64 = 0
+    for {
+        if i >= v.len {
+            break
+        }
+        val c: u8 = @load8(@ptradd(v.ptr, i))
+        @store8(@ptradd(dst, i), ascii.upper(c))
+        i++
+    }
+    return out
+}
+
 /// Compare supported string-like values using their lengths.
 pub fn compare[A, B](a: A, b: B) i64 = trust {
     return cmp(as_view[A](a), as_view[B](b))
@@ -415,4 +454,13 @@ test "string views borrow without owning" {
     )
     assert cstr.eql(zstr_ptr(cstr_copy), c"world")
     trust zstr_free[allocators.HeapAllocator](heap, cstr_copy)
+
+    val arena: allocators.Arena = trust allocators.Arena.new(4096 as usize)?
+    val lower: String = trust to_lower[allocators.Arena](arena, "HeLLo, WoRLD! 123")
+    assert trust cstr.eql(as_cstr[String](lower), c"hello, world! 123")
+    val upper: String = trust to_upper[allocators.Arena](arena, "Hello, world! 123")
+    assert trust cstr.eql(as_cstr[String](upper), c"HELLO, WORLD! 123")
+    val empty_lower: String = trust to_lower[allocators.Arena](arena, view(none, 0))
+    assert trust cstr.eql(as_cstr[String](empty_lower), c"")
+    trust allocators.Arena.free(arena)
 }
