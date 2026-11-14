@@ -1,0 +1,25 @@
+val stdio = use("std/stdio")
+
+pub type Percentage = {
+    value: f64
+
+    invariant {
+        value >= 0.0
+        value <= 100.0
+    }
+}
+
+pub fn (Percentage) halve_gt_one(p: self) f64 = {
+    guarded pre {
+        over_one: p.value > 1.0
+    }
+    return p.value / 2.0
+}
+
+pub fn main() void = {
+    val p: Percentage = {value: 75.0}
+    trust {
+        stdio.print("percentage: {d}\n", {p.value}) // should error
+        stdio.print("half: {d}\n", {Percentage.halve_gt_one(p)})
+    }
+}
