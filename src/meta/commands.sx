@@ -2678,17 +2678,54 @@ fn last_word(value: ref u8) ref u8 = trust {
     return cstr.substr(value, start, end - start)
 }
 
+/// Return the first line of a command's output, the portable replacement for `| head -1`.
+fn first_line(value: ref u8) ref u8 = trust {
+    val n: i64 = cstr.len(value)
+    val end: mut i64 = 0
+    for {
+        if end >= n {
+            break
+        }
+        val c: u8 = @load8(@ptradd(value, end)) as u8
+        if c == 10 || c == 13 {
+            break
+        }
+        end++
+    }
+    if end == 0 {
+        return c"unknown"
+    }
+    return cstr.substr(value, 0, end)
+}
+
+fn tool_first_line(cmd: ref u8) ref u8 = trust {
+    return first_line(tool_version(cmd))
+}
+
 fn doctor_uqbe() void = trust {
-    val probe: ref u8 = tool_version(c"uqbe -h 2>&1 | head -1")
-    if cstr.contains(probe, c"not found") {
-        doctor_row(c"uqbe", c"not installed")
-        return
+    when windows {
+        if !builds.is_compiler_available(c"uqbe") {
+            doctor_row(c"uqbe", c"not installed")
+            return
+        }
+    }
+    when posix {
+        val probe: ref u8 = tool_first_line(c"uqbe -h 2>&1")
+        if cstr.contains(probe, c"not found") {
+            doctor_row(c"uqbe", c"not installed")
+            return
+        }
     }
     doctor_row(c"uqbe", c"installed")
     val version: ref u8 = tool_version(c"uqbe -v 2>&1")
     val hash: mut ref u8 = c"unknown"
-    if !cstr.contains(version, c"not found") {
+    when windows {
         hash = last_word(version)
+    }
+    when posix {
+        if !cstr.contains(version, c"not found") {
+            hash = last_word(version)
+        }
     }
     doctor_row(c"uqbe hash", hash)
 }
@@ -2788,19 +2825,26 @@ fn doctor_file_mtime(path: ref u8) ref u8 = trust {
     return c"unknown"
 }
 
+fn doctor_os() ref u8 = trust {
+    when windows {
+        return tool_first_line(c"ver 2>&1")
+    }
+    return tool_version(c"uname -srm 2>&1")
+}
+
 pub fn cmd_doctor() i32 = {
     trust doctor_row(c"spectre", meta.get_spectre_version().ptr)
     trust doctor_row(c"hash", meta.get_commit_hash().ptr)
-    trust doctor_row(c"os", tool_version(c"uname -srm 2>&1"))
+    trust doctor_row(c"os", doctor_os())
     val arch_arena: allocators.Arena = trust allocators.Arena.new(4096 as usize)?
     trust doctor_row(c"arch", reflection.current_arch_name[allocators.Arena](arch_arena))
     trust allocators.Arena.free(arch_arena)
 
     trust doctor_uqbe()
 
-    trust doctor_row(c"cc", tool_version(c"cc --version 2>&1 | head -1"))
-    trust doctor_row(c"clang", tool_version(c"clang --version 2>&1 | head -1"))
-    trust doctor_row(c"lld-link", tool_version(c"lld-link --version 2>&1 | head -1"))
+    trust doctor_row(c"cc", tool_first_line(c"cc --version 2>&1"))
+    trust doctor_row(c"clang", tool_first_line(c"clang --version 2>&1"))
+    trust doctor_row(c"lld-link", tool_first_line(c"lld-link --version 2>&1"))
 
     val xwin_root: ref u8 = trust builds.xwin_find_root()
     if cstr.cmp(xwin_root, c"") == 0 {
