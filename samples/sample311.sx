@@ -1,0 +1,9 @@
+pub enum SomeEnum = {
+    Hello
+    World
+}
+
+pub fn main() void = {
+    val x = SomeEnum.Hello
+    trust @print("{v}\n", {x})
+}
