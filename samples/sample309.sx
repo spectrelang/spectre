@@ -1,0 +1,23 @@
+val stdio = use("std/stdio")
+
+union Payload = {
+    Int(i32) | BigInt(i64) | Str(ref u8)
+}
+
+fn describe(x: Payload) void = {
+    match x {
+        Int _ => {
+            stdio.puts("32-bit integer")
+        }
+        BigInt _ => {
+            stdio.puts("64-bit integer")
+        }
+        else => {
+            stdio.puts("string pointer")
+        }
+    }
+}
+
+pub fn main() void = {
+    describe(Int(12 as i32))
+}

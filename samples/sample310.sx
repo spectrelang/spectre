@@ -1,0 +1,25 @@
+val ostr  = use("std/string/owned")
+val alloc = use("std/allocators")
+val stdio = use("std/stdio")
+val str   = use("std/string")
+
+fn normalize_path[A: alloc.Allocator](ac: A, raw: ref u8) str.String = {
+    val path: mut str.StringView = str.from_cstr(raw)
+    val path_str: mut str.String = @zeroed
+    trust {
+        path = str.trim(path)
+        path_str = str.to_lower[A](ac, path)
+    }
+    trust stdio.print("Path: {s}", {path})
+    val result = trust ostr.trim_prefix(str.to_string[A](ac, path), ostr.from_cstr[A](ac, c"/api/"))
+    post {
+        result.len > 0
+    }
+    return result
+}
+
+pub fn main() void = trust {
+    val arena: alloc.Arena = alloc.Arena.new(1024 as usize)?
+    val route = normalize_path[alloc.Arena](arena, c"  /API/Users/42  ")
+    stdio.print("route: {s}\n", {route})
+}

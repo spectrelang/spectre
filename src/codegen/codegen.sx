@@ -5058,6 +5058,102 @@ fn cg_emit_dbg_loc(ctx: mut ref CgCtx, line: i64) void = trust {
     emit(ctx, buf)
 }
 
+fn cg_debug_enabled(ctx: ref CgCtx) bool = {
+    return ctx.emit_dbg && !ctx.release_mode
+}
+
+fn cg_dbg_size_for_type(type_name: ref u8) i64 = {
+    if cstr.cmp(type_name, c"bool") == 0
+    || cstr.cmp(type_name, c"u8") == 0
+    || cstr.cmp(type_name, c"i8") == 0 {
+        return 1
+    }
+    if cstr.cmp(type_name, c"u16") == 0
+    || cstr.cmp(type_name, c"i16") == 0 {
+        return 2
+    }
+    if cstr.cmp(type_name, c"u32") == 0
+    || cstr.cmp(type_name, c"i32") == 0
+    || cstr.cmp(type_name, c"f32") == 0 {
+        return 4
+    }
+    return 8
+}
+
+fn cg_dbg_encoding_for_type(type_name: ref u8) i64 = {
+    if cstr.cmp(type_name, c"f32") == 0 || cstr.cmp(type_name, c"f64") == 0 {
+        return 4
+    }
+    if cstr.cmp(type_name, c"bool") == 0
+    || cstr.cmp(type_name, c"u8") == 0
+    || cstr.cmp(type_name, c"u16") == 0
+    || cstr.cmp(type_name, c"u32") == 0
+    || cstr.cmp(type_name, c"u64") == 0
+    || cstr.starts_with(type_name, c"ref ")
+    || cstr.starts_with(type_name, c"mut ref ") {
+        return 7
+    }
+    return 5
+}
+
+fn cg_emit_dbg_var_slot(
+    ctx: mut ref CgCtx,
+    name: ref u8,
+    slot_tmp: i64,
+    line: i64
+) void = trust {
+    if !cg_debug_enabled(ctx) || cstr.cmp(name, c"_") == 0 || slot_tmp < 0 {
+        return
+    }
+    val type_name: mut ref u8 = cg_local_type(ctx, name)
+    if cstr.len(type_name) == 0 {
+        type_name = c"i64"
+    }
+    val size: i64 = cg_dbg_size_for_type(type_name)
+    val encoding: i64 = cg_dbg_encoding_for_type(type_name)
+    val buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 512 as usize) as ref u8
+    @snprintf(
+        buf,
+        512,
+        "    dbgvar \"{s}\", \"{s}\", %%t{lld}, {lld}, {lld}, {lld}\n",
+        {name, type_name, slot_tmp, size, encoding, line}
+    )
+    emit(ctx, buf)
+}
+
+fn cg_emit_dbg_shadow(
+    ctx: mut ref CgCtx,
+    name: ref u8,
+    value: ref u8,
+    line: i64
+) void = trust {
+    if !cg_debug_enabled(ctx) || cstr.cmp(name, c"_") == 0 {
+        return
+    }
+    val store_type: ref u8 = cg_local_type(ctx, name)
+    if cstr.len(store_type) == 0 {
+        return
+    }
+    val slot_tmp: i64 = fresh_tmp(ctx)
+    val store_op: mut ref u8 = c"storel"
+    if cstr.cmp(store_type, c"f64") == 0 {
+        store_op = c"stored"
+    } elif cstr.cmp(store_type, c"f32") == 0 {
+        store_op = c"stores"
+    } elif is_word_type_name(store_type) {
+        store_op = c"storew"
+    }
+    val buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 256 as usize) as ref u8
+    @snprintf(
+        buf,
+        256,
+        "    %%t{lld} =l alloc8 8\n    {s} {s}, %%t{lld}\n    call $__sx_dbg_keep(l %%t{lld})\n",
+        {slot_tmp, store_op, value, slot_tmp, slot_tmp}
+    )
+    emit(ctx, buf)
+    cg_emit_dbg_var_slot(ctx, name, slot_tmp, line)
+}
+
 /// Returns true if the type name maps to QBE word type (w).
 fn is_word_type_name(name: ref u8) bool = trust {
     if cstr.cmp(name, c"u8") == 0 {
@@ -16377,8 +16473,22 @@ fn gen_stmt(ctx: mut ref CgCtx, stmt: ref parser.Node) void = trust {
                 {qbe_tmp, store_op, val_tmp, qbe_tmp}
             )
             emit(ctx, buf)
+            if cg_debug_enabled(ctx) {
+                val keep_buf: ref u8 = allocators.ScopedArena.alloc_or_none(
+                    ctx.arena,
+                    128 as usize
+                ) as ref u8
+                @snprintf(
+                    keep_buf,
+                    128,
+                    "    call $__sx_dbg_keep(l %%t{lld})\n",
+                    {qbe_tmp}
+                )
+                emit(ctx, keep_buf)
+            }
             cg_register_local_var(ctx, name, qbe_name)
             cg_mark_as_slot(ctx, name)
+            cg_emit_dbg_var_slot(ctx, name, qbe_tmp, stmt.line)
         } else {
             cg_unmark_slot(ctx, name)
             val imm_ty_node: mut ref parser.Node = ty_node
@@ -16472,6 +16582,9 @@ fn gen_stmt(ctx: mut ref CgCtx, stmt: ref parser.Node) void = trust {
                 ) as ref u8
                 @snprintf(qbe_val2, 32, "%%t{lld}", {copy_tmp})
                 cg_register_local_var(ctx, name, qbe_val2)
+            }
+            if cg_debug_enabled(ctx) {
+                cg_emit_dbg_shadow(ctx, name, val_tmp, stmt.line)
             }
         }
         return
@@ -19173,8 +19286,36 @@ fn gen_fn_prefixed(ctx: mut ref CgCtx, fn_node: ref parser.Node, mod_prefix: ref
                         {slot_tmp, store_op, cg_param_qbe_name(ctx, pi2, pname2), slot_tmp}
                     )
                     emit(ctx, slot_buf)
+                    if cg_debug_enabled(ctx) {
+                        val keep_buf: ref u8 = allocators.ScopedArena.alloc_or_none(
+                            ctx.arena,
+                            128 as usize
+                        ) as ref u8
+                        @snprintf(
+                            keep_buf,
+                            128,
+                            "    call $__sx_dbg_keep(l %%t{lld})\n",
+                            {slot_tmp}
+                        )
+                        emit(ctx, keep_buf)
+                    }
                     cg_register_local_var(ctx, pname2, slot_name)
                     cg_mark_as_slot(ctx, pname2)
+                    cg_emit_dbg_var_slot(ctx, pname2, slot_tmp, fn_node.line)
+                } elif cg_debug_enabled(ctx) {
+                    val param_value: ref u8 = allocators.ScopedArena.alloc_or_none(
+                        ctx.arena,
+                        64 as usize
+                    ) as ref u8
+                    @snprintf(param_value, 64, "%%{s}", {
+                        cg_param_qbe_name(ctx, pi2, pname2)
+                    })
+                    cg_emit_dbg_shadow(
+                        ctx,
+                        pname2,
+                        param_value,
+                        fn_node.line
+                    )
                 }
             }
             pi2++
@@ -20881,6 +21022,13 @@ fn cg_finish_qbe(ctx: mut ref CgCtx) ref u8 = trust {
     builder.StringBuilder.free(ctx.embed_sb)
     @free(@load(embed_built))
     @free(embed_built)
+
+    if cg_debug_enabled(ctx) {
+        builder.StringBuilder.append_cstr(
+            cg_sb(ctx),
+            c"function $__sx_dbg_keep(l %p) {\n@start\n    ret\n}\n"
+        )
+    }
 
     val built: ref void = builder.StringBuilder.build(cg_sb(ctx))
     val result: ref u8 = ostr.as_cstr(built)
