@@ -4,6 +4,25 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
+DEBUG_BOOTSTRAP=0
+for arg in "$@"; do
+    case "$arg" in
+        -debug)
+            DEBUG_BOOTSTRAP=1
+            ;;
+        *)
+            echo "error: unknown option '$arg'" >&2
+            echo "usage: bootstrap_all.sh [-debug]" >&2
+            exit 1
+            ;;
+    esac
+done
+
+SSA_MODE=(-release)
+if [ "$DEBUG_BOOTSTRAP" -eq 1 ]; then
+    SSA_MODE=()
+fi
+
 if [ ! -x ./spectre-dev ]; then
     echo "error: ./spectre-dev is missing or not executable" >&2
     exit 1
@@ -38,13 +57,13 @@ emit() {
 
 emit bootstrap/sxc.ssa \
     ./spectre-dev "${DEFINES[@]}" ./src/sxc.sx \
-    -b -emit-ssa -emit-shim:spectrelib/csources/qbe_runtime.c -src-target:linux
+    -b "${SSA_MODE[@]}" -emit-ssa -emit-shim:spectrelib/csources/qbe_runtime.c -src-target:linux
 emit bootstrap/sxc.c \
     ./spectre-dev "${DEFINES[@]}" ./src/sxc.sx \
     -b -emit-alt -src-target:linux
 emit bootstrap/sxc_darwin.ssa \
     ./spectre-dev "${DEFINES[@]}" ./src/sxc.sx \
-    -b -emit-ssa -src-target:darwin
+    -b "${SSA_MODE[@]}" -emit-ssa -src-target:darwin
 emit bootstrap/sxc_darwin.c \
     ./spectre-dev "${DEFINES[@]}" ./src/sxc.sx \
     -b -emit-alt -src-target:darwin
