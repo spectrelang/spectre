@@ -1,0 +1,19 @@
+val rand  = use("std/fastrand")
+val stdio = use("std/stdio")
+val fmt   = use("std/fmt")
+
+pub fn main() void = trust {
+    val actual = rand.random_u32_below(100)
+    for {
+        val buf: ref u8 = @alloc(50)
+        stdio.read_line(buf, 100)
+        val guess = fmt.string_to_i64(buf)
+        if guess == actual {
+            break
+        } elif guess < actual {
+            @puts("too low")
+            continue
+        }
+        @puts("too high")
+    }
+}
