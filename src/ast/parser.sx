@@ -1841,6 +1841,8 @@ fn substitute_self_type(ty: ref Node, self_name: ref u8) ref Node = trust {
 }
 
 fn parse_or(p: mut ref Parser) result[ref Node, ref u8] = trust {
+    val expr_line: i64 = p_line(p)
+    val expr_col: i64 = p_peek_col(p)
     val lhs = parse_and(p)?
     val res: mut ref Node = lhs
     for {
@@ -1851,11 +1853,14 @@ fn parse_or(p: mut ref Parser) result[ref Node, ref u8] = trust {
         p_advance(p)
         val rhs = parse_and(p)?
         res = make_binop(p.arena, OP_OR, line, res, rhs)?
+        set_node_span(res, expr_line, expr_col, p_prev_line(p), p_prev_end_col(p))
     }
     return ok res
 }
 
 fn parse_and(p: mut ref Parser) result[ref Node, ref u8] = trust {
+    val expr_line: i64 = p_line(p)
+    val expr_col: i64 = p_peek_col(p)
     val lhs = parse_cmp(p)?
     val res: mut ref Node = lhs
     for {
@@ -1866,6 +1871,7 @@ fn parse_and(p: mut ref Parser) result[ref Node, ref u8] = trust {
         p_advance(p)
         val rhs = parse_cmp(p)?
         res = make_binop(p.arena, OP_AND, line, res, rhs)?
+        set_node_span(res, expr_line, expr_col, p_prev_line(p), p_prev_end_col(p))
     }
     return ok res
 }
@@ -1904,6 +1910,8 @@ fn parse_cmp(p: mut ref Parser) result[ref Node, ref u8] = trust {
 }
 
 fn parse_bitor(p: mut ref Parser) result[ref Node, ref u8] = trust {
+    val expr_line: i64 = p_line(p)
+    val expr_col: i64 = p_peek_col(p)
     val lhs = parse_bitxor(p)?
     val res: mut ref Node = lhs
     for {
@@ -1914,11 +1922,14 @@ fn parse_bitor(p: mut ref Parser) result[ref Node, ref u8] = trust {
         p_advance(p)
         val rhs = parse_bitxor(p)?
         res = make_binop(p.arena, OP_BOR, line, res, rhs)?
+        set_node_span(res, expr_line, expr_col, p_prev_line(p), p_prev_end_col(p))
     }
     return ok res
 }
 
 fn parse_bitxor(p: mut ref Parser) result[ref Node, ref u8] = trust {
+    val expr_line: i64 = p_line(p)
+    val expr_col: i64 = p_peek_col(p)
     val lhs = parse_bitand(p)?
     val res: mut ref Node = lhs
     for {
@@ -1929,11 +1940,14 @@ fn parse_bitxor(p: mut ref Parser) result[ref Node, ref u8] = trust {
         p_advance(p)
         val rhs = parse_bitand(p)?
         res = make_binop(p.arena, OP_BXOR, line, res, rhs)?
+        set_node_span(res, expr_line, expr_col, p_prev_line(p), p_prev_end_col(p))
     }
     return ok res
 }
 
 fn parse_bitand(p: mut ref Parser) result[ref Node, ref u8] = trust {
+    val expr_line: i64 = p_line(p)
+    val expr_col: i64 = p_peek_col(p)
     val lhs = parse_shift(p)?
     val res: mut ref Node = lhs
     for {
@@ -1944,11 +1958,14 @@ fn parse_bitand(p: mut ref Parser) result[ref Node, ref u8] = trust {
         p_advance(p)
         val rhs = parse_shift(p)?
         res = make_binop(p.arena, OP_BAND, line, res, rhs)?
+        set_node_span(res, expr_line, expr_col, p_prev_line(p), p_prev_end_col(p))
     }
     return ok res
 }
 
 fn parse_shift(p: mut ref Parser) result[ref Node, ref u8] = trust {
+    val expr_line: i64 = p_line(p)
+    val expr_col: i64 = p_peek_col(p)
     val lhs = parse_add(p)?
     val res: mut ref Node = lhs
     for {
@@ -1966,11 +1983,14 @@ fn parse_shift(p: mut ref Parser) result[ref Node, ref u8] = trust {
         p_advance(p)
         val rhs = parse_add(p)?
         res = make_binop(p.arena, op, line, res, rhs)?
+        set_node_span(res, expr_line, expr_col, p_prev_line(p), p_prev_end_col(p))
     }
     return ok res
 }
 
 fn parse_add(p: mut ref Parser) result[ref Node, ref u8] = trust {
+    val expr_line: i64 = p_line(p)
+    val expr_col: i64 = p_peek_col(p)
     val lhs = parse_mul(p)?
     val res: mut ref Node = lhs
     for {
@@ -1988,11 +2008,14 @@ fn parse_add(p: mut ref Parser) result[ref Node, ref u8] = trust {
         p_advance(p)
         val rhs = parse_mul(p)?
         res = make_binop(p.arena, op, line, res, rhs)?
+        set_node_span(res, expr_line, expr_col, p_prev_line(p), p_prev_end_col(p))
     }
     return ok res
 }
 
 fn parse_mul(p: mut ref Parser) result[ref Node, ref u8] = trust {
+    val expr_line: i64 = p_line(p)
+    val expr_col: i64 = p_peek_col(p)
     val lhs = parse_unary(p)?
     val res: mut ref Node = lhs
     for {
@@ -2012,6 +2035,7 @@ fn parse_mul(p: mut ref Parser) result[ref Node, ref u8] = trust {
         p_advance(p)
         val rhs = parse_unary(p)?
         res = make_binop(p.arena, op, line, res, rhs)?
+        set_node_span(res, expr_line, expr_col, p_prev_line(p), p_prev_end_col(p))
     }
     return ok res
 }

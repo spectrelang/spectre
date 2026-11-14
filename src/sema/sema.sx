@@ -6014,10 +6014,44 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
                     ctx.arena,
                     (256) as usize
                 ) as ref u8
-                if op == parser.OP_DIV {
-                    @snprintf(buf, 256, "{s}:{lld}: division by zero", {filename, line})
+                if expr.col > 0 && expr.span > 0 {
+                    if op == parser.OP_DIV {
+                        @snprintf(
+                            buf,
+                            256,
+                            "{s}:{lld}:{lld}:{lld}: division by zero",
+                            {filename, line, expr.col, expr.span}
+                        )
+                    } else {
+                        @snprintf(
+                            buf,
+                            256,
+                            "{s}:{lld}:{lld}:{lld}: remainder by zero",
+                            {filename, line, expr.col, expr.span}
+                        )
+                    }
+                } elif expr.col > 0 {
+                    if op == parser.OP_DIV {
+                        @snprintf(
+                            buf,
+                            256,
+                            "{s}:{lld}:{lld}: division by zero",
+                            {filename, line, expr.col}
+                        )
+                    } else {
+                        @snprintf(
+                            buf,
+                            256,
+                            "{s}:{lld}:{lld}: remainder by zero",
+                            {filename, line, expr.col}
+                        )
+                    }
                 } else {
-                    @snprintf(buf, 256, "{s}:{lld}: remainder by zero", {filename, line})
+                    if op == parser.OP_DIV {
+                        @snprintf(buf, 256, "{s}:{lld}: division by zero", {filename, line})
+                    } else {
+                        @snprintf(buf, 256, "{s}:{lld}: remainder by zero", {filename, line})
+                    }
                 }
                 add_error(ctx, buf)
             }

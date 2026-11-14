@@ -1,0 +1,334 @@
+/// Cross-platform colored terminal output using ANSI SGR sequences.
+///
+/// SPDX-License-Identifier: GPL-3.0-only
+/// (C) Navid Momtahen - 2026
+
+val str   = use("../string")
+val stdio = use("../stdio")
+val env   = use("../env")
+val rt    = use("../runtime")
+
+/// ANSI terminal colors.
+pub enum Color = {
+    Default
+    Black
+    Red
+    Green
+    Yellow
+    Blue
+    Magenta
+    Cyan
+    White
+    BrightBlack
+    BrightRed
+    BrightGreen
+    BrightYellow
+    BrightBlue
+    BrightMagenta
+    BrightCyan
+    BrightWhite
+}
+
+/// ANSI text styles.
+pub enum Style = {
+    Plain
+    Bold
+    Dim
+    Italic
+    Underline
+    Blink
+    Reverse
+    Hidden
+    Strikethrough
+}
+
+fn default_enabled() bool = trust {
+    if env.has(c"NO_COLOR") {
+        return false
+    }
+    val forced: str.StringView = str.from_cstr(env.get(c"FORCE_COLOR"))
+    if !str.is_empty(forced) && !str.eql_cstr(forced, c"0") {
+        return true
+    }
+    if rt.isatty(1) == 0 {
+        return false
+    }
+    val term: str.StringView = str.from_cstr(env.get(c"TERM"))
+    if str.eql_cstr(term, c"dumb") {
+        return false
+    }
+    return true
+}
+
+val enabled_state: mut bool = trust default_enabled()
+
+/// Return whether colored output is currently enabled.
+pub fn is_enabled() bool = {
+    return enabled_state
+}
+
+/// Enable or disable colored output.
+pub fn set_enabled(enabled: bool) void = {
+    enabled_state = enabled
+}
+
+/// Enable colored output.
+pub fn enable() void = {
+    enabled_state = true
+}
+
+/// Disable colored output.
+pub fn disable() void = {
+    enabled_state = false
+}
+
+/// Reset all colors and text styles.
+pub fn reset() str.StringView = {
+    return "\x1b[0m"
+}
+
+/// Return the ANSI foreground color sequence for `color`.
+pub fn fg(color: Color) str.StringView = {
+    if color == Color.Default {
+        return "\x1b[39m"
+    }
+    if color == Color.Black {
+        return "\x1b[30m"
+    }
+    if color == Color.Red {
+        return "\x1b[31m"
+    }
+    if color == Color.Green {
+        return "\x1b[32m"
+    }
+    if color == Color.Yellow {
+        return "\x1b[33m"
+    }
+    if color == Color.Blue {
+        return "\x1b[34m"
+    }
+    if color == Color.Magenta {
+        return "\x1b[35m"
+    }
+    if color == Color.Cyan {
+        return "\x1b[36m"
+    }
+    if color == Color.White {
+        return "\x1b[37m"
+    }
+    if color == Color.BrightBlack {
+        return "\x1b[90m"
+    }
+    if color == Color.BrightRed {
+        return "\x1b[91m"
+    }
+    if color == Color.BrightGreen {
+        return "\x1b[92m"
+    }
+    if color == Color.BrightYellow {
+        return "\x1b[93m"
+    }
+    if color == Color.BrightBlue {
+        return "\x1b[94m"
+    }
+    if color == Color.BrightMagenta {
+        return "\x1b[95m"
+    }
+    if color == Color.BrightCyan {
+        return "\x1b[96m"
+    }
+    return "\x1b[97m"
+}
+
+/// Return the ANSI background color sequence for `color`.
+pub fn bg(color: Color) str.StringView = {
+    if color == Color.Default {
+        return "\x1b[49m"
+    }
+    if color == Color.Black {
+        return "\x1b[40m"
+    }
+    if color == Color.Red {
+        return "\x1b[41m"
+    }
+    if color == Color.Green {
+        return "\x1b[42m"
+    }
+    if color == Color.Yellow {
+        return "\x1b[43m"
+    }
+    if color == Color.Blue {
+        return "\x1b[44m"
+    }
+    if color == Color.Magenta {
+        return "\x1b[45m"
+    }
+    if color == Color.Cyan {
+        return "\x1b[46m"
+    }
+    if color == Color.White {
+        return "\x1b[47m"
+    }
+    if color == Color.BrightBlack {
+        return "\x1b[100m"
+    }
+    if color == Color.BrightRed {
+        return "\x1b[101m"
+    }
+    if color == Color.BrightGreen {
+        return "\x1b[102m"
+    }
+    if color == Color.BrightYellow {
+        return "\x1b[103m"
+    }
+    if color == Color.BrightBlue {
+        return "\x1b[104m"
+    }
+    if color == Color.BrightMagenta {
+        return "\x1b[105m"
+    }
+    if color == Color.BrightCyan {
+        return "\x1b[106m"
+    }
+    return "\x1b[107m"
+}
+
+/// Return the ANSI style sequence for `style`.
+pub fn style(text_style: Style) str.StringView = {
+    if text_style == Style.Bold {
+        return "\x1b[1m"
+    }
+    if text_style == Style.Dim {
+        return "\x1b[2m"
+    }
+    if text_style == Style.Italic {
+        return "\x1b[3m"
+    }
+    if text_style == Style.Underline {
+        return "\x1b[4m"
+    }
+    if text_style == Style.Blink {
+        return "\x1b[5m"
+    }
+    if text_style == Style.Reverse {
+        return "\x1b[7m"
+    }
+    if text_style == Style.Hidden {
+        return "\x1b[8m"
+    }
+    if text_style == Style.Strikethrough {
+        return "\x1b[9m"
+    }
+    return ""
+}
+
+fn write_out(text: str.StringView, to_stderr: bool) void = trust {
+    if to_stderr {
+        stdio.eprintv(text)
+    } else {
+        stdio.printv(text)
+    }
+}
+
+fn emit(
+    text: str.StringView,
+    foreground: Color,
+    background: Color,
+    text_style: Style,
+    newline: bool,
+    to_stderr: bool
+) void = trust {
+    if enabled_state {
+        write_out(style(text_style), to_stderr)
+        write_out(fg(foreground), to_stderr)
+        write_out(bg(background), to_stderr)
+        write_out(text, to_stderr)
+        write_out(reset(), to_stderr)
+    } else {
+        write_out(text, to_stderr)
+    }
+    if newline {
+        write_out("\n", to_stderr)
+    }
+}
+
+/// Print colored text to stdout without a trailing newline.
+pub fn print(text: str.StringView, color: Color) void = {
+    trust emit(text, color, Color.Default, Style.Plain, false, false)
+}
+
+/// Print colored text to stdout followed by a newline.
+pub fn puts(text: str.StringView, color: Color) void = {
+    trust emit(text, color, Color.Default, Style.Plain, true, false)
+}
+
+/// Print colored text to stderr without a trailing newline.
+pub fn eprint(text: str.StringView, color: Color) void = {
+    trust emit(text, color, Color.Default, Style.Plain, false, true)
+}
+
+/// Print colored text to stderr followed by a newline.
+pub fn eputs(text: str.StringView, color: Color) void = {
+    trust emit(text, color, Color.Default, Style.Plain, true, true)
+}
+
+/// Print text with foreground color, background color, and style to stdout.
+pub fn print_styled(
+    text: str.StringView,
+    foreground: Color,
+    background: Color,
+    text_style: Style
+) void = {
+    trust emit(text, foreground, background, text_style, false, false)
+}
+
+/// Print styled text to stdout followed by a newline.
+pub fn puts_styled(
+    text: str.StringView,
+    foreground: Color,
+    background: Color,
+    text_style: Style
+) void = {
+    trust emit(text, foreground, background, text_style, true, false)
+}
+
+/// Print text with foreground color, background color, and style to stderr.
+pub fn eprint_styled(
+    text: str.StringView,
+    foreground: Color,
+    background: Color,
+    text_style: Style
+) void = {
+    trust emit(text, foreground, background, text_style, false, true)
+}
+
+/// Print styled text to stderr followed by a newline.
+pub fn eputs_styled(
+    text: str.StringView,
+    foreground: Color,
+    background: Color,
+    text_style: Style
+) void = {
+    trust emit(text, foreground, background, text_style, true, true)
+}
+
+test "terminal escape sequences" {
+    assert trust str.eql(reset(), "\x1b[0m")
+    assert trust str.eql(fg(Color.Red), "\x1b[31m")
+    assert trust str.eql(fg(Color.BrightBlue), "\x1b[94m")
+    assert trust str.eql(fg(Color.Default), "\x1b[39m")
+    assert trust str.eql(bg(Color.Green), "\x1b[42m")
+    assert trust str.eql(bg(Color.Default), "\x1b[49m")
+    assert trust str.eql(style(Style.Bold), "\x1b[1m")
+    assert trust str.eql(style(Style.Plain), "")
+}
+
+test "terminal enabled state" {
+    set_enabled(false)
+    assert !is_enabled()
+    enable()
+    assert is_enabled()
+    disable()
+    assert !is_enabled()
+    set_enabled(true)
+}

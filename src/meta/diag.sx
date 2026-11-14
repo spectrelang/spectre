@@ -260,18 +260,22 @@ fn report_at(
             val caret_start: i64 = start + actual_col - 1
             val caret_len: mut i64 = requested_span
             if caret_len <= 0 {
-                caret_len = 0
-                val scan: mut i64 = caret_start
-                for {
-                    if scan >= end {
-                        break
+                if requested_col <= 0 {
+                    caret_len = end - caret_start
+                } else {
+                    caret_len = 0
+                    val scan: mut i64 = caret_start
+                    for {
+                        if scan >= end {
+                            break
+                        }
+                        val c: i64 = @load8(@ptradd(content, scan)) as i64
+                        if c == 32 || c == 9 {
+                            break
+                        }
+                        caret_len++
+                        scan++
                     }
-                    val c: i64 = @load8(@ptradd(content, scan)) as i64
-                    if c == 32 || c == 9 {
-                        break
-                    }
-                    caret_len++
-                    scan++
                 }
             }
             val available: i64 = end - caret_start
