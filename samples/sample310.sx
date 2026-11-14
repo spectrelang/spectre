@@ -10,8 +10,7 @@ fn normalize_path[A: alloc.Allocator](ac: A, raw: ref u8) str.String = {
         path = str.trim(path)
         path_str = str.to_lower[A](ac, path)
     }
-    trust stdio.print("Path: {s}", {path})
-    val result = trust ostr.trim_prefix(str.to_string[A](ac, path), ostr.from_cstr[A](ac, c"/api/"))
+    val result = trust ostr.trim_prefix(path_str, ostr.from_cstr[A](ac, c"/api/"))
     post {
         result.len > 0
     }
