@@ -1,0 +1,21 @@
+/// Regression: a program's own `PI` must not be replaced by a same-named
+/// constant from an imported module or from `std/math/static`.
+val math     = use("std/math")
+val imported = use("sample303_mod.sx")
+
+val PI: f32 = 1.5 as f32
+
+type Holder = {
+    value: mut f32
+}
+
+pub fn main() i32 = {
+    val holder: mut Holder = { value: 0.0 as f32 }
+    holder.value = PI
+
+    assert holder.value == (1.5 as f32)
+    assert imported.PI > (3.0 as f64)
+    assert imported.imported_pi() > (3.0 as f64)
+    assert math.cos(0.0 as f64) > (0.99 as f64)
+    return 0 as i32
+}

@@ -1,0 +1,9 @@
+/// Regression: module-level constant that shares a name with a constant in
+/// another module but has a different type and value.
+pub val PI: f64 = 3.5
+
+pub fn imported_pi() f64 = {
+    return PI
+}
+
+pub fn main() void = {}
