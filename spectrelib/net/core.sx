@@ -60,10 +60,10 @@ when windows {
     when freestanding {
         extern (C) fn WSAStartup(version: u16, data: ref void) i32 = "sx_wsa_startup"
         extern (C) fn WSACleanup() i32 = "sx_wsa_cleanup"
-        extern (C) fn win_socket(domain: i32, type_: i32, protocol: i32) u64 = "sx_socket"
+        extern (C) fn win_socket(domain: i32, type_: i32, protocol: i32) i32 = "sx_socket"
         extern (C) fn win_bind(fd: u64, addr: ref void, addrlen: i32) i32 = "sx_bind"
         extern (C) fn win_listen(fd: u64, backlog: i32) i32 = "sx_listen"
-        extern (C) fn win_accept(fd: u64, addr: ref void, addrlen: ref void) u64 = "sx_accept"
+        extern (C) fn win_accept(fd: u64, addr: ref void, addrlen: ref void) i32 = "sx_accept"
         extern (C) fn win_send(fd: u64, buf: ref void, len: i32, flags: i32) i64 = "sx_send"
         extern (C) fn win_recv(fd: u64, buf: ref void, len: i32, flags: i32) i64 = "sx_recv"
         extern (C) fn closesocket(fd: u64) i32 = "sx_closesocket"
