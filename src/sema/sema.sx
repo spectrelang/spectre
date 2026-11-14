@@ -12014,7 +12014,7 @@ fn check_module_rec(
         i++
     }
 
-    val fname: ref u8 = normalize_path(arena, modinfo.module_filename(mod))
+    val fname: ref u8 = normalize_path(arena, modinfo.module_display_filename(mod))
     val items: list[ref parser.Node] = modinfo.module_items(mod)
     val errors: list[ref u8] = check_module(arena, items, fname, mod, quiet, src_target)
     for e in errors {

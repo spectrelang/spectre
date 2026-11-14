@@ -68,6 +68,7 @@ pub fn print_usage() void = {
     stdio.puts("  -native              Optimize the selected backend for the host CPU")
     stdio.puts("  -unroll              Enable aggressive loop unrolling in the alt backend")
     stdio.puts("  -no-simd             Disable autovectorization, use scalar fallback")
+    stdio.puts("  -abs-dbg             Use absolute paths in diagnostics and debug info")
     stdio.puts("  -dynamic             Link dynamically instead of statically")
     stdio.puts("  -dll                 Build a shared library")
     stdio.puts("  -a, -alt             Compile with fallback backend")
@@ -538,6 +539,15 @@ pub fn print_help(topic: str.StringView) i32 = trust {
             "-no-simd",
             "Disable autovectorization and emit scalar loops. Useful for debugging and for platforms without a supported SIMD backend.",
             "spectre <input.sx> -release -alt -no-simd"
+        )
+        return 0
+    }
+
+    if str.eql_cstr(topic, c"-abs-dbg") {
+        print_flag_help(
+            "-abs-dbg",
+            "Use absolute paths in diagnostics, runtime checks, and debug information. Paths are relative by default.",
+            "spectre <input.sx> -abs-dbg"
         )
         return 0
     }

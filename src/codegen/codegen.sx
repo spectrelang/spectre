@@ -21501,7 +21501,7 @@ pub fn gen_module_resolved(
         root,
         c"spectrelib/panic/core.sx"
     )
-    ctx.current_filename = module.module_filename(root)
+    ctx.current_filename = module.module_display_filename(root)
     cg_build_alias_map(ctx, root)
     emit_runtime_helpers(ctx)
 
@@ -21869,7 +21869,7 @@ pub fn gen_module_resolved_test(
         root,
         c"spectrelib/panic/core.sx"
     )
-    ctx.current_filename = module.module_filename(root)
+    ctx.current_filename = module.module_display_filename(root)
     cg_build_alias_map(ctx, root)
     emit_runtime_helpers(ctx)
 

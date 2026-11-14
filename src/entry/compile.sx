@@ -347,6 +347,7 @@ pub fn run(
     if ast_mode {
         opts.print_ast = true
     }
+    module.set_abs_dbg(opts.abs_dbg)
 
     val ctx: mut ref context.Context = context.new(
         opts,

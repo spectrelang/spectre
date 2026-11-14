@@ -6,6 +6,9 @@
 val stdio = use("std/stdio")
 val fs    = use("std/fs")
 val cstr  = use("std/string/cstr")
+val path  = use("std/path")
+val reflection = use("std/reflection")
+val allocators = use("std/allocators")
 
 /// Prefix for every diagnostic.
 pub val LABEL: ref u8 = c"error"
@@ -124,6 +127,29 @@ fn spaces(count: i64) void = trust {
     }
 }
 
+fn diag_path_is_absolute(p: ref u8) bool = trust {
+    if p == none {
+        return false
+    }
+    val n: i64 = cstr.len(p)
+    if n == 0 {
+        return false
+    }
+    val c0: u8 = @load8(p)
+    if c0 == 47 || c0 == 92 {
+        return true
+    }
+    when windows {
+        if n >= 3 && @load8(@ptradd(p, 1)) == 58 {
+            val c2: u8 = @load8(@ptradd(p, 2))
+            if c2 == 47 || c2 == 92 {
+                return true
+            }
+        }
+    }
+    return false
+}
+
 fn report_at(
     filename: ref u8,
     line: i64,
@@ -133,7 +159,26 @@ fn report_at(
 ) void = trust {
     val width: i64 = number_width(line)
     val requested_col: i64 = col
-    val content_opt = fs.read_all_heap_cstr(filename)
+    val content_opt: mut option[ref u8] = fs.read_all_heap_cstr(filename)
+    if content_opt is none {
+        if filename != none && cstr.len(filename) > 0
+        && !diag_path_is_absolute(filename) {
+            match allocators.Arena.new(2048 as usize) {
+                ok arena => {
+                    val exe: ref u8 = reflection.get_exe_path[allocators.Arena](arena)
+                    if cstr.cmp(exe, c".") != 0 {
+                        val exe_dir: ref u8 = path.dir_cstr(exe)
+                        val candidate: ref u8 = path.join_cstr(exe_dir, filename)
+                        content_opt = fs.read_all_heap_cstr(candidate)
+                        @free(candidate as ref void)
+                        @free(exe_dir as ref void)
+                    }
+                    allocators.Arena.free(arena)
+                }
+                err _ => {}
+            }
+        }
+    }
     if content_opt is some content {
         val start: mut i64 = 0
         val current: mut i64 = 1

@@ -23,6 +23,7 @@ pub type Options = {
     release_mode: mut bool
     native_mode: mut bool
     unroll_mode: mut bool
+    abs_dbg: mut bool
     simd_disabled: mut bool
     output_name: mut ref u8
     build_dll: mut bool
@@ -232,6 +233,9 @@ pub fn parse(
                 arg_i++
             } elif cstr.cmp(arg, c"-no-simd") == 0 {
                 opts.simd_disabled = true
+                arg_i++
+            } elif cstr.cmp(arg, c"-abs-dbg") == 0 {
+                opts.abs_dbg = true
                 arg_i++
             } elif cstr.cmp(arg, c"-dynamic") == 0 {
                 opts.dynamic_linking = true

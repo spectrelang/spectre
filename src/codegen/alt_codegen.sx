@@ -12153,7 +12153,7 @@ pub fn gen_module_c_test(
     val test_names: mut list[ref u8] = mem.new[ref u8]()
     val test_counter: mut i64 = 0
     if emit_line_directives {
-        ctx.current_src_file = module.module_filename(root)
+        ctx.current_src_file = module.module_display_filename(root)
     }
     val root_items: list[ref parser.Node] = root.items
     val rlen: i64 = @len(root_items) as i64

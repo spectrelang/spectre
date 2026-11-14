@@ -17,6 +17,20 @@ val commands   = use("../meta/commands.sx")
 /// program has to fall back to the hosted toolchain.
 val module_runtime_mode: mut ref u8 = c"hosted"
 val module_target_platform: mut ref u8 = c""
+val module_abs_dbg: mut bool = false
+val module_cwd: mut ref u8 = c""
+
+/// Enable or disable absolute paths in diagnostics and debug information.
+pub fn set_abs_dbg(enable: bool) void = trust {
+    module_abs_dbg = enable
+    if cstr.len(module_cwd) == 0 {
+        val cwd_opt = fs.cwd_cstr()
+        if cwd_opt is some cwd {
+            module_cwd = path.canonicalize_path_cstr(cwd)
+            @free(cwd as ref void)
+        }
+    }
+}
 
 pub fn set_runtime_mode(mode: ref u8) void = {
     if mode == none || cstr.cmp(mode, c"") == 0 {
@@ -47,6 +61,7 @@ pub type ResolvedModule = {
     import_names: mut list[ref u8]
     import_modules: mut list[ref ResolvedModule]
     filename: mut String
+    display_filename: mut String
     dir: mut String
 }
 
@@ -63,6 +78,7 @@ pub fn new_resolved(
     @memset(m, 0, @sizeof(ResolvedModule) as usize)
     m.items = items
     m.filename = filename
+    m.display_filename = filename
     m.dir = dir
     m.import_names = mem.new[ref u8]()
     m.import_modules = mem.new[ref ResolvedModule]()
@@ -1231,6 +1247,106 @@ fn items_have_external_links(items: list[ref parser.Node]) bool = trust {
     return false
 }
 
+/// Return the part of `full` below `base`, or null when it is not nested.
+fn strip_path_prefix(full: ref u8, base: ref u8) ref u8 = trust {
+    if base == none || full == none {
+        return none
+    }
+    val blen: i64 = cstr.len(base)
+    val flen: i64 = cstr.len(full)
+    if blen == 0 {
+        return none
+    }
+    val b: mut i64 = blen
+    for {
+        if b <= 1 {
+            break
+        }
+        val c: u8 = @load8(@ptradd(base, b - 1))
+        if c == 47 || c == 92 {
+            b--
+        } else {
+            break
+        }
+    }
+    if b > flen {
+        return none
+    }
+    val i: mut i64 = 0
+    for {
+        if i >= b {
+            break
+        }
+        if @load8(@ptradd(full, i)) != @load8(@ptradd(base, i)) {
+            return none
+        }
+        i++
+    }
+    if b == flen {
+        return c"."
+    }
+    val next: u8 = @load8(@ptradd(full, b))
+    if next != 47 && next != 92 {
+        return none
+    }
+    return @ptradd(full, b + 1) as ref u8
+}
+
+/// Return true when a path is absolute on the current platform.
+fn path_is_absolute(p: ref u8) bool = trust {
+    if p == none {
+        return false
+    }
+    val n: i64 = cstr.len(p)
+    if n == 0 {
+        return false
+    }
+    val c0: u8 = @load8(p)
+    if c0 == 47 || c0 == 92 {
+        return true
+    }
+    when windows {
+        if n >= 3 && @load8(@ptradd(p, 1)) == 58 {
+            val c2: u8 = @load8(@ptradd(p, 2))
+            if c2 == 47 || c2 == 92 {
+                return true
+            }
+        }
+    }
+    return false
+}
+
+/// Choose the path used in diagnostics and debug information.
+fn display_path(full: ref u8, exe_dir: ref u8) ref u8 = trust {
+    if module_abs_dbg || full == none {
+        return full
+    }
+    if !path_is_absolute(full) {
+        return full
+    }
+    val cwd_rel: ref u8 = strip_path_prefix(full, module_cwd)
+    if cwd_rel != none {
+        return cwd_rel
+    }
+    val exe_rel: ref u8 = strip_path_prefix(full, exe_dir)
+    if exe_rel != none {
+        return exe_rel
+    }
+    val n: i64 = cstr.len(full)
+    val i: mut i64 = n - 1
+    for {
+        if i < 0 {
+            break
+        }
+        val c: u8 = @load8(@ptradd(full, i))
+        if c == 47 || c == 92 {
+            return @ptradd(full, i + 1) as ref u8
+        }
+        i--
+    }
+    return full
+}
+
 fn resolve_module_impl(
     arena: allocators.ScopedArenaAllocator,
     path: ref u8,
@@ -1240,9 +1356,17 @@ fn resolve_module_impl(
     cache_keys: mut list[ref u8],
     cache_vals: mut list[ref void]
 ) result[ref ResolvedModule, ref u8] = trust {
-    val canonical_path: ref u8 = path.canonicalize_path_cstr(path)
+    val resolved_input: mut ref u8 = path
+    if module_abs_dbg && !path_is_absolute(path) && cstr.len(module_cwd) > 0 {
+        resolved_input = path.join_cstr(module_cwd, path)
+    }
+    val canonical_path: ref u8 = path.canonicalize_path_cstr(resolved_input)
+    if resolved_input != path {
+        @free(resolved_input as ref void)
+    }
+    val display_file: ref u8 = display_path(canonical_path, exe_dir)
     if in_progress_contains(in_progress, canonical_path) {
-        return err @fmtalloc("cyclic import: {s}", {canonical_path})
+        return err @fmtalloc("cyclic import: {s}", {display_file})
     }
 
     val cn: i64 = @len(cache_keys) as i64
@@ -1270,7 +1394,7 @@ fn resolve_module_impl(
             src_arena_cap = sz as i64
         }
     } else {
-        return err @fmtalloc("cannot read module: {s}", {canonical_path})
+        return err @fmtalloc("cannot read module: {s}", {display_file})
     }
     val src_arena: allocators.Arena = allocators.Arena.new((src_arena_cap + 8) as usize)?
     val src_opt = fs.read_all_cstr[allocators.Arena](src_arena, canonical_path)
@@ -1279,7 +1403,7 @@ fn resolve_module_impl(
         src = s as ref u8
     } else {
         allocators.Arena.free(src_arena)
-        return err @fmtalloc("cannot read module: {s}", {canonical_path})
+        return err @fmtalloc("cannot read module: {s}", {display_file})
     }
 
     val lex_result = lexer.tokenize_with_view(arena, str.from_cstr(src))
@@ -1290,11 +1414,11 @@ fn resolve_module_impl(
             tokens = t
         }
         err e => {
-            return err @fmtalloc("{s}:{s}", {canonical_path, e})
+            return err @fmtalloc("{s}:{s}", {display_file, e})
         }
     }
 
-    val parse_result = parser.parse_module_with(arena, tokens, canonical_path)
+    val parse_result = parser.parse_module_with(arena, tokens, display_file)
     lexer.free_tokens(tokens)
     val items: mut list[ref parser.Node] = mem.new[ref parser.Node]()
     match parse_result {
@@ -1314,7 +1438,8 @@ fn resolve_module_impl(
     val file_dir_c = ostr.as_cstr(file_dir)
     val workspace = find_workspace_root(file_dir_c)
     val module_path = arena_string(arena, canonical_path)
-    val m: ref ResolvedModule = new_resolved(arena, items, module_path, file_dir)
+    val m: mut ref ResolvedModule = new_resolved(arena, items, module_path, file_dir)
+    m.display_filename = arena_string(arena, display_file)
 
     val cur_progress: mut list[ref u8] = in_progress
     @append(cur_progress, canonical_path)
@@ -1595,6 +1720,14 @@ pub fn module_filename(m: ref ResolvedModule) ref u8 = trust {
     return ostr.as_cstr(m.filename)
 }
 
+/// Return the diagnostic/debug filename of module `m`.
+pub fn module_display_filename(m: ref ResolvedModule) ref u8 = trust {
+    if m.display_filename != none {
+        return ostr.as_cstr(m.display_filename)
+    }
+    return ostr.as_cstr(m.filename)
+}
+
 /// Return the top-level items list of module `m`.
 pub fn module_items(m: ref ResolvedModule) list[ref parser.Node] = trust {
     return m.items
@@ -1745,7 +1878,7 @@ pub fn flatten_modules_with_files(
     @append(seen as list[String], m.filename)
     @append(out_prefixes as list[ref u8], prefix)
     @append(out_items as list[ref void], m.items)
-    @append(out_filenames as list[ref u8], ostr.as_cstr(m.filename))
+    @append(out_filenames as list[ref u8], module_display_filename(m))
 }
 
 fn link_path_is_absolute(flag: ref u8) bool = trust {
