@@ -1819,7 +1819,7 @@ pub fn cmd_init(name_arg: ref u8) i32 = {
     if cstr.cmp(proj_name, c"") == 0 {
         val cwd_arena: allocators.Arena = trust allocators.Arena.new(4096 as usize)?
         val cwd_opt = trust fs.cwd[allocators.Arena](cwd_arena)
-        if cwd_opt is some cwd {
+        if cwd_opt is ok cwd {
             proj_name = basename_of(cwd)
         } else {
             proj_name = c"my-project"
@@ -2453,7 +2453,7 @@ pub fn cmd_graph() i32 = trust {
     val cwd_arena: allocators.Arena = allocators.Arena.new(4096 as usize)?
     val cwd_opt = fs.cwd[allocators.Arena](cwd_arena)
     val proj_name: mut ref u8 = c"project"
-    if cwd_opt is some cwd {
+    if cwd_opt is ok cwd {
         proj_name = basename_of(cwd)
     }
     allocators.Arena.free(cwd_arena)
@@ -2884,7 +2884,7 @@ pub fn cmd_doctor() i32 = {
 
     val cwd_arena: allocators.Arena = trust allocators.Arena.new(4096 as usize)?
     val cwd_opt = trust fs.cwd[allocators.Arena](cwd_arena)
-    if cwd_opt is some cwd {
+    if cwd_opt is ok cwd {
         trust doctor_row(c"cwd", cwd)
     } else {
         trust doctor_row(c"cwd", c"unknown")

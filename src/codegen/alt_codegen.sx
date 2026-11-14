@@ -68,6 +68,14 @@ pub type CCtx = {
     gnames: mut list[ref u8]
     gsyms: mut list[ref u8]
     gty_nodes: mut list[ref parser.Node]
+    enames: mut list[ref u8]
+    edisplays: mut list[ref u8]
+    evariants: mut list[ref parser.Node]
+    etable_keys: mut list[ref u8]
+    etable_labels: mut list[ref u8]
+    etable_strs: mut list[ref u8]
+    etable_offsets: mut list[i64]
+    etable_counts: mut list[i64]
     break_lbl: mut i64
     cont_lbl: mut i64
     defer_stack: mut list[ref void]
@@ -155,6 +163,14 @@ fn cc_new() ref CCtx = trust {
     ctx.gnames = mem.new[ref u8]()
     ctx.gsyms = mem.new[ref u8]()
     ctx.gty_nodes = mem.new[ref parser.Node]()
+    ctx.enames = mem.new[ref u8]()
+    ctx.edisplays = mem.new[ref u8]()
+    ctx.evariants = mem.new[ref parser.Node]()
+    ctx.etable_keys = mem.new[ref u8]()
+    ctx.etable_labels = mem.new[ref u8]()
+    ctx.etable_strs = mem.new[ref u8]()
+    ctx.etable_offsets = mem.new[i64]()
+    ctx.etable_counts = mem.new[i64]()
     ctx.break_lbl = -1
     ctx.cont_lbl = -1
     ctx.defer_stack = mem.new[ref void]()
@@ -355,6 +371,10 @@ fn rewrite_fmt(ctx: ref CCtx, s: ref u8) ref u8 = trust {
                         @store8(@ptradd(out, oi), 37)
                         @store8(@ptradd(out, oi + 1), 102)
                         oi += 2
+                    } elif sc == 118 {
+                        @store8(@ptradd(out, oi), 37)
+                        @store8(@ptradd(out, oi + 1), 115)
+                        oi += 2
                     } else {
                         @store8(@ptradd(out, oi), 37)
                         @store8(@ptradd(out, oi + 1), sc)
@@ -367,7 +387,12 @@ fn rewrite_fmt(ctx: ref CCtx, s: ref u8) ref u8 = trust {
                         if k >= j {
                             break
                         }
-                        @store8(@ptradd(out, oi), @load8(@ptradd(s, k)))
+                        val sc3: u8 = @load8(@ptradd(s, k))
+                        if sc3 == 118 {
+                            @store8(@ptradd(out, oi), 115)
+                        } else {
+                            @store8(@ptradd(out, oi), sc3)
+                        }
                         oi++ k++
                     }
                 }
@@ -734,6 +759,19 @@ fn cc_infer_expr_ty(ctx: mut ref CCtx, expr: ref parser.Node) ref parser.Node = 
         }
     }
     if k == parser.NK_FIELD {
+        val enum_base: ref parser.Node = parser.field_base(expr)
+        if enum_base != none && enum_base.kind == parser.NK_IDENT {
+            val enum_name: ref u8 = parser.node_str_raw(enum_base.d0)
+            if cc_lookup_enum_variants(ctx, enum_name) != none {
+                val out: mut ref parser.Node = parser.make_node(
+                    ctx.arena,
+                    parser.TY_NAMED,
+                    expr.line
+                )
+                parser.node_store_string_slot(@addr(out.d0), enum_name)
+                return out
+            }
+        }
         val base_node: ref parser.Node = parser.field_base(expr)
         val fname: ref u8 = parser.field_name_raw(expr)
         if base_node != none && base_node.kind == parser.NK_IDENT {
@@ -3661,6 +3699,9 @@ fn rewrite_fmt_viewaware(
                         @store8(@ptradd(out, oi + 1), 108)
                         @store8(@ptradd(out, oi + 2), 120)
                         oi += 3
+                    } elif sc == 118 {
+                        @store8(@ptradd(out, oi), 115)
+                        oi++
                     } else {
                         @store8(@ptradd(out, oi), sc)
                         oi++
@@ -3671,7 +3712,12 @@ fn rewrite_fmt_viewaware(
                         if k >= j {
                             break
                         }
-                        @store8(@ptradd(out, oi), @load8(@ptradd(s, k)))
+                        val sc3: u8 = @load8(@ptradd(s, k))
+                        if sc3 == 118 {
+                            @store8(@ptradd(out, oi), 115)
+                        } else {
+                            @store8(@ptradd(out, oi), sc3)
+                        }
                         oi++
                         k++
                     }
@@ -3996,11 +4042,85 @@ fn gen_format_scalar_pack(ctx: mut ref CCtx, node: ref parser.Node) ref u8 = tru
 
 /// Append one argument to a direct C variadic call such as printf. String
 /// values expand to two C arguments matching a %.*s conversion.
+fn fmt_specifier_at(fmt: ref u8, wanted: i64) u8 = trust {
+    if fmt == none || wanted < 0 {
+        return 0
+    }
+    val n: i64 = cstr.len(fmt)
+    val i: mut i64 = 0
+    val idx: mut i64 = 0
+    for {
+        if i >= n {
+            break
+        }
+        val c: u8 = @load8(@ptradd(fmt, i))
+        if c == 92 {
+            i += 2
+        } elif c == 123 {
+            val j: mut i64 = i + 1
+            val found: mut bool = false
+            for {
+                if j >= n {
+                    break
+                }
+                if @load8(@ptradd(fmt, j)) == 125 {
+                    found = true
+                    break
+                }
+                j++
+            }
+            if found {
+                if idx == wanted {
+                    if j <= i + 1 {
+                        return 0
+                    }
+                    return @load8(@ptradd(fmt, j - 1))
+                }
+                idx++
+                i = j + 1
+            } else {
+                i++
+            }
+        } else {
+            i++
+        }
+    }
+    return 0
+}
+
 fn cc_append_direct_format_arg(
     ctx: mut ref CCtx,
     sb: ref void,
-    node: ref parser.Node
+    node: ref parser.Node,
+    enum_fmt: bool
 ) void = trust {
+    if enum_fmt {
+        val enum_ty: ref parser.Node = cc_infer_expr_ty(ctx, node)
+        val enum_name: mut ref u8 = c""
+        if enum_ty != none {
+            enum_name = cc_spectre_type_name_of(ctx, enum_ty)
+        }
+        val enum_variants: ref void = cc_lookup_enum_variants(ctx, enum_name)
+        if enum_variants != none {
+            val table: ref u8 = cc_enum_table(ctx, enum_name)
+            if cstr.len(table) > 0 {
+                val raw: ref u8 = gen_expr(ctx, node)
+                val count: i64 = @len(enum_variants) as i64
+                val arg: ref u8 = allocators.ScopedArena.alloc_or_none(
+                    ctx.arena,
+                    512 as usize
+                ) as ref u8
+                @snprintf(
+                    arg,
+                    512,
+                    ",sx__enum_name((long long)({s}),{s},{lld})",
+                    {raw, table, count}
+                )
+                builder.StringBuilder.append_cstr(sb, arg)
+                return
+            }
+        }
+    }
     if cc_expr_is_string_type(ctx, node) {
         val raw: ref u8 = gen_expr(ctx, node)
         val t: i64 = fresh_tmp(ctx)
@@ -4040,8 +4160,36 @@ fn cc_append_direct_format_arg(
 fn cc_append_print_arg(
     ctx: mut ref CCtx,
     sb: ref void,
-    node: ref parser.Node
+    node: ref parser.Node,
+    enum_fmt: bool
 ) void = trust {
+    if enum_fmt {
+        val enum_ty: ref parser.Node = cc_infer_expr_ty(ctx, node)
+        val enum_name: mut ref u8 = c""
+        if enum_ty != none {
+            enum_name = cc_spectre_type_name_of(ctx, enum_ty)
+        }
+        val enum_variants: ref void = cc_lookup_enum_variants(ctx, enum_name)
+        if enum_variants != none {
+            val table: ref u8 = cc_enum_table(ctx, enum_name)
+            if cstr.len(table) > 0 {
+                val raw: ref u8 = gen_expr(ctx, node)
+                val count: i64 = @len(enum_variants) as i64
+                val arg: ref u8 = allocators.ScopedArena.alloc_or_none(
+                    ctx.arena,
+                    512 as usize
+                ) as ref u8
+                @snprintf(
+                    arg,
+                    512,
+                    ",sx__enum_name((long long)({s}),{s},{lld})",
+                    {raw, table, count}
+                )
+                builder.StringBuilder.append_cstr(sb, arg)
+                return
+            }
+        }
+    }
     if cc_expr_is_string_type(ctx, node) {
         val raw: ref u8 = gen_expr(ctx, node)
         val t: i64 = fresh_tmp(ctx)
@@ -5605,6 +5753,7 @@ fn gen_call(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
                         )
                     }
                     builder.StringBuilder.append_cstr(psb, pbuf_hdr)
+                    val spec_ai: mut i64 = 0
                     val ai2: mut i64 = 1
                     for {
                         if ai2 >= alen {
@@ -5624,12 +5773,24 @@ fn gen_call(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
                                     val pe_opt = @get(pack as list[ref parser.Node], pi as usize)
                                     if pe_opt is some pe {
                                         val pex: ref parser.Node = pe as ref parser.Node
-                                        cc_append_print_arg(ctx, psb, pex)
+                                        cc_append_print_arg(
+                                            ctx,
+                                            psb,
+                                            pex,
+                                            fmt_specifier_at(fmt_str, spec_ai) == 118
+                                        )
+                                        spec_ai++
                                     }
                                     pi++
                                 }
                             } else {
-                                cc_append_print_arg(ctx, psb, pa_node)
+                                cc_append_print_arg(
+                                    ctx,
+                                    psb,
+                                    pa_node,
+                                    fmt_specifier_at(fmt_str, spec_ai) == 118
+                                )
+                                spec_ai++
                             }
                         }
                         ai2++
@@ -7176,6 +7337,17 @@ fn gen_builtin(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
         val dest_arg: ref u8 = get_arg(ctx, args, 0)
         val sz_arg: ref u8 = get_arg(ctx, args, 1)
         val fmt_arg: ref u8 = get_format_arg_viewaware(ctx, args, 2, 3)
+        val fmt_src_sp: mut ref u8 = c""
+        if args != none && (@len(args as list[ref parser.Node]) as i64) > 2 {
+            val fsrc_opt = @get(args as list[ref parser.Node], 2 as usize)
+            if fsrc_opt is some fsrc {
+                val fsrc_node: ref parser.Node = fsrc as ref parser.Node
+                if fsrc_node.kind == parser.NK_STR_LIT {
+                    fmt_src_sp = parser.str_lit_text_raw(fsrc_node)
+                }
+            }
+        }
+        val spec_sp: mut i64 = 0
         val hdr: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 8192 as usize) as ref u8
         @snprintf(
             hdr,
@@ -7203,8 +7375,10 @@ fn gen_builtin(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
                                 cc_append_direct_format_arg(
                                     ctx,
                                     sb,
-                                    pe as ref parser.Node
+                                    pe as ref parser.Node,
+                                    fmt_specifier_at(fmt_src_sp, spec_sp) == 118
                                 )
+                                spec_sp++
                             }
                             pi++
                         }
@@ -7214,7 +7388,13 @@ fn gen_builtin(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
                         val expanded: ref u8 = cc_expand_argspack_pack(ctx, av2)
                         builder.StringBuilder.append_cstr(sb, expanded)
                     } else {
-                        cc_append_direct_format_arg(ctx, sb, pn)
+                        cc_append_direct_format_arg(
+                            ctx,
+                            sb,
+                            pn,
+                            fmt_specifier_at(fmt_src_sp, spec_sp) == 118
+                        )
+                        spec_sp++
                     }
                 }
             }
@@ -7227,6 +7407,17 @@ fn gen_builtin(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
     if cstr.cmp(bname, c"dprintf") == 0 {
         val fd: ref u8 = get_arg(ctx, args, 0)
         val fmt_arg: ref u8 = get_format_arg_viewaware(ctx, args, 1, 2)
+        val fmt_src_dp: mut ref u8 = c""
+        if args != none && (@len(args as list[ref parser.Node]) as i64) > 1 {
+            val fsrc_opt = @get(args as list[ref parser.Node], 1 as usize)
+            if fsrc_opt is some fsrc {
+                val fsrc_node: ref parser.Node = fsrc as ref parser.Node
+                if fsrc_node.kind == parser.NK_STR_LIT {
+                    fmt_src_dp = parser.str_lit_text_raw(fsrc_node)
+                }
+            }
+        }
+        val spec_dp: mut i64 = 0
         if args != none {
             val alen: i64 = @len(args as list[ref parser.Node]) as i64
             if alen > 2 {
@@ -7258,8 +7449,10 @@ fn gen_builtin(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
                                 cc_append_direct_format_arg(
                                     ctx,
                                     sb,
-                                    pe as ref parser.Node
+                                    pe as ref parser.Node,
+                                    fmt_specifier_at(fmt_src_dp, spec_dp) == 118
                                 )
+                                spec_dp++
                             }
                             pi++
                         }
@@ -7295,6 +7488,17 @@ fn gen_builtin(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
     }
     if (cstr.cmp(bname, c"print") == 0) {
         val fmt_arg: ref u8 = get_format_arg_viewaware(ctx, args, 0, 1)
+        val fmt_src_pr: mut ref u8 = c""
+        if args != none && (@len(args as list[ref parser.Node]) as i64) > 0 {
+            val fsrc_opt = @get(args as list[ref parser.Node], 0 as usize)
+            if fsrc_opt is some fsrc {
+                val fsrc_node: ref parser.Node = fsrc as ref parser.Node
+                if fsrc_node.kind == parser.NK_STR_LIT {
+                    fmt_src_pr = parser.str_lit_text_raw(fsrc_node)
+                }
+            }
+        }
+        val spec_pr: mut i64 = 0
         if args != none {
             val alen: i64 = @len(args as list[ref parser.Node]) as i64
             if alen > 1 {
@@ -7321,8 +7525,10 @@ fn gen_builtin(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
                                 cc_append_direct_format_arg(
                                     ctx,
                                     sb,
-                                    pe as ref parser.Node
+                                    pe as ref parser.Node,
+                                    fmt_specifier_at(fmt_src_pr, spec_pr) == 118
                                 )
+                                spec_pr++
                             }
                             pi++
                         }
@@ -9843,8 +10049,17 @@ fn gen_fn_prefixed(ctx: mut ref CCtx, fn_node: ref parser.Node, mod_prefix: ref 
     if !cc_emit_label_if_new(ctx, mangled) {
         return
     }
+    val display: ref u8 = allocators.ScopedArena.alloc_or_none(
+        ctx.arena,
+        256 as usize
+    ) as ref u8
+    if ns != none {
+        @snprintf(display, 256, "{s}.{s}", {ns, name})
+    } else {
+        @snprintf(display, 256, "{s}", {name})
+    }
     ctx.fn_name = mangled
-    ctx.current_fn_display = base
+    ctx.current_fn_display = display
     ctx.current_fn_file = ctx.current_src_file
     ctx.current_fn_line = fn_node.line
     val saved_prefix: ref u8 = ctx.current_prefix
@@ -10107,12 +10322,228 @@ fn gen_union_def_prefixed(ctx: ref CCtx, item: ref parser.Node, mod_prefix: ref 
     cc_register_union(ctx, mangled, vnames as ref void)
 }
 
-fn gen_enum_def_prefixed(ctx: ref CCtx, item: ref parser.Node, mod_prefix: ref u8) void = trust {
+fn cc_enum_key_exists(ctx: ref CCtx, key: ref u8) bool = trust {
+    for existing in ctx.enames {
+        if cstr.cmp(existing, key) == 0 {
+            return true
+        }
+    }
+    return false
+}
+
+fn cc_register_enum(
+    ctx: mut ref CCtx,
+    declared: ref u8,
+    enum_node: ref parser.Node,
+    mod_prefix: ref u8
+) void = trust {
+    if declared == none || enum_node == none {
+        return
+    }
+    if !cc_enum_key_exists(ctx, declared) {
+        @append(ctx.enames, declared)
+        @append(ctx.edisplays, declared)
+        @append(ctx.evariants, enum_node)
+    }
+    if mod_prefix != none && cstr.cmp(mod_prefix, c"") != 0 {
+        val key: ref u8 = allocators.ScopedArena.alloc_or_none(
+            ctx.arena,
+            512 as usize
+        ) as ref u8
+        @snprintf(key, 512, "{s}.{s}", {mod_prefix, declared})
+        if !cc_enum_key_exists(ctx, key) {
+            @append(ctx.enames, key)
+            @append(ctx.edisplays, declared)
+            @append(ctx.evariants, enum_node)
+        }
+    }
+}
+
+fn cc_enum_index_exact(ctx: ref CCtx, name: ref u8) i64 = trust {
+    val n: i64 = @len(ctx.enames) as i64
+    val i: mut i64 = n - 1
+    for {
+        if i < 0 {
+            break
+        }
+        val existing_opt = @get(ctx.enames, i as usize)
+        if existing_opt is some existing {
+            if cstr.cmp(existing as ref u8, name) == 0 {
+                return i
+            }
+        }
+        i--
+    }
+    return -1
+}
+
+fn cc_lookup_enum_index(ctx: ref CCtx, tname: ref u8) i64 = trust {
+    if tname == none || cstr.len(tname) == 0 {
+        return -1
+    }
+    val exact: i64 = cc_enum_index_exact(ctx, tname)
+    if exact >= 0 {
+        return exact
+    }
+    val n: i64 = cstr.len(tname)
+    val i: mut i64 = n - 1
+    for {
+        if i < 0 {
+            break
+        }
+        if @load8(@ptradd(tname, i)) == 46 {
+            return cc_enum_index_exact(ctx, @ptradd(tname, i + 1) as ref u8)
+        }
+        i--
+    }
+    return -1
+}
+
+fn cc_lookup_enum_variants(ctx: ref CCtx, tname: ref u8) ref void = trust {
+    val idx: i64 = cc_lookup_enum_index(ctx, tname)
+    if idx < 0 {
+        return none
+    }
+    val node_opt = @get(ctx.evariants, idx as usize)
+    if node_opt is some node {
+        return (node as ref parser.Node).d2 as ref void
+    }
+    return none
+}
+
+fn cc_enum_display_name(ctx: ref CCtx, idx: i64) ref u8 = trust {
+    val d_opt = @get(ctx.edisplays, idx as usize)
+    if d_opt is some d {
+        return d as ref u8
+    }
+    return c""
+}
+
+fn cc_enum_table(ctx: mut ref CCtx, tname: ref u8) ref u8 = trust {
+    val idx: i64 = cc_lookup_enum_index(ctx, tname)
+    if idx < 0 {
+        return c""
+    }
+    val display: ref u8 = cc_enum_display_name(ctx, idx)
+    if cstr.len(display) == 0 {
+        return c""
+    }
+    val tlen: i64 = @len(ctx.etable_keys) as i64
+    val ti: mut i64 = 0
+    for {
+        if ti >= tlen {
+            break
+        }
+        val key_opt = @get(ctx.etable_keys, ti as usize)
+        val label_opt = @get(ctx.etable_labels, ti as usize)
+        if key_opt is some key {
+            if cstr.cmp(key as ref u8, tname) == 0 {
+                if label_opt is some label {
+                    return label as ref u8
+                }
+            }
+        }
+        ti++
+    }
+
+    val node_opt = @get(ctx.evariants, idx as usize)
+    val enum_node: mut ref parser.Node = none
+    if node_opt is some node {
+        enum_node = node as ref parser.Node
+    } else {
+        return c""
+    }
+    val variants: ref void = enum_node.d2 as ref void
+    val label: ref u8 = allocators.ScopedArena.alloc_or_none(
+        ctx.arena,
+        64 as usize
+    ) as ref u8
+    @snprintf(label, 64, "sx__enum_names_{lld}", {tlen})
+    val offset: i64 = @len(ctx.etable_strs) as i64
+    val vlen: i64 = @len(variants) as i64
+    val vi: mut i64 = 0
+    for {
+        if vi >= vlen {
+            break
+        }
+        val variant_opt = @get(variants, vi as usize)
+        if variant_opt is some variant {
+            val buf: ref u8 = allocators.ScopedArena.alloc_or_none(
+                ctx.arena,
+                512 as usize
+            ) as ref u8
+            @snprintf(buf, 512, "{s}.{s}", {display, variant as ref u8})
+            val sidx: i64 = intern_string(ctx, buf)
+            val slab: ref u8 = allocators.ScopedArena.alloc_or_none(
+                ctx.arena,
+                64 as usize
+            ) as ref u8
+            @snprintf(slab, 64, "sx__str{lld}", {sidx})
+            @append(ctx.etable_strs, slab)
+        }
+        vi++
+    }
+    @append(ctx.etable_keys, tname)
+    @append(ctx.etable_labels, label)
+    @append(ctx.etable_offsets, offset)
+    @append(ctx.etable_counts, vlen)
+    return label
+}
+
+fn emit_enum_tables(ctx: mut ref CCtx) void = trust {
+    val tlen: i64 = @len(ctx.etable_keys) as i64
+    if tlen == 0 {
+        return
+    }
+    emitln_fwd(
+        ctx,
+        c"static const char* sx__enum_name(long long v,const char** names,long long count){if(v<0||v>=count)return \"?\";return names[v];}"
+    )
+    val ti: mut i64 = 0
+    for {
+        if ti >= tlen {
+            break
+        }
+        val label_opt = @get(ctx.etable_labels, ti as usize)
+        if label_opt is some label {
+            val off_opt = @get(ctx.etable_offsets, ti as usize)
+            val cnt_opt = @get(ctx.etable_counts, ti as usize)
+            if off_opt is some off_raw {
+                if cnt_opt is some cnt_raw {
+                    val off: i64 = off_raw as i64
+                    val cnt: i64 = cnt_raw as i64
+                    emit_to_fwd(ctx, c"static const char* ")
+                    emit_to_fwd(ctx, label as ref u8)
+                    emit_to_fwd(ctx, c"[]={")
+                    val si: mut i64 = 0
+                    for {
+                        if si >= cnt {
+                            break
+                        }
+                        val s_opt = @get(ctx.etable_strs, (off + si) as usize)
+                        if s_opt is some s {
+                            if si > 0 {
+                                emit_to_fwd(ctx, c",")
+                            }
+                            emit_to_fwd(ctx, s as ref u8)
+                        }
+                        si++
+                    }
+                    emitln_fwd(ctx, c"};")
+                }
+            }
+        }
+        ti++
+    }
+}
+
+fn gen_enum_def_prefixed(ctx: mut ref CCtx, item: ref parser.Node, mod_prefix: ref u8) void = trust {
     val name: ref u8 = parser.node_str_raw(item.d1)
     val variants: ref void = item.d2 as ref void
     if variants == none {
         return
     }
+    cc_register_enum(ctx, name, item, mod_prefix)
     val vlen: i64 = @len(variants) as i64
     val vi: mut i64 = 0
     for {
@@ -11745,6 +12176,7 @@ pub fn gen_module_c_test(
     }
     gen_test_main_c(ctx, test_ids, test_names)
     emit_string_data(ctx)
+    emit_enum_tables(ctx)
     emit_forward_decls(ctx)
     val hdr_built: ref void = builder.StringBuilder.build(ctx.fwd_sb)
     val hdr_str: ref u8 = ostr.as_cstr(hdr_built)
@@ -11854,6 +12286,7 @@ pub fn gen_module_c(
     }
     gen_init_fn(ctx)
     emit_string_data(ctx)
+    emit_enum_tables(ctx)
     emit_forward_decls(ctx)
     val hdr_built: ref void = builder.StringBuilder.build(ctx.fwd_sb)
     val hdr_str: ref u8 = ostr.as_cstr(hdr_built)

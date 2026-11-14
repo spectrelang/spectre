@@ -11,7 +11,7 @@ pub fn read_len[A: allocators.Allocator](ac: A, path: ref u8) i64 = trust {
 }
 
 pub fn cwd_len[A: allocators.Allocator](ac: A) i64 = trust {
-    if fs.cwd[A](ac) is some dir {
+    if fs.cwd[A](ac) is ok dir {
         return cstr.len(dir as ref u8)
     } else {
         return -1

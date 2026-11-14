@@ -4,6 +4,12 @@ val pathutil   = use("../path")
 val allocators = use("../allocators")
 val rt         = use("../runtime")
 
+/// Errors that can occur while reading the current working directory.
+pub enum CwdError = {
+    AllocationFailed
+    GetCwdFailed
+}
+
 fn cstr_heap() allocators.HeapAllocator = {
     return @zeroed
 }
@@ -726,17 +732,16 @@ pub fn remove_dir_all_cstr(path: ref u8) bool = trust {
 }
 
 /// Return the current working directory as an allocator-backed str.
-/// Returns none on failure.
-pub fn cwd[A: allocators.Allocator](ac: A) option[ref u8] = trust {
+pub fn cwd[A: allocators.Allocator](ac: A) result[ref u8, CwdError] = trust {
     val buf: ref u8 = alloc_cstr[A](ac, 4095)
     if buf == none {
-        return none
+        return err CwdError.AllocationFailed
     }
     val result: ref u8 = rt.getcwd(buf, 4096 as usize)
     if (result == none) {
-        return none
+        return err CwdError.GetCwdFailed
     }
-    return some buf
+    return ok buf
 }
 
 pub fn cwd_cstr() option[ref u8] = trust {
@@ -1079,10 +1084,10 @@ test "file and directory operations roundtrip" {
 
     val cwd_opt = trust cwd[allocators.Arena](arena)
     match cwd_opt {
-        none => {
+        err _ => {
             assert false
         }
-        some dir => {
+        ok dir => {
             val l: i64 = trust rt.strlen(dir)
             assert l > 0
         }

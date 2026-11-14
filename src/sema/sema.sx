@@ -3984,7 +3984,8 @@ fn fmt_is_digit(c: u8) bool = {
 fn fmt_is_conversion(c: u8) bool = {
     return c == 100 || c == 105 || c == 111 || c == 117 || c == 120 || c == 88 ||
     c == 102 || c == 70 || c == 101 || c == 69 || c == 103 || c == 71 ||
-    c == 97 || c == 65 || c == 99 || c == 115 || c == 112 || c == 110
+    c == 97 || c == 65 || c == 99 || c == 115 || c == 112 || c == 110 ||
+    c == 118
 }
 
 /// Parses the body of a `{...}` format specifier (without the braces).
@@ -4077,7 +4078,7 @@ fn fmt_specifier_conversion(specifier: ref u8) u8 = trust {
 }
 
 /// Maps a format specifier string to its expected argument category.
-/// Returns "int", "str", "u8", "float", "ptr", or "unknown".
+/// Returns "int", "str", "u8", "float", "ptr", "enum", or "unknown".
 fn fmt_specifier_category(specifier: ref u8) ref u8 = trust {
     val conv: u8 = fmt_specifier_conversion(specifier)
     if conv == 115 { // s
@@ -4096,6 +4097,9 @@ fn fmt_specifier_category(specifier: ref u8) ref u8 = trust {
     }
     if conv == 112 || conv == 110 {
         return c"ptr"
+    }
+    if conv == 118 {
+        return c"enum"
     }
     return c"unknown"
 }
@@ -4716,6 +4720,13 @@ fn get_expr_type_category(ctx: ref SemaCtx, node: ref parser.Node) ref u8 = trus
         return get_expr_type_category(ctx, parser.unop_inner(node))
     }
     if k == parser.NK_FIELD {
+        val enum_base: ref parser.Node = parser.field_base(node)
+        if enum_base != none && enum_base.kind == parser.NK_IDENT {
+            val enum_name: ref u8 = parser.node_str_raw(enum_base.d0)
+            if sema_lookup_enumdef(ctx, enum_name) != none {
+                return c"enum"
+            }
+        }
         val root: ref parser.Node = find_root_ident(node)
         if root != none {
             val vname: ref u8 = parser.node_str_raw(root.d0)
@@ -4750,6 +4761,9 @@ fn get_expr_type_category(ctx: ref SemaCtx, node: ref parser.Node) ref u8 = trus
             return c"unknown"
         }
         val uname: ref u8 = unqualified_type_name(tname)
+        if sema_lookup_enumdef(ctx, uname) != none {
+            return c"enum"
+        }
         if cstr.eql(uname, c"String") || cstr.eql(uname, c"StringView") {
             return c"str"
         }
@@ -4958,6 +4972,9 @@ fn check_printf_fmt(ctx: ref SemaCtx, fmt_str: ref u8, all_args: ref void,
                             its_ok = true
                         }
                         if cstr.eql(exp_cat, c"int") && cstr.eql(act_cat, c"u8") {
+                            its_ok = true
+                        }
+                        if cstr.eql(exp_cat, c"int") && cstr.eql(act_cat, c"enum") {
                             its_ok = true
                         }
                         if cstr.eql(exp_cat, c"ptr") && cstr.eql(act_cat, c"str") {
@@ -8726,7 +8743,11 @@ fn sema_check_call_preconditions(
         pi++
     }
 
-    val fn_name: ref u8 = parser.node_str_raw(fn_found.d2)
+    val fn_name: ref u8 = fn_full_name(
+        ctx,
+        parser.node_str_raw(fn_found.d1),
+        parser.node_str_raw(fn_found.d2)
+    )
     for pre_node in pres {
         val clist: ref void = pre_node.d0 as ref void
         if clist == none {
@@ -9470,6 +9491,15 @@ fn val_decl_type_name(
     }
     if init_expr != none && init_expr.kind == parser.NK_STRUCT_LIT {
         return parser.struct_lit_type_name_raw(init_expr)
+    }
+    if init_expr != none && init_expr.kind == parser.NK_FIELD {
+        val base: ref parser.Node = parser.field_base(init_expr)
+        if base != none && base.kind == parser.NK_IDENT {
+            val base_name: ref u8 = parser.node_str_raw(base.d0)
+            if sema_lookup_enumdef(ctx, base_name) != none {
+                return base_name
+            }
+        }
     }
     val literal: ref u8 = infer_simple_literal_type_name(init_expr)
     if literal != none {
@@ -10762,7 +10792,7 @@ fn check_fn(ctx: mut ref SemaCtx, fn_node: ref parser.Node, filename: ref u8) vo
     val prev_const_env: ref SemaConstEnv = ctx.const_env
     val prev_fn_name: ref u8 = ctx.current_fn_name
     ctx.const_env = sema_const_env_new(ctx)
-    ctx.current_fn_name = fn_name
+    ctx.current_fn_name = fn_full_name(ctx, fn_ns, fn_name)
     push_scope(ctx)
     if params != none {
         for param in params as list[ref parser.Node] {
@@ -10994,7 +11024,11 @@ fn check_generic_fn(ctx: mut ref SemaCtx, fn_node: ref parser.Node, filename: re
     val prev_const_env: ref SemaConstEnv = ctx.const_env
     val prev_fn_name: ref u8 = ctx.current_fn_name
     ctx.const_env = sema_const_env_new(ctx)
-    ctx.current_fn_name = parser.node_str_raw(fn_node.d2)
+    ctx.current_fn_name = fn_full_name(
+        ctx,
+        parser.node_str_raw(fn_node.d1),
+        parser.node_str_raw(fn_node.d2)
+    )
     push_scope(ctx)
     val params: ref void = fn_node.d3 as ref void
     if params != none {
