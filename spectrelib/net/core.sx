@@ -483,7 +483,7 @@ pub fn (TcpServer) listen[A: allocators.GeneralAllocator](
         return none
     }
     @memset(address, 0, 16)
-    @store(address, 2)
+    @store16(address, 2 as u16)
     val net_port: mut i32 = 0
     when posix {
         net_port = htons(port)
@@ -491,8 +491,7 @@ pub fn (TcpServer) listen[A: allocators.GeneralAllocator](
     when windows {
         net_port = win_htons(port as u16) as i32
     }
-    val port_ptr: mut ref void = @ptradd(address, 2)
-    @store(port_ptr, net_port)
+    @store16(@ptradd(address, 2), net_port as u16)
 
     val bind_rc: mut i32 = 0
     when posix {
