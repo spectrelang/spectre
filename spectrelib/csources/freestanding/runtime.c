@@ -1680,10 +1680,14 @@ int creat(const char *path, int mode) {
   return sx_open_path(path, SX_O_WRONLY | SX_O_CREAT | SX_O_TRUNC, mode);
 }
 int fcntl(int fd, int cmd, ...) {
+  sx_va_list ap;
+  __builtin_va_start(ap, cmd);
+  int arg = __builtin_va_arg(ap, int);
+  __builtin_va_end(ap);
 #if defined(__x86_64__)
-  return (int)sx_sc3(72, fd, cmd, 0);
+  return (int)sx_sc3(72, fd, cmd, arg);
 #else
-  return (int)sx_sc3(25, fd, cmd, 0);
+  return (int)sx_sc3(25, fd, cmd, arg);
 #endif
 }
 int ferror(FILE *f) {

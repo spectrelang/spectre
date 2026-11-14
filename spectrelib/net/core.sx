@@ -650,5 +650,11 @@ test "event loop and tcp server manage sockets" {
     assert listen_fd > 0
     assert listen_port == 8080
 
+    when posix {
+        assert trust TcpServer.set_non_blocking(listen_fd)
+        val flags: i32 = trust fcntl(listen_fd as i32, F_GETFL, 0)
+        assert (flags & O_NONBLOCK) != 0
+    }
+
     trust TcpServer.close[_](ac, server)
 }
