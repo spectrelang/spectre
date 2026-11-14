@@ -5982,12 +5982,28 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
                 } elif cstr.cmp(rhs_type, c"unknown") == 0 {
                     return
                 }
-                @snprintf(
-                    buf,
-                    512,
-                    "{s}:{lld}: cannot compare values of type '{s}' and '{s}'",
-                    {filename, line, lhs_type, rhs_type}
-                )
+                if expr.col > 0 && expr.span > 0 {
+                    @snprintf(
+                        buf,
+                        512,
+                        "{s}:{lld}:{lld}:{lld}: cannot compare values of type '{s}' and '{s}'",
+                        {filename, line, expr.col, expr.span, lhs_type, rhs_type}
+                    )
+                } elif expr.col > 0 {
+                    @snprintf(
+                        buf,
+                        512,
+                        "{s}:{lld}:{lld}: cannot compare values of type '{s}' and '{s}'",
+                        {filename, line, expr.col, lhs_type, rhs_type}
+                    )
+                } else {
+                    @snprintf(
+                        buf,
+                        512,
+                        "{s}:{lld}: cannot compare values of type '{s}' and '{s}'",
+                        {filename, line, lhs_type, rhs_type}
+                    )
+                }
                 add_error(ctx, buf)
             }
         }
@@ -6874,7 +6890,23 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
                 ctx.arena,
                 (512) as usize
             ) as ref u8
-            @snprintf(ebuf, 512, "{s}:{lld}: unknown intrinsic '@{s}'", {filename, line, bname})
+            if expr.col > 0 && expr.span > 0 {
+                @snprintf(
+                    ebuf,
+                    512,
+                    "{s}:{lld}:{lld}:{lld}: unknown intrinsic '@{s}'",
+                    {filename, line, expr.col, expr.span, bname}
+                )
+            } elif expr.col > 0 {
+                @snprintf(
+                    ebuf,
+                    512,
+                    "{s}:{lld}:{lld}: unknown intrinsic '@{s}'",
+                    {filename, line, expr.col, bname}
+                )
+            } else {
+                @snprintf(ebuf, 512, "{s}:{lld}: unknown intrinsic '@{s}'", {filename, line, bname})
+            }
             add_error(ctx, ebuf)
             return
         }

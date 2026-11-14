@@ -20,6 +20,7 @@ type SourceLocation = {
     filename: ref u8
     line: i64
     col: i64
+    span: i64
     message: ref u8
 }
 
@@ -72,6 +73,7 @@ fn locate(message: ref u8) SourceLocation = trust {
                             filename: copy_range(message, 0, i),
                             line: line,
                             col: 0,
+                            span: 0,
                             message: @ptradd(message, after_colon + 1) as ref u8
                         }
                     }
@@ -89,15 +91,45 @@ fn locate(message: ref u8) SourceLocation = trust {
                         col = col * 10 + (c - 48)
                         after_col++
                     }
-                    if col > 0 && after_col + 1 < n
-                    && @load8(@ptradd(message, after_col)) as i64 == 58
-                    && @load8(@ptradd(message, after_col + 1)) as i64 == 32 {
-                        return {
-                            found: true,
-                            filename: copy_range(message, 0, i),
-                            line: line,
-                            col: col,
-                            message: @ptradd(message, after_col + 2) as ref u8
+                    if col > 0 && after_col < n
+                    && @load8(@ptradd(message, after_col)) as i64 == 58 {
+                        val after_span_colon: i64 = after_col + 1
+                        if after_span_colon < n
+                        && @load8(@ptradd(message, after_span_colon)) as i64 == 32 {
+                            return {
+                                found: true,
+                                filename: copy_range(message, 0, i),
+                                line: line,
+                                col: col,
+                                span: 0,
+                                message: @ptradd(message, after_span_colon + 1) as ref u8
+                            }
+                        }
+
+                        val after_span: mut i64 = after_span_colon
+                        val span: mut i64 = 0
+                        for {
+                            if after_span >= n {
+                                break
+                            }
+                            val c: i64 = @load8(@ptradd(message, after_span)) as i64
+                            if !is_digit(c) {
+                                break
+                            }
+                            span = span * 10 + (c - 48)
+                            after_span++
+                        }
+                        if span > 0 && after_span + 1 < n
+                        && @load8(@ptradd(message, after_span)) as i64 == 58
+                        && @load8(@ptradd(message, after_span + 1)) as i64 == 32 {
+                            return {
+                                found: true,
+                                filename: copy_range(message, 0, i),
+                                line: line,
+                                col: col,
+                                span: span,
+                                message: @ptradd(message, after_span + 2) as ref u8
+                            }
                         }
                     }
                 }
@@ -105,7 +137,7 @@ fn locate(message: ref u8) SourceLocation = trust {
         }
         i++
     }
-    return {found: false, filename: c"", line: 0, col: 0, message: message}
+    return {found: false, filename: c"", line: 0, col: 0, span: 0, message: message}
 }
 
 fn number_width(value: i64) i64 = trust {
@@ -154,11 +186,13 @@ fn report_at(
     filename: ref u8,
     line: i64,
     col: i64,
+    span: i64,
     label: ref u8,
     message: ref u8
 ) void = trust {
     val width: i64 = number_width(line)
     val requested_col: i64 = col
+    val requested_span: i64 = span
     val content_opt: mut option[ref u8] = fs.read_all_heap_cstr(filename)
     if content_opt is none {
         if filename != none && cstr.len(filename) > 0
@@ -223,6 +257,32 @@ fn report_at(
                 }
             }
 
+            val caret_start: i64 = start + actual_col - 1
+            val caret_len: mut i64 = requested_span
+            if caret_len <= 0 {
+                caret_len = 0
+                val scan: mut i64 = caret_start
+                for {
+                    if scan >= end {
+                        break
+                    }
+                    val c: i64 = @load8(@ptradd(content, scan)) as i64
+                    if c == 32 || c == 9 {
+                        break
+                    }
+                    caret_len++
+                    scan++
+                }
+            }
+            val available: i64 = end - caret_start
+            if available <= 0 {
+                caret_len = 1
+            } elif caret_len > available {
+                caret_len = available
+            } elif caret_len <= 0 {
+                caret_len = 1
+            }
+
             stdio.print("{s}: {s}\n", {label, message})
             stdio.print(" --> {s}:{lld}:{lld}\n", {filename, line, actual_col})
             spaces(width)
@@ -242,7 +302,15 @@ fn report_at(
             spaces(width)
             stdio.print(" | ", {})
             spaces(actual_col - 1)
-            stdio.print("^\n", {})
+            val caret_index: mut i64 = 0
+            for {
+                if caret_index >= caret_len {
+                    break
+                }
+                stdio.print("^", {})
+                caret_index++
+            }
+            stdio.print("\n", {})
             @free(content)
             return
         }
@@ -258,8 +326,8 @@ fn report_at(
     stdio.print(" --> {s}:{lld}:{lld}\n", {filename, line, shown_col})
 }
 
-/// Report a diagnostic. Strings of the form `file:line[:col]: message` are
-/// rendered with an excerpt; everything else is printed as a plain message.
+/// Report a diagnostic. Strings of the form `file:line[:col[:span]]: message`
+/// are rendered with an excerpt; everything else is printed as a plain message.
 pub fn error(message: ref u8) void = trust {
     val location: mut SourceLocation = locate(message)
     if location.found {
@@ -267,6 +335,7 @@ pub fn error(message: ref u8) void = trust {
             location.filename,
             location.line,
             location.col,
+            location.span,
             LABEL,
             location.message
         )
@@ -285,6 +354,7 @@ pub fn warning(message: ref u8) void = trust {
             location.filename,
             location.line,
             location.col,
+            location.span,
             WARNING_LABEL,
             location.message
         )
@@ -302,7 +372,7 @@ pub fn error_at(
     col: i64,
     message: ref u8
 ) void = trust {
-    report_at(filename, line, col, LABEL, message)
+    report_at(filename, line, col, 0, LABEL, message)
 }
 
 pub fn warning_at(
@@ -311,5 +381,25 @@ pub fn warning_at(
     col: i64,
     message: ref u8
 ) void = trust {
-    report_at(filename, line, col, WARNING_LABEL, message)
+    report_at(filename, line, col, 0, WARNING_LABEL, message)
+}
+
+pub fn error_at_span(
+    filename: ref u8,
+    line: i64,
+    col: i64,
+    span: i64,
+    message: ref u8
+) void = trust {
+    report_at(filename, line, col, span, LABEL, message)
+}
+
+pub fn warning_at_span(
+    filename: ref u8,
+    line: i64,
+    col: i64,
+    span: i64,
+    message: ref u8
+) void = trust {
+    report_at(filename, line, col, span, WARNING_LABEL, message)
 }

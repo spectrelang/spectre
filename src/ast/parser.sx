@@ -142,6 +142,21 @@ pub type Node = {
     d4: mut i64
     d5: mut i64
     d6: mut i64
+    col: mut i64
+    span: mut i64
+}
+
+fn set_node_span(
+    n: mut ref Node,
+    line: i64,
+    col: i64,
+    end_line: i64,
+    end_col: i64
+) void = trust {
+    n.col = col
+    if end_line == line && end_col > col {
+        n.span = end_col - col
+    }
 }
 
 pub fn make_node(
@@ -162,6 +177,8 @@ pub fn make_node(
     n.d4 = 0
     n.d5 = 0
     n.d6 = 0
+    n.col = 0
+    n.span = 0
     return n
 }
 
@@ -824,6 +841,35 @@ fn p_peek_col(p: ref Parser) i64 = trust {
     } else {
         return 1
     }
+}
+
+fn p_prev_line(p: ref Parser) i64 = trust {
+    val i: i64 = p.pos - 1
+    if i < 0 {
+        return p_line(p)
+    }
+    val opt = @get(p.tokens, i as usize)
+    if opt is some t {
+        return (t as ref lexer.Token).line
+    }
+    return p_line(p)
+}
+
+fn p_prev_end_col(p: ref Parser) i64 = trust {
+    val i: i64 = p.pos - 1
+    if i < 0 {
+        return p_peek_col(p)
+    }
+    val opt = @get(p.tokens, i as usize)
+    if opt is some t {
+        val tok: ref lexer.Token = t as ref lexer.Token
+        val text = lexer.tok_text(p.tokens, i)
+        if text.len > 0 {
+            return tok.col + text.len
+        }
+        return tok.col + 1
+    }
+    return p_peek_col(p)
 }
 
 fn p_suppress_unused(p: ref Parser) bool = trust {
@@ -1825,6 +1871,8 @@ fn parse_and(p: mut ref Parser) result[ref Node, ref u8] = trust {
 }
 
 fn parse_cmp(p: mut ref Parser) result[ref Node, ref u8] = trust {
+    val expr_line: i64 = p_line(p)
+    val expr_col: i64 = p_peek_col(p)
     val lhs = parse_bitor(p)?
     val res: mut ref Node = lhs
     for {
@@ -1850,6 +1898,7 @@ fn parse_cmp(p: mut ref Parser) result[ref Node, ref u8] = trust {
         p_advance(p)
         val rhs = parse_bitor(p)?
         res = make_binop(p.arena, op, line, res, rhs)?
+        set_node_span(res, expr_line, expr_col, p_prev_line(p), p_prev_end_col(p))
     }
     return ok res
 }
@@ -2293,6 +2342,8 @@ fn parse_primary(p: mut ref Parser) result[ref Node, ref u8] = trust {
     }
 
     if lexer.kind_is_at(k) {
+        val builtin_line: i64 = p_line(p)
+        val builtin_col: i64 = p_peek_col(p)
         p_advance(p)
         val bname = p_expect_ident(p)?
         val btype_args: mut list[ref Node] = mem.new[ref Node]()
@@ -2323,32 +2374,45 @@ fn parse_primary(p: mut ref Parser) result[ref Node, ref u8] = trust {
             if !lexer.kind_is_lparen(p_peek_kind(p)) {
                 val nz0: mut ref Node = make_node(p.arena, NK_ZERO_INIT, line)
                 node_store_string_slot(@addr(nz0.d0), bname)
+                nz0.col = builtin_col
+                nz0.span = 1 + cstr.len(bname)
                 return ok nz0
             }
         }
         p_expect_lparen(p)?
         if cstr.eql(bname, c"zeroed") {
+            val end_line: i64 = p_line(p)
+            val end_col: i64 = p_peek_col(p) + 1
             p_expect_rparen(p)?
             val nz1: mut ref Node = make_node(p.arena, NK_ZERO_INIT, line)
             node_store_string_slot(@addr(nz1.d0), bname)
+            set_node_span(nz1, builtin_line, builtin_col, end_line, end_col)
             return ok nz1
         }
         if cstr.eql(bname, c"addr") {
             val inner2 = parse_expr(p)?
+            val end_line: i64 = p_line(p)
+            val end_col: i64 = p_peek_col(p) + 1
             p_expect_rparen(p)?
             val na2: mut ref Node = make_node(p.arena, NK_ADDR, line)
             node_store_slot[ref Node](@addr(na2.d0), inner2)
+            set_node_span(na2, builtin_line, builtin_col, end_line, end_col)
             return ok na2
         }
         if cstr.eql(bname, c"deref") {
             val inner3 = parse_expr(p)?
+            val end_line: i64 = p_line(p)
+            val end_col: i64 = p_peek_col(p) + 1
             p_expect_rparen(p)?
             val nd: mut ref Node = make_node(p.arena, NK_DEREF, line)
             node_store_slot[ref Node](@addr(nd.d0), inner3)
+            set_node_span(nd, builtin_line, builtin_col, end_line, end_col)
             return ok nd
         }
         if cstr.eql(bname, c"sizeof") {
             val ty = parse_type(p)?
+            val end_line: i64 = p_line(p)
+            val end_col: i64 = p_peek_col(p) + 1
             p_expect_rparen(p)?
             val nb: mut ref Node = make_node(p.arena, NK_BUILTIN, line)
             node_store_string_slot(@addr(nb.d0), bname)
@@ -2356,12 +2420,15 @@ fn parse_primary(p: mut ref Parser) result[ref Node, ref u8] = trust {
             @append(targs, ty)
             node_store_slot[list[ref Node]](@addr(nb.d1), targs)
             node_store_slot[list[ref Node]](@addr(nb.d4), btype_args)
+            set_node_span(nb, builtin_line, builtin_col, end_line, end_col)
             return ok nb
         }
         if cstr.eql(bname, c"bitcast") {
             val source_expr = parse_expr(p)?
             p_expect_comma(p)?
             val target_ty = parse_type(p)?
+            val end_line: i64 = p_line(p)
+            val end_col: i64 = p_peek_col(p) + 1
             p_expect_rparen(p)?
             val nb: mut ref Node = make_node(p.arena, NK_BUILTIN, line)
             node_store_string_slot(@addr(nb.d0), bname)
@@ -2370,6 +2437,7 @@ fn parse_primary(p: mut ref Parser) result[ref Node, ref u8] = trust {
             @append(bargs, source_expr)
             node_store_slot[list[ref Node]](@addr(nb.d1), bargs)
             node_store_slot[list[ref Node]](@addr(nb.d4), btype_args)
+            set_node_span(nb, builtin_line, builtin_col, end_line, end_col)
             return ok nb
         }
         val bargs: mut list[ref Node] = mem.new[ref Node]()
@@ -2383,12 +2451,15 @@ fn parse_primary(p: mut ref Parser) result[ref Node, ref u8] = trust {
                 break
             }
         }
+        val end_line: i64 = p_line(p)
+        val end_col: i64 = p_peek_col(p) + 1
         p_expect_rparen(p)?
         val nb: mut ref Node = make_node(p.arena, NK_BUILTIN, line)
         node_store_string_slot(@addr(nb.d0), bname)
         val blist: list[ref Node] = bargs
         node_store_slot[list[ref Node]](@addr(nb.d1), blist)
         node_store_slot[list[ref Node]](@addr(nb.d4), btype_args)
+        set_node_span(nb, builtin_line, builtin_col, end_line, end_col)
         return ok nb
     }
 
