@@ -139,6 +139,34 @@ run_std_tests() {
 	done < <(find "$STD_DIR" -type f -name "*.sx" | sort)
 }
 
+run_sample_app_build() {
+	local config="$1"
+	local label="$2"
+	local sample_dir="./samples/sample_app"
+	local log_file="$LOG_DIR/sample_app_${label}.log"
+	local compiler_abs
+	compiler_abs="$(cd "$(dirname "$COMPILER")" && pwd)/$(basename "$COMPILER")"
+
+	((total++))
+	if (cd "$sample_dir" && "$compiler_abs" build $config && ./some_app) >"$log_file" 2>&1; then
+		if grep -q 'name: spectre' "$log_file"; then
+			echo "[PASS] sample_app ($label)"
+			((passed++))
+		else
+			echo "[FAIL] sample_app ($label) produced unexpected output"
+			echo "  log: $log_file"
+			sed 's/^/  /' "$log_file" | sed -n '1,240p'
+			((failed++))
+		fi
+	else
+		echo "[FAIL] sample_app ($label)"
+		echo "  command: cd $sample_dir && $compiler_abs build $config && ./some_app"
+		echo "  log: $log_file"
+		sed 's/^/  /' "$log_file" | sed -n '1,240p'
+		((failed++))
+	fi
+}
+
 if [ $BOOTSTRAP_ONLY -eq 0 ]; then
 	run_samples
 
@@ -168,6 +196,9 @@ if [ $BOOTSTRAP_ONLY -eq 0 ]; then
 		echo "$help_graph_out" | sed 's/^/  /'
 		((failed++))
 	fi
+
+	run_sample_app_build "" "dev"
+	run_sample_app_build "release" "release"
 
 	"$COMPILER" ./src/ast/lexer.sx -l -test
 	"$COMPILER" ./src/ast/parser.sx -l -test
