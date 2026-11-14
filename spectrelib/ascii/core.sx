@@ -1,0 +1,54 @@
+/// Byte-oriented ASCII character classification and case conversion.
+///
+/// SPDX-License-Identifier: GPL-3.0-only
+/// (C) Navid Momtahen - 2026
+
+/// Return true when `c` is an ASCII uppercase letter.
+pub fn is_upper(c: u8) bool = {
+    return c >= 65 && c <= 90
+}
+
+/// Return true when `c` is an ASCII lowercase letter.
+pub fn is_lower(c: u8) bool = {
+    return c >= 97 && c <= 122
+}
+
+/// Return true when `c` is an ASCII decimal digit.
+pub fn is_digit(c: u8) bool = {
+    return c >= 48 && c <= 57
+}
+
+/// Convert an ASCII uppercase letter to lowercase.
+pub fn lower(c: u8) u8 = {
+    if is_upper(c) {
+        return (c as u8) + 32
+    }
+    return c
+}
+
+/// Convert an ASCII lowercase letter to uppercase.
+pub fn upper(c: u8) u8 = {
+    if is_lower(c) {
+        return (c as u8) - 32
+    }
+    return c
+}
+
+test "ascii character classification" {
+    assert is_upper('A' as u8)
+    assert !is_upper('a' as u8)
+    assert is_lower('z' as u8)
+    assert !is_lower('Z' as u8)
+    assert is_digit('0' as u8)
+    assert is_digit('9' as u8)
+    assert !is_digit('a' as u8)
+}
+
+test "ascii case conversion" {
+    assert lower('A' as u8) == 'a' as u8
+    assert lower('a' as u8) == 'a' as u8
+    assert lower('0' as u8) == '0' as u8
+    assert upper('a' as u8) == 'A' as u8
+    assert upper('A' as u8) == 'A' as u8
+    assert upper('0' as u8) == '0' as u8
+}

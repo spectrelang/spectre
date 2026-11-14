@@ -1,32 +1,7 @@
 val str     = use("std/string")
 val ostr    = use("std/string/owned")
 val builder = use("std/string/builder")
-
-fn is_upper(c: u8) bool = {
-    return c >= 65 && c <= 90
-}
-
-fn is_lower(c: u8) bool = {
-    return c >= 97 && c <= 122
-}
-
-fn is_digit(c: u8) bool = {
-    return c >= 48 && c <= 57
-}
-
-fn lower(c: u8) u8 = {
-    if is_upper(c) {
-        return (c as u8) + 32
-    }
-    return c
-}
-
-fn upper(c: u8) u8 = {
-    if is_lower(c) {
-        return (c as u8) - 32
-    }
-    return c
-}
+val ascii   = use("std/ascii")
 
 /// Convert PascalCase, camelCase, and upper-case identifiers to snake_case.
 ///
@@ -56,8 +31,8 @@ pub fn to_snake(value: str.StringView) str.StringView = trust {
             i++
             continue
         }
-        if is_upper(c) {
-            val next_lower: bool = i + 1 < n && is_lower(
+        if ascii.is_upper(c) {
+            val next_lower: bool = i + 1 < n && ascii.is_lower(
                 @load8(@ptradd(value.ptr, i + 1))
             )
             if !prev_underscore && has_output {
@@ -65,7 +40,7 @@ pub fn to_snake(value: str.StringView) str.StringView = trust {
                     builder.StringBuilder.append_char(sb, 95 as u8)
                 }
             }
-            builder.StringBuilder.append_char(sb, lower(c))
+            builder.StringBuilder.append_char(sb, ascii.lower(c))
             has_output = true
             prev_underscore = false
             prev_lower_or_digit = false
@@ -76,7 +51,7 @@ pub fn to_snake(value: str.StringView) str.StringView = trust {
         builder.StringBuilder.append_char(sb, c)
         has_output = true
         prev_underscore = false
-        prev_lower_or_digit = is_lower(c) || is_digit(c)
+        prev_lower_or_digit = ascii.is_lower(c) || ascii.is_digit(c)
         prev_upper = false
         i++
     }
@@ -99,7 +74,7 @@ pub fn to_screaming_snake(value: str.StringView) str.StringView = trust {
             break
         }
         val check_c: u8 = @load8(@ptradd(value.ptr, check_i))
-        if is_lower(check_c) {
+        if ascii.is_lower(check_c) {
             already_upper = false
             break
         }
@@ -116,7 +91,7 @@ pub fn to_screaming_snake(value: str.StringView) str.StringView = trust {
             break
         }
         val c: u8 = @load8(@ptradd(snake.ptr, i))
-        builder.StringBuilder.append_char(sb, upper(c))
+        builder.StringBuilder.append_char(sb, ascii.upper(c))
         i++
     }
     val built: ref void = builder.StringBuilder.build(sb)
@@ -141,7 +116,7 @@ pub fn to_pascal(value: str.StringView) str.StringView = trust {
             continue
         }
         if new_word {
-            builder.StringBuilder.append_char(sb, upper(c))
+            builder.StringBuilder.append_char(sb, ascii.upper(c))
             new_word = false
         } else {
             builder.StringBuilder.append_char(sb, c)
