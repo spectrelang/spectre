@@ -3,7 +3,12 @@ version "v0.0.17"
 spectre_version "v0.0.17"
 
 build release {
-    flags "-release -o spectre-release"
+    posix {
+        flags "-release -o spectre-release"
+    }
+    windows {
+        flags "-release -o spectre-release.exe"
+    }
     env {
         GIT_HASH=release-test-build
     }
@@ -21,7 +26,12 @@ build loud {
 }
 
 build dev {
-    output "./spectre-dev"
+    posix {
+        output "./spectre-dev"
+    }
+    windows {
+        output "./spectre-dev.exe"
+    }
     env {
         GIT_HASH=dev-build
     }
