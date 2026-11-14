@@ -424,9 +424,9 @@ pub fn link_uses_library(flag: ref u8, name: ref u8) bool = trust {
     val dll_suffix: ref u8 = @fmtalloc("{s}.dll", {name})
     val short_flag: ref u8 = @fmtalloc("-l{s}", {name})
     return cstr.cmp(flag, short_flag) == 0
-        || cstr.cmp(flag, name) == 0
-        || cstr.ends_with(flag, lib_suffix)
-        || cstr.ends_with(flag, dll_suffix)
+    || cstr.cmp(flag, name) == 0
+    || cstr.ends_with(flag, lib_suffix)
+    || cstr.ends_with(flag, dll_suffix)
 }
 
 /// Whether a collected link list asks for a Windows import library.
@@ -443,7 +443,7 @@ pub fn links_use_library(links: list[ref u8], name: ref u8) bool = trust {
 /// not also be passed through as SDK library names.
 pub fn is_freestanding_windows_optional_link(flag: ref u8) bool = trust {
     return link_uses_library(flag, c"bcrypt")
-        || link_uses_library(flag, c"ws2_32")
+    || link_uses_library(flag, c"ws2_32")
 }
 
 /// Default import libraries used by the freestanding Windows runtime.

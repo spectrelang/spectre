@@ -3444,10 +3444,18 @@ fn comparison_type_name(ctx: ref SemaCtx, expr: ref parser.Node) ref u8 = trust 
     if wrap_kind == 2 {
         return c"option"
     }
-    return format_type_for_error(ctx,
-        infer_expr_scope_type_name(ctx, expr),
-        infer_expr_scope_is_ref(ctx, expr)
-    )
+    val type_name: ref u8 = infer_expr_scope_type_name(ctx, expr)
+    if type_name != none && !cstr.eql(type_name, c"") {
+        return format_type_for_error(ctx, type_name, infer_expr_scope_is_ref(ctx, expr))
+    }
+    val type_node: ref parser.Node = expr_type_node(ctx, expr)
+    if type_node != none {
+        val inferred: ref u8 = sema_type_expr_name(ctx, type_node)
+        if inferred != none && !cstr.eql(inferred, c"") && !cstr.eql(inferred, c"unknown") {
+            return inferred
+        }
+    }
+    return format_type_for_error(ctx, type_name, infer_expr_scope_is_ref(ctx, expr))
 }
 
 fn sema_try_operand_proves_not_result(ctx: ref SemaCtx, expr: ref parser.Node) bool = trust {
