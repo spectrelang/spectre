@@ -606,6 +606,12 @@ fn build_link_cmd(ctx: mut ref context.Context, st: mut ref CrossState) bool = t
                 )
             }
         }
+        for link_obj in ctx.opts.link_objs {
+            win_inputs = @fmtalloc(
+                "{s} {s}",
+                {win_inputs, builds.quote_arg(link_obj)}
+            )
+        }
         if cstr.len(st.shim_obj) > 0 {
             win_inputs = @fmtalloc(
                 "{s} {s}",
@@ -699,6 +705,12 @@ fn build_link_cmd(ctx: mut ref context.Context, st: mut ref CrossState) bool = t
                 }
                 link_flags_x = @fmtalloc("{s} {s}", {link_flags_x, link_arg})
             }
+        }
+        for link_obj in ctx.opts.link_objs {
+            link_flags_x = @fmtalloc(
+                "{s} {s}",
+                {link_flags_x, builds.quote_arg(link_obj)}
+            )
         }
         if cstr.len(st.shim_obj) > 0 {
             link_flags_x = @fmtalloc(

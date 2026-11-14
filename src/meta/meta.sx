@@ -58,6 +58,7 @@ pub fn print_usage() void = {
     stdio.puts("  -rt-lib:<file>       Explicit freestanding runtime archive/object")
     stdio.puts("  -src-target:<os>     Mock target OS for when-blocks in source output")
     stdio.puts("  -inc-path:<dir>      Add an include search path for the alt backend")
+    stdio.puts("  -link-obj:<file>     Link an extra object file into the output")
     stdio.puts("  -show-cmd            Show the command used for linking")
     stdio.puts("  -test                Run the unit tests in the current file")
     stdio.puts("  -test-all            Run tests in every .sx file under the current directory")

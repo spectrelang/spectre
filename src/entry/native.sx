@@ -187,6 +187,12 @@ fn build_link_flags_native(ctx: ref context.Context, st: mut ref NativeState) vo
         }
         st.link_flags = @fmtalloc("{s} {s}", {st.link_flags, link_arg})
     }
+    for link_obj in ctx.opts.link_objs {
+        st.link_flags = @fmtalloc(
+            "{s} {s}",
+            {st.link_flags, builds.quote_arg(link_obj)}
+        )
+    }
     if cstr.cmp(ctx.host_platform, c"windows") == 0
     && !ctx.opts.compile_obj && !ctx.opts.build_dll {
         st.link_flags = @fmtalloc(

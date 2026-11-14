@@ -210,6 +210,18 @@ fn prepare_module(ctx: mut ref context.Context) bool = trust {
 fn apply_hosted_fallback(ctx: mut ref context.Context) void = trust {
     if ctx.freestanding_runtime && cstr.len(ctx.opts.runtime_spec) == 0
     && !ctx.opts.dynamic_linking && !ctx.opts.build_dll && !ctx.opts.compile_obj {
+        if (@len(ctx.opts.link_objs) as i64) > 0 {
+            ctx.runtime_mode = c"hosted"
+            ctx.freestanding_runtime = false
+            module.set_runtime_mode(ctx.runtime_mode)
+            codegen.set_runtime_mode(ctx.runtime_mode)
+            alt_codegen.set_runtime_mode(ctx.runtime_mode)
+            stdio.eprint(
+                "warning: external object detected, thus using hosted runtime (pass -runtime:freestanding to force)\n",
+                {}
+            )
+            return
+        }
         match module.collect_used_links(ctx.root_mod, ctx.exe_dir, true) {
             ok detected_links => {
                 if builds.links_require_hosted(detected_links) {
@@ -219,7 +231,7 @@ fn apply_hosted_fallback(ctx: mut ref context.Context) void = trust {
                     codegen.set_runtime_mode(ctx.runtime_mode)
                     alt_codegen.set_runtime_mode(ctx.runtime_mode)
                     stdio.eprint(
-                        "warning: external C library detected; using hosted runtime (pass -runtime:freestanding to force)\n",
+                        "warning: external C library detected, thus using hosted runtime (pass -runtime:freestanding to force)\n",
                         {}
                     )
                 }

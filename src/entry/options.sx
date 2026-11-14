@@ -34,6 +34,7 @@ pub type Options = {
     alt_compiler: mut ref u8
     extra_includes: mut list[ref u8]
     inc_paths: mut list[ref u8]
+    link_objs: mut list[ref u8]
     src_target: mut ref u8
     target_spec: mut ref u8
     runtime_spec: mut ref u8
@@ -54,6 +55,7 @@ pub fn new() ref Options = trust {
     o.alt_compiler = c""
     o.extra_includes = mem.new[ref u8]()
     o.inc_paths = mem.new[ref u8]()
+    o.link_objs = mem.new[ref u8]()
     o.src_target = c""
     o.target_spec = c""
     o.runtime_spec = c""
@@ -327,6 +329,14 @@ pub fn parse(
                     return false
                 }
                 @append(opts.inc_paths, path_str)
+                arg_i++
+            } elif cstr.starts_with(arg, c"-link-obj:") {
+                val obj_str: ref u8 = cstr.substr(arg, 10, cstr.len(arg) - 10)
+                if cstr.cmp(obj_str, c"") == 0 {
+                    stdio.puts("error: -link-obj requires a value")
+                    return false
+                }
+                @append(opts.link_objs, obj_str)
                 arg_i++
             } else {
                 stdio.print("error: unknown flag: {s}\n", {arg})

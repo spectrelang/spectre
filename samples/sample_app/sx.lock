@@ -1,0 +1,2 @@
+version "1"
+dep "https://github.com/rafagafe/tiny-json.git" "025cdde5f2574290d8b2a8524bc257db2829bb7c"

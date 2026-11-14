@@ -1,0 +1,77 @@
+// Mirror of tiny-json's json_t. `extern type` uses the C ABI layout, so
+// @sizeof(json_t) is correct, padding included.
+//
+//   struct json_s {
+//       json_t* sibling;
+//       char const* name;
+//       union { char const* value; struct { json_t* child; json_t* last_child; } c; } u;
+//       jsonType_t type;
+//   };
+extern type json_t = {
+    sibling: ref json_t
+    name: ref u8
+    child_or_value: ref void
+    last_child: ref void
+    kind: i32
+}
+
+extern (C) fn json_create(str: ref u8, mem: ref json_t, qty: u32) ref json_t = "json_create"
+extern (C) fn json_getProperty(obj: ref json_t, property: ref u8) ref json_t = "json_getProperty"
+extern (C) fn json_getPropertyValue(obj: ref json_t, property: ref u8) ref u8 = "json_getPropertyValue"
+extern (C) fn json_getInteger(json: ref json_t) i64 = "json_getInteger"
+extern (C) fn json_getChild(json: ref json_t) ref json_t = "json_getChild"
+extern (C) fn json_getSibling(json: ref json_t) ref json_t = "json_getSibling"
+extern (C) fn json_getValue(json: ref json_t) ref u8 = "json_getValue"
+
+pub fn main() i32 = trust {
+    val text: ref u8 = c"{ \"name\": \"spectre\", \"version\": 17, \"tags\": [\"dbc\", \"qbe\"] }"
+
+    // json_create parses in place and writes NULs into the buffer,
+    // so it needs a writable copy, not the literal.
+    val n: usize = @strlen(text) as usize + 1
+    val buf: mut ref void = @alloc(n)
+    if buf == none {
+        @print("out of memory\n")
+        return 1
+    }
+    defer {
+        @free(buf)
+    }
+    @memcpy(buf, text, n)
+
+    val max_tokens: usize = 32 as usize
+    val pool: mut ref void = @alloc(@sizeof(json_t) * max_tokens)
+    if pool == none {
+        @print("out of memory\n")
+        return 1
+    }
+    defer {
+        @free(pool)
+    }
+
+    val root: ref json_t = json_create(buf as ref u8, pool as ref json_t, 32 as u32)
+    if root == none {
+        @print("parse error\n")
+        return 1
+    }
+
+    val name: ref u8 = json_getPropertyValue(root, c"name")
+    val version_node: ref json_t = json_getProperty(root, c"version")
+    if version_node == none {
+        @print("missing version\n")
+        return 1
+    }
+    val version: i64 = json_getInteger(version_node)
+    @print("name: {s}\nversion: {d}\n", {name, version})
+
+    val tags: ref json_t = json_getProperty(root, c"tags")
+    if tags == none {
+        return 0
+    }
+    val tag: mut ref json_t = json_getChild(tags)
+    for tag != none {
+        @print("tag: {s}\n", {json_getValue(tag)})
+        tag = json_getSibling(tag)
+    }
+    return 0
+}

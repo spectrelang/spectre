@@ -29,12 +29,18 @@ pub type SxBuildConfig = {
     rules: mut list[ref SxBuildRule]
 }
 
+pub type SxDep = {
+    url: mut ref u8
+    actions: mut list[ref u8]
+}
+
 pub type SxMod = {
     entry: mut ref u8
     version: mut ref u8
     spectre_version: mut ref u8
     single_flags: mut ref u8
-    deps: mut list[ref u8]
+    vars: mut list[ref u8]
+    deps: mut list[ref SxDep]
     builds: mut list[ref SxBuildConfig]
 }
 
@@ -47,6 +53,11 @@ type ParseCtx = {
     text: mut ref u8
     pos: mut i64
     len: mut i64
+}
+
+type VarRef = {
+    value: mut ref u8
+    after: mut i64
 }
 
 fn new_ctx(text: ref u8) ref ParseCtx = {
@@ -218,6 +229,402 @@ fn ctx_read_env_value(ctx: mut ref ParseCtx) ref u8 = trust {
     return result
 }
 
+fn ctx_read_list_item(ctx: mut ref ParseCtx) ref u8 = trust {
+    ctx_skip_ws(ctx)
+    if ctx_peek(ctx) == 34 {
+        return ctx_read_quoted(ctx)
+    }
+
+    val cap: mut i64 = 256
+    val buf: mut ref u8 = @alloc(cap) as ref u8
+    val i: mut i64 = 0
+    for {
+        val c: i64 = ctx_peek(ctx)
+        if c == -1 || c == 32 || c == 9 || c == 10 || c == 13
+        || c == 44 || c == 93 || c == 125 {
+            break
+        }
+        if i >= cap - 1 {
+            cap = cap * 2
+            buf = @realloc(buf, cap) as ref u8
+        }
+        @store8(@ptradd(buf, i), c as u8)
+        i++
+        ctx_advance(ctx)
+    }
+    @store8(@ptradd(buf, i), 0)
+    if i == 0 {
+        @free(buf)
+        return c""
+    }
+    val result: ref u8 = mem.alloc((i + 1) as usize) as ref u8
+    @memcpy(result, buf, (i + 1) as usize)
+    @free(buf)
+    return result
+}
+
+/// Read either a single quoted value or a bracketed array of values.
+fn ctx_read_list(ctx: mut ref ParseCtx) list[ref u8] = trust {
+    val out: mut list[ref u8] = mem.new[ref u8]()
+    ctx_skip_ws(ctx)
+    if ctx_peek(ctx) != 91 {
+        val item: ref u8 = ctx_read_list_item(ctx)
+        if cstr.len(item) > 0 {
+            @append(out, item)
+        }
+        return out
+    }
+    ctx_advance(ctx)
+    for {
+        ctx_skip_ws(ctx)
+        val c: i64 = ctx_peek(ctx)
+        if c == -1 || c == 93 {
+            break
+        }
+        val item: ref u8 = ctx_read_list_item(ctx)
+        if cstr.len(item) > 0 {
+            @append(out, item)
+        }
+        ctx_skip_ws(ctx)
+        if ctx_peek(ctx) == 44 {
+            ctx_advance(ctx)
+        }
+    }
+    if ctx_peek(ctx) == 93 {
+        ctx_advance(ctx)
+    }
+    return out
+}
+
+fn token_needs_quote(value: ref u8) bool = trust {
+    val n: i64 = cstr.len(value)
+    val i: mut i64 = 0
+    for {
+        if i >= n {
+            break
+        }
+        val c: u8 = @load8(@ptradd(value, i)) as u8
+        if c == 32 || c == 9 || c == 10 || c == 13
+        || c == 34 || c == 39 || c == 36 || c == 38 || c == 124
+        || c == 59 || c == 60 || c == 62 || c == 40 || c == 41
+        || c == 42 || c == 63 || c == 91 || c == 93 || c == 123
+        || c == 125 || c == 33 || c == 35 || c == 126 || c == 96
+        || c == 37 || c == 94 || c == 92 {
+            return true
+        }
+        i++
+    }
+    return false
+}
+
+fn join_tokens(items: list[ref u8]) ref u8 = trust {
+    val out: mut ref u8 = c""
+    for item in items {
+        val piece: mut ref u8 = item
+        if token_needs_quote(item) {
+            piece = builds.quote_arg(item)
+        }
+        if cstr.len(out) == 0 {
+            out = piece
+        } else {
+            out = @fmtalloc("{s} {s}", {out, piece})
+        }
+    }
+    return out
+}
+
+fn ctx_read_joined_value(ctx: mut ref ParseCtx) ref u8 = trust {
+    return join_tokens(ctx_read_list(ctx))
+}
+
+fn lookup_var_n(m: ref SxMod, name: ref u8, n: i64) ref u8 = trust {
+    if n == 3 {
+        if @load8(@ptradd(name, 0)) == 79
+        && @load8(@ptradd(name, 1)) == 85
+        && @load8(@ptradd(name, 2)) == 84 {
+            val cwd_opt = fs.cwd_cstr()
+            if cwd_opt is some cwd {
+                val out_dir: ref u8 = path.join_cstr(cwd, c".sx")
+                @free(cwd)
+                return out_dir
+            }
+            return c".sx"
+        }
+    }
+    for entry in m.vars {
+        val elen: i64 = cstr.len(entry)
+        if elen <= n {
+            continue
+        }
+        if @load8(@ptradd(entry, n)) != 61 {
+            continue
+        }
+        val matched: mut bool = true
+        val i: mut i64 = 0
+        for {
+            if i >= n {
+                break
+            }
+            if @load8(@ptradd(entry, i)) != @load8(@ptradd(name, i)) {
+                matched = false
+                break
+            }
+            i++
+        }
+        if matched {
+            return @ptradd(entry, n + 1) as ref u8
+        }
+    }
+    return none
+}
+
+fn resolve_var_ref(m: ref SxMod, s: ref u8, n: i64, dollar: i64) ref VarRef = trust {
+    val ns: mut i64 = dollar + 1
+    val braced: mut bool = false
+    if ns < n && @load8(@ptradd(s, ns)) == 123 {
+        braced = true
+        ns++
+    }
+    val name_start: i64 = ns
+    for {
+        if ns >= n {
+            break
+        }
+        val c: u8 = @load8(@ptradd(s, ns)) as u8
+        val alpha: bool = (c >= 65 && c <= 90) || (c >= 97 && c <= 122)
+        val digit: bool = c >= 48 && c <= 57
+        if !alpha && !digit && c != 95 {
+            break
+        }
+        ns++
+    }
+    if ns == name_start {
+        return none
+    }
+    val after: mut i64 = ns
+    if braced {
+        if ns >= n || @load8(@ptradd(s, ns)) != 125 {
+            return none
+        }
+        after = ns + 1
+    }
+    val r: mut ref VarRef = mem.alloc(@sizeof(VarRef) as usize) as ref VarRef
+    r.value = lookup_var_n(m, @ptradd(s, name_start) as ref u8, ns - name_start)
+    r.after = after
+    return r
+}
+
+fn expand_var_refs(m: ref SxMod, s: ref u8) ref u8 = trust {
+    if s == none {
+        return s
+    }
+    val n: i64 = cstr.len(s)
+    val total: mut i64 = 0
+    val i: mut i64 = 0
+    for {
+        if i >= n {
+            break
+        }
+        if @load8(@ptradd(s, i)) == 36 {
+            val vr_opt = resolve_var_ref(m, s, n, i)
+            if vr_opt != none {
+                val vr: ref VarRef = vr_opt
+                if vr.value != none {
+                    total = total + cstr.len(vr.value)
+                    i = vr.after
+                    continue
+                }
+            }
+        }
+        total++
+        i++
+    }
+    if total == n {
+        return s
+    }
+    val out: ref u8 = mem.alloc((total + 1) as usize) as ref u8
+    val oi: mut i64 = 0
+    i = 0
+    for {
+        if i >= n {
+            break
+        }
+        if @load8(@ptradd(s, i)) == 36 {
+            val vr_opt = resolve_var_ref(m, s, n, i)
+            if vr_opt != none {
+                val vr: ref VarRef = vr_opt
+                if vr.value != none {
+                    val vlen: i64 = cstr.len(vr.value)
+                    @memcpy(@ptradd(out, oi), vr.value, vlen as usize)
+                    oi = oi + vlen
+                    i = vr.after
+                    continue
+                }
+            }
+        }
+        @store8(@ptradd(out, oi), @load8(@ptradd(s, i)))
+        oi++
+        i++
+    }
+    @store8(@ptradd(out, oi), 0)
+    return out
+}
+
+fn expand_envs(m: ref SxMod, envs: mut list[ref u8]) void = trust {
+    val n: i64 = @len(envs) as i64
+    val i: mut i64 = 0
+    for {
+        if i >= n {
+            break
+        }
+        val e = @get(envs, i as usize)
+        if e is some entry {
+            @set(envs, i as usize, expand_var_refs(m, entry as ref u8))
+        }
+        i++
+    }
+}
+
+fn expand_mod_strings(m: mut ref SxMod) void = trust {
+    m.entry = expand_var_refs(m, m.entry)
+    m.version = expand_var_refs(m, m.version)
+    m.spectre_version = expand_var_refs(m, m.spectre_version)
+    m.single_flags = expand_var_refs(m, m.single_flags)
+
+    val dn: i64 = @len(m.deps) as i64
+    val di: mut i64 = 0
+    for {
+        if di >= dn {
+            break
+        }
+        val dep_opt = @get(m.deps, di as usize)
+        if dep_opt is some dep_val {
+            val dep: mut ref SxDep = dep_val as ref SxDep
+            dep.url = expand_var_refs(m, dep.url)
+            val an: i64 = @len(dep.actions) as i64
+            val ai: mut i64 = 0
+            for {
+                if ai >= an {
+                    break
+                }
+                val a = @get(dep.actions, ai as usize)
+                if a is some action {
+                    @set(dep.actions, ai as usize, expand_var_refs(m, action as ref u8))
+                }
+                ai++
+            }
+        }
+        di++
+    }
+
+    val bn: i64 = @len(m.builds) as i64
+    val bi: mut i64 = 0
+    for {
+        if bi >= bn {
+            break
+        }
+        val cfg_opt = @get(m.builds, bi as usize)
+        if cfg_opt is some cfg_val {
+            val cfg: mut ref SxBuildConfig = cfg_val as ref SxBuildConfig
+            cfg.base.action = expand_var_refs(m, cfg.base.action)
+            cfg.base.flags = expand_var_refs(m, cfg.base.flags)
+            cfg.base.output = expand_var_refs(m, cfg.base.output)
+            cfg.base.entry = expand_var_refs(m, cfg.base.entry)
+            expand_envs(m, cfg.base.envs)
+            val rn: i64 = @len(cfg.rules) as i64
+            val ri: mut i64 = 0
+            for {
+                if ri >= rn {
+                    break
+                }
+                val rule_opt = @get(cfg.rules, ri as usize)
+                if rule_opt is some rule_val {
+                    val rule: mut ref SxBuildRule = rule_val as ref SxBuildRule
+                    rule.action = expand_var_refs(m, rule.action)
+                    rule.flags = expand_var_refs(m, rule.flags)
+                    rule.output = expand_var_refs(m, rule.output)
+                    rule.entry = expand_var_refs(m, rule.entry)
+                    expand_envs(m, rule.envs)
+                }
+                ri++
+            }
+        }
+        bi++
+    }
+}
+
+fn parse_var_entries(ctx: mut ref ParseCtx, out: mut list[ref u8]) void = trust {
+    ctx_skip_ws(ctx)
+    if ctx_peek(ctx) == 123 {
+        ctx_advance(ctx)
+    }
+    for {
+        ctx_skip_ws(ctx)
+        val c: i64 = ctx_peek(ctx)
+        if c == -1 || c == 125 {
+            break
+        }
+        val name: ref u8 = ctx_read_ident(ctx)
+        if cstr.cmp(name, c"") == 0 {
+            break
+        }
+        ctx_skip_ws(ctx)
+        if ctx_peek(ctx) == 61 {
+            ctx_advance(ctx)
+        }
+        val value: ref u8 = ctx_read_env_value(ctx)
+        if cstr.cmp(name, c"OUT") != 0 {
+            @append(out, mem_concat3(name, c"=", value))
+        }
+    }
+    if ctx_peek(ctx) == 125 {
+        ctx_advance(ctx)
+    }
+}
+
+fn new_dep(url: ref u8) ref SxDep = trust {
+    val dep: mut ref SxDep = mem.alloc(@sizeof(SxDep) as usize) as ref SxDep
+    @memset(dep, 0, @sizeof(SxDep) as usize)
+    dep.url = url
+    dep.actions = mem.new[ref u8]()
+    return dep
+}
+
+fn parse_build_action_field(ctx: mut ref ParseCtx, dep: mut ref SxDep) void = trust {
+    val tokens: list[ref u8] = ctx_read_list(ctx)
+    if (@len(tokens) as i64) > 0 {
+        @append(dep.actions, join_tokens(tokens))
+    }
+}
+
+fn parse_dep_body(ctx: mut ref ParseCtx, dep: mut ref SxDep) void = trust {
+    ctx_skip_ws(ctx)
+    if ctx_peek(ctx) != 123 {
+        return
+    }
+    ctx_advance(ctx)
+    for {
+        ctx_skip_ws(ctx)
+        val c: i64 = ctx_peek(ctx)
+        if c == -1 || c == 125 {
+            break
+        }
+        val name: ref u8 = ctx_read_ident(ctx)
+        if cstr.cmp(name, c"") == 0 {
+            break
+        }
+        if cstr.cmp(name, c"build_action") == 0
+        || cstr.cmp(name, c"ext_build_action") == 0 {
+            parse_build_action_field(ctx, dep)
+        } else {
+            ctx_skip_line(ctx)
+        }
+    }
+    if ctx_peek(ctx) == 125 {
+        ctx_advance(ctx)
+    }
+}
+
 pub fn new_build_rule(platform: ref u8, arch: ref u8) ref SxBuildRule = trust {
     val rule: mut ref SxBuildRule = mem.alloc(@sizeof(SxBuildRule) as usize) as mut ref SxBuildRule
     @memset(rule, 0, @sizeof(SxBuildRule))
@@ -270,7 +677,7 @@ fn parse_override_field(
         return true
     }
     if cstr.cmp(name, c"flags") == 0 {
-        target.flags = ctx_read_quoted(ctx)
+        target.flags = ctx_read_joined_value(ctx)
         return true
     }
     if cstr.cmp(name, c"output") == 0 {
@@ -368,7 +775,8 @@ pub fn parse_sxmod(content: ref u8) ref SxMod = trust {
     m.version = c""
     m.spectre_version = c""
     m.single_flags = c""
-    m.deps = mem.new[ref u8]()
+    m.vars = mem.new[ref u8]()
+    m.deps = mem.new[ref SxDep]()
     m.builds = mem.new[ref SxBuildConfig]()
     for {
         ctx_skip_ws(ctx)
@@ -387,8 +795,12 @@ pub fn parse_sxmod(content: ref u8) ref SxMod = trust {
             m.spectre_version = ctx_read_quoted(ctx)
         } elif cstr.cmp(kw, c"single_flags") == 0 {
             m.single_flags = ctx_read_quoted(ctx)
+        } elif cstr.cmp(kw, c"var") == 0 {
+            parse_var_entries(ctx, m.vars)
         } elif cstr.cmp(kw, c"dep") == 0 {
-            @append(m.deps, ctx_read_quoted(ctx))
+            val dep: mut ref SxDep = new_dep(ctx_read_quoted(ctx))
+            parse_dep_body(ctx, dep)
+            @append(m.deps, dep)
         } elif cstr.cmp(kw, c"build") == 0 {
             val cfg: mut ref SxBuildConfig = mem.alloc(@sizeof(SxBuildConfig) as usize) as mut ref SxBuildConfig
             @memset(cfg, 0, @sizeof(SxBuildConfig))
@@ -406,6 +818,7 @@ pub fn parse_sxmod(content: ref u8) ref SxMod = trust {
         }
     }
     @free(ctx)
+    expand_mod_strings(m)
     return m
 }
 
@@ -542,10 +955,12 @@ pub fn load_sxmod_at(dir: ref u8) option[ref SxMod] = trust {
             arena_cap = sz as i64
         }
     } else {
+        @free(mod_path)
         return none
     }
     val arena: allocators.Arena = allocators.Arena.new((arena_cap + 8) as usize)?
     val content_opt = fs.read_all_cstr[allocators.Arena](arena, mod_path)
+    @free(mod_path)
     match content_opt {
         none => {
             allocators.Arena.free(arena)
@@ -864,6 +1279,26 @@ pub fn repo_name_from_url(url: ref u8) ref u8 = trust {
     return base
 }
 
+/// Net brace count on a single line.
+fn brace_delta(line: ref u8) i64 = trust {
+    val n: i64 = cstr.len(line)
+    val d: mut i64 = 0
+    val i: mut i64 = 0
+    for {
+        if i >= n {
+            break
+        }
+        val c: u8 = @load8(@ptradd(line, i)) as u8
+        if c == 123 {
+            d++
+        } elif c == 125 {
+            d--
+        }
+        i++
+    }
+    return d
+}
+
 /// Rewrite filepath, dropping lines that start with dep_prefix AND contain needle.
 fn drop_dep_lines(filepath: ref u8, needle: ref u8) void = trust {
     val size_opt = fs.file_size_cstr(filepath)
@@ -888,6 +1323,7 @@ fn drop_dep_lines(filepath: ref u8, needle: ref u8) void = trust {
             val tlen: i64 = cstr.len(text)
             val line_start: mut i64 = 0
             val i: mut i64 = 0
+            val skip_depth: mut i64 = 0
             for {
                 if i > tlen {
                     break
@@ -902,12 +1338,24 @@ fn drop_dep_lines(filepath: ref u8, needle: ref u8) void = trust {
                     val line: ref u8 = @alloc(line_len + 1) as ref u8
                     @memcpy(line, @ptradd(text, line_start), line_len as usize)
                     @store8(@ptradd(line, line_len), 0)
-                    val is_dep: bool = cstr.starts_with(line, c"dep ")
-                    val has_needle: bool = cstr.contains(line, needle)
-                    if !(is_dep && has_needle) {
-                        builder.StringBuilder.append_cstr(sb, line)
-                        if !at_end {
-                            builder.StringBuilder.append_char(sb, 10 as u8)
+                    if skip_depth > 0 {
+                        skip_depth = skip_depth + brace_delta(line)
+                        if skip_depth < 0 {
+                            skip_depth = 0
+                        }
+                    } else {
+                        val is_dep: bool = cstr.starts_with(line, c"dep ")
+                        val has_needle: bool = cstr.contains(line, needle)
+                        if is_dep && has_needle {
+                            skip_depth = brace_delta(line)
+                            if skip_depth < 0 {
+                                skip_depth = 0
+                            }
+                        } else {
+                            builder.StringBuilder.append_cstr(sb, line)
+                            if !at_end {
+                                builder.StringBuilder.append_char(sb, 10 as u8)
+                            }
                         }
                     }
                     @free(line)
@@ -1007,7 +1455,8 @@ fn upgrade_dir(
     }
 
     val lib_dir: ref u8 = @fmtalloc("{s}/lib", {base_dir})
-    for dep_url in sxmod.deps {
+    for dep in sxmod.deps {
+        val dep_url: ref u8 = dep.url
         val name: ref u8 = repo_name_from_url(dep_url)
         val lib_path: ref u8 = @fmtalloc("{s}/{s}", {lib_dir, name})
 
@@ -1217,7 +1666,7 @@ pub fn cmd_init(name_arg: ref u8) i32 = {
     trust fs.write_all_cstr(c"sx.lock", c"version \"1\"\n")
     trust fs.write_all_cstr(
         c".gitignore",
-        c"SPECTRE_LANGUAGE_REFERENCE.md\nlib/\nstd__*\ns-out/\ndocs-out*/\n"
+        c"SPECTRE_LANGUAGE_REFERENCE.md\nlib/\nstd__*\ns-out/\ndocs-out*/\n.sx/\n"
     )
 
     trust fs.mkdir_path_cstr(c"src")
@@ -1230,6 +1679,123 @@ pub fn cmd_init(name_arg: ref u8) i32 = {
     \\
     trust fs.write_all("src/main.sx", main_template)
     trust stdio.print("Initialized project '{s}'\n", {proj_name})
+    return 0
+}
+
+fn run_in_dir(dir: ref u8, cmd: ref u8) i32 = trust {
+    when windows {
+        return os.run(@fmtalloc("cd /d {s} && {s}", {builds.quote_arg(dir), cmd}))
+    }
+    return os.run(@fmtalloc("cd {s} && {s}", {builds.quote_arg(dir), cmd}))
+}
+
+/// Clone any declared dependencies that are not present under `lib/`.
+fn ensure_deps_in_dir(base_dir: ref u8, visited: mut list[ref u8]) i32 = trust {
+    for v in visited {
+        if cstr.cmp(v, base_dir) == 0 {
+            return 0
+        }
+    }
+    @append(visited, base_dir)
+
+    val sxmod_opt = load_sxmod_at(base_dir)
+    val sxmod: mut ref SxMod = none
+    match sxmod_opt {
+        none => {
+            return 0
+        }
+        some m => {
+            sxmod = m
+        }
+    }
+    val ndeps: i64 = @len(sxmod.deps) as i64
+    if ndeps == 0 {
+        return 0
+    }
+
+    val lock_opt = load_sxlock_at(base_dir)
+    val lock_deps: mut list[ref SxLockDep] = mem.new[ref SxLockDep]()
+    match lock_opt {
+        none => {}
+        some deps => {
+            lock_deps = deps
+        }
+    }
+
+    val lib_dir: ref u8 = @fmtalloc("{s}/lib", {base_dir})
+    for dep in sxmod.deps {
+        val dep_url: ref u8 = dep.url
+        val name: ref u8 = repo_name_from_url(dep_url)
+        val lib_path: ref u8 = @fmtalloc("{s}/{s}", {lib_dir, name})
+        if !fs.is_directory_cstr(lib_path) {
+            fs.mkdir_path_cstr(lib_dir)
+            stdio.print("Restoring {s}...\n", {dep_url})
+            if os.run(@fmtalloc("git clone {s} {s}", {dep_url, lib_path})) != 0 {
+                stdio.print("error: git clone failed for {s}\n", {dep_url})
+                return 1
+            }
+            val hash: ref u8 = lock_hash_for_url(lock_deps, dep_url)
+            if cstr.cmp(hash, c"") != 0 && cstr.cmp(hash, c"unknown") != 0 {
+                if os.run(@fmtalloc("git -C {s} checkout --quiet {s}", {lib_path, hash})) != 0 {
+                    stdio.print("error: failed to checkout {s} for {s}\n", {hash, dep_url})
+                    return 1
+                }
+            }
+        }
+        val sub_code: i32 = ensure_deps_in_dir(lib_path, visited)
+        if sub_code != 0 {
+            return sub_code
+        }
+    }
+    return 0
+}
+
+/// Run every dep's build actions from inside that dep's directory.
+fn run_dep_actions_in_dir(base_dir: ref u8, visited: mut list[ref u8]) i32 = trust {
+    for v in visited {
+        if cstr.cmp(v, base_dir) == 0 {
+            return 0
+        }
+    }
+    @append(visited, base_dir)
+
+    val sxmod_opt = load_sxmod_at(base_dir)
+    val sxmod: mut ref SxMod = none
+    match sxmod_opt {
+        none => {
+            return 0
+        }
+        some m => {
+            sxmod = m
+        }
+    }
+    val ndeps: i64 = @len(sxmod.deps) as i64
+    if ndeps == 0 {
+        return 0
+    }
+
+    val lib_dir: ref u8 = @fmtalloc("{s}/lib", {base_dir})
+    for dep in sxmod.deps {
+        val name: ref u8 = repo_name_from_url(dep.url)
+        val lib_path: ref u8 = @fmtalloc("{s}/{s}", {lib_dir, name})
+        if (@len(dep.actions) as i64) > 0 {
+            if !fs.is_directory_cstr(lib_path) {
+                stdio.print("error: dependency '{s}' is not present at {s}\n", {dep.url, lib_path})
+                return 1
+            }
+            for action in dep.actions {
+                stdio.print("note: running build action for '{s}'...\n", {name})
+                if run_in_dir(lib_path, action) != 0 {
+                    stdio.print("error: build action failed for '{s}'\n", {name})
+                    return 1
+                }
+            }
+        }
+        val sub_code: i32 = run_dep_actions_in_dir(lib_path, visited)
+        if sub_code != 0 {
+            return sub_code
+        }
+    }
     return 0
 }
 
@@ -1254,6 +1820,16 @@ pub fn cmd_build(config_name: ref u8, exe_path: ref u8) i32 = {
             }
             if found_cfg == none {
                 trust stdio.print("error: build config '{s}' not found in sx.mod\n", {config_name})
+                return 1
+            }
+
+            val ensure_visited: mut list[ref u8] = mem.new[ref u8]()
+            if trust ensure_deps_in_dir(c".", ensure_visited) != 0 {
+                return 1
+            }
+            trust fs.mkdir_path_cstr(c".sx")
+            val action_visited: mut list[ref u8] = mem.new[ref u8]()
+            if trust run_dep_actions_in_dir(c".", action_visited) != 0 {
                 return 1
             }
 
@@ -1298,7 +1874,10 @@ pub fn cmd_add(url: ref u8) i32 = trust {
         return 1
     }
 
-    val dep_line: ref u8 = @fmtalloc("dep \"{s}\"\n", {url})
+    val dep_line: ref u8 = @fmtalloc(
+        "dep \"{s}\" \{\n    build_action []\n\}\n",
+        {url}
+    )
     fs.append_all_cstr(c"sx.mod", dep_line)
 
     val hash_cmd: ref u8 = @fmtalloc("git -C {s} rev-parse HEAD", {lib_path})
@@ -1402,7 +1981,8 @@ fn restore_in_dir(base_dir: ref u8, visited: mut list[ref u8]) i32 = trust {
     }
     fs.mkdir_path_cstr(lib_dir)
 
-    for dep_url in sxmod.deps {
+    for dep in sxmod.deps {
+        val dep_url: ref u8 = dep.url
         val hash: ref u8 = lock_hash_for_url(lock_deps, dep_url)
         if cstr.cmp(hash, c"") == 0 {
             stdio.print("error: '{s}' missing from sx.lock in {s}\n", {dep_url, base_dir})
@@ -1471,7 +2051,8 @@ pub fn cmd_restore() i32 = trust {
     val visited: mut list[ref u8] = mem.new[ref u8]()
     @append(visited, c".")
 
-    for dep_url in sxmod.deps {
+    for dep in sxmod.deps {
+        val dep_url: ref u8 = dep.url
         val hash: ref u8 = lock_hash_for_url(lock_deps, dep_url)
         if cstr.cmp(hash, c"") == 0 {
             stdio.print("error: dependency '{s}' is missing from sx.lock\n", {dep_url})
@@ -1549,7 +2130,8 @@ fn print_graph_node(
                 child_prefix = @fmtalloc("{s}    ", {prefix})
             }
             val i: mut i64 = 0
-            for dep_url in child_mod.deps {
+            for dep in child_mod.deps {
+                val dep_url: ref u8 = dep.url
                 val dep_name: ref u8 = repo_name_from_url(dep_url)
                 val dep_dir: ref u8 = @fmtalloc("{s}/lib/{s}", {base_dir, dep_name})
                 print_graph_node(dep_dir, dep_name, dep_url, child_prefix, i == ndeps - 1, visited)
@@ -1596,7 +2178,8 @@ pub fn cmd_graph() i32 = trust {
     @append(visited, c".")
 
     val i: mut i64 = 0
-    for dep_url in sxmod.deps {
+    for dep in sxmod.deps {
+        val dep_url: ref u8 = dep.url
         val dep_name: ref u8 = repo_name_from_url(dep_url)
         val dep_dir: ref u8 = @fmtalloc("lib/{s}", {dep_name})
         print_graph_node(dep_dir, dep_name, dep_url, c"", i == ndeps - 1, visited)
