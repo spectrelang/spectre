@@ -2114,18 +2114,65 @@ fn cg_mc_vals(ctx: ref CgCtx) ref void = trust {
     return ctx.mc_vals as ref void
 }
 
-fn cg_register_module_const(ctx: mut ref CgCtx, name: ref u8, val_str: ref u8) void = trust {
-    @append(cg_mc_names(ctx) as list[ref u8], name)
-    @append(cg_mc_vals(ctx) as list[ref u8], val_str)
-    if !collections.RawIndexMap.contains(ctx.mc_index, name) {
+fn cg_mc_set(ctx: mut ref CgCtx, name: ref u8, val_str: ref u8, overwrite: bool) void = trust {
+    if overwrite || !collections.RawIndexMap.contains(ctx.mc_index, name) {
         val val_str_usize: mut usize = 0
         @store(@addr(val_str_usize) as ref void, val_str)
         collections.RawIndexMap.set(ctx.mc_index, name, val_str_usize)
     }
 }
 
+fn cg_register_module_const(ctx: mut ref CgCtx, name: ref u8, val_str: ref u8) void = trust {
+    @append(cg_mc_names(ctx) as list[ref u8], name)
+    @append(cg_mc_vals(ctx) as list[ref u8], val_str)
+    cg_mc_set(ctx, name, val_str, false)
+}
+
+/// Register a constant under both its bare name and its module-qualified name.
+///
+/// Bare names are only authoritative for the root module: imported modules are
+/// compiled first, so a first-wins bare map would let e.g. `std/math/static.PI`
+/// shadow the program's own `PI`. Non-root modules therefore also register
+/// `"<prefix>__<name>"`, which cg_const_val consults first.
+fn cg_register_module_const_qualified(
+    ctx: mut ref CgCtx,
+    mod_prefix: ref u8,
+    name: ref u8,
+    val_str: ref u8
+) void = trust {
+    if mod_prefix == none || cstr.cmp(mod_prefix, c"") == 0 {
+        cg_register_module_const(ctx, name, val_str)
+        cg_mc_set(ctx, name, val_str, true)
+        return
+    }
+    cg_register_module_const(ctx, name, val_str)
+    val prefix_len: i64 = cstr.len(mod_prefix)
+    val name_len: i64 = cstr.len(name)
+    val cap: i64 = prefix_len + name_len + 3
+    val key: ref u8 = allocators.ScopedArena.alloc_or_none(
+        ctx.arena,
+        cap as usize
+    ) as ref u8
+    @snprintf(key, cap, "{s}__{s}", {mod_prefix, name})
+    cg_mc_set(ctx, key, val_str, true)
+}
+
 /// Look up a module-level constant value by name. Returns "" if not found.
 fn cg_const_val(ctx: ref CgCtx, name: ref u8) ref u8 = trust {
+    val prefix: ref u8 = ctx.current_module_prefix
+    if prefix != none && cstr.cmp(prefix, c"") != 0 && name != none {
+        val prefix_len: i64 = cstr.len(prefix)
+        val name_len: i64 = cstr.len(name)
+        val cap: i64 = prefix_len + name_len + 3
+        val key: ref u8 = allocators.ScopedArena.alloc_or_none(
+            ctx.arena,
+            cap as usize
+        ) as ref u8
+        @snprintf(key, cap, "{s}__{s}", {prefix, name})
+        if collections.RawIndexMap.get(ctx.mc_index, key) is some v {
+            return v as ref u8
+        }
+    }
     if collections.RawIndexMap.get(ctx.mc_index, name) is some v {
         return v as ref u8
     } else {
@@ -12439,6 +12486,7 @@ fn expr_qtype(ctx: mut ref CgCtx, node: ref parser.Node) ref u8 = trust {
 
 fn cg_emit_embed_const(
     ctx: mut ref CgCtx,
+    mod_prefix: ref u8,
     cname: ref u8,
     const_label: ref u8,
     cexpr: ref parser.Node
@@ -12458,8 +12506,9 @@ fn cg_emit_embed_const(
         if (@len(ctx.embed_labels) as i64) > before {
             cg_emit_embed_data(ctx, epath, label, cexpr.d3)
         }
-        cg_register_module_const(
+        cg_register_module_const_qualified(
             ctx,
+            mod_prefix,
             cname,
             arenafmt.format(ctx.arena, "${s}", {label}).ptr
         )
@@ -12467,7 +12516,7 @@ fn cg_emit_embed_const(
     }
     if cstr.cmp(bname, c"embedlen") == 0 {
         val sval: ref u8 = arenafmt.format(ctx.arena, "{lld}", {cexpr.d3}).ptr
-        cg_register_module_const(ctx, cname, sval)
+        cg_register_module_const_qualified(ctx, mod_prefix, cname, sval)
         if cg_emit_label_if_new(ctx, const_label) {
             val data_buf: ref u8 = allocators.ScopedArena.alloc_or_none(
                 ctx.arena,
@@ -19784,15 +19833,7 @@ fn preregister_items(
                     }
                 }
                 if cval_reg != none {
-                    cg_register_module_const(ctx, cname, cval_reg)
-                    if cstr.cmp(mod_prefix, c"") != 0 {
-                        val pkey: ref u8 = allocators.ScopedArena.alloc_or_none(
-                            ctx.arena,
-                            512 as usize
-                        ) as ref u8
-                        @snprintf(pkey, 512, "{s}__{s}", {mod_prefix, cname})
-                        cg_register_module_const(ctx, pkey, cval_reg)
-                    }
+                    cg_register_module_const_qualified(ctx, mod_prefix, cname, cval_reg)
                 }
             } elif k == parser.NK_WHEN_ITEMS {
                 val plat: ref u8 = parser.node_str_raw(node.d0)
@@ -20056,7 +20097,7 @@ fn gen_items_with_prefix(
                             ctx,
                             parser.int_lit_text_raw(cexpr)
                         )
-                        cg_register_module_const(ctx, cname, cval)
+                        cg_register_module_const_qualified(ctx, mod_prefix, cname, cval)
                         if cg_emit_label_if_new(ctx, const_label) {
                             val data_buf: ref u8 = allocators.ScopedArena.alloc_or_none(
                                 ctx.arena,
@@ -20077,11 +20118,11 @@ fn gen_items_with_prefix(
                             128 as usize
                         ) as ref u8
                         @snprintf(fval, 128, "d_{s}", {ftext})
-                        cg_register_module_const(ctx, cname, fval)
+                        cg_register_module_const_qualified(ctx, mod_prefix, cname, fval)
                     } elif cexpr.kind == parser.NK_UNOP {
                         val cval: ref u8 = const_unop_value(ctx, cexpr)
                         if cstr.cmp(cval, c"") != 0 {
-                            cg_register_module_const(ctx, cname, cval)
+                            cg_register_module_const_qualified(ctx, mod_prefix, cname, cval)
                             if starts_with_cstr(
                                 cval,
                                 c"d_"
@@ -20112,7 +20153,7 @@ fn gen_items_with_prefix(
                             target
                         )
                         if cstr.cmp(cval, c"") != 0 {
-                            cg_register_module_const(ctx, cname, cval)
+                            cg_register_module_const_qualified(ctx, mod_prefix, cname, cval)
                             if starts_with_cstr(
                                 cval,
                                 c"d_"
@@ -20136,10 +20177,10 @@ fn gen_items_with_prefix(
                         val bval: i64 = cexpr.d0 as i64
                         val bstr: mut ref u8 = c"0"
                         if bval != 0 {
-                            cg_register_module_const(ctx, cname, c"1")
+                            cg_register_module_const_qualified(ctx, mod_prefix, cname, c"1")
                             bstr = c"1"
                         } else {
-                            cg_register_module_const(ctx, cname, c"0")
+                            cg_register_module_const_qualified(ctx, mod_prefix, cname, c"0")
                         }
                         if cg_emit_label_if_new(ctx, const_label) {
                             val data_buf3: ref u8 = allocators.ScopedArena.alloc_or_none(
@@ -20160,7 +20201,7 @@ fn gen_items_with_prefix(
                             cg_register_global(ctx, cname, const_label, c"l", c"")
                         } else { }
                     } elif cexpr.kind == parser.NK_BUILTIN {
-                        if !cg_emit_embed_const(ctx, cname, const_label, cexpr) { }
+                        if !cg_emit_embed_const(ctx, mod_prefix, cname, const_label, cexpr) { }
                     } else {
                         emit_const_runtime_global(ctx, mod_prefix, node)
                     }
@@ -21493,7 +21534,7 @@ fn gen_items_with_prefix_skip_links(
                             ctx,
                             parser.int_lit_text_raw(cexpr)
                         )
-                        cg_register_module_const(ctx, cname, cval)
+                        cg_register_module_const_qualified(ctx, mod_prefix, cname, cval)
                         if cg_emit_label_if_new(ctx, const_label) {
                             val data_buf: ref u8 = allocators.ScopedArena.alloc_or_none(
                                 ctx.arena,
@@ -21514,11 +21555,11 @@ fn gen_items_with_prefix_skip_links(
                             128 as usize
                         ) as ref u8
                         @snprintf(fval, 128, "d_{s}", {ftext})
-                        cg_register_module_const(ctx, cname, fval)
+                        cg_register_module_const_qualified(ctx, mod_prefix, cname, fval)
                     } elif cexpr.kind == parser.NK_UNOP {
                         val cval: ref u8 = const_unop_value(ctx, cexpr)
                         if cstr.cmp(cval, c"") != 0 {
-                            cg_register_module_const(ctx, cname, cval)
+                            cg_register_module_const_qualified(ctx, mod_prefix, cname, cval)
                             if starts_with_cstr(
                                 cval,
                                 c"d_"
@@ -21549,7 +21590,7 @@ fn gen_items_with_prefix_skip_links(
                             target
                         )
                         if cstr.cmp(cval, c"") != 0 {
-                            cg_register_module_const(ctx, cname, cval)
+                            cg_register_module_const_qualified(ctx, mod_prefix, cname, cval)
                             if starts_with_cstr(
                                 cval,
                                 c"d_"
@@ -21573,10 +21614,10 @@ fn gen_items_with_prefix_skip_links(
                         val bval: i64 = cexpr.d0 as i64
                         val bstr: mut ref u8 = c"0"
                         if bval != 0 {
-                            cg_register_module_const(ctx, cname, c"1")
+                            cg_register_module_const_qualified(ctx, mod_prefix, cname, c"1")
                             bstr = c"1"
                         } else {
-                            cg_register_module_const(ctx, cname, c"0")
+                            cg_register_module_const_qualified(ctx, mod_prefix, cname, c"0")
                         }
                         if cg_emit_label_if_new(ctx, const_label) {
                             val data_buf3: ref u8 = allocators.ScopedArena.alloc_or_none(
@@ -21597,7 +21638,7 @@ fn gen_items_with_prefix_skip_links(
                             cg_register_global(ctx, cname, const_label, c"l", c"")
                         } else { }
                     } elif cexpr.kind == parser.NK_BUILTIN {
-                        if !cg_emit_embed_const(ctx, cname, const_label, cexpr) { }
+                        if !cg_emit_embed_const(ctx, mod_prefix, cname, const_label, cexpr) { }
                     } else {
                         emit_const_runtime_global(ctx, mod_prefix, node)
                     }
@@ -21691,8 +21732,9 @@ fn gen_items_with_prefix_skip_main(
                 val cexpr: ref parser.Node = node.d2 as ref parser.Node
                 if cexpr != none {
                     if cexpr.kind == parser.NK_INT_LIT {
-                        cg_register_module_const(
+                        cg_register_module_const_qualified(
                             ctx,
+                            mod_prefix,
                             cname,
                             normalize_static_int_text(ctx, parser.int_lit_text_raw(cexpr))
                         )
@@ -21703,11 +21745,11 @@ fn gen_items_with_prefix_skip_main(
                             128 as usize
                         ) as ref u8
                         @snprintf(fval3, 128, "d_{s}", {ftext3})
-                        cg_register_module_const(ctx, cname, fval3)
+                        cg_register_module_const_qualified(ctx, mod_prefix, cname, fval3)
                     } elif cexpr.kind == parser.NK_UNOP {
                         val uval: ref u8 = const_unop_value(ctx, cexpr)
                         if cstr.cmp(uval, c"") != 0 {
-                            cg_register_module_const(ctx, cname, uval)
+                            cg_register_module_const_qualified(ctx, mod_prefix, cname, uval)
                         }
                     } elif cexpr.kind == parser.NK_CAST {
                         val target: ref u8 = type_expr_to_annotation(
@@ -21720,14 +21762,14 @@ fn gen_items_with_prefix_skip_main(
                             target
                         )
                         if cstr.cmp(cast_val, c"") != 0 {
-                            cg_register_module_const(ctx, cname, cast_val)
+                            cg_register_module_const_qualified(ctx, mod_prefix, cname, cast_val)
                         }
                     } elif cexpr.kind == parser.NK_BOOL {
                         val bval2: i64 = cexpr.d0 as i64
                         if bval2 != 0 {
-                            cg_register_module_const(ctx, cname, c"1")
+                            cg_register_module_const_qualified(ctx, mod_prefix, cname, c"1")
                         } else {
-                            cg_register_module_const(ctx, cname, c"0")
+                            cg_register_module_const_qualified(ctx, mod_prefix, cname, c"0")
                         }
                     } elif cexpr.kind == parser.NK_LIST_LIT {
                         val const_label2: ref u8 = allocators.ScopedArena.alloc_or_none(
