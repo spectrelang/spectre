@@ -318,6 +318,27 @@ fn token_needs_quote(value: ref u8) bool = trust {
     return false
 }
 
+fn is_inside_quotes(s: ref u8, pos: i64) bool = trust {
+    val single: mut bool = false
+    val double: mut bool = false
+    val i: mut i64 = 0
+    for {
+        if i >= pos {
+            break
+        }
+        val c: u8 = @load8(@ptradd(s, i)) as u8
+        if c == 34 && !single {
+            double = !double
+        } elif c == 39 && !double {
+            when posix {
+                single = !single
+            }
+        }
+        i++
+    }
+    return single || double
+}
+
 fn join_tokens(items: list[ref u8]) ref u8 = trust {
     val out: mut ref u8 = c""
     for item in items {
@@ -450,7 +471,13 @@ fn resolve_var_ref(
     return r
 }
 
-fn expand_var_refs(m: ref SxMod, root: ref u8, target: ref u8, s: ref u8) ref u8 = trust {
+fn expand_var_refs(
+    m: ref SxMod,
+    root: ref u8,
+    target: ref u8,
+    s: ref u8,
+    quote_context: bool
+) ref u8 = trust {
     if s == none {
         return s
     }
@@ -466,7 +493,12 @@ fn expand_var_refs(m: ref SxMod, root: ref u8, target: ref u8, s: ref u8) ref u8
             if vr_opt != none {
                 val vr: ref VarRef = vr_opt
                 if vr.value != none {
-                    total = total + cstr.len(vr.value)
+                    val vlen: mut i64 = cstr.len(vr.value)
+                    if quote_context && token_needs_quote(vr.value)
+                    && !is_inside_quotes(s, i) {
+                        vlen = vlen + 2
+                    }
+                    total = total + vlen
                     i = vr.after
                     continue
                 }
@@ -490,10 +522,19 @@ fn expand_var_refs(m: ref SxMod, root: ref u8, target: ref u8, s: ref u8) ref u8
             if vr_opt != none {
                 val vr: ref VarRef = vr_opt
                 if vr.value != none {
-                    val vlen: i64 = cstr.len(vr.value)
-                    @memcpy(@ptradd(out, oi), vr.value, vlen as usize)
+                    val quoted: bool = quote_context && token_needs_quote(vr.value)
+                        && !is_inside_quotes(s, i)
+                    val value: mut ref u8 = vr.value
+                    if quoted {
+                        value = builds.quote_arg(vr.value)
+                    }
+                    val vlen: i64 = cstr.len(value)
+                    @memcpy(@ptradd(out, oi), value, vlen as usize)
                     oi = oi + vlen
                     i = vr.after
+                    if quoted {
+                        @free(value)
+                    }
                     continue
                 }
             }
@@ -510,7 +551,8 @@ fn expand_list(
     m: ref SxMod,
     root: ref u8,
     target: ref u8,
-    values: mut list[ref u8]
+    values: mut list[ref u8],
+    quote_context: bool
 ) void = trust {
     val n: i64 = @len(values) as i64
     val i: mut i64 = 0
@@ -520,17 +562,23 @@ fn expand_list(
         }
         val e = @get(values, i as usize)
         if e is some entry {
-            @set(values, i as usize, expand_var_refs(m, root, target, entry as ref u8))
+            @set(values, i as usize, expand_var_refs(
+                m,
+                root,
+                target,
+                entry as ref u8,
+                quote_context
+            ))
         }
         i++
     }
 }
 
 fn expand_mod_strings(m: mut ref SxMod, root: ref u8, target: ref u8) void = trust {
-    m.entry = expand_var_refs(m, root, target, m.entry)
-    m.version = expand_var_refs(m, root, target, m.version)
-    m.spectre_version = expand_var_refs(m, root, target, m.spectre_version)
-    m.single_flags = expand_var_refs(m, root, target, m.single_flags)
+    m.entry = expand_var_refs(m, root, target, m.entry, false)
+    m.version = expand_var_refs(m, root, target, m.version, false)
+    m.spectre_version = expand_var_refs(m, root, target, m.spectre_version, false)
+    m.single_flags = expand_var_refs(m, root, target, m.single_flags, false)
 
     val dn: i64 = @len(m.deps) as i64
     val di: mut i64 = 0
@@ -541,8 +589,8 @@ fn expand_mod_strings(m: mut ref SxMod, root: ref u8, target: ref u8) void = tru
         val dep_opt = @get(m.deps, di as usize)
         if dep_opt is some dep_val {
             val dep: mut ref SxDep = dep_val as ref SxDep
-            dep.url = expand_var_refs(m, root, target, dep.url)
-            expand_list(m, root, target, dep.actions)
+            dep.url = expand_var_refs(m, root, target, dep.url, false)
+            expand_list(m, root, target, dep.actions, true)
         }
         di++
     }
@@ -556,11 +604,11 @@ fn expand_mod_strings(m: mut ref SxMod, root: ref u8, target: ref u8) void = tru
         val cfg_opt = @get(m.builds, bi as usize)
         if cfg_opt is some cfg_val {
             val cfg: mut ref SxBuildConfig = cfg_val as ref SxBuildConfig
-            expand_list(m, root, target, cfg.base.actions)
-            cfg.base.flags = expand_var_refs(m, root, target, cfg.base.flags)
-            cfg.base.output = expand_var_refs(m, root, target, cfg.base.output)
-            cfg.base.entry = expand_var_refs(m, root, target, cfg.base.entry)
-            expand_list(m, root, target, cfg.base.envs)
+            expand_list(m, root, target, cfg.base.actions, true)
+            cfg.base.flags = expand_var_refs(m, root, target, cfg.base.flags, true)
+            cfg.base.output = expand_var_refs(m, root, target, cfg.base.output, false)
+            cfg.base.entry = expand_var_refs(m, root, target, cfg.base.entry, false)
+            expand_list(m, root, target, cfg.base.envs, false)
             val rn: i64 = @len(cfg.rules) as i64
             val ri: mut i64 = 0
             for {
@@ -570,11 +618,11 @@ fn expand_mod_strings(m: mut ref SxMod, root: ref u8, target: ref u8) void = tru
                 val rule_opt = @get(cfg.rules, ri as usize)
                 if rule_opt is some rule_val {
                     val rule: mut ref SxBuildRule = rule_val as ref SxBuildRule
-                    expand_list(m, root, target, rule.actions)
-                    rule.flags = expand_var_refs(m, root, target, rule.flags)
-                    rule.output = expand_var_refs(m, root, target, rule.output)
-                    rule.entry = expand_var_refs(m, root, target, rule.entry)
-                    expand_list(m, root, target, rule.envs)
+                    expand_list(m, root, target, rule.actions, true)
+                    rule.flags = expand_var_refs(m, root, target, rule.flags, true)
+                    rule.output = expand_var_refs(m, root, target, rule.output, false)
+                    rule.entry = expand_var_refs(m, root, target, rule.entry, false)
+                    expand_list(m, root, target, rule.envs, false)
                 }
                 ri++
             }
