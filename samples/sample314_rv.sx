@@ -1,0 +1,74 @@
+// Regression sample: an Arena stored in a list must remain a shared handle.
+// This mirrors the compiler's `list[allocators.Arena]` usage in docs.sx.
+
+val allocators = use("std/allocators")
+
+fn alloc_bytes(arena: allocators.Arena, size: usize) ref u8 = trust {
+    val out = allocators.Arena.alloc(arena, size)
+    match out {
+        some p => {
+            return p as ref u8
+        }
+        none => {
+            return none
+        }
+    }
+}
+
+pub fn main() i32 = trust {
+    val heap: allocators.HeapAllocator = @zeroed
+    val arenas_res = @listalloc[
+        allocators.HeapAllocator,
+        allocators.Arena
+    ](heap)
+    val arenas: mut list[allocators.Arena] = none
+    match arenas_res {
+        ok items => {
+            arenas = items
+        }
+        err _ => {
+            assert false
+            return 1
+        }
+    }
+
+    val first: allocators.Arena = allocators.Arena.new(128 as usize)?
+    val second: allocators.Arena = allocators.Arena.new(128 as usize)?
+    @append(arenas, first)
+    @append(arenas, second)
+
+    val first_item = @get(arenas, 0 as usize)
+    match first_item {
+        some a => {
+            val p = alloc_bytes(a, 8 as usize)
+            assert p != none
+            assert allocators.Arena.used(a) == 8
+            assert allocators.Arena.used(first) == 8
+            assert allocators.Arena.used(second) == 0
+        }
+        none => {
+            assert false
+            return 1
+        }
+    }
+
+    val second_item = @get(arenas, 1 as usize)
+    match second_item {
+        some a => {
+            val p = alloc_bytes(a, 24 as usize)
+            assert p != none
+            assert allocators.Arena.used(a) == 24
+            assert allocators.Arena.used(second) == 24
+        }
+        none => {
+            assert false
+            return 1
+        }
+    }
+
+    for a in arenas {
+        allocators.Arena.free(a)
+    }
+    @listfree(arenas)
+    return 0
+}

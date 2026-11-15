@@ -10705,6 +10705,7 @@ fn gen_store_field_value(
     val fname: ref u8 = parser.field_name_raw(target)
     val foffset: mut i64 = 0
     val field_is_union: mut bool = false
+    val field_ty_node: mut ref parser.Node = none
 
     val owner_lookup: mut ref u8 = c""
     if ftarget.kind == parser.NK_IDENT {
@@ -10830,6 +10831,7 @@ fn gen_store_field_value(
                         if cstr.cmp(sf3name, fname) == 0 {
                             val sf3ty: ref parser.Node = sf3n.d2 as ref parser.Node
                             if sf3ty != none {
+                                field_ty_node = sf3ty
                                 if sf3ty.kind == parser.TY_NAMED {
                                     val ftnm: ref u8 = parser.node_str_raw(sf3ty.d0)
                                     val sflds: ref void = cg_lookup_struct(ctx, ftnm)
@@ -10847,12 +10849,20 @@ fn gen_store_field_value(
             }
         }
 
+        val needs_aggregate_copy: bool = cg_type_needs_aggregate_copy(
+            ctx,
+            field_ty_node
+        )
+        if needs_aggregate_copy {
+            field_size_write = cg_alloc_size_for_type(ctx, field_ty_node)
+        }
+
         val val_to_store: mut ref u8 = val_tmp2
-        if cstr.cmp(field_store_op, c"storeb") == 0 ||
+        if !needs_aggregate_copy && (cstr.cmp(field_store_op, c"storeb") == 0 ||
         cstr.cmp(field_store_op, c"storeh") == 0 ||
-        cstr.cmp(field_store_op, c"storew") == 0 {
+        cstr.cmp(field_store_op, c"storew") == 0) {
             val_to_store = cg_coerce_qtype(ctx, val_tmp2, val_qtype_n, c"w")
-        } elif cstr.cmp(field_store_op, c"storel") == 0 && cstr.cmp(val_qtype_n, c"w") == 0 {
+        } elif !needs_aggregate_copy && cstr.cmp(field_store_op, c"storel") == 0 && cstr.cmp(val_qtype_n, c"w") == 0 {
             val ext_tmp: i64 = fresh_tmp(ctx)
             val ext_buf: ref u8 = allocators.ScopedArena.alloc_or_none(
                 ctx.arena,
@@ -10869,10 +10879,10 @@ fn gen_store_field_value(
             ) as ref u8
             @snprintf(ext_res, 16, "%%t{lld}", {ext_tmp})
             val_to_store = ext_res
-        } elif cstr.cmp(
+        } elif !needs_aggregate_copy && (cstr.cmp(
             field_store_op,
             c"stores"
-        ) == 0 || cstr.cmp(field_store_op, c"stored") == 0 {
+        ) == 0 || cstr.cmp(field_store_op, c"stored") == 0) {
             val dst_qtype: mut ref u8 = c"d"
             if cstr.cmp(field_store_op, c"stores") == 0 {
                 dst_qtype = c"s"
@@ -10892,7 +10902,7 @@ fn gen_store_field_value(
             base = gen_expr(ctx, ftarget)
         }
         val buf3: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 128 as usize) as ref u8
-        if field_size_write > 8 {
+        if needs_aggregate_copy || field_size_write > 8 {
             if foffset == 0 {
                 @snprintf(
                     buf3,

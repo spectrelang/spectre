@@ -2920,7 +2920,7 @@ test "docs extracts comments, signatures and slugs" {
     val spec_src = trust extract_doc_map(
         \\/// allocator interface
         \\pub spec Allocator = {
-        \\    pub fn new(capacity: usize) result[Allocator, AllocError]
+        \\    pub fn new(capacity: usize) result[self, AllocError]
         \\}
     )
     assert cstr.eql(trust lookup_doc(spec_src, 2), c"allocator interface")

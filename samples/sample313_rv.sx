@@ -1,0 +1,46 @@
+// Regression sample: an Arena copied into a struct field must share the
+// original bump offset. Before the opaque-handle change, the field copy
+// snapshotted the offset and later allocations could overlap.
+
+val allocators = use("std/allocators")
+
+type Holder = {
+    arena: mut allocators.Arena
+}
+
+fn alloc_bytes(arena: allocators.Arena, size: usize) ref u8 = trust {
+    val out = allocators.Arena.alloc(arena, size)
+    match out {
+        some p => {
+            return p as ref u8
+        }
+        none => {
+            return none
+        }
+    }
+}
+
+pub fn main() i32 = trust {
+    val arena: allocators.Arena = allocators.Arena.new(256 as usize)?
+    val holder: Holder = {arena: arena}
+
+    val first = alloc_bytes(holder.arena, 16 as usize)
+    assert first != none
+    assert allocators.Arena.used(arena) == 16
+    assert allocators.Arena.used(holder.arena) == 16
+
+    val second = alloc_bytes(arena, 16 as usize)
+    assert second != none
+    assert allocators.Arena.used(arena) == 32
+    assert allocators.Arena.used(holder.arena) == 32
+    assert first != second
+
+    val other: Holder = {arena: arena}
+    assert allocators.Arena.used(other.arena) == 32
+
+    allocators.Arena.reset(other.arena)
+    assert allocators.Arena.used(arena) == 0
+
+    allocators.Arena.free(arena)
+    return 0
+}

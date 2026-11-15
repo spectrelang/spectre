@@ -1,16 +1,20 @@
+/// The shared state behind an arena handle.
+type ArenaHeader = {
+    buf: mut ref void
+    offset: mut usize
+    cap: mut usize
+}
+
 /// An arena hands out memory from a single large block.
 ///
 /// Individual allocations cannot be freed — the whole arena is freed at once.
 /// This is ideal for request-scoped or phase-scoped allocations.
 ///
-/// Layout of an Arena struct (3 fields × 8 bytes each):
-///   offset 0:  buf    — ref void, pointer to the backing block
-///   offset 8:  offset — usize, current bump position (bytes used)
-///   offset 16: cap    — usize, total capacity in bytes
+/// The public value is an 8-byte handle to a private header, so copying an
+/// arena into a struct field, list, or function parameter shares the same bump
+/// offset instead of snapshotting it.
 pub type (Allocator) Arena = {
-    buf: ref void
-    offset: usize
-    cap: usize
+    inner: mut ref ArenaHeader
 }
 
 /// An error that occurs when attempting to allocate memory.
@@ -21,45 +25,46 @@ pub enum AllocError = {
 
 /// Interface for the classic bump allocator.
 pub spec Allocator = {
-    pub fn new(capacity: usize) result[Allocator, AllocError]
+    pub fn new(capacity: usize) result[self, AllocError]
     pub fn free(a: self) void
     pub fn alloc(a: self, size: usize) option[ref void]
 }
 
 /// Create a new arena backed by a block of `capacity` bytes.
 /// Capacity must be > 0.
-pub fn (Arena) new(capacity: usize) result[Allocator, AllocError] = trust {
+pub fn (Arena) new(capacity: usize) result[Arena, AllocError] = trust {
     pre {
         capacity_positive: capacity > 0
     }
 
-    val header: ref void = @alloc(24)
-    if (header == none) {
+    val header: mut ref ArenaHeader = @alloc(
+        @sizeof(ArenaHeader) as usize
+    ) as mut ref ArenaHeader
+    if header == none {
         return err AllocError.OutOfMemory
     }
 
     val buf: ref void = @alloc(capacity)
-    if (buf == none) {
-        @free(header)
+    if buf == none {
+        @free(header as ref void)
         return err AllocError.OutOfMemory
     }
 
     @memset(buf, 0, capacity)
-    @store(header, buf)
-    @store(@ptradd(header, 8), 0)
-    @store(@ptradd(header, 16), capacity)
+    header.buf = buf
+    header.offset = 0
+    header.cap = capacity
 
-    return ok (header as Arena)
+    return ok Arena{inner: header}
 }
 
 /// Free the entire arena and its backing block.
 pub fn (Arena) free(arena: self) void = trust {
-    val au: mut ref Arena = arena as ref Arena
-    val buf: mut ref void = @load(au)
-    if buf != none {
-        @free(buf)
+    val header: mut ref ArenaHeader = arena.inner
+    if header.buf != none {
+        @free(header.buf)
     }
-    @free(au as ref void)
+    @free(header as ref void)
 }
 
 /// Allocate `size` bytes from the arena.
@@ -69,15 +74,13 @@ pub fn (Arena) alloc(arena: self, size: usize) option[ref void] = {
     guarded pre {
         pre_size_positive: size > 0
     }
-    val off: usize = trust @load(@ptradd(arena, 8)) as usize
-    val cap: usize = trust @load(@ptradd(arena, 16)) as usize
+    val header: mut ref ArenaHeader = arena.inner
     val aligned: usize = (size + 7) - ((size + 7) - ((size + 7) / 8) * 8)
-    if (off + aligned > cap) {
+    if header.offset + aligned > header.cap {
         return none
     }
-    val buf: ref void = trust @load(arena)
-    val ptr: ref void = trust @ptradd(buf, off)
-    trust @store(@ptradd(arena, 8), off + aligned)
+    val ptr: ref void = trust @ptradd(header.buf, header.offset as i64)
+    header.offset = header.offset + aligned
     return some ptr
 }
 
@@ -113,22 +116,22 @@ pub fn (Arena) alloc_raw(arena: self, size: usize) ref void = trust {
 
 /// Return the number of bytes currently used.
 pub fn (Arena) used(arena: self) usize = {
-    return trust @load(@ptradd(arena, 8)) as usize
+    return arena.inner.offset
 }
 
 /// Return the total capacity in bytes.
 pub fn (Arena) cap(arena: self) usize = {
-    return trust @load(@ptradd(arena, 16)) as usize
+    return arena.inner.cap
 }
 
 /// Return the number of bytes remaining.
 /// Contracts: used <= cap, so the subtraction never underflows.
 pub fn (Arena) remaining(arena: self) usize = {
     pre {
-        used_le_cap: trust @load(@ptradd(arena, 8)) <= trust @load(@ptradd(arena, 16))
+        used_le_cap: arena.inner.offset <= arena.inner.cap
     }
-    val off: usize = trust @load(@ptradd(arena, 8)) as usize
-    val cap: usize = trust @load(@ptradd(arena, 16)) as usize
+    val off: usize = arena.inner.offset
+    val cap: usize = arena.inner.cap
     post {
         used_le_cap: off <= cap
     }
@@ -137,10 +140,13 @@ pub fn (Arena) remaining(arena: self) usize = {
 
 /// Reset the arena — all previously allocated pointers become invalid.
 pub fn (Arena) reset(arena: self) void = trust {
-    val buf: mut ref void = @load(arena)
-    val cap: usize = @load(@ptradd(arena, 16)) as usize
-    @memset(buf, 0, cap)
-    @store(@ptradd(arena, 8), 0)
+    val header: mut ref ArenaHeader = arena.inner
+    @memset(header.buf, 0, header.cap)
+    header.offset = 0
+}
+
+type ArenaHolder = {
+    arena: mut Arena
 }
 
 test "arena allocates and tracks usage" {
@@ -163,31 +169,82 @@ test "arena allocates and tracks usage" {
     trust Arena.free(arena)
 }
 
+test "arena copies share one bump offset" {
+    val arena: Arena = trust Arena.new(128 as usize)?
+    val holder: ArenaHolder = {arena: arena}
+
+    val first = Arena.alloc(holder.arena, 8 as usize)
+    assert first != none
+    assert Arena.used(arena) == 8
+    assert Arena.used(holder.arena) == 8
+
+    val second = Arena.alloc(arena, 8 as usize)
+    assert second != none
+    assert Arena.used(arena) == 16
+    assert Arena.used(holder.arena) == 16
+
+    val p1: mut ref u8 = none
+    val p2: mut ref u8 = none
+    match first {
+        some p => {
+            p1 = p as ref u8
+        }
+        none => {
+            assert false
+        }
+    }
+    match second {
+        some p => {
+            p2 = p as ref u8
+        }
+        none => {
+            assert false
+        }
+    }
+    assert p1 != p2
+
+    trust Arena.reset(holder.arena)
+    assert Arena.used(arena) == 0
+
+    trust Arena.free(arena)
+}
+
 /// A Stack Allocator allows for LIFO (Last-In, First-Out) memory management.
 ///
 /// You can "save" the current position and "restore" to it later.
 ///
-/// Layout (identical to Arena for binary compatibility):
-///    offset 0:  buf    — ref void
-///    offset 8:  offset — usize
-///    offset 16: cap    — usize
+/// The public value is an 8-byte handle to a private header, so copies share
+/// the same checkpoint state.
+type StackHeader = {
+    buf: mut ref void
+    offset: mut usize
+    cap: mut usize
+}
+
 type (Allocator) Stack = {
-    buf: ref void
-    offset: usize
-    cap: usize
+    inner: mut ref StackHeader
 }
 
 /// Create a new stack allocator.
-pub fn (Stack) new(capacity: usize) result[Allocator, AllocError] = trust {
+pub fn (Stack) new(capacity: usize) result[Stack, AllocError] = trust {
     pre {
         capacity_positive: capacity > 0
     }
-    val header: mut ref void = @alloc(24)
+    val header: mut ref StackHeader = @alloc(
+        @sizeof(StackHeader) as usize
+    ) as mut ref StackHeader
+    if header == none {
+        return err AllocError.OutOfMemory
+    }
     val buf: ref void = @alloc(capacity)
-    @store(header, buf)
-    @store(@ptradd(header, 8), 0)
-    @store(@ptradd(header, 16), capacity)
-    return ok (header as Stack)
+    if buf == none {
+        @free(header as ref void)
+        return err AllocError.OutOfMemory
+    }
+    header.buf = buf
+    header.offset = 0
+    header.cap = capacity
+    return ok Stack{inner: header}
 }
 
 /// Allocate memory from the stack.
@@ -196,46 +253,42 @@ pub fn (Stack) alloc(stack: self, size: usize) option[ref void] = {
         size_positive: size > 0
     }
 
-    val off: usize = trust @load(@ptradd(stack, 8)) as usize
-    val cap: usize = trust @load(@ptradd(stack, 16)) as usize
+    val header: mut ref StackHeader = stack.inner
     val aligned: usize = (size + 7) & ~7
 
-    if (off + aligned > cap) {
+    if header.offset + aligned > header.cap {
         return none
     }
 
-    val buf: ref void = trust @load(stack)
-    val ptr: ref void = trust @ptradd(buf, off)
-
-    trust @store(@ptradd(stack, 8), off + aligned)
+    val ptr: ref void = trust @ptradd(header.buf, header.offset as i64)
+    header.offset = header.offset + aligned
     return some ptr
 }
 
 /// Capture the current state of the stack.
 /// The returned usize is a "marker" or "checkpoint".
 pub fn (Stack) save(stack: self) usize = {
-    return trust @load(@ptradd(stack, 8)) as usize
+    return stack.inner.offset
 }
 
 /// Restore the stack to a previous checkpoint.
 /// This effectively "frees" everything allocated after the 'save' call.
 pub fn (Stack) restore(stack: self, checkpoint: usize) void = {
     pre {
-        valid_checkpoint: checkpoint <= trust @load(@ptradd(stack, 16))
+        valid_checkpoint: checkpoint <= stack.inner.cap
         no_rewind_past_zero: checkpoint >= 0
     }
-    // Hmm...
-    trust @store(@ptradd(stack, 8), checkpoint)
+    val header: mut ref StackHeader = stack.inner
+    header.offset = checkpoint
 }
 
 /// Free the underlying memory.
 pub fn (Stack) free(stack: self) void = trust {
-    val su: mut ref Stack = stack as ref Stack
-    val buf: mut ref void = @load(su)
-    if buf != none {
-        @free(buf)
+    val header: mut ref StackHeader = stack.inner
+    if header.buf != none {
+        @free(header.buf)
     }
-    @free(su as ref void)
+    @free(header as ref void)
 }
 
 test "stack allocator saves and restores markers" {
@@ -250,6 +303,25 @@ test "stack allocator saves and restores markers" {
     val p2 = Stack.alloc(stack, 50 as usize)
 
     assert p2 == tmp1
+
+    trust Stack.free(stack)
+}
+
+type StackHolder = {
+    stack: mut Stack
+}
+
+test "stack copies share one checkpoint" {
+    val stack: Stack = trust Stack.new(256 as usize)?
+    val holder: StackHolder = {stack: stack}
+    val marker = Stack.save(holder.stack)
+
+    val first = Stack.alloc(holder.stack, 32 as usize)
+    assert first != none
+    assert Stack.save(stack) == 32
+
+    Stack.restore(stack, marker)
+    assert Stack.save(holder.stack) == marker
 
     trust Stack.free(stack)
 }
