@@ -1,0 +1,7 @@
+enum E = { A }
+
+fn f(_: E, _: f64) void = {}
+
+pub fn main() void = {
+    f(E.A, 3)
+}
