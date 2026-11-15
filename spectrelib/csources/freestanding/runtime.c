@@ -1867,6 +1867,7 @@ typedef sx_size_t SIZE_T;
 #define SX_MEM_RELEASE 0x8000u
 #define SX_PAGE_READWRITE 0x04u
 #define SX_CP_UTF8 65001u
+#define SX_ENABLE_VIRTUAL_TERMINAL_PROCESSING 0x0004u
 
 typedef struct {
   DWORD dwLowDateTime;
@@ -1911,6 +1912,8 @@ typedef struct {
 } SX_FILETIME2;
 
 __declspec(dllimport) HANDLE __stdcall GetStdHandle(DWORD);
+__declspec(dllimport) BOOL __stdcall GetConsoleMode(HANDLE, DWORD *);
+__declspec(dllimport) BOOL __stdcall SetConsoleMode(HANDLE, DWORD);
 __declspec(dllimport) BOOL __stdcall WriteFile(HANDLE, const void *, DWORD,
                                                DWORD *, void *);
 __declspec(dllimport) BOOL __stdcall ReadFile(HANDLE, void *, DWORD, DWORD *,
@@ -3238,6 +3241,7 @@ sx_i64 __sx_sys_isatty(sx_i64 fd) {
   unsigned char termios[64];
   return sx_sc3(SX_SYS_ioctl, fd, 0x5401, (sx_i64)(sx_uintptr_t)termios) == 0;
 }
+sx_i64 __sx_sys_console_supports_ansi(void) { return 1; }
 sx_i64 __sx_sys_realpath(const char *path, char *out, sx_size_t cap) {
   if (!path || !out || cap == 0)
     return -1;
@@ -3330,8 +3334,39 @@ sx_i64 __sx_sys_readlink(const char *path, char *buf, sx_size_t cap) {
   return -1;
 }
 sx_i64 __sx_sys_isatty(sx_i64 fd) {
-  (void)fd;
-  return 0;
+  DWORD id;
+  if (fd == 0)
+    id = SX_STD_INPUT_HANDLE;
+  else if (fd == 1)
+    id = SX_STD_OUTPUT_HANDLE;
+  else if (fd == 2)
+    id = SX_STD_ERROR_HANDLE;
+  else
+    return 0;
+  DWORD mode = 0;
+  return GetConsoleMode(GetStdHandle(id), &mode) ? 1 : 0;
+}
+
+static int sx_enable_console_vt(DWORD id) {
+  HANDLE handle = GetStdHandle(id);
+  DWORD mode = 0;
+  if (!GetConsoleMode(handle, &mode))
+    return -1;
+  if ((mode & SX_ENABLE_VIRTUAL_TERMINAL_PROCESSING) != 0)
+    return 1;
+  if (!SetConsoleMode(handle, mode | SX_ENABLE_VIRTUAL_TERMINAL_PROCESSING))
+    return 0;
+  if (!GetConsoleMode(handle, &mode))
+    return 0;
+  return (mode & SX_ENABLE_VIRTUAL_TERMINAL_PROCESSING) != 0 ? 1 : 0;
+}
+
+sx_i64 __sx_sys_console_supports_ansi(void) {
+  int out = sx_enable_console_vt(SX_STD_OUTPUT_HANDLE);
+  if (out <= 0)
+    return 0;
+  int err = sx_enable_console_vt(SX_STD_ERROR_HANDLE);
+  return err != 0;
 }
 sx_i64 __sx_sys_realpath(const char *path, char *out, sx_size_t cap) {
   if (!path || !out || cap == 0)

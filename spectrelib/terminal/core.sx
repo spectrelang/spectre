@@ -47,11 +47,17 @@ fn default_enabled() bool = trust {
     if env.has(c"NO_COLOR") {
         return false
     }
+    val is_tty: bool = rt.isatty(1) != 0
+    when windows {
+        if is_tty && !rt.console_supports_ansi() {
+            return false
+        }
+    }
     val forced: str.StringView = str.from_cstr(env.get(c"FORCE_COLOR"))
     if !str.is_empty(forced) && !str.eql_cstr(forced, c"0") {
         return true
     }
-    if rt.isatty(1) == 0 {
+    if !is_tty {
         return false
     }
     val term: str.StringView = str.from_cstr(env.get(c"TERM"))

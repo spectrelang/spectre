@@ -546,6 +546,8 @@ pub fn freestanding_windows_import_flags(
     val need_ws2: bool = links_use_library(links, c"ws2_32")
     val kernel: mut list[ref u8] = mem.new[ref u8]()
     @append(kernel, c"GetStdHandle")
+    @append(kernel, c"GetConsoleMode")
+    @append(kernel, c"SetConsoleMode")
     @append(kernel, c"WriteFile")
     @append(kernel, c"ReadFile")
     @append(kernel, c"CloseHandle")

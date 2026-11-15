@@ -1,7 +1,7 @@
-val time  = use("../time")
-val stdio = use("../stdio")
-val os    = use("../os")
-val rt    = use("../runtime")
+val time     = use("../time")
+val stdio    = use("../stdio")
+val os       = use("../os")
+val terminal = use("../terminal")
 
 
 pub enum Level = {
@@ -12,7 +12,7 @@ pub enum Level = {
     Fatal
 }
 
-val colors: mut bool = trust rt.isatty(1) != 0
+val colors: mut bool = terminal.is_enabled()
 val min_level: mut Level = Level.Debug
 
 pub fn set_colors(c: bool) void = {
@@ -39,11 +39,16 @@ fn get_time_string() ref u8 = {
     )
 }
 
-fn log_out(msg: ref u8, label: ref u8, color: ref u8) void = trust {
+fn log_out(msg: ref u8, label: ref u8, color: terminal.Color) void = trust {
     val ts = get_time_string()
     if colors {
         stdio.print(
-            "{s}{s}\x1b[0m [{s}{s}\x1b[0m] {s}{s}\x1b[0m\n", {color, ts, color, label, color, msg}
+            "{s}{s}{s} [{s}{s}{s}] {s}{s}{s}\n",
+            {
+                terminal.fg(color), ts, terminal.reset(),
+                terminal.fg(color), label, terminal.reset(),
+                terminal.fg(color), msg, terminal.reset()
+            }
         )
     } else {
         stdio.print(
@@ -52,11 +57,16 @@ fn log_out(msg: ref u8, label: ref u8, color: ref u8) void = trust {
     }
 }
 
-fn log_err(msg: ref u8, label: ref u8, color: ref u8) void = trust {
+fn log_err(msg: ref u8, label: ref u8, color: terminal.Color) void = trust {
     val ts = get_time_string()
     if colors {
         stdio.eprint(
-            "{s}{s}\x1b[0m [{s}{s}\x1b[0m] {s}{s}\x1b[0m\n", {color, ts, color, label, color, msg}
+            "{s}{s}{s} [{s}{s}{s}] {s}{s}{s}\n",
+            {
+                terminal.fg(color), ts, terminal.reset(),
+                terminal.fg(color), label, terminal.reset(),
+                terminal.fg(color), msg, terminal.reset()
+            }
         )
     } else {
         stdio.eprint(
@@ -69,32 +79,32 @@ pub fn debug(msg: ref u8) void = {
     if !should_log(Level.Debug) {
         return
     }
-    trust log_out(msg, c"DEBUG", c"\x1b[34m")
+    trust log_out(msg, c"DEBUG", terminal.Color.Blue)
 }
 
 pub fn info(msg: ref u8) void = {
     if !should_log(Level.Info) {
         return
     }
-    trust log_out(msg, c"INFO", c"\x1b[32m")
+    trust log_out(msg, c"INFO", terminal.Color.Green)
 }
 
 pub fn warn(msg: ref u8) void = {
     if !should_log(Level.Warn) {
         return
     }
-    trust log_err(msg, c"WARN", c"\x1b[33m")
+    trust log_err(msg, c"WARN", terminal.Color.Yellow)
 }
 
 pub fn error(msg: ref u8) void = {
     if !should_log(Level.Error) {
         return
     }
-    trust log_err(msg, c"ERROR", c"\x1b[31m")
+    trust log_err(msg, c"ERROR", terminal.Color.Red)
 }
 
 pub fn fatal(msg: ref u8) void = {
-    trust log_err(msg, c"FATAL", c"\x1b[31m")
+    trust log_err(msg, c"FATAL", terminal.Color.Red)
     trust os.exit(1)
 }
 

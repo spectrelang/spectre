@@ -75,6 +75,7 @@ when freestanding {
     extern (C) fn sx_realpath(path: ref u8, out: ref u8) ref u8 = "sx_realpath"
     extern (C) fn sx_readlink(path: ref u8, buf: ref u8, n: usize) i64 = "sx_readlink"
     extern (C) fn sx_isatty(fd: i32) i32 = "sx_isatty"
+    extern (C) fn sx_console_supports_ansi() i32 = "sx_console_supports_ansi"
     extern (C) fn sx_stat(path: ref u8, buf: ref void) i32 = "sx_stat"
     extern (C) fn sx_uname(buf: ref void) i32 = "sx_uname"
     extern (C) fn sx_opendir(path: ref u8) ref void = "sx_opendir"
@@ -237,6 +238,9 @@ otherwise {
         extern (C, header) fn c_strdup_win(s: ref u8) ref u8 = "_strdup"
         extern (C, header) fn c_popen_win(cmd: ref u8, mode: ref u8) ref void = "_popen"
         extern (C, header) fn c_pclose_win(pipe: ref void) i32 = "_pclose"
+        extern (C, header) fn c_get_std_handle(kind: i32) ref void = "GetStdHandle"
+        extern (C, header) fn c_get_console_mode(handle: ref void, mode: ref u32) i32 = "GetConsoleMode"
+        extern (C, header) fn c_set_console_mode(handle: ref void, mode: u32) i32 = "SetConsoleMode"
     }
 
     extern (C, header) fn c_exit(code: i32) void = "exit"
@@ -315,6 +319,38 @@ otherwise {
 
     extern (C, header) fn c_signal(sig: i32, handler: fn(i32) void) fn(i32) void = "signal"
     extern (C, header) fn c_raise(sig: i32) i32 = "raise"
+
+    when windows {
+        fn enable_console_vt(handle_id: i32) bool = trust {
+            val vt_flag: u32 = 4
+            val handle: ref void = c_get_std_handle(handle_id)
+            val mode: mut u32 = 0
+            if c_get_console_mode(handle, @addr(mode)) == 0 {
+                return false
+            }
+            if (mode & vt_flag) != 0 {
+                return true
+            }
+            if c_set_console_mode(handle, mode | vt_flag) == 0 {
+                return false
+            }
+            val updated: mut u32 = 0
+            if c_get_console_mode(handle, @addr(updated)) == 0 {
+                return false
+            }
+            return (updated & vt_flag) != 0
+        }
+
+        fn win32_console_supports_ansi() bool = trust {
+            if !enable_console_vt(-11) {
+                return false
+            }
+            if isatty(2) != 0 && !enable_console_vt(-12) {
+                return false
+            }
+            return true
+        }
+    }
 }
 
 pub fn alloc(size: usize) ref void = trust {
@@ -849,6 +885,24 @@ pub fn isatty(fd: i32) i32 = trust {
         }
         otherwise {
             return c_isatty(fd)
+        }
+    }
+}
+
+/// Return whether the current console can render ANSI escape sequences.
+///
+/// On Windows this attempts to enable virtual terminal processing. POSIX
+/// terminals are assumed to support ANSI.
+pub fn console_supports_ansi() bool = trust {
+    when freestanding {
+        return sx_console_supports_ansi() != 0
+    }
+    otherwise {
+        when windows {
+            return win32_console_supports_ansi()
+        }
+        otherwise {
+            return true
         }
     }
 }

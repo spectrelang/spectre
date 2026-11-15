@@ -40,6 +40,7 @@ extern (C) fn __sx_sys_remove(path: ref u8) i64 = "__sx_sys_remove"
 extern (C) fn __sx_sys_rename(oldpath: ref u8, newpath: ref u8) i64 = "__sx_sys_rename"
 extern (C) fn __sx_sys_readlink(path: ref u8, buf: ref u8, cap: usize) i64 = "__sx_sys_readlink"
 extern (C) fn __sx_sys_isatty(fd: i64) i64 = "__sx_sys_isatty"
+extern (C) fn __sx_sys_console_supports_ansi() i64 = "__sx_sys_console_supports_ansi"
 extern (C) fn __sx_sys_realpath(path: ref u8, out: ref u8, cap: usize) i64 = "__sx_sys_realpath"
 extern (C) fn __sx_sys_stat(path: ref u8, buf: ref void) i64 = "__sx_sys_stat"
 extern (C) fn __sx_sys_opendir(path: ref u8) ref void = "__sx_sys_opendir"
@@ -1863,6 +1864,10 @@ pub fn sx_readlink(path: ref u8, buf: ref u8, n: usize) i64 = trust {
 
 pub fn sx_isatty(fd: i32) i32 = trust {
     return r_isatty(fd)
+}
+
+pub fn sx_console_supports_ansi() i32 = trust {
+    return __sx_sys_console_supports_ansi() as i32
 }
 
 pub fn sx_stat(path: ref u8, buf: ref void) i32 = trust {

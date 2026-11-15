@@ -9,6 +9,8 @@
 
 # kernel32.dll
 GetStdHandle = "kernel32"
+GetConsoleMode = "kernel32"
+SetConsoleMode = "kernel32"
 WriteFile = "kernel32"
 ReadFile = "kernel32"
 CloseHandle = "kernel32"
