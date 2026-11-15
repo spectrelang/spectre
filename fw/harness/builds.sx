@@ -42,11 +42,11 @@ test "build helpers do not leak" {
         assert str.eql(parsed_alt_arg("-alt:clang"), "clang")
         assert str.eql(
             str.from_cstr(builds.windows_subsystem_flag(check.cptr("gnu"))),
-            "-Wl,/subsystem:console"
+            "-Wl,/subsystem:console,/opt:ref"
         )
         assert str.eql(
             str.from_cstr(builds.windows_subsystem_flag(check.cptr("msvc"))),
-            "/link /subsystem:console"
+            "/link /subsystem:console /opt:ref"
         )
         assert str.eql(
             str.from_cstr(builds.windows_subsystem_flag(check.cptr("tcc"))),

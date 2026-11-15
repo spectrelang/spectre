@@ -157,14 +157,14 @@ fn label_color(label: ref u8) terminal.Color = {
     if cstr.eql(label, LABEL) {
         return terminal.Color.BrightRed
     }
-    return terminal.Color.BrightYellow
+    return terminal.Color.Amber
 }
 
 fn caret_color(label: ref u8) terminal.Color = {
     if cstr.eql(label, LABEL) {
         return terminal.Color.Red
     }
-    return terminal.Color.Yellow
+    return terminal.Color.Amber
 }
 
 fn print_label(label: ref u8) void = trust {
@@ -250,14 +250,17 @@ pub fn eputs_warning_label() void = {
 }
 
 fn spaces(count: i64) void = trust {
-    val i: mut i64 = 0
-    for {
-        if i >= count {
-            break
-        }
-        stdio.print(" ", {})
-        i++
+    if count <= 0 {
+        return
     }
+    val buf: mut ref u8 = @alloc((count + 1) as usize) as ref u8
+    if buf == none {
+        return
+    }
+    @memset(buf, 32, count as usize)
+    @store8(@ptradd(buf, count), 0)
+    stdio.print("{s}", {buf})
+    @free(buf)
 }
 
 fn diag_path_is_absolute(p: ref u8) bool = trust {
@@ -407,7 +410,34 @@ fn report_at(
             stdio.print("\n", {})
             spaces(width)
             stdio.print(" | ", {})
-            spaces(actual_col - 1)
+            val caret_prefix_raw: i64 = caret_start - start
+            val caret_prefix_len: mut i64 = caret_prefix_raw
+            if caret_prefix_len < 0 {
+                caret_prefix_len = 0
+            }
+            val line_len: i64 = end - start
+            if caret_prefix_len > line_len {
+                caret_prefix_len = line_len
+            }
+            val caret_prefix: mut ref u8 = @alloc((caret_prefix_len + 1) as usize) as ref u8
+            if caret_prefix != none {
+                val prefix_i: mut i64 = 0
+                for {
+                    if prefix_i >= caret_prefix_len {
+                        break
+                    }
+                    val prefix_c: i64 = @load8(@ptradd(content, start + prefix_i)) as i64
+                    if prefix_c == 9 {
+                        @store8(@ptradd(caret_prefix, prefix_i), 9 as u8)
+                    } else {
+                        @store8(@ptradd(caret_prefix, prefix_i), 32 as u8)
+                    }
+                    prefix_i++
+                }
+                @store8(@ptradd(caret_prefix, caret_prefix_len), 0)
+                stdio.print("{s}", {caret_prefix})
+                @free(caret_prefix)
+            }
             terminal.print_repeat(str.from_cstr(c"^"), caret_len, caret_color(label))
             stdio.print("\n", {})
             @free(content)

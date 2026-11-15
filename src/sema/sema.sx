@@ -3,7 +3,6 @@ val ostr       = use("std/string/owned")
 val builder    = use("std/string/builder")
 val mem        = use("../meta/mem.sx")
 val fmt        = use("std/fmt")
-val stdio      = use("std/stdio")
 val math       = use("std/math")
 val allocators = use("std/allocators")
 val reflection = use("std/reflection")
@@ -12165,6 +12164,31 @@ fn function_suppresses_unused(
     return false
 }
 
+fn find_function_definition(ctx: ref SemaCtx, fn_name: ref u8) ref parser.Node = trust {
+    for item in ctx.fn_defs as list[ref parser.Node] {
+        if item == none {
+            continue
+        }
+        val k: i64 = item.kind
+        if k == parser.NK_FN || k == parser.NK_GENERIC_FN {
+            val full_name: ref u8 = fn_full_name(
+                ctx,
+                parser.node_str_raw(item.d1),
+                parser.node_str_raw(item.d2)
+            )
+            if full_name != none && cstr.eql(full_name, fn_name) {
+                return item
+            }
+        } elif k == parser.NK_EXTERN_FN {
+            val name: ref u8 = parser.node_str_raw(item.d1)
+            if name != none && cstr.eql(name, fn_name) {
+                return item
+            }
+        }
+    }
+    return none
+}
+
 
 pub fn check_module(
     arena: allocators.ScopedArenaAllocator,
@@ -12224,11 +12248,34 @@ pub fn check_module(
                     c"main"
                 ) && !is_variant && !is_public && !suppresses_unused {
                     if !no_warn {
+                        val fn_node: ref parser.Node = find_function_definition(ctx, namec)
+                        val wline: mut i64 = 0
+                        val wcol: mut i64 = 0
+                        val wspan: mut i64 = 0
+                        if fn_node != none {
+                            wline = fn_node.line
+                            wcol = fn_node.col
+                            wspan = fn_node.span
+                        }
                         val wbuf: ref u8 = allocators.ScopedArena.alloc_or_none(
                             ctx.arena,
-                            (256) as usize
+                            (512) as usize
                         ) as ref u8
-                        @snprintf(wbuf, 256, "{s}: unused function '{s}'", {filename, namec})
+                        if wcol > 0 && wspan > 0 {
+                            @snprintf(
+                                wbuf,
+                                512,
+                                "{s}:{lld}:{lld}:{lld}: unused function '{s}'",
+                                {filename, wline, wcol, wspan, namec}
+                            )
+                        } else {
+                            @snprintf(
+                                wbuf,
+                                512,
+                                "{s}:{lld}: unused function '{s}'",
+                                {filename, wline, namec}
+                            )
+                        }
                         @append(ctx.warnings, wbuf)
                     }
                 }
@@ -12238,8 +12285,7 @@ pub fn check_module(
     }
 
     for w in ctx.warnings {
-        diag.warning_label()
-        stdio.print(" {s}\n", {w})
+        diag.warning(w)
     }
 
     return ctx.errors

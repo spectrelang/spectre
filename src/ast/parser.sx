@@ -3749,7 +3749,9 @@ fn parse_fn_item(
             p_expect_rparen(p)?
         }
     }
+    val name_col: i64 = p_peek_col(p)
     val name = p_expect_ident(p)?
+    val name_span: i64 = cstr.len(name) as i64
     val type_params: mut list[ref Node] = mem.new[ref Node]()
     if lexer.kind_is_lbracket(p_peek_kind(p)) {
         p_advance(p)
@@ -3838,6 +3840,8 @@ fn parse_fn_item(
     }
     if @len(type_params) as i64 > 0 {
         val nfn: mut ref Node = make_node(p.arena, NK_GENERIC_FN, line)
+        nfn.col = name_col
+        nfn.span = name_span
         nfn.d0 = public | (is_unsafe << 1) | (is_inline << 2) | (suppress_flag << 3) | (is_variadic << 4)
         node_store_string_slot(@addr(nfn.d1), ns)
         node_store_string_slot(@addr(nfn.d2), name)
@@ -3851,6 +3855,8 @@ fn parse_fn_item(
         return ok nfn
     }
     val nfn: mut ref Node = make_node(p.arena, NK_FN, line)
+    nfn.col = name_col
+    nfn.span = name_span
     nfn.d0 = public
     node_store_string_slot(@addr(nfn.d1), ns)
     node_store_string_slot(@addr(nfn.d2), name)
@@ -4102,7 +4108,9 @@ fn parse_extern_fn_item(
     }
     p_expect_rparen(p)?
     p_expect_kind(p, kind_is_fn, c"fn")?
+    val name_col: i64 = p_peek_col(p)
     val name = p_expect_ident(p)?
+    val name_span: i64 = cstr.len(name) as i64
     p_expect_lparen(p)?
     val params: mut list[ref Node] = mem.new[ref Node]()
     val is_variadic: mut i64 = 0
@@ -4136,6 +4144,8 @@ fn parse_extern_fn_item(
     p_expect_eq(p)?
     val symbol = p_expect_string(p)?
     val nef: mut ref Node = make_node(p.arena, NK_EXTERN_FN, line)
+    nef.col = name_col
+    nef.span = name_span
     nef.d0 = public
     node_store_string_slot(@addr(nef.d1), name)
     node_store_string_slot(@addr(nef.d2), symbol)
