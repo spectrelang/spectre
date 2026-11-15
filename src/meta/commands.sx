@@ -318,25 +318,42 @@ fn token_needs_quote(value: ref u8) bool = trust {
     return false
 }
 
-fn is_inside_quotes(s: ref u8, pos: i64) bool = trust {
-    val single: mut bool = false
-    val double: mut bool = false
-    val i: mut i64 = 0
-    for {
-        if i >= pos {
-            break
+when windows {
+    fn is_inside_quotes(s: ref u8, pos: i64) bool = trust {
+        val double: mut bool = false
+        val i: mut i64 = 0
+        for {
+            if i >= pos {
+                break
+            }
+            val c: u8 = @load8(@ptradd(s, i)) as u8
+            if c == 34 {
+                double = !double
+            }
+            i++
         }
-        val c: u8 = @load8(@ptradd(s, i)) as u8
-        if c == 34 && !single {
-            double = !double
-        } elif c == 39 && !double {
-            when posix {
+        return double
+    }
+}
+otherwise {
+    fn is_inside_quotes(s: ref u8, pos: i64) bool = trust {
+        val single: mut bool = false
+        val double: mut bool = false
+        val i: mut i64 = 0
+        for {
+            if i >= pos {
+                break
+            }
+            val c: u8 = @load8(@ptradd(s, i)) as u8
+            if c == 34 && !single {
+                double = !double
+            } elif c == 39 && !double {
                 single = !single
             }
+            i++
         }
-        i++
+        return single || double
     }
-    return single || double
 }
 
 fn join_tokens(items: list[ref u8]) ref u8 = trust {
