@@ -14,6 +14,7 @@ val arenafmt   = use("arenafmt.sx")
 val lexer      = use("../ast/lexer.sx")
 val parser     = use("../ast/parser.sx")
 val commands   = use("commands.sx")
+val diag       = use("diag.sx")
 
 type DocArenaState = {
     arena: mut allocators.ScopedArenaAllocator
@@ -1134,7 +1135,8 @@ fn load_module(
             src_arena_cap = sz as i64
         }
     } else {
-        stdio.print("error: could not read '{s}'\n", {source_path})
+        diag.error_label()
+        stdio.print(" could not read '{s}'\n", {source_path})
         os.exit(1)
     }
     val src_arena: allocators.Arena = allocators.Arena.new((src_arena_cap + 8) as usize)?
@@ -1144,7 +1146,8 @@ fn load_module(
         src = text as ref u8
     } else {
         allocators.Arena.free(src_arena)
-        stdio.print("error: could not read '{s}'\n", {source_path})
+        diag.error_label()
+        stdio.print(" could not read '{s}'\n", {source_path})
         os.exit(1)
     }
     val doc_map = extract_doc_map(str.from_cstr(src))
@@ -1156,7 +1159,8 @@ fn load_module(
             toks = t
         }
         err e => {
-            stdio.print("error: {s}: {s}\n", {source_path, e})
+            diag.error_label()
+            stdio.print(" {s}: {s}\n", {source_path, e})
             os.exit(1)
         }
     }
@@ -1167,7 +1171,8 @@ fn load_module(
             items = p
         }
         err e => {
-            stdio.print("error: {s}\n", {e})
+            diag.error_label()
+            stdio.print(" {s}\n", {e})
             os.exit(1)
         }
     }
@@ -2705,13 +2710,15 @@ pub fn cmd_doc(
         allocators.ScopedArena.free(parse_arena)
     }
     if cstr.eql(target, c"") {
-        stdio.puts("error: doc requires a file or directory target")
+        diag.puts_error_label()
+        stdio.puts(" doc requires a file or directory target")
         return 1
     }
     val readme_override: mut ref u8 = c""
     if !cstr.eql(read_override, c"") {
         if !os.exists(read_override) {
-            stdio.print("error: could not read '{s}'\n", {read_override})
+            diag.error_label()
+            stdio.print(" could not read '{s}'\n", {read_override})
             return 1
         }
         readme_override = read_text_file_or_empty(read_override)
@@ -2722,7 +2729,8 @@ pub fn cmd_doc(
         out_dir = output_override
     }
     if !ensure_dir(out_dir) {
-        stdio.print("error: could not create '{s}'\n", {out_dir})
+        diag.error_label()
+        stdio.print(" could not create '{s}'\n", {out_dir})
         return 1
     }
     if target_is_dir {
@@ -2730,7 +2738,8 @@ pub fn cmd_doc(
         val files: mut list[ref u8] = mem.new[ref u8]()
         collect_sx_files(clean_target, c"", files)
         if @len(files) as i64 == 0 {
-            stdio.print("error: no .sx files found in '{s}'\n", {target})
+            diag.error_label()
+            stdio.print(" no .sx files found in '{s}'\n", {target})
             return 1
         }
         val modules: mut list[ref DocModule] = mem.new[ref DocModule]()
@@ -2763,7 +2772,8 @@ pub fn cmd_doc(
         }
         val overview = render_overview_page(markdown, modules, index_rel, clean_target, readme)
         if !write_page(index_path, overview) {
-            stdio.print("error: could not write '{s}'\n", {index_path})
+            diag.error_label()
+            stdio.print(" could not write '{s}'\n", {index_path})
             @free(index_path)
             return 1
         }
@@ -2778,7 +2788,8 @@ pub fn cmd_doc(
                 content = render_module_page_html(mod, modules)
             }
             if !write_page(full_path, content) {
-                stdio.print("error: could not write '{s}'\n", {full_path})
+                diag.error_label()
+                stdio.print(" could not write '{s}'\n", {full_path})
                 @free(full_path)
                 return 1
             }
@@ -2789,15 +2800,18 @@ pub fn cmd_doc(
     }
 
     if !os.exists(target) {
-        stdio.print("error: could not read '{s}'\n", {target})
+        diag.error_label()
+        stdio.print(" could not read '{s}'\n", {target})
         return 1
     }
     if !cstr.ends_with(target, c".sx") {
-        stdio.puts("error: doc expects a .sx file or a directory")
+        diag.puts_error_label()
+        stdio.puts(" doc expects a .sx file or a directory")
         return 1
     }
     if !cstr.eql(read_override, c"") {
-        stdio.puts("error: -read requires a directory target")
+        diag.puts_error_label()
+        stdio.puts(" -read requires a directory target")
         return 1
     }
     val rel_path = normalize_rel_path(path_basename(target))
@@ -2818,7 +2832,8 @@ pub fn cmd_doc(
     }
     val out_path: mut ref u8 = path.join_cstr(out_dir, module.output_path)
     if !write_page(out_path, content) {
-        stdio.print("error: could not write '{s}'\n", {out_path})
+        diag.error_label()
+        stdio.print(" could not write '{s}'\n", {out_path})
         @free(out_path)
         return 1
     }

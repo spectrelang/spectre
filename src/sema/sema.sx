@@ -4829,6 +4829,193 @@ fn get_expr_type_category(ctx: ref SemaCtx, node: ref parser.Node) ref u8 = trus
     return c"unknown"
 }
 
+fn argspack_callee_is_print(callee: ref parser.Node) bool = trust {
+    if callee == none {
+        return false
+    }
+    val name: mut ref u8 = none
+    if callee.kind == parser.NK_FIELD {
+        name = parser.field_name_raw(callee)
+    } elif callee.kind == parser.NK_IDENT {
+        name = parser.node_str_raw(callee.d0)
+    }
+    if name == none {
+        return false
+    }
+    return cstr.eql(name, c"print") || cstr.eql(name, c"eprint")
+    || cstr.ends_with(name, c"__print") || cstr.ends_with(name, c"__eprint")
+}
+
+fn argspack_type_node_supported(ctx: ref SemaCtx, ty: ref parser.Node) bool = trust {
+    if ty == none {
+        return true
+    }
+    if ty.kind == parser.TY_REF || ty.kind == parser.TY_FNPTR {
+        return true
+    }
+    if ty.kind == parser.TY_MUT {
+        val inner: ref parser.Node = ty.d0 as ref parser.Node
+        if inner == none {
+            return true
+        }
+        if inner.kind == parser.TY_REF {
+            return true
+        }
+        return argspack_type_node_supported(ctx, inner)
+    }
+    if ty.kind == parser.TY_RESULT || ty.kind == parser.TY_OPTION {
+        val payload: ref parser.Node = wrap_payload_type_node(ty, 1)
+        return argspack_type_node_supported(ctx, payload)
+    }
+    if ty.kind != parser.TY_NAMED {
+        return false
+    }
+    val name: ref u8 = unqualified_type_name(parser.node_str_raw(ty.d0))
+    if cstr.eql(name, c"String") || cstr.eql(name, c"StringView") {
+        return false
+    }
+    if cstr.eql(name, c"u8") || cstr.eql(name, c"i8") || cstr.eql(name, c"i16")
+    || cstr.eql(name, c"i32") || cstr.eql(name, c"i64")
+    || cstr.eql(name, c"u16") || cstr.eql(name, c"u32")
+    || cstr.eql(name, c"u64") || cstr.eql(name, c"usize")
+    || cstr.eql(name, c"isize") || cstr.eql(name, c"i")
+    || cstr.eql(name, c"u") || cstr.eql(name, c"bool") {
+        return true
+    }
+    return false
+}
+
+fn argspack_expr_type_node(ctx: ref SemaCtx, node: ref parser.Node) ref parser.Node = trust {
+    if node == none {
+        return none
+    }
+    if node.kind == parser.NK_TRUST {
+        return argspack_expr_type_node(ctx, node.d0 as ref parser.Node)
+    }
+    if node.kind == parser.NK_TRY {
+        val inner_ty: ref parser.Node = argspack_expr_type_node(
+            ctx,
+            node.d0 as ref parser.Node
+        )
+        return wrap_payload_type_node(inner_ty, 1)
+    }
+    if node.kind == parser.NK_FIELD {
+        val root: ref parser.Node = find_root_ident(node)
+        if root != none {
+            val base_type: ref u8 = scope_lookup_type(ctx, parser.node_str_raw(root.d0))
+            val field_name: ref u8 = parser.field_name_raw(node)
+            if base_type != none && field_name != none {
+                return find_field_type_node(ctx, base_type, field_name)
+            }
+        }
+        return none
+    }
+    return expr_type_node(ctx, node)
+}
+
+fn argspack_element_supported(ctx: ref SemaCtx, node: ref parser.Node) bool = trust {
+    if node == none || node.kind == parser.NK_NONE {
+        return true
+    }
+    if node.kind == parser.NK_FLOAT_LIT {
+        return false
+    }
+    if node.kind == parser.NK_INT_LIT || node.kind == parser.NK_CHAR_LIT
+    || node.kind == parser.NK_BOOL {
+        return true
+    }
+    if node.kind == parser.NK_STR_LIT {
+        return parser.str_lit_is_cstr(node)
+    }
+
+    val ty: ref parser.Node = argspack_expr_type_node(ctx, node)
+    if ty != none {
+        return argspack_type_node_supported(ctx, ty)
+    }
+
+    val category: ref u8 = get_expr_type_category(ctx, node)
+    if cstr.eql(category, c"int") || cstr.eql(category, c"u8")
+    || cstr.eql(category, c"ptr") {
+        return true
+    }
+    if cstr.eql(category, c"float") || cstr.eql(category, c"enum") {
+        return false
+    }
+    if cstr.eql(category, c"str") {
+        val tname: ref u8 = expr_known_type_name(ctx, node)
+        if type_name_is_string_view(tname) {
+            return false
+        }
+        if tname != none && cstr.eql(unqualified_type_name(tname), c"String") {
+            return false
+        }
+        return true
+    }
+    return true
+}
+
+fn check_argspack_arg(
+    ctx: ref SemaCtx,
+    arg_node: ref parser.Node,
+    filename: ref u8
+) void = trust {
+    if arg_node == none {
+        return
+    }
+    if arg_node.kind == parser.NK_IDENT {
+        val name: ref u8 = parser.node_str_raw(arg_node.d0)
+        for up in ctx.argspack_params {
+            if cstr.eql(up, name) {
+                return
+            }
+        }
+    }
+
+    if arg_node.kind == parser.NK_ARGS_PACK {
+        val pack: ref void = arg_node.d0 as ref void
+        if pack != none {
+            for element in pack as list[ref parser.Node] {
+                if !argspack_element_supported(ctx, element) {
+                    val type_name: mut ref u8 = expr_known_type_name(ctx, element)
+                    if type_name == none || cstr.eql(type_name, c"") {
+                        type_name = get_expr_type_category(ctx, element)
+                    }
+                    val buf: ref u8 = allocators.ScopedArena.alloc_or_none(
+                        ctx.arena,
+                        512 as usize
+                    ) as ref u8
+                    @snprintf(
+                        buf,
+                        512,
+                        "{s}:{lld}: argspack argument type '{s}' is not supported; use a scalar, bool, or pointer/cstr value",
+                        {filename, element.line, type_name}
+                    )
+                    add_error(ctx, buf)
+                }
+            }
+        }
+        return
+    }
+
+    if !argspack_element_supported(ctx, arg_node) {
+        val type_name2: mut ref u8 = expr_known_type_name(ctx, arg_node)
+        if type_name2 == none || cstr.eql(type_name2, c"") {
+            type_name2 = get_expr_type_category(ctx, arg_node)
+        }
+        val buf2: ref u8 = allocators.ScopedArena.alloc_or_none(
+            ctx.arena,
+            512 as usize
+        ) as ref u8
+        @snprintf(
+            buf2,
+            512,
+            "{s}:{lld}: argspack argument type '{s}' is not supported; use a scalar, bool, or pointer/cstr value",
+            {filename, arg_node.line, type_name2}
+        )
+        add_error(ctx, buf2)
+    }
+}
+
 /// Validates a printf/dprintf format string against its argument pack.
 /// Reports errors for C-style specifiers, count mismatches, and type mismatches.
 /// Validate a printf-family format str.
@@ -6344,6 +6531,10 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
                         if param_opt is some param_raw {
                             val param_node: ref parser.Node = param_raw as ref parser.Node
                             val pty: ref parser.Node = param_node.d1 as ref parser.Node
+                            if pty != none && pty.kind == parser.TY_ARGSPACK
+                            && !argspack_callee_is_print(base_callee) {
+                                check_argspack_arg(ctx, arg_node, filename)
+                            }
                             sema_check_fixed_arr_init(ctx, pty, arg_node, filename, line)
                             val param_is_ref: mut bool = false
                             if pty.kind == parser.TY_REF {

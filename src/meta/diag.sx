@@ -168,6 +168,43 @@ fn print_label(label: ref u8) void = trust {
     terminal.print(str.from_cstr(label), label_color(label))
 }
 
+fn write_error_label_fwrite(to_stderr: bool) void = trust {
+    val enabled: bool = terminal.is_enabled()
+    if to_stderr {
+        if enabled {
+            stdio.eprintv(terminal.fg(terminal.Color.BrightRed))
+        }
+        stdio.eprintv(str.from_cstr(LABEL))
+        if enabled {
+            stdio.eprintv(terminal.reset())
+        }
+    } else {
+        if enabled {
+            stdio.printv(terminal.fg(terminal.Color.BrightRed))
+        }
+        stdio.printv(str.from_cstr(LABEL))
+        if enabled {
+            stdio.printv(terminal.reset())
+        }
+    }
+}
+
+pub fn error_label() void = {
+    terminal.print(str.from_cstr(LABEL), terminal.Color.BrightRed)
+}
+
+pub fn eprint_error_label() void = {
+    terminal.eprint(str.from_cstr(LABEL), terminal.Color.BrightRed)
+}
+
+pub fn puts_error_label() void = {
+    trust write_error_label_fwrite(false)
+}
+
+pub fn eputs_error_label() void = {
+    trust write_error_label_fwrite(true)
+}
+
 fn spaces(count: i64) void = trust {
     val i: mut i64 = 0
     for {

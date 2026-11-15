@@ -10,6 +10,7 @@ val mem      = use("../meta/mem.sx")
 val defines  = use("../meta/defines.sx")
 val commands = use("../meta/commands.sx")
 val builds   = use("../meta/builds.sx")
+val diag     = use("../meta/diag.sx")
 
 pub type Options = {
     quiet: mut bool
@@ -138,7 +139,8 @@ pub fn parse(
             }
             err e => {
                 if cstr.len(e) > 0 {
-                    stdio.print("error: {s}\n", {e})
+                    diag.error_label()
+                    stdio.print(" {s}\n", {e})
                 }
                 return false
             }
@@ -161,12 +163,14 @@ pub fn parse(
                     if next_opt is some v {
                         opts.output_name = v as ref u8
                     } else {
-                        stdio.puts("error: -o requires a value")
+                        diag.puts_error_label()
+                        stdio.puts(" -o requires a value")
                         return false
                     }
                     arg_i = next_i + 1
                 } else {
-                    stdio.puts("error: -o requires a value")
+                    diag.puts_error_label()
+                    stdio.puts(" -o requires a value")
                     return false
                 }
             } elif cstr.cmp(arg, c"-d") == 0 {
@@ -176,25 +180,26 @@ pub fn parse(
                     if next_opt is some dv {
                         val def_spec: ref u8 = dv as ref u8
                         if !defines.add_spec(str.from_cstr(def_spec)) {
-                            stdio.print(
-                                "error: invalid define '{s}', expected NAME=VALUE\n",
-                                {def_spec}
-                            )
+                            diag.error_label()
+                            stdio.print(" invalid define '{s}', expected NAME=VALUE\n", {def_spec})
                             return false
                         }
                     } else {
-                        stdio.puts("error: -d requires a NAME=VALUE argument")
+                        diag.puts_error_label()
+                        stdio.puts(" -d requires a NAME=VALUE argument")
                         return false
                     }
                     arg_i = next_i + 1
                 } else {
-                    stdio.puts("error: -d requires a NAME=VALUE argument")
+                    diag.puts_error_label()
+                    stdio.puts(" -d requires a NAME=VALUE argument")
                     return false
                 }
             } elif cstr.starts_with(arg, c"-d:") {
                 val def_spec: ref u8 = cstr.substr(arg, 3, cstr.len(arg) - 3)
                 if !defines.add_spec(str.from_cstr(def_spec)) {
-                    stdio.print("error: invalid define '{s}', expected -d:NAME=VALUE\n", {arg})
+                    diag.error_label()
+                    stdio.print(" invalid define '{s}', expected -d:NAME=VALUE\n", {arg})
                     return false
                 }
                 arg_i++
@@ -264,7 +269,8 @@ pub fn parse(
             } elif cstr.starts_with(arg, c"-target:") {
                 val tgt_len: i64 = cstr.len(arg) as i64 - 8
                 if tgt_len <= 0 {
-                    stdio.puts("error: -target requires <os>.<arch>, e.g. -target:windows.x86_64")
+                    diag.puts_error_label()
+                    stdio.puts(" -target requires <os>.<arch>, e.g. -target:windows.x86_64")
                     return false
                 }
                 opts.target_spec = cstr.substr(arg, 8, tgt_len)
@@ -278,23 +284,23 @@ pub fn parse(
             } elif cstr.starts_with(arg, c"-runtime:") {
                 val rt_len: i64 = cstr.len(arg) as i64 - 9
                 if rt_len <= 0 {
-                    stdio.puts("error: -runtime requires hosted or freestanding")
+                    diag.puts_error_label()
+                    stdio.puts(" -runtime requires hosted or freestanding")
                     return false
                 }
                 opts.runtime_spec = cstr.substr(arg, 9, rt_len)
                 if cstr.cmp(opts.runtime_spec, c"hosted") != 0
                 && cstr.cmp(opts.runtime_spec, c"freestanding") != 0 {
-                    stdio.print(
-                        "error: unknown runtime mode '{s}'; expected hosted or freestanding\n",
-                        {opts.runtime_spec}
-                    )
+                    diag.error_label()
+                    stdio.print(" unknown runtime mode '{s}'; expected hosted or freestanding\n", {opts.runtime_spec})
                     return false
                 }
                 arg_i++
             } elif cstr.starts_with(arg, c"-xwin:") {
                 val xwin_len: i64 = cstr.len(arg) as i64 - 6
                 if xwin_len <= 0 {
-                    stdio.puts("error: -xwin requires a directory, e.g. -xwin:$HOME/.xwin")
+                    diag.puts_error_label()
+                    stdio.puts(" -xwin requires a directory, e.g. -xwin:$HOME/.xwin")
                     return false
                 }
                 opts.xwin_dir = cstr.substr(arg, 6, xwin_len)
@@ -329,7 +335,8 @@ pub fn parse(
             } elif cstr.starts_with(arg, c"-inc-path:") {
                 val path_str: ref u8 = cstr.substr(arg, 10, cstr.len(arg) - 10)
                 if cstr.cmp(path_str, c"") == 0 {
-                    stdio.puts("error: -inc-path requires a value")
+                    diag.puts_error_label()
+                    stdio.puts(" -inc-path requires a value")
                     return false
                 }
                 @append(opts.inc_paths, path_str)
@@ -337,13 +344,15 @@ pub fn parse(
             } elif cstr.starts_with(arg, c"-link-obj:") {
                 val obj_str: ref u8 = cstr.substr(arg, 10, cstr.len(arg) - 10)
                 if cstr.cmp(obj_str, c"") == 0 {
-                    stdio.puts("error: -link-obj requires a value")
+                    diag.puts_error_label()
+                    stdio.puts(" -link-obj requires a value")
                     return false
                 }
                 @append(opts.link_objs, obj_str)
                 arg_i++
             } else {
-                stdio.print("error: unknown flag: {s}\n", {arg})
+                diag.error_label()
+                stdio.print(" unknown flag: {s}\n", {arg})
                 return false
             }
         } else {

@@ -12,6 +12,7 @@ val meta       = use("meta.sx")
 val builds     = use("builds.sx")
 val stdio      = use("std/stdio")
 val os         = use("std/os")
+val diag       = use("diag.sx")
 
 pub type SxBuildRule = {
     platform: mut ref u8
@@ -953,12 +954,14 @@ fn validate_sxmod(m: ref SxMod) bool = {
     }
     for cfg in m.builds {
         if cstr.cmp(cfg.base.entry, c"") != 0 {
-            stdio.puts("error: sx.mod cannot mix a top-level 'entry' with per-build 'entry' fields")
+            diag.puts_error_label()
+            stdio.puts(" sx.mod cannot mix a top-level 'entry' with per-build 'entry' fields")
             return false
         }
         for rule in cfg.rules {
             if cstr.cmp(rule.entry, c"") != 0 {
-                stdio.puts("error: sx.mod cannot mix a top-level 'entry' with per-build 'entry' fields")
+                diag.puts_error_label()
+                stdio.puts(" sx.mod cannot mix a top-level 'entry' with per-build 'entry' fields")
                 return false
             }
         }
@@ -969,13 +972,15 @@ fn validate_sxmod(m: ref SxMod) bool = {
 fn validate_spectre_version(m: ref SxMod) bool = trust {
     val installed: str.StringView = meta.get_spectre_version()
     if cstr.cmp(m.spectre_version, c"") == 0 {
-        stdio.puts("error: sx.mod is missing the required 'spectre_version' field")
+        diag.puts_error_label()
+        stdio.puts(" sx.mod is missing the required 'spectre_version' field")
         stdio.print("-> installed compiler: {s}\n", {installed})
         stdio.print("-> add this line to sx.mod: spectre_version \"{s}\"\n", {installed})
         return false
     }
     if !str.eql_cstr(installed, m.spectre_version) {
-        stdio.puts("error: Spectre version mismatch")
+        diag.puts_error_label()
+        stdio.puts(" Spectre version mismatch")
         stdio.print("  installed compiler:      {s}\n", {installed})
         stdio.print("  project spectre_version: {s}\n", {m.spectre_version})
         stdio.print(
@@ -1639,7 +1644,8 @@ fn upgrade_dir(
 
         if dep_name_matches(dep_url, dep_name) {
             if !fs.is_directory_cstr(lib_path) {
-                stdio.print("error: dependency '{s}' is not present at {s}\n", {dep_url, lib_path})
+                diag.error_label()
+                stdio.print(" dependency '{s}' is not present at {s}\n", {dep_url, lib_path})
                 stdio.puts("run 'spectre restore' first")
                 return 1
             }
@@ -1650,7 +1656,8 @@ fn upgrade_dir(
 
             val fetch_cmd: ref u8 = @fmtalloc("git -C {s} fetch --quiet origin HEAD", {lib_path})
             if os.run(fetch_cmd) != 0 {
-                stdio.print("error: git fetch failed for {s}\n", {dep_url})
+                diag.error_label()
+                stdio.print(" git fetch failed for {s}\n", {dep_url})
                 return 1
             }
 
@@ -1659,7 +1666,8 @@ fn upgrade_dir(
                 {lib_path}
             )
             if os.run(reset_cmd) != 0 {
-                stdio.print("error: failed to check out HEAD for {s}\n", {dep_url})
+                diag.error_label()
+                stdio.print(" failed to check out HEAD for {s}\n", {dep_url})
                 return 1
             }
 
@@ -1668,7 +1676,8 @@ fn upgrade_dir(
                     {lib_path}
                 ))
             if cstr.cmp(new_hash, c"") == 0 {
-                stdio.print("error: could not determine HEAD for {s}\n", {dep_url})
+                diag.error_label()
+                stdio.print(" could not determine HEAD for {s}\n", {dep_url})
                 return 1
             }
 
@@ -1693,7 +1702,8 @@ fn upgrade_dir(
 
 pub fn cmd_upgrade(dep_name: ref u8) i32 = trust {
     if !os.exists(c"sx.mod") {
-        stdio.puts("error: sx.mod not found, run 'spectre init' first")
+        diag.puts_error_label()
+        stdio.puts(" sx.mod not found, run 'spectre init' first")
         return 1
     }
 
@@ -1709,7 +1719,8 @@ pub fn cmd_upgrade(dep_name: ref u8) i32 = trust {
             stdio.puts("No dependencies to upgrade.")
             return 0
         }
-        stdio.print("error: dependency '{s}' not found\n", {dep_name})
+        diag.error_label()
+        stdio.print(" dependency '{s}' not found\n", {dep_name})
         return 1
     }
 
@@ -1756,7 +1767,8 @@ fn copy_current_stdlib(snapshot_dir: ref u8) bool = trust {
     }
 
     if cstr.cmp(std_dir, c"") == 0 {
-        stdio.puts("error: could not locate the Spectre standard library ('spectrelib')")
+        diag.puts_error_label()
+        stdio.puts(" could not locate the Spectre standard library ('spectrelib')")
         stdio.print("  executable: {s}\n", {exe_path})
         stdio.print("  directory:  {s}\n", {exe_dir})
         stdio.puts("  looked in:")
@@ -1770,17 +1782,16 @@ fn copy_current_stdlib(snapshot_dir: ref u8) bool = trust {
 
     val its_ok: mut bool = os.copy_dir_recursive(std_dir, snapshot_dir)
     if !its_ok {
-        stdio.puts("error: failed to copy the standard library")
+        diag.puts_error_label()
+        stdio.puts(" failed to copy the standard library")
         stdio.print("  from: {s}\n", {std_dir})
         stdio.print("  to:   {s}\n", {snapshot_dir})
         stdio.puts("  check that both directories are readable and writable")
     } else {
         val marker = path.join_cstr(snapshot_dir, c"stdio/core.sx")
         if !os.exists(marker) {
-            stdio.print(
-                "error: standard library copy at {s} looks incomplete (missing {s})\n",
-                {snapshot_dir, marker}
-            )
+            diag.error_label()
+            stdio.print(" standard library copy at {s} looks incomplete (missing {s})\n", {snapshot_dir, marker})
             its_ok = false
         }
     }
@@ -1794,14 +1805,16 @@ pub fn cmd_ref() i32 = trust {
     val content: ref void = @embed("../../docs/SPECTRE_REFERENCE.md") as ref void
     val content_len: i64 = @embedlen("../../docs/SPECTRE_REFERENCE.md") as i64
     if !fs.write_all_bytes_cstr(path, content, content_len) {
-        stdio.print("error: could not write {s}\n", {path})
+        diag.error_label()
+        stdio.print(" could not write {s}\n", {path})
         return 1
     }
 
     val unix_time: i64 = time.unix_now()
     val std_snapshot_dir: ref u8 = @fmtalloc("std__{d}", {unix_time})
     if !(copy_current_stdlib(std_snapshot_dir)) {
-        stdio.print("error: could not copy stdlib into {s}\n", {std_snapshot_dir})
+        diag.error_label()
+        stdio.print(" could not copy stdlib into {s}\n", {std_snapshot_dir})
         return 1
     }
 
@@ -1811,7 +1824,8 @@ pub fn cmd_ref() i32 = trust {
 
 pub fn cmd_init(name_arg: ref u8) i32 = {
     if os.exists(c"sx.mod") {
-        stdio.puts("error: sx.mod already exists in this directory")
+        diag.puts_error_label()
+        stdio.puts(" sx.mod already exists in this directory")
         return 1
     }
 
@@ -1912,13 +1926,15 @@ fn ensure_deps_in_dir(
             fs.mkdir_path_cstr(lib_dir)
             stdio.print("Restoring {s}...\n", {dep_url})
             if os.run(@fmtalloc("git clone {s} {s}", {dep_url, lib_path})) != 0 {
-                stdio.print("error: git clone failed for {s}\n", {dep_url})
+                diag.error_label()
+                stdio.print(" git clone failed for {s}\n", {dep_url})
                 return 1
             }
             val hash: ref u8 = lock_hash_for_url(lock_deps, dep_url)
             if cstr.cmp(hash, c"") != 0 && cstr.cmp(hash, c"unknown") != 0 {
                 if os.run(@fmtalloc("git -C {s} checkout --quiet {s}", {lib_path, hash})) != 0 {
-                    stdio.print("error: failed to checkout {s} for {s}\n", {hash, dep_url})
+                    diag.error_label()
+                    stdio.print(" failed to checkout {s} for {s}\n", {hash, dep_url})
                     return 1
                 }
             }
@@ -1972,13 +1988,15 @@ fn run_dep_actions_in_dir(
         val lib_path: ref u8 = @fmtalloc("{s}/{s}", {lib_dir, name})
         if (@len(dep.actions) as i64) > 0 {
             if !fs.is_directory_cstr(lib_path) {
-                stdio.print("error: dependency '{s}' is not present at {s}\n", {dep.url, lib_path})
+                diag.error_label()
+                stdio.print(" dependency '{s}' is not present at {s}\n", {dep.url, lib_path})
                 return 1
             }
             for action in dep.actions {
                 stdio.print("note: running build action for '{s}'...\n", {name})
                 if run_in_dir(lib_path, action) != 0 {
-                    stdio.print("error: build action failed for '{s}'\n", {name})
+                    diag.error_label()
+                    stdio.print(" build action failed for '{s}'\n", {name})
                     return 1
                 }
             }
@@ -2051,7 +2069,8 @@ fn target_from_flags(flags: ref u8) ref u8 = trust {
 pub fn cmd_build(config_name: ref u8, exe_path: ref u8, target: ref u8) i32 = {
     match load_sxmod_target(target) {
         none => {
-            stdio.puts("error: sx.mod not found, run 'spectre init' first")
+            diag.puts_error_label()
+            stdio.puts(" sx.mod not found, run 'spectre init' first")
             return 1
         }
         some initial_m => {
@@ -2061,7 +2080,8 @@ pub fn cmd_build(config_name: ref u8, exe_path: ref u8, target: ref u8) i32 = {
 
             val initial_cfg: ref SxBuildConfig = find_build_config(initial_m, config_name)
             if initial_cfg == none {
-                trust stdio.print("error: build config '{s}' not found in sx.mod\n", {config_name})
+                diag.error_label()
+                trust stdio.print(" build config '{s}' not found in sx.mod\n", {config_name})
                 return 1
             }
 
@@ -2077,17 +2097,16 @@ pub fn cmd_build(config_name: ref u8, exe_path: ref u8, target: ref u8) i32 = {
             if cstr.len(target) == 0 && cstr.len(effective_target) > 0 {
                 match load_sxmod_target(effective_target) {
                     none => {
-                        stdio.puts("error: failed to reload sx.mod for the target")
+                        diag.puts_error_label()
+                        stdio.puts(" failed to reload sx.mod for the target")
                         return 1
                     }
                     some reloaded => {
                         m = reloaded
                         found_cfg = find_build_config(m, config_name)
                         if found_cfg == none {
-                            trust stdio.print(
-                                "error: build config '{s}' not found in sx.mod\n",
-                                {config_name}
-                            )
+                            diag.error_label()
+                            trust stdio.print(" build config '{s}' not found in sx.mod\n", {config_name})
                             return 1
                         }
                     }
@@ -2148,7 +2167,8 @@ pub fn cmd_build(config_name: ref u8, exe_path: ref u8, target: ref u8) i32 = {
 
 pub fn cmd_add(url: ref u8) i32 = trust {
     if !os.exists(c"sx.mod") {
-        stdio.puts("error: sx.mod not found, run 'spectre init' first")
+        diag.puts_error_label()
+        stdio.puts(" sx.mod not found, run 'spectre init' first")
         return 1
     }
 
@@ -2156,7 +2176,8 @@ pub fn cmd_add(url: ref u8) i32 = trust {
     val lib_path: ref u8 = @fmtalloc("lib/{s}", {name})
 
     if os.exists(lib_path) {
-        stdio.print("error: dependency '{s}' already exists at {s}\n", {name, lib_path})
+        diag.error_label()
+        stdio.print(" dependency '{s}' already exists at {s}\n", {name, lib_path})
         return 1
     }
 
@@ -2166,7 +2187,8 @@ pub fn cmd_add(url: ref u8) i32 = trust {
     stdio.print("Cloning {s}...\n", {url})
     val exit_code: i32 = os.run(clone_cmd)
     if exit_code != 0 {
-        stdio.print("error: git clone failed for {s}\n", {url})
+        diag.error_label()
+        stdio.print(" git clone failed for {s}\n", {url})
         return 1
     }
 
@@ -2212,7 +2234,8 @@ pub fn cmd_add(url: ref u8) i32 = trust {
 
 pub fn cmd_remove(dep_name: ref u8) i32 = {
     if !os.exists(c"sx.mod") {
-        stdio.puts("error: sx.mod not found")
+        diag.puts_error_label()
+        stdio.puts(" sx.mod not found")
         return 1
     }
 
@@ -2267,12 +2290,14 @@ fn restore_dependency(lib_path: ref u8, dep_url: ref u8, hash: ref u8) i32 = tru
             remove_path(lib_path)
         }
         if os.run(@fmtalloc("git clone {s} {s}", {dep_url, lib_path})) != 0 {
-            stdio.print("error: git clone failed for {s}\n", {dep_url})
+            diag.error_label()
+            stdio.print(" git clone failed for {s}\n", {dep_url})
             return 1
         }
         if cstr.cmp(hash, c"unknown") != 0 {
             if os.run(@fmtalloc("git -C {s} checkout --quiet {s}", {lib_path, hash})) != 0 {
-                stdio.print("error: failed to checkout {s} for {s}\n", {hash, dep_url})
+                diag.error_label()
+                stdio.print(" failed to checkout {s} for {s}\n", {hash, dep_url})
                 return 1
             }
         }
@@ -2281,7 +2306,8 @@ fn restore_dependency(lib_path: ref u8, dep_url: ref u8, hash: ref u8) i32 = tru
 
     if os.run(@fmtalloc("git -C {s} remote set-url origin {s}", {lib_path, dep_url})) != 0 {
         if os.run(@fmtalloc("git -C {s} remote add origin {s}", {lib_path, dep_url})) != 0 {
-            stdio.print("error: failed to configure remote for {s}\n", {dep_url})
+            diag.error_label()
+            stdio.print(" failed to configure remote for {s}\n", {dep_url})
             return 1
         }
     }
@@ -2293,22 +2319,26 @@ fn restore_dependency(lib_path: ref u8, dep_url: ref u8, hash: ref u8) i32 = tru
     if !has_object {
         if os.run(@fmtalloc("git -C {s} fetch --quiet --force origin {s}", {lib_path, hash})) != 0 {
             if os.run(@fmtalloc("git -C {s} fetch --quiet --force origin", {lib_path})) != 0 {
-                stdio.print("error: git fetch failed for {s}\n", {dep_url})
+                diag.error_label()
+                stdio.print(" git fetch failed for {s}\n", {dep_url})
                 return 1
             }
         }
     }
 
     if os.run(@fmtalloc("git -C {s} checkout --quiet --force {s}", {lib_path, hash})) != 0 {
-        stdio.print("error: failed to checkout {s} for {s}\n", {hash, dep_url})
+        diag.error_label()
+        stdio.print(" failed to checkout {s} for {s}\n", {hash, dep_url})
         return 1
     }
     if os.run(@fmtalloc("git -C {s} reset --hard --quiet {s}", {lib_path, hash})) != 0 {
-        stdio.print("error: failed to reset {s} for {s}\n", {hash, dep_url})
+        diag.error_label()
+        stdio.print(" failed to reset {s} for {s}\n", {hash, dep_url})
         return 1
     }
     if os.run(@fmtalloc("git -C {s} clean -fdx --quiet", {lib_path})) != 0 {
-        stdio.print("error: failed to clean {s}\n", {dep_url})
+        diag.error_label()
+        stdio.print(" failed to clean {s}\n", {dep_url})
         return 1
     }
     return 0
@@ -2358,7 +2388,8 @@ fn restore_in_dir(base_dir: ref u8, visited: mut list[ref u8]) i32 = trust {
         val dep_url: ref u8 = dep.url
         val hash: ref u8 = lock_hash_for_url(lock_deps, dep_url)
         if cstr.cmp(hash, c"") == 0 {
-            stdio.print("error: '{s}' missing from sx.lock in {s}\n", {dep_url, base_dir})
+            diag.error_label()
+            stdio.print(" '{s}' missing from sx.lock in {s}\n", {dep_url, base_dir})
             return 1
         }
 
@@ -2384,7 +2415,8 @@ pub fn cmd_restore() i32 = trust {
     val sxmod: mut ref SxMod = none
     match mod_opt {
         none => {
-            stdio.puts("error: sx.mod not found, run 'spectre init' first")
+            diag.puts_error_label()
+            stdio.puts(" sx.mod not found, run 'spectre init' first")
             return 1
         }
         some m => {
@@ -2396,7 +2428,8 @@ pub fn cmd_restore() i32 = trust {
     val lock_deps: mut list[ref SxLockDep] = mem.new[ref SxLockDep]()
     match lock_opt {
         none => {
-            stdio.puts("error: sx.lock not found, add dependencies or generate a lockfile first")
+            diag.puts_error_label()
+            stdio.puts(" sx.lock not found, add dependencies or generate a lockfile first")
             return 1
         }
         some deps => {
@@ -2415,7 +2448,8 @@ pub fn cmd_restore() i32 = trust {
         val dep_url: ref u8 = dep.url
         val hash: ref u8 = lock_hash_for_url(lock_deps, dep_url)
         if cstr.cmp(hash, c"") == 0 {
-            stdio.print("error: dependency '{s}' is missing from sx.lock\n", {dep_url})
+            diag.error_label()
+            stdio.print(" dependency '{s}' is missing from sx.lock\n", {dep_url})
             return 1
         }
 
@@ -2494,7 +2528,8 @@ pub fn cmd_graph() i32 = trust {
     val sxmod: mut ref SxMod = none
     match mod_opt {
         none => {
-            stdio.puts("error: sx.mod not found, run 'spectre init' first")
+            diag.puts_error_label()
+            stdio.puts(" sx.mod not found, run 'spectre init' first")
             return 1
         }
         some m => {
@@ -2599,7 +2634,8 @@ fn collect_test_files(
             }
         }
     } else {
-        stdio.print("error: could not read directory '{s}'\n", {target})
+        diag.error_label()
+        stdio.print(" could not read directory '{s}'\n", {target})
     }
     allocators.ScopedArena.free(walk_arena)
 }

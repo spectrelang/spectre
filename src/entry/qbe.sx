@@ -12,6 +12,7 @@ val fs         = use("std/fs")
 val allocators = use("std/allocators")
 val builds     = use("../meta/builds.sx")
 val context    = use("context.sx")
+val diag       = use("../meta/diag.sx")
 
 /// Emit the QBE IR directly with `-emit-ssa`.
 pub fn emit_ir(ctx: mut ref context.Context) i32 = trust {
@@ -21,7 +22,8 @@ pub fn emit_ir(ctx: mut ref context.Context) i32 = trust {
             os.write(f, ctx.c_shim_source, cstr.len(ctx.c_shim_source) as i64)
             os.close(f)
         } else {
-            stdio.print("error: could not write C shim to '{s}'\n", {ctx.opts.shim_output})
+            diag.error_label()
+            stdio.print(" could not write C shim to '{s}'\n", {ctx.opts.shim_output})
             @free(ctx.qbe_ir)
             return 1
         }
@@ -32,7 +34,8 @@ pub fn emit_ir(ctx: mut ref context.Context) i32 = trust {
             os.write(f, ctx.qbe_ir, cstr.len(ctx.qbe_ir) as i64)
             os.close(f)
         } else {
-            stdio.print("error: could not write IR to '{s}'\n", {ctx.opts.output_name})
+            diag.error_label()
+            stdio.print(" could not write IR to '{s}'\n", {ctx.opts.output_name})
             @free(ctx.qbe_ir)
             return 1
         }
@@ -56,7 +59,9 @@ pub fn assemble(ctx: mut ref context.Context) bool = trust {
         os.close(f)
         @free(ctx.qbe_ir)
     } else {
-        stdio.puts("\nerror: could not write IR")
+        stdio.puts("")
+        diag.puts_error_label()
+        stdio.puts(" could not write IR")
         return false
     }
 
@@ -108,13 +113,16 @@ pub fn assemble(ctx: mut ref context.Context) bool = trust {
                 stdio.print("{s}", {vstr})
             }
             if cstr.starts_with(vstr, c"qbe:") {
-                stdio.puts("error: uqbe stage failed")
+                diag.puts_error_label()
+                stdio.puts(" uqbe stage failed")
                 os.delete(qbe_file)
                 return false
             }
         }
         err _ => {
-            stdio.puts("\nerror: failed to run uqbe")
+            stdio.puts("")
+            diag.puts_error_label()
+            stdio.puts(" failed to run uqbe")
             os.delete(qbe_file)
             return false
         }
@@ -133,7 +141,8 @@ pub fn emit_asm(ctx: ref context.Context) i32 = trust {
             asm_arena_cap = sz as i64
         }
     } else {
-        stdio.puts("error: could not read assembly output")
+        diag.puts_error_label()
+        stdio.puts(" could not read assembly output")
         os.delete(qbe_file)
         os.delete(asm_file)
         return 1
@@ -143,7 +152,8 @@ pub fn emit_asm(ctx: ref context.Context) i32 = trust {
     if asm_opt is some asm_content {
         stdio.puts(str.from_cstr(asm_content as ref u8))
     } else {
-        stdio.puts("error: could not read assembly output")
+        diag.puts_error_label()
+        stdio.puts(" could not read assembly output")
     }
     allocators.Arena.free(asm_arena)
     os.delete(qbe_file)

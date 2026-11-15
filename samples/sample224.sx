@@ -3,5 +3,5 @@ pub fn bye(depression: argspack) void = {
 }
 
 pub fn main() void = {
-    bye({"hello", 4})
+    bye({c"hello", 4})
 }

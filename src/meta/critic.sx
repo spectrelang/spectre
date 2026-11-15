@@ -12,6 +12,7 @@ val fmt        = use("std/fmt")
 val allocators = use("std/allocators")
 val lexer      = use("../ast/lexer.sx")
 val parser     = use("../ast/parser.sx")
+val diag       = use("diag.sx")
 
 type Issue = {
     line: mut i64
@@ -2847,7 +2848,9 @@ fn analyze_ctx(
     val tokens: mut list[ref lexer.Token] = mem.new[ref lexer.Token]()
     match tokens_res {
         err e => {
-            stdio.print("{s}: error: {s}\n", {filename, e})
+            stdio.print("{s}: ", {filename})
+            diag.error_label()
+            stdio.print(" {s}\n", {e})
             @free(e)
             return none
         }
@@ -2946,7 +2949,8 @@ fn collect_files(
         val entries_opt = fs.walk_dir[allocators.ListArena](walk_list_arena, target)
         match entries_opt {
             none => {
-                stdio.print("error: could not read directory '{s}'\n", {target})
+                diag.error_label()
+                stdio.print(" could not read directory '{s}'\n", {target})
                 allocators.ScopedArena.free(walk_arena)
                 return 1
             }
@@ -2955,7 +2959,8 @@ fn collect_files(
                 for entry in entries {
                     val child: ref u8 = join_path(arena, target, entry)
                     if child == none {
-                        stdio.print("error: out of memory while walking '{s}'\n", {target})
+                        diag.error_label()
+                        stdio.print(" out of memory while walking '{s}'\n", {target})
                         allocators.ScopedArena.free(walk_arena)
                         return 1
                     }
@@ -2980,7 +2985,8 @@ fn collect_files(
         return 0
     }
 
-    stdio.print("error: critic only checks .sx files: '{s}'\n", {target})
+    diag.error_label()
+    stdio.print(" critic only checks .sx files: '{s}'\n", {target})
     return 1
 }
 
@@ -2990,7 +2996,8 @@ fn format_file(file: ref u8, fix_mode: bool) i32 = trust {
     if size_opt is some s {
         size = s as i64
     } else {
-        stdio.print("error: could not read '{s}'\n", {file})
+        diag.error_label()
+        stdio.print(" could not read '{s}'\n", {file})
         return -1
     }
 
@@ -3007,7 +3014,8 @@ fn format_file(file: ref u8, fix_mode: bool) i32 = trust {
     if content_opt is some c {
         content = c
     } else {
-        stdio.print("error: could not read '{s}'\n", {file})
+        diag.error_label()
+        stdio.print(" could not read '{s}'\n", {file})
         return -1
     }
 
@@ -3017,7 +3025,8 @@ fn format_file(file: ref u8, fix_mode: bool) i32 = trust {
             break
         }
         if byte_at_cstr(content, i) == 0 {
-            stdio.print("error: '{s}' is not a plaintext .sx file\n", {file})
+            diag.error_label()
+            stdio.print(" '{s}' is not a plaintext .sx file\n", {file})
             return -1
         }
         i++
@@ -3032,7 +3041,8 @@ fn format_file(file: ref u8, fix_mode: bool) i32 = trust {
         val fixed: ref u8 = apply_edits(ctx.arena, content, ctx.fixes)
         if cstr.cmp(fixed, content) != 0 {
             if !fs.write_all_cstr(file, fixed) {
-                stdio.print("error: could not write '{s}'\n", {file})
+                diag.error_label()
+                stdio.print(" could not write '{s}'\n", {file})
                 ctx_free(ctx)
                 return -1
             }
@@ -3062,7 +3072,8 @@ fn format_file(file: ref u8, fix_mode: bool) i32 = trust {
 pub fn cmd_critic(targets: list[ref u8], fix_mode: bool) i32 = trust {
     val n_targets: i64 = @len(targets) as i64
     if n_targets == 0 {
-        stdio.puts("error: critic requires at least one .sx file or directory")
+        diag.puts_error_label()
+        stdio.puts(" critic requires at least one .sx file or directory")
         return 1
     }
 
@@ -3084,7 +3095,8 @@ pub fn cmd_critic(targets: list[ref u8], fix_mode: bool) i32 = trust {
     }
 
     if @len(files) == 0 {
-        stdio.puts("error: no .sx files found")
+        diag.puts_error_label()
+        stdio.puts(" no .sx files found")
         return 1
     }
 

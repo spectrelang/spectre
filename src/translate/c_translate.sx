@@ -10,6 +10,7 @@ val fs         = use("std/fs")
 val allocators = use("std/allocators")
 val arenafmt   = use("../meta/arenafmt.sx")
 val naming     = use("naming.sx")
+val diag       = use("../meta/diag.sx")
 
 val bind_normalize_enabled: mut bool = false
 val bind_normalize_sources: mut list[ref u8] = none
@@ -9039,7 +9040,8 @@ pub fn translate_bind_text(
     }
     val written: bool = trust fs.write_all_cstr(output_path, take_cstr(built))
     if !written {
-        trust stdio.print("error: could not write '{s}'\n", {output_path})
+        diag.error_label()
+        trust stdio.print(" could not write '{s}'\n", {output_path})
         return 1
     }
     return 0
@@ -9047,7 +9049,8 @@ pub fn translate_bind_text(
 
 pub fn translate_c(input_path: ref u8, output_path: ref u8) i32 = {
     if trust fs.is_directory_cstr(input_path) {
-        trust stdio.print("error: '{s}' is a directory\n", {input_path})
+        diag.error_label()
+        trust stdio.print(" '{s}' is a directory\n", {input_path})
         return 1
     }
     trust reset_bind_normalization(false)
@@ -9059,7 +9062,8 @@ pub fn translate_c(input_path: ref u8, output_path: ref u8) i32 = {
     val ctx: mut ref TranslationCtx = new_translation_ctx()
     val its_ok: bool = translate_file(input_path, body, seen, ctx)
     if !its_ok {
-        trust stdio.print("error: failed to translate '{s}'\n", {input_path})
+        diag.error_label()
+        trust stdio.print(" failed to translate '{s}'\n", {input_path})
         return 1
     }
     val out: ref void = builder.StringBuilder.new()
@@ -9086,7 +9090,8 @@ pub fn translate_c(input_path: ref u8, output_path: ref u8) i32 = {
     }
     val written: bool = trust fs.write_all_cstr(output_path, take_cstr(built))
     if !written {
-        trust stdio.print("error: could not write '{s}'\n", {output_path})
+        diag.error_label()
+        trust stdio.print(" could not write '{s}'\n", {output_path})
         return 1
     }
     trust stdio.print("wrote {s}\n", {output_path})

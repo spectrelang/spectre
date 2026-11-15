@@ -14,6 +14,7 @@ val mem        = use("../meta/mem.sx")
 val builds     = use("../meta/builds.sx")
 val module     = use("../module/module.sx")
 val context    = use("context.sx")
+val diag       = use("../meta/diag.sx")
 
 type NativeState = {
     links: mut list[ref u8]
@@ -73,7 +74,8 @@ fn collect_links_native(ctx: mut ref context.Context, st: mut ref NativeState) b
             st.links = resolved
         }
         err e => {
-            stdio.print("error: {s}\n", {e})
+            diag.error_label()
+            stdio.print(" {s}\n", {e})
             os.delete(ctx.qbe_file)
             os.delete(ctx.asm_file)
             return false
@@ -98,7 +100,8 @@ fn compile_shim_native(ctx: mut ref context.Context, st: mut ref NativeState) bo
             os.write(f, ctx.c_shim_source, cstr.len(ctx.c_shim_source) as i64)
             os.close(f)
         } else {
-            stdio.puts("error: could not write C shim")
+            diag.puts_error_label()
+            stdio.puts(" could not write C shim")
             os.delete(ctx.qbe_file)
             os.delete(ctx.asm_file)
             return false
@@ -139,7 +142,8 @@ fn compile_shim_native(ctx: mut ref context.Context, st: mut ref NativeState) bo
                 }
                 val shim_error_text = ostr.from_cstr[allocators.Arena](ctx.arena, c"error:")
                 if ostr.contains(v, shim_error_text) {
-                    stdio.puts("error: C shim compilation failed")
+                    diag.puts_error_label()
+                    stdio.puts(" C shim compilation failed")
                     os.delete(ctx.qbe_file)
                     os.delete(ctx.asm_file)
                     os.delete(st.shim_c_file)
@@ -147,7 +151,8 @@ fn compile_shim_native(ctx: mut ref context.Context, st: mut ref NativeState) bo
                 }
             }
             err _ => {
-                stdio.puts("error: failed to run C compiler for C shim")
+                diag.puts_error_label()
+                stdio.puts(" failed to run C compiler for C shim")
                 os.delete(ctx.qbe_file)
                 os.delete(ctx.asm_file)
                 os.delete(st.shim_c_file)
@@ -308,7 +313,8 @@ fn execute_test(ctx: mut ref context.Context, st: mut ref NativeState) i32 = tru
             }
         }
         err _ => {
-            stdio.puts("error: cc compilation failed")
+            diag.puts_error_label()
+            stdio.puts(" cc compilation failed")
             st.exit_code = 1
         }
     }
@@ -427,7 +433,9 @@ fn execute_native(ctx: mut ref context.Context, st: mut ref NativeState) i32 = t
             }
         }
         err _ => {
-            stdio.puts("\nerror: cc compilation failed")
+            stdio.puts("")
+            diag.puts_error_label()
+            stdio.puts(" cc compilation failed")
         }
     }
 

@@ -1,6 +1,7 @@
 val stdio = use("std/stdio")
 val str   = use("std/string")
 val menv  = use("env.sx")
+val diag  = use("diag.sx")
 
 pub fn get_spectre_version() str.StringView = {
     val version: str.StringView = menv.get("SPECTRE_MOD_VERSION")
@@ -675,7 +676,8 @@ pub fn print_help(topic: str.StringView) i32 = trust {
         return 0
     }
 
-    stdio.print("error: unknown help topic '{s}'\n", {topic})
+    diag.error_label()
+    stdio.print(" unknown help topic '{s}'\n", {topic})
     stdio.puts("Run 'spectre help' to see available commands and flags.")
     return 1
 }

@@ -17,6 +17,7 @@ val builds      = use("../meta/builds.sx")
 val module      = use("../module/module.sx")
 val alt_codegen = use("../codegen/alt_codegen.sx")
 val context     = use("context.sx")
+val diag        = use("../meta/diag.sx")
 
 type AltState = {
     selected_compiler: mut ref u8
@@ -69,10 +70,8 @@ fn prepare_compiler(ctx: mut ref context.Context, st: mut ref AltState) bool = t
         if cstr.cmp(ctx.target_platform, c"windows") == 0 {
             linker_hint = c"lld-link"
         }
-        stdio.print(
-            "error: cross compilation to {s}.{s} requires clang and {s}\n",
-            {ctx.target_platform, ctx.target_arch, linker_hint}
-        )
+        diag.error_label()
+        stdio.print(" cross compilation to {s}.{s} requires clang and {s}\n", {ctx.target_platform, ctx.target_arch, linker_hint})
         return false
     }
 
@@ -378,7 +377,9 @@ fn write_c(ctx: mut ref context.Context, st: mut ref AltState) bool = trust {
         os.close(f)
         @free(st.c_ir)
     } else {
-        stdio.puts("\nerror: could not write C code")
+        stdio.puts("")
+        diag.puts_error_label()
+        stdio.puts(" could not write C code")
         return false
     }
 
@@ -421,7 +422,8 @@ fn collect_links_alt(ctx: mut ref context.Context, st: mut ref AltState) bool = 
             st.links = resolved
         }
         err e => {
-            stdio.print("error: {s}\n", {e})
+            diag.error_label()
+            stdio.print(" {s}\n", {e})
             os.delete(st.c_file)
             return false
         }
@@ -770,7 +772,8 @@ fn execute_alt(ctx: ref context.Context, st: mut ref AltState) i32 = trust {
             }
         }
         err _ => {
-            stdio.print("error: {s} stage failed\n", {st.selected_compiler})
+            diag.error_label()
+            stdio.print(" {s} stage failed\n", {st.selected_compiler})
             os.delete(st.c_file)
             return 1
         }
@@ -803,10 +806,8 @@ pub fn run(ctx: mut ref context.Context) i32 = trust {
                 os.write(f, st.c_ir, cstr.len(st.c_ir) as i64)
                 os.close(f)
             } else {
-                stdio.print(
-                    "error: could not write C output to '{s}'\n",
-                    {ctx.opts.output_name}
-                )
+                diag.error_label()
+                stdio.print(" could not write C output to '{s}'\n", {ctx.opts.output_name})
                 @free(st.c_ir)
                 return 1
             }

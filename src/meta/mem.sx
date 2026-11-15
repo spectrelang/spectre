@@ -12,6 +12,7 @@
 val allocators = use("std/allocators")
 val stdio      = use("std/stdio")
 val os         = use("std/os")
+val diag       = use("diag.sx")
 
 val state: mut ref allocators.ListArena = none
 
@@ -26,7 +27,8 @@ pub fn init() void = {
                 state = next
             }
             err _ => {
-                stdio.puts("error: could not allocate compiler list arena\n")
+                diag.puts_error_label()
+                stdio.puts(" could not allocate compiler list arena\n")
                 trust os.exit(1)
             }
         }

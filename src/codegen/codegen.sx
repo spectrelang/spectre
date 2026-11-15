@@ -7155,7 +7155,8 @@ fn emit_global_val(ctx: mut ref CgCtx, mod_prefix: ref u8, node: ref parser.Node
     ) == 0 {
         val epath: ref u8 = parser.node_str_raw(gexpr.d2)
         if epath == none {
-            stdio.eprint("error: @embed path was not resolved\n", {})
+            diag.eprint_error_label()
+            stdio.eprint(" @embed path was not resolved\n", {})
             os.exit(1)
         }
         val before: i64 = @len(ctx.embed_labels) as i64
@@ -12773,7 +12774,8 @@ fn cg_emit_embed_const(
     if cstr.cmp(bname, c"embed") == 0 {
         val epath: ref u8 = parser.node_str_raw(cexpr.d2)
         if epath == none {
-            stdio.eprint("error: @embed path was not resolved\n", {})
+            diag.eprint_error_label()
+            stdio.eprint(" @embed path was not resolved\n", {})
             os.exit(1)
         }
         val before: i64 = @len(ctx.embed_labels) as i64
@@ -13002,7 +13004,8 @@ fn cg_resolve_alloc_fn(ctx: mut ref CgCtx, ty: ref parser.Node, method: ref u8) 
 fn cg_alloc_adapter_prefix(ctx: mut ref CgCtx, ty: ref parser.Node) ref u8 = trust {
     val concrete: ref parser.Node = cg_concrete_ty(ctx, ty)
     if concrete == none || concrete.kind != parser.TY_NAMED {
-        stdio.eprint("error: intrinsic allocator type argument must be a concrete named type\n", {})
+        diag.eprint_error_label()
+        stdio.eprint(" intrinsic allocator type argument must be a concrete named type\n", {})
         os.exit(1)
     }
     val full_name: ref u8 = parser.node_str_raw(concrete.d0)
@@ -13026,7 +13029,8 @@ fn cg_alloc_adapter_prefix(ctx: mut ref CgCtx, ty: ref parser.Node) ref u8 = tru
     val free_fn: ref u8 = cg_resolve_alloc_fn(ctx, ty, c"free")
     val realloc_fn: ref u8 = cg_resolve_alloc_fn(ctx, ty, c"realloc")
     if cstr.len(alloc_fn) == 0 || cstr.len(free_fn) == 0 || cstr.len(realloc_fn) == 0 {
-        stdio.eprint("error: allocator '{s}' does not implement GeneralAllocator\n", {full_name})
+        diag.eprint_error_label()
+        stdio.eprint(" allocator '{s}' does not implement GeneralAllocator\n", {full_name})
         os.exit(1)
     }
     @append(ctx.alloc_adapter_prefixes, prefix)
@@ -13076,10 +13080,8 @@ fn cg_alloc_fn_ptr(ctx: mut ref CgCtx, ty: ref parser.Node, method: ref u8) ref 
         sym = cg_resolve_alloc_fn(ctx, ty, method)
     }
     if cstr.len(sym) == 0 {
-        stdio.eprint(
-            "error: allocator '{s}' does not implement GeneralAllocator\n",
-            {parser.node_str_raw(ty.d0)}
-        )
+        diag.eprint_error_label()
+        stdio.eprint(" allocator '{s}' does not implement GeneralAllocator\n", {parser.node_str_raw(ty.d0)})
         os.exit(1)
     }
     val tmp: i64 = fresh_tmp(ctx)
@@ -13391,7 +13393,8 @@ fn gen_builtin(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
     if cstr.cmp(name, c"embed") == 0 {
         val epath: ref u8 = parser.node_str_raw(expr.d2)
         if epath == none {
-            stdio.eprint("error: @embed path was not resolved\n", {})
+            diag.eprint_error_label()
+            stdio.eprint(" @embed path was not resolved\n", {})
             os.exit(1)
         }
         val before: i64 = @len(ctx.embed_labels) as i64
@@ -14949,7 +14952,8 @@ fn gen_builtin(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
         val ac_ann: ref u8 = infer_type_annotation(ctx, ac_node)
         val ac_ty: ref parser.Node = cg_named_ty_from_ann(ctx, ac_ann)
         if ac_ty == none {
-            stdio.eprint("error: cannot infer allocator type for @list\n", {})
+            diag.eprint_error_label()
+            stdio.eprint(" cannot infer allocator type for @list\n", {})
             os.exit(1)
         }
         val ac: ref u8 = get_arg(ctx, args, 0)

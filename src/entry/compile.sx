@@ -35,21 +35,18 @@ fn resolve_target(ctx: mut ref context.Context) bool = trust {
         ctx.target_platform = builds.target_platform_of(ctx.opts.target_spec)
         ctx.target_arch = builds.target_arch_of(ctx.opts.target_spec)
         if cstr.cmp(ctx.target_platform, c"") == 0 || cstr.cmp(ctx.target_arch, c"") == 0 {
-            stdio.print(
-                "error: invalid target '{s}', expected <os>.<arch> (for example windows.x86_64)\n",
-                {ctx.opts.target_spec}
-            )
+            diag.error_label()
+            stdio.print(" invalid target '{s}', expected <os>.<arch> (for example windows.x86_64)\n", {ctx.opts.target_spec})
             return false
         }
         if cstr.cmp(ctx.target_platform, c"darwin") == 0 {
-            stdio.puts("error: cross compilation to macOS is not supported")
+            diag.puts_error_label()
+            stdio.puts(" cross compilation to macOS is not supported")
             return false
         }
         if !builds.target_is_supported(ctx.target_platform, ctx.target_arch) {
-            stdio.print(
-                "error: unsupported target '{s}'; supported: linux.x86_64, linux.aarch64, windows.x86_64, windows.aarch64\n",
-                {ctx.opts.target_spec}
-            )
+            diag.error_label()
+            stdio.print(" unsupported target '{s}'; supported: linux.x86_64, linux.aarch64, windows.x86_64, windows.aarch64\n", {ctx.opts.target_spec})
             return false
         }
         if cstr.cmp(ctx.opts.src_target, c"") == 0 {
@@ -73,10 +70,8 @@ fn resolve_runtime(ctx: mut ref context.Context) bool = trust {
     }
     if !builds.runtime_supported(ctx.target_platform, ctx.target_arch, ctx.runtime_mode) {
         if cstr.len(ctx.opts.runtime_spec) > 0 {
-            stdio.print(
-                "error: runtime mode '{s}' is not implemented for {s}.{s}\n",
-                {ctx.runtime_mode, ctx.target_platform, ctx.target_arch}
-            )
+            diag.error_label()
+            stdio.print(" runtime mode '{s}' is not implemented for {s}.{s}\n", {ctx.runtime_mode, ctx.target_platform, ctx.target_arch})
             return false
         }
         ctx.runtime_mode = c"hosted"
@@ -123,15 +118,11 @@ fn resolve_xwin(ctx: mut ref context.Context) bool = trust {
         }
         if wants_windows_link && !builds.xwin_available_in(ctx.xwin_root, ctx.target_arch) {
             if cstr.len(ctx.xwin_root) > 0 {
-                stdio.print(
-                    "error: xwin at '{s}' is missing CRT/SDK libraries for {s}\n",
-                    {ctx.xwin_root, ctx.target_arch}
-                )
+                diag.error_label()
+                stdio.print(" xwin at '{s}' is missing CRT/SDK libraries for {s}\n", {ctx.xwin_root, ctx.target_arch})
             } else {
-                stdio.print(
-                    "error: windows.{s} requires xwin or a compatible Windows SDK\n",
-                    {ctx.target_arch}
-                )
+                diag.error_label()
+                stdio.print(" windows.{s} requires xwin or a compatible Windows SDK\n", {ctx.target_arch})
             }
             stdio.print("  install: cargo install xwin --locked\n", {})
             stdio.print(
@@ -151,13 +142,15 @@ fn resolve_xwin(ctx: mut ref context.Context) bool = trust {
 fn validate_flags(ctx: mut ref context.Context) bool = trust {
     if cstr.cmp(ctx.opts.src_target, c"") != 0 && !ctx.explicit_target
     && !ctx.opts.emit_alt && !ctx.opts.emit_qbe && !ctx.opts.emit_asm {
-        stdio.puts("error: -src-target requires -emit-alt or -emit-ssa")
+        diag.puts_error_label()
+        stdio.puts(" -src-target requires -emit-alt or -emit-ssa")
         return false
     }
     if ctx.run_mode && (ctx.opts.emit_qbe || ctx.opts.emit_ll || ctx.opts.emit_asm
         || ctx.opts.emit_alt || ctx.opts.build_dll || ctx.opts.compile_obj
         || ctx.opts.syntax_check || ctx.opts.print_ast) {
-        stdio.puts("error: run requires flags that produce a runnable executable")
+        diag.puts_error_label()
+        stdio.puts(" run requires flags that produce a runnable executable")
         return false
     }
     return true
@@ -249,10 +242,8 @@ fn check_windows_link(ctx: mut ref context.Context) bool = trust {
     && !ctx.opts.emit_ll && !ctx.opts.emit_asm
     && !ctx.opts.syntax_check && !ctx.opts.print_ast {
         if !builds.xwin_available_in(ctx.xwin_root, ctx.target_arch) {
-            stdio.print(
-                "error: windows.{s} requires xwin or a compatible Windows SDK\n",
-                {ctx.target_arch}
-            )
+            diag.error_label()
+            stdio.print(" windows.{s} requires xwin or a compatible Windows SDK\n", {ctx.target_arch})
             stdio.print("  install: cargo install xwin --locked\n", {})
             stdio.print("  or pass: -xwin:<dir>\n", {})
             stdio.print("  or use:  -runtime:freestanding\n", {})
@@ -323,7 +314,8 @@ pub fn run(
     ast_mode: bool
 ) i32 = trust {
     if fs.is_directory_cstr(input) {
-        stdio.print("error: '{s}' is a directory, not a source file\n", {input})
+        diag.error_label()
+        stdio.print(" '{s}' is a directory, not a source file\n", {input})
         stdio.puts(
             "-> run 'spectre build <config>' in a project with sx.mod, or compile a file with 'spectre <file.sx> -o <output>'"
         )
@@ -333,7 +325,8 @@ pub fn run(
     val src_size_opt = fs.file_size_cstr(input)
     if src_size_opt is some _ {
     } else {
-        stdio.print("error: could not read '{s}'\n", {input})
+        diag.error_label()
+        stdio.print(" could not read '{s}'\n", {input})
         return 1
     }
 
@@ -398,7 +391,8 @@ pub fn run(
     }
 
     if ((@len(opts.extra_includes) as i64) > 0 && !opts.use_alt && !opts.emit_alt) {
-        stdio.puts("error: -I<headers> requires the alt backend (-alt)")
+        diag.puts_error_label()
+        stdio.puts(" -I<headers> requires the alt backend (-alt)")
         return 1
     }
 

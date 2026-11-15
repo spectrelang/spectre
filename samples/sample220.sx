@@ -33,7 +33,7 @@ pub fn main() void = trust {
     stdio.puts("\n")
     allocators.HeapAllocator.free(h, msg as ref void)
 
-    val packed: mut ref u8 = forward({"pack", "forwarded"})
+    val packed: mut ref u8 = forward({c"pack", c"forwarded"})
     stdio.puts(str.from_cstr(packed))
     stdio.puts("\n")
     @free(packed as ref void)

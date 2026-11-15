@@ -13,6 +13,7 @@ val reflection = use("std/reflection")
 val random     = use("std/crypto/random")
 val mem        = use("mem.sx")
 val commands   = use("commands.sx")
+val diag       = use("diag.sx")
 
 fn marker_start() ref u8 = {
     return c"# >>> spectre install >>>"
@@ -206,7 +207,8 @@ fn choose_build_config(
     if cstr.len(requested) > 0 {
         val found: ref commands.SxBuildConfig = find_build_config(m, requested)
         if found == none {
-            stdio.print("error: build config '{s}' not found in sx.mod\n", {requested})
+            diag.error_label()
+            stdio.print(" build config '{s}' not found in sx.mod\n", {requested})
             list_build_configs(m)
             return none
         }
@@ -232,7 +234,8 @@ fn choose_build_config(
         return value
     }
 
-    stdio.puts("error: sx.mod does not define any build configurations")
+    diag.puts_error_label()
+    stdio.puts(" sx.mod does not define any build configurations")
     return none
 }
 
@@ -572,13 +575,15 @@ pub fn cmd_install(
     bin_dir_arg: ref u8
 ) i32 = trust {
     if cstr.len(url) == 0 {
-        stdio.puts("error: install requires a git repository URL")
+        diag.puts_error_label()
+        stdio.puts(" install requires a git repository URL")
         stdio.puts("usage: spectre install <git-url> [-config <name>] [-shell <shell>]")
         return 1
     }
 
     if !tool_available(c"git") {
-        stdio.puts("error: git is required to install a Spectre project")
+        diag.puts_error_label()
+        stdio.puts(" git is required to install a Spectre project")
         return 1
     }
 
@@ -586,7 +591,8 @@ pub fn cmd_install(
     if cstr.len(repo) == 0
     || cstr.cmp(repo, c".") == 0
     || cstr.cmp(repo, c"..") == 0 {
-        stdio.print("error: could not determine a command name from '{s}'\n", {url})
+        diag.error_label()
+        stdio.print(" could not determine a command name from '{s}'\n", {url})
         return 1
     }
 
@@ -596,7 +602,8 @@ pub fn cmd_install(
     )
 
     if !path.ensure_dir_cstr(clone_dir) {
-        stdio.print("error: could not create temporary directory {s}\n", {clone_dir})
+        diag.error_label()
+        stdio.print(" could not create temporary directory {s}\n", {clone_dir})
         return 1
     }
 
@@ -612,7 +619,8 @@ pub fn cmd_install(
         )
     }
     if os.run(clone_cmd) != 0 {
-        stdio.print("error: git clone failed for {s}\n", {url})
+        diag.error_label()
+        stdio.print(" git clone failed for {s}\n", {url})
         cleanup(clone_dir)
         return 1
     }
@@ -621,7 +629,8 @@ pub fn cmd_install(
     val m: mut ref commands.SxMod = none
     match mod_opt {
         none => {
-            stdio.print("error: {s} does not contain an sx.mod\n", {url})
+            diag.error_label()
+            stdio.print(" {s} does not contain an sx.mod\n", {url})
             cleanup(clone_dir)
             return 1
         }
@@ -631,7 +640,8 @@ pub fn cmd_install(
     }
 
     if (@len(m.builds) as i64) == 0 {
-        stdio.print("error: sx.mod in {s} has no build configurations\n", {url})
+        diag.error_label()
+        stdio.print(" sx.mod in {s} has no build configurations\n", {url})
         cleanup(clone_dir)
         return 1
     }
@@ -651,16 +661,15 @@ pub fn cmd_install(
     }
 
     if !commands.rule_has_actions(rule) && cstr.len(entry) == 0 {
-        stdio.print("error: build config '{s}' does not define an entry file\n", {cfg.name})
+        diag.error_label()
+        stdio.print(" build config '{s}' does not define an entry file\n", {cfg.name})
         cleanup(clone_dir)
         return 1
     }
 
     if commands.rule_has_actions(rule) && cstr.len(rule.output) == 0 {
-        stdio.print(
-            "error: build config '{s}' uses an action but does not declare an output\n",
-            {cfg.name}
-        )
+        diag.error_label()
+        stdio.print(" build config '{s}' uses an action but does not declare an output\n", {cfg.name})
         stdio.puts("Add an 'output' field to the build configuration so the binary can be installed")
         cleanup(clone_dir)
         return 1
@@ -677,7 +686,8 @@ pub fn cmd_install(
     val build_code: i32 = build_in_dir(clone_dir, exe_path, cfg.name)
     allocators.Arena.free(arena)
     if build_code != 0 {
-        stdio.print("error: build failed for {s}\n", {url})
+        diag.error_label()
+        stdio.print(" build failed for {s}\n", {url})
         stdio.print("  source left at: {s}\n", {clone_dir})
         return 1
     }
@@ -691,7 +701,8 @@ pub fn cmd_install(
     }
 
     if !os.exists(artifact) {
-        stdio.print("error: build did not produce an executable at {s}\n", {artifact})
+        diag.error_label()
+        stdio.print(" build did not produce an executable at {s}\n", {artifact})
         stdio.print("  source left at: {s}\n", {clone_dir})
         return 1
     }
@@ -703,7 +714,8 @@ pub fn cmd_install(
 
     val destination: ref u8 = path.join_cstr(bin_dir, installed_name(repo))
     if !install_artifact(artifact, destination) {
-        stdio.print("error: could not install {s} to {s}\n", {artifact, destination})
+        diag.error_label()
+        stdio.print(" could not install {s} to {s}\n", {artifact, destination})
         cleanup(clone_dir)
         return 1
     }

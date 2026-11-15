@@ -15,6 +15,7 @@ val mem        = use("../meta/mem.sx")
 val builds     = use("../meta/builds.sx")
 val module     = use("../module/module.sx")
 val context    = use("context.sx")
+val diag       = use("../meta/diag.sx")
 
 type CrossState = {
     final_output: mut ref u8
@@ -108,7 +109,8 @@ fn collect_links_x(ctx: mut ref context.Context, st: mut ref CrossState) bool = 
             st.links = resolved
         }
         err e => {
-            stdio.print("error: {s}\n", {e})
+            diag.error_label()
+            stdio.print(" {s}\n", {e})
             os.delete(ctx.qbe_file)
             os.delete(ctx.asm_file)
             return false
@@ -156,7 +158,8 @@ fn compile_target_asm(ctx: mut ref context.Context, st: mut ref CrossState) bool
             val err_mark = ostr.from_cstr[allocators.Arena](ctx.arena, c"error:")
             if ostr.contains(v, err_mark) {
                 stdio.print("{s}", {vstr})
-                stdio.puts("error: target assembly failed")
+                diag.puts_error_label()
+                stdio.puts(" target assembly failed")
                 os.delete(ctx.qbe_file)
                 os.delete(ctx.asm_file)
                 os.delete(st.asm_obj)
@@ -164,7 +167,8 @@ fn compile_target_asm(ctx: mut ref context.Context, st: mut ref CrossState) bool
             }
         }
         err _ => {
-            stdio.puts("error: failed to run clang for target assembly")
+            diag.puts_error_label()
+            stdio.puts(" failed to run clang for target assembly")
             os.delete(ctx.qbe_file)
             os.delete(ctx.asm_file)
             return false
@@ -237,10 +241,8 @@ fn prepare_runtime(ctx: mut ref context.Context, st: mut ref CrossState) bool = 
                 }
             }
             if !rt_ok {
-                stdio.print(
-                    "error: freestanding runtime compilation failed for '{s}'\n",
-                    {runtime_c}
-                )
+                diag.error_label()
+                stdio.print(" freestanding runtime compilation failed for '{s}'\n", {runtime_c})
                 os.delete(rt_tmp)
                 os.delete(ctx.qbe_file)
                 os.delete(ctx.asm_file)
@@ -312,10 +314,8 @@ fn prepare_runtime(ctx: mut ref context.Context, st: mut ref CrossState) bool = 
                     }
                 }
                 if !start_ok {
-                    stdio.print(
-                        "error: freestanding entry compilation failed for '{s}'\n",
-                        {start_source}
-                    )
+                    diag.error_label()
+                    stdio.print(" freestanding entry compilation failed for '{s}'\n", {start_source})
                     os.delete(start_tmp)
                     if !st.runtime_cached {
                         os.delete(st.runtime_obj)
@@ -393,10 +393,8 @@ fn prepare_runtime(ctx: mut ref context.Context, st: mut ref CrossState) bool = 
                     }
                 }
                 if !sys_ok {
-                    stdio.print(
-                        "error: Spectre runtime compilation failed for '{s}'\n",
-                        {sys_src}
-                    )
+                    diag.error_label()
+                    stdio.print(" Spectre runtime compilation failed for '{s}'\n", {sys_src})
                     return false
                 }
                 st.sys_cached = true
@@ -419,7 +417,8 @@ fn compile_shim(ctx: mut ref context.Context, st: mut ref CrossState) bool = tru
             os.write(f, ctx.c_shim_source, cstr.len(ctx.c_shim_source) as i64)
             os.close(f)
         } else {
-            stdio.puts("error: could not write C shim")
+            diag.puts_error_label()
+            stdio.puts(" could not write C shim")
             os.delete(ctx.qbe_file)
             os.delete(ctx.asm_file)
             os.delete(st.asm_obj)
@@ -473,7 +472,8 @@ fn compile_shim(ctx: mut ref context.Context, st: mut ref CrossState) bool = tru
                 val err_mark = ostr.from_cstr[allocators.Arena](ctx.arena, c"error:")
                 if ostr.contains(v, err_mark) {
                     stdio.print("{s}", {vstr})
-                    stdio.puts("error: target C shim compilation failed")
+                    diag.puts_error_label()
+                    stdio.puts(" target C shim compilation failed")
                     os.delete(ctx.qbe_file)
                     os.delete(ctx.asm_file)
                     os.delete(st.asm_obj)
@@ -482,7 +482,8 @@ fn compile_shim(ctx: mut ref context.Context, st: mut ref CrossState) bool = tru
                 }
             }
             err _ => {
-                stdio.puts("error: failed to run clang for the C shim")
+                diag.puts_error_label()
+                stdio.puts(" failed to run clang for the C shim")
                 os.delete(ctx.qbe_file)
                 os.delete(ctx.asm_file)
                 os.delete(st.asm_obj)
@@ -575,10 +576,8 @@ fn build_link_cmd(ctx: mut ref context.Context, st: mut ref CrossState) bool = t
                     }
                 }
                 if !extra_ok {
-                    stdio.print(
-                        "error: target C compilation failed for '{s}'\n",
-                        {link_flag}
-                    )
+                    diag.error_label()
+                    stdio.print(" target C compilation failed for '{s}'\n", {link_flag})
                     os.delete(extra_obj)
                     os.delete(ctx.qbe_file)
                     os.delete(ctx.asm_file)
@@ -791,7 +790,8 @@ fn execute_link(ctx: mut ref context.Context, st: mut ref CrossState) i32 = trus
         os.delete(st.win_compat_obj)
     }
     if !link_ok {
-        stdio.puts("error: target link failed")
+        diag.puts_error_label()
+        stdio.puts(" target link failed")
         return 1
     }
     if ctx.run_mode {

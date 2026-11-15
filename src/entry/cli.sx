@@ -12,6 +12,7 @@ val meta       = use("../meta/meta.sx")
 val commands   = use("../meta/commands.sx")
 val tools      = use("tools.sx")
 val compile    = use("compile.sx")
+val diag       = use("../meta/diag.sx")
 
 pub fn run(
     args: list[ref u8],
@@ -23,7 +24,8 @@ pub fn run(
     val run_mode: mut bool = false
 
     if argc < 2 {
-        stdio.puts("error: no input file provided\n")
+        diag.puts_error_label()
+        stdio.puts(" no input file provided\n")
         meta.print_usage()
         return 1
     }
@@ -39,21 +41,21 @@ pub fn run(
                 if spec_opt is some spec_val {
                     val def_spec: ref u8 = spec_val as ref u8
                     if !defines.add_spec(str.from_cstr(def_spec)) {
-                        stdio.print(
-                            "error: invalid define '{s}', expected NAME=VALUE\n",
-                            {def_spec}
-                        )
+                        diag.error_label()
+                        stdio.print(" invalid define '{s}', expected NAME=VALUE\n", {def_spec})
                         return 1
                     }
                     input_arg_i = spec_i + 1
                 } else {
-                    stdio.puts("error: -d requires a NAME=VALUE argument")
+                    diag.puts_error_label()
+                    stdio.puts(" -d requires a NAME=VALUE argument")
                     return 1
                 }
             } elif cstr.starts_with(pre_arg, c"-d:") {
                 val def_spec: ref u8 = cstr.substr(pre_arg, 3, cstr.len(pre_arg) - 3)
                 if !defines.add_spec(str.from_cstr(def_spec)) {
-                    stdio.print("error: invalid define '{s}', expected -d:NAME=VALUE\n", {pre_arg})
+                    diag.error_label()
+                    stdio.print(" invalid define '{s}', expected -d:NAME=VALUE\n", {pre_arg})
                     return 1
                 }
                 input_arg_i++
@@ -69,7 +71,8 @@ pub fn run(
     if input_opt is some a {
         input = a as ref u8
     } else {
-        stdio.puts("error: no input file")
+        diag.puts_error_label()
+        stdio.puts(" no input file")
         return 1
     }
 
@@ -80,7 +83,8 @@ pub fn run(
         if run_input_opt is some a {
             input = a as ref u8
         } else {
-            stdio.puts("error: run requires an input file\n")
+            diag.puts_error_label()
+            stdio.puts(" run requires an input file\n")
             meta.print_usage()
             return 1
         }
@@ -173,7 +177,8 @@ pub fn run(
         if url_opt is some v {
             return commands.cmd_add(v as ref u8)
         } else {
-            stdio.puts("error: add requires a git repository URL")
+            diag.puts_error_label()
+            stdio.puts(" add requires a git repository URL")
             return 1
         }
     }
@@ -183,7 +188,8 @@ pub fn run(
         if dep_opt is some v {
             return commands.cmd_remove(v as ref u8)
         } else {
-            stdio.puts("error: remove requires a dependency name")
+            diag.puts_error_label()
+            stdio.puts(" remove requires a dependency name")
             return 1
         }
     }
@@ -219,7 +225,8 @@ pub fn run(
         if check_input_opt is some a {
             input = a as ref u8
         } else {
-            stdio.puts("error: check requires an input file\n")
+            diag.puts_error_label()
+            stdio.puts(" check requires an input file\n")
             meta.print_usage()
             return 1
         }
@@ -243,7 +250,8 @@ pub fn run(
         if ast_input_opt is some a {
             input = a as ref u8
         } else {
-            stdio.puts("error: ast requires an input file\n")
+            diag.puts_error_label()
+            stdio.puts(" ast requires an input file\n")
             meta.print_usage()
             return 1
         }

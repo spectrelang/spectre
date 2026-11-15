@@ -6048,7 +6048,8 @@ fn cc_fn_prototype(ctx: mut ref CCtx, mangled: ref u8) ref u8 = trust {
 fn cc_alloc_adapter_prefix(ctx: mut ref CCtx, ty: ref parser.Node) ref u8 = trust {
     val concrete: ref parser.Node = cc_concrete_ty(ctx, ty)
     if concrete == none || concrete.kind != parser.TY_NAMED {
-        stdio.eprint("error: intrinsic allocator type argument must be a concrete named type\n", {})
+        diag.eprint_error_label()
+        stdio.eprint(" intrinsic allocator type argument must be a concrete named type\n", {})
         os.exit(1)
     }
     val full_name: ref u8 = parser.node_str_raw(concrete.d0)
@@ -6079,7 +6080,8 @@ fn cc_alloc_adapter_prefix(ctx: mut ref CCtx, ty: ref parser.Node) ref u8 = trus
     val free_fn: ref u8 = cc_resolve_fn_name(ctx, free_suffix)
     val realloc_fn: ref u8 = cc_resolve_fn_name(ctx, realloc_suffix)
     if cstr.len(alloc_fn) == 0 || cstr.len(free_fn) == 0 || cstr.len(realloc_fn) == 0 {
-        stdio.eprint("error: allocator '{s}' does not implement GeneralAllocator\n", {full_name})
+        diag.eprint_error_label()
+        stdio.eprint(" allocator '{s}' does not implement GeneralAllocator\n", {full_name})
         os.exit(1)
     }
 
@@ -6150,7 +6152,8 @@ fn cc_copy_str(ctx: ref CCtx, s: ref u8) ref u8 = trust {
 fn cc_raw_alloc_fn(ctx: mut ref CCtx, ty: ref parser.Node) ref u8 = trust {
     val concrete: ref parser.Node = cc_concrete_ty(ctx, ty)
     if concrete == none || concrete.kind != parser.TY_NAMED {
-        stdio.eprint("error: option allocator must be a concrete named type\n", {})
+        diag.eprint_error_label()
+        stdio.eprint(" option allocator must be a concrete named type\n", {})
         os.exit(1)
     }
     val full_name: ref u8 = parser.node_str_raw(concrete.d0)
@@ -6168,7 +6171,8 @@ fn cc_raw_alloc_fn(ctx: mut ref CCtx, ty: ref parser.Node) ref u8 = trust {
         sym = cc_resolve_fn_name(ctx, cstr.concat(base_name, c"__alloc_raw"))
     }
     if cstr.len(sym) == 0 {
-        stdio.eprint("error: allocator '{s}' does not implement alloc_raw\n", {full_name})
+        diag.eprint_error_label()
+        stdio.eprint(" allocator '{s}' does not implement alloc_raw\n", {full_name})
         os.exit(1)
     }
     val decl: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 512 as usize) as ref u8
@@ -6365,7 +6369,8 @@ fn gen_builtin(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
     if cstr.cmp(bname, c"embed") == 0 {
         val epath: ref u8 = parser.node_str_raw(expr.d2)
         if epath == none {
-            stdio.eprint("error: @embed path was not resolved\n", {})
+            diag.eprint_error_label()
+            stdio.eprint(" @embed path was not resolved\n", {})
             os.exit(1)
         }
         val label: ref u8 = cc_embed_data(ctx, epath, expr.d3)
@@ -7119,7 +7124,8 @@ fn gen_builtin(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
         }
         val ac_ty: ref parser.Node = cc_infer_expr_ty(ctx, ac_node)
         if ac_ty == none {
-            stdio.eprint("error: cannot infer allocator type for @list\n", {})
+            diag.eprint_error_label()
+            stdio.eprint(" cannot infer allocator type for @list\n", {})
             os.exit(1)
         }
         val ac: ref u8 = get_arg(ctx, args, 0)
@@ -10801,7 +10807,8 @@ fn preregister_items(
                         if cstr.cmp(bname, c"embed") == 0 {
                             val epath: ref u8 = parser.node_str_raw(ce.d2)
                             if epath == none {
-                                stdio.eprint("error: @embed path was not resolved\n", {})
+                                diag.eprint_error_label()
+                                stdio.eprint(" @embed path was not resolved\n", {})
                                 os.exit(1)
                             }
                             val label: ref u8 = cc_embed_data(ctx, epath, ce.d3)
@@ -10917,7 +10924,8 @@ fn gen_module_storage(
         if cstr.cmp(bname, c"embed") == 0 {
             val epath: ref u8 = parser.node_str_raw(init_expr.d2)
             if epath == none {
-                stdio.eprint("error: @embed path was not resolved\n", {})
+                diag.eprint_error_label()
+                stdio.eprint(" @embed path was not resolved\n", {})
                 os.exit(1)
             }
             val label: ref u8 = cc_embed_data(ctx, epath, init_expr.d3)

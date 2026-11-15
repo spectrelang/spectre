@@ -1,0 +1,13 @@
+// Regression sample: argspack arguments must be scalar or pointer values.
+// StringView values cannot be represented safely in a forwarded argspack.
+
+val string = use("std/string")
+
+fn consume(fmt: string.StringView, args: argspack) void = trust {
+    @print(fmt, args)
+}
+
+pub fn main() void = trust {
+    val message: string.StringView = "not a scalar"
+    consume("{s}\n", {message})
+}

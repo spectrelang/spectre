@@ -10,6 +10,7 @@ val path       = use("std/path")
 val stdio      = use("std/stdio")
 val allocators = use("std/allocators")
 val lexer      = use("../ast/lexer.sx")
+val diag       = use("diag.sx")
 
 type Buf = {
     ptr: mut ref u8
@@ -4497,7 +4498,8 @@ fn format_file(file: ref u8, to_stdout: bool) i32 = trust {
     if size_opt is some s {
         size = s as i64
     } else {
-        stdio.print("error: could not read '{s}'\n", {file})
+        diag.error_label()
+        stdio.print(" could not read '{s}'\n", {file})
         return 1
     }
 
@@ -4506,7 +4508,8 @@ fn format_file(file: ref u8, to_stdout: bool) i32 = trust {
     if content_opt is some c {
         content = c
     } else {
-        stdio.print("error: could not read '{s}'\n", {file})
+        diag.error_label()
+        stdio.print(" could not read '{s}'\n", {file})
         return 1
     }
 
@@ -4516,7 +4519,8 @@ fn format_file(file: ref u8, to_stdout: bool) i32 = trust {
             break
         }
         if byte_at_cstr(content, i) == 0 {
-            stdio.print("error: '{s}' is not a plaintext .sx file\n", {file})
+            diag.error_label()
+            stdio.print(" '{s}' is not a plaintext .sx file\n", {file})
             @free(content)
             return 1
         }
@@ -4528,7 +4532,8 @@ fn format_file(file: ref u8, to_stdout: bool) i32 = trust {
         stdio.print("{s}", {formatted})
     } elif cstr.cmp(formatted, content) != 0 {
         if !fs.write_all_cstr(file, formatted) {
-            stdio.print("error: could not write '{s}'\n", {file})
+            diag.error_label()
+            stdio.print(" could not write '{s}'\n", {file})
             if formatted != content {
                 @free(formatted)
             }
@@ -4550,7 +4555,8 @@ fn collect_files(target: ref u8, out: mut list[ref u8], explicit: bool) i32 = tr
         val entries_opt = fs.walk_dir_cstr[_](heap, target)
         match entries_opt {
             none => {
-                stdio.print("error: could not read directory '{s}'\n", {target})
+                diag.error_label()
+                stdio.print(" could not read directory '{s}'\n", {target})
                 return 1
             }
             some entries => {
@@ -4577,14 +4583,16 @@ fn collect_files(target: ref u8, out: mut list[ref u8], explicit: bool) i32 = tr
         return 0
     }
 
-    stdio.print("error: fmt only formats .sx files: '{s}'\n", {target})
+    diag.error_label()
+    stdio.print(" fmt only formats .sx files: '{s}'\n", {target})
     return 1
 }
 
 pub fn cmd_fmt(targets: list[ref u8], to_stdout: bool) i32 = trust {
     val n_targets: i64 = @len(targets) as i64
     if n_targets == 0 {
-        stdio.puts("error: fmt requires at least one .sx file or directory")
+        diag.puts_error_label()
+        stdio.puts(" fmt requires at least one .sx file or directory")
         return 1
     }
 

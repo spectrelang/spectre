@@ -11,6 +11,7 @@ val allocators  = use("std/allocators")
 val builds      = use("../meta/builds.sx")
 val arenafmt    = use("../meta/arenafmt.sx")
 val c_translate = use("c_translate.sx")
+val diag        = use("../meta/diag.sx")
 
 pub type BindOptions = {
     output_dir: mut str.StringView
@@ -308,10 +309,8 @@ fn preprocess(
         ok output => {
             val text: str.StringView = str.from_cstr(ostr.as_cstr(output))
             if str.contains(text, "__SPECTRE_CPP_FAILED__") {
-                stdio.print(
-                    "error: C preprocessor failed for '{s}'\n",
-                    {copy_view(input)}
-                )
+                diag.error_label()
+                stdio.print(" C preprocessor failed for '{s}'\n", {copy_view(input)})
                 stdio.print("{s}\n", {copy_view(text)})
                 return none
             }
@@ -416,23 +415,23 @@ fn bind_one(
 /// Generate Spectre bindings for C headers using an external preprocessor.
 pub fn bind_c(inputs: list[ref u8], opts: mut BindOptions) i32 = trust {
     if (@len(inputs) as i64) == 0 {
-        stdio.puts("error: bind-c requires at least one .h or .c input")
+        diag.puts_error_label()
+        stdio.puts(" bind-c requires at least one .h or .c input")
         return 1
     }
     if opts.output_dir.len == 0 {
         opts.output_dir = "./src-out"
     }
     if !fs.is_directory(opts.output_dir) && !fs.mkdir_path(opts.output_dir) {
-        stdio.print(
-            "error: could not create output directory '{s}'\n",
-            {copy_view(opts.output_dir)}
-        )
+        diag.error_label()
+        stdio.print(" could not create output directory '{s}'\n", {copy_view(opts.output_dir)})
         return 1
     }
     val files: mut list[str.StringView] = mem.new[str.StringView]()
     collect_inputs(inputs, files)
     if (@len(files) as i64) == 0 {
-        stdio.puts("error: no matching .h or .c files found")
+        diag.puts_error_label()
+        stdio.puts(" no matching .h or .c files found")
         return 1
     }
     for file in files {
