@@ -1,0 +1,9 @@
+fn some_func(x: i32) void = {
+    pre {
+        must_be_gt_ten: x > 10
+    }
+}
+
+pub fn main() void = {
+    some_func(1 - 2)
+}
