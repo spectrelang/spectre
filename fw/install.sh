@@ -8,6 +8,7 @@ SRC_DIR="${PREFIX}/src"
 QBE_OK=1
 UQBE_BIN=""
 FORCE_FALLBACK=0
+TCC_STAGE1=0
 UQBE_REPO="https://github.com/spectrelang/uqbe.git"
 SPECTRE_REPO="https://github.com/spectrelang/spectre.git"
 SPECTRE_LS_REPO="https://github.com/spectrelang/spectre-ls.git"
@@ -351,11 +352,13 @@ if ! command -v tcc >/dev/null 2>&1; then
 	fi
 	if command -v tcc >/dev/null 2>&1; then
 		log "tcc installed successfully."
+		TCC_STAGE1=1
 	else
 		log "tcc unavailable on this platform, clang will be used as alt backend instead."
 	fi
 else
 	log "tcc already installed: $(command -v tcc)"
+	TCC_STAGE1=1
 fi
 
 log "Checking for lld (used by -target: cross builds)..."
@@ -546,7 +549,20 @@ if [ "$QBE_OK" -eq 1 ]; then
 else
 	/usr/bin/install -m 0755 "${POSIX_BOOTSTRAP_OUT}" "$STAGE0"
 fi
-(cd "$SPECTRE_DIR" && ./spectre-stage0 ./src/sxc.sx -release -alt -runtime:hosted -o ./spectre-stage1)
+STAGE1_OK=1
+if [ "$TCC_STAGE1" -eq 1 ]; then
+	log "Using tcc for the stage 1 build."
+	(cd "$SPECTRE_DIR" && ./spectre-stage0 ./src/sxc.sx -release -dynamic -alt:tcc -runtime:hosted -o ./spectre-stage1) || STAGE1_OK=0
+	if [ "$STAGE1_OK" -eq 0 ]; then
+		log "tcc stage 1 failed — retrying with clang."
+		rm -f "$STAGE1"
+		STAGE1_OK=1
+		(cd "$SPECTRE_DIR" && ./spectre-stage0 ./src/sxc.sx -release -alt:clang -runtime:hosted -o ./spectre-stage1) || STAGE1_OK=0
+	fi
+else
+	(cd "$SPECTRE_DIR" && ./spectre-stage0 ./src/sxc.sx -release -alt -runtime:hosted -o ./spectre-stage1) || STAGE1_OK=0
+fi
+[ "$STAGE1_OK" -eq 1 ] || err "Failed to build Spectre stage 1 from source."
 
 GIT_HASH="unknown"
 if command -v git >/dev/null 2>&1; then
@@ -562,7 +578,19 @@ if [ -n "$SPECTRE_MOD_VERSION" ]; then
 fi
 
 log "Building Spectre stage 2 from source..."
-(cd "$SPECTRE_DIR" && ./spectre-stage1 $STAGE_DEFINES ./src/sxc.sx -release -alt -runtime:hosted -o ./spectre-stage2)
+STAGE2_OK=1
+(cd "$SPECTRE_DIR" && ./spectre-stage1 $STAGE_DEFINES ./src/sxc.sx -release -alt -runtime:hosted -o ./spectre-stage2) || STAGE2_OK=0
+if [ "$STAGE2_OK" -eq 0 ] && [ "$TCC_STAGE1" -eq 1 ]; then
+	log "stage 2 failed with the tcc stage 1 build — rebuilding stage 1 with clang."
+	rm -f "$STAGE1" "$STAGE2"
+	STAGE1_OK=1
+	(cd "$SPECTRE_DIR" && ./spectre-stage0 ./src/sxc.sx -release -alt:clang -runtime:hosted -o ./spectre-stage1) || STAGE1_OK=0
+	if [ "$STAGE1_OK" -eq 1 ]; then
+		STAGE2_OK=1
+		(cd "$SPECTRE_DIR" && ./spectre-stage1 $STAGE_DEFINES ./src/sxc.sx -release -alt -runtime:hosted -o ./spectre-stage2) || STAGE2_OK=0
+	fi
+fi
+[ "$STAGE2_OK" -eq 1 ] || err "Failed to build Spectre stage 2 from source."
 
 log "Installing Spectre binary..."
 /usr/bin/install -m 0755 "${STAGE2}" "${BIN_DIR}/spectre"
