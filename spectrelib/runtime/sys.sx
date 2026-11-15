@@ -21,12 +21,15 @@ extern (C) fn __sx_sys_nanosleep_us(us: i64) i64 = "__sx_sys_nanosleep_us"
 extern (C) fn __sx_sys_gettid() i64 = "__sx_sys_gettid"
 extern (C) fn __sx_sys_sched_yield() i64 = "__sx_sys_sched_yield"
 extern (C) fn __sx_sys_futex(addr: i64, op: i64, value: i64, timeout: i64) i64 = "__sx_sys_futex"
+
+//!suppress "unused-function"
 extern (C) fn __sx_sys_clone_thread(
     flags: i64,
     stack: ref void,
     entry: ref void,
     arg: ref void
 ) i64 = "__sx_sys_clone_thread"
+
 extern (C) fn __sx_sys_create_thread(entry: ref void, arg: ref void) i64 = "__sx_sys_create_thread"
 extern (C) fn __sx_sys_wait_thread(handle: i64) i64 = "__sx_sys_wait_thread"
 extern (C) fn __sx_sys_detach_thread(handle: i64) i64 = "__sx_sys_detach_thread"
@@ -1008,6 +1011,7 @@ fn fmt_putc(buf: ref u8, cap: i64, pos: ref i64, ch: u8) void = trust {
     @store(pos, @load(pos) + 1)
 }
 
+//!suppress "unused-function"
 fn fmt_puts(buf: ref u8, cap: i64, pos: ref i64, s: mut ref u8) void = trust {
     if s == none {
         s = c"(null)"
