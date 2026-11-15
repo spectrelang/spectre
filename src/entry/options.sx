@@ -14,6 +14,7 @@ val diag     = use("../meta/diag.sx")
 
 pub type Options = {
     quiet: mut bool
+    no_warn: mut bool
     emit_qbe: mut bool
     emit_ll: mut bool
     emit_asm: mut bool
@@ -226,6 +227,9 @@ pub fn parse(
                 arg_i++
             } elif cstr.cmp(arg, c"-loud") == 0 || cstr.cmp(arg, c"-l") == 0 {
                 opts.quiet = false
+                arg_i++
+            } elif cstr.cmp(arg, c"-no-warn") == 0 {
+                opts.no_warn = true
                 arg_i++
             } elif cstr.cmp(arg, c"-release") == 0 {
                 opts.release_mode = true

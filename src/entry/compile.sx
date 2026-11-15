@@ -286,7 +286,8 @@ fn run_semantics(ctx: mut ref context.Context) bool = trust {
         ctx.frontend_arena,
         ctx.root_mod,
         quiet_flag,
-        ctx.opts.src_target
+        ctx.opts.src_target,
+        ctx.opts.no_warn
     )
     val nerrors: i64 = @len(errors) as i64
     if nerrors > 0 {

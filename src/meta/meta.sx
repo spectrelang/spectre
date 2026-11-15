@@ -69,6 +69,7 @@ pub fn print_usage() void = {
     stdio.puts("  -native              Optimize the selected backend for the host CPU")
     stdio.puts("  -unroll              Enable aggressive loop unrolling in the alt backend")
     stdio.puts("  -no-simd             Disable autovectorization, use scalar fallback")
+    stdio.puts("  -no-warn             Suppress compiler warnings")
     stdio.puts("  -abs-dbg             Use absolute paths in diagnostics and debug info")
     stdio.puts("  -dynamic             Link dynamically instead of statically")
     stdio.puts("  -dll                 Build a shared library")
@@ -540,6 +541,15 @@ pub fn print_help(topic: str.StringView) i32 = trust {
             "-no-simd",
             "Disable autovectorization and emit scalar loops. Useful for debugging and for platforms without a supported SIMD backend.",
             "spectre <input.sx> -release -alt -no-simd"
+        )
+        return 0
+    }
+
+    if str.eql_cstr(topic, c"-no-warn") {
+        print_flag_help(
+            "-no-warn",
+            "Suppress compiler warnings. Diagnostics for errors are still reported.",
+            "spectre <input.sx> -no-warn"
         )
         return 0
     }

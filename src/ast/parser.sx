@@ -126,6 +126,7 @@ pub val (
     GENERIC_FN_FLAG_VARIADIC: i64        = 16
     EXTERN_FLAG_VARIADIC: i64            = 2
     EXTERN_FLAG_HEADER: i64              = 4
+    EXTERN_FLAG_SUPPRESS_UNUSED: i64     = 8
 )
 
 type NodeSlotBox = {
@@ -421,7 +422,7 @@ pub fn fn_suppresses_unused(n: ref Node) bool = {
         return (n.d0 & GENERIC_FN_FLAG_SUPPRESS_UNUSED) != 0
     }
     if n.kind == NK_EXTERN_FN {
-        return false
+        return (n.d6 & EXTERN_FLAG_SUPPRESS_UNUSED) != 0
     }
     return (n.d6 & FN_FLAG_SUPPRESS_UNUSED) != 0
 }
@@ -4075,7 +4076,11 @@ fn parse_union_def_item(p: mut ref Parser, public: i64) result[ref Node, ref u8]
     return ok nu
 }
 
-fn parse_extern_fn_item(p: mut ref Parser, public: i64) result[ref Node, ref u8] = trust {
+fn parse_extern_fn_item(
+    p: mut ref Parser,
+    public: i64,
+    suppress_unused: bool
+) result[ref Node, ref u8] = trust {
     val line: i64 = p_line(p)
     p_expect_lparen(p)?
     val conv = p_expect_ident(p)?
@@ -4124,6 +4129,10 @@ fn parse_extern_fn_item(p: mut ref Parser, public: i64) result[ref Node, ref u8]
     p_expect_rparen(p)?
     val ret_ty = parse_type(p)?
     val is_unsafe: i64 = 0
+    val suppress_flag: mut i64 = 0
+    if suppress_unused {
+        suppress_flag = 1
+    }
     p_expect_eq(p)?
     val symbol = p_expect_string(p)?
     val nef: mut ref Node = make_node(p.arena, NK_EXTERN_FN, line)
@@ -4134,7 +4143,7 @@ fn parse_extern_fn_item(p: mut ref Parser, public: i64) result[ref Node, ref u8]
     val pl: list[ref Node] = params
     node_store_slot[list[ref Node]](@addr(nef.d4), pl)
     node_store_slot[ref Node](@addr(nef.d5), ret_ty)
-    nef.d6 = (is_unsafe * FN_FLAG_UNSAFE) | (is_variadic * EXTERN_FLAG_VARIADIC) | (use_header_decl * EXTERN_FLAG_HEADER)
+    nef.d6 = (is_unsafe * FN_FLAG_UNSAFE) | (is_variadic * EXTERN_FLAG_VARIADIC) | (use_header_decl * EXTERN_FLAG_HEADER) | (suppress_flag * EXTERN_FLAG_SUPPRESS_UNUSED)
     return ok nef
 }
 
@@ -4381,7 +4390,7 @@ pub fn parse_item(p: mut ref Parser) result[ref Node, ref u8] = trust {
             p_advance(p)
             return parse_extern_val_item(p, public)
         }
-        return parse_extern_fn_item(p, public)
+        return parse_extern_fn_item(p, public, suppress_unused)
     }
     if lexer.kind_is_spec(k2) {
         return parse_spec_item(p, public)

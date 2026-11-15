@@ -12146,6 +12146,13 @@ fn function_suppresses_unused(
                     return true
                 }
             }
+        } elif k == parser.NK_EXTERN_FN {
+            if parser.fn_suppresses_unused(item) {
+                val name: ref u8 = parser.node_str_raw(item.d1)
+                if name != none && cstr.eql(name, fn_name) {
+                    return true
+                }
+            }
         } elif k == parser.NK_WHEN_ITEMS {
             val witems: ref void = sema_select_when_branch(ctx, item)
             if witems != none {
@@ -12164,8 +12171,9 @@ pub fn check_module(
     items: list[ref parser.Node],
     filename: ref u8,
     root: ref modinfo.ResolvedModule,
-    quiet: i64,
-    src_target: ref u8
+    _: i64,
+    src_target: ref u8,
+    no_warn: bool
 ) list[ref u8] = trust {
     val ctx: mut ref SemaCtx = sema_new(arena)
     ctx.root_mod = root
@@ -12215,23 +12223,23 @@ pub fn check_module(
                     namec,
                     c"main"
                 ) && !is_variant && !is_public && !suppresses_unused {
-                    val wbuf: ref u8 = allocators.ScopedArena.alloc_or_none(
-                        ctx.arena,
-                        (256) as usize
-                    ) as ref u8
-                    @snprintf(wbuf, 256, "{s}: unused function '{s}'", {filename, namec})
-                    @append(ctx.warnings, wbuf)
+                    if !no_warn {
+                        val wbuf: ref u8 = allocators.ScopedArena.alloc_or_none(
+                            ctx.arena,
+                            (256) as usize
+                        ) as ref u8
+                        @snprintf(wbuf, 256, "{s}: unused function '{s}'", {filename, namec})
+                        @append(ctx.warnings, wbuf)
+                    }
                 }
             }
         }
         fi++
     }
 
-    if quiet == 0 {
-        for w in ctx.warnings {
-            diag.warning_label()
-            stdio.print(" {s}\n", {w})
-        }
+    for w in ctx.warnings {
+        diag.warning_label()
+        stdio.print(" {s}\n", {w})
     }
 
     return ctx.errors
@@ -12252,7 +12260,8 @@ fn check_module_rec(
     all_errors: mut list[ref u8],
     seen: mut list[ref void],
     quiet: i64,
-    src_target: ref u8
+    src_target: ref u8,
+    no_warn: bool
 ) void = trust {
     if mod == none {
         return
@@ -12269,13 +12278,13 @@ fn check_module_rec(
             break
         }
         val child: ref modinfo.ResolvedModule = modinfo.import_module_at(mod, i as usize)
-        check_module_rec(arena, child, all_errors, seen, quiet, src_target)
+        check_module_rec(arena, child, all_errors, seen, quiet, src_target, no_warn)
         i++
     }
 
     val fname: ref u8 = normalize_path(arena, modinfo.module_display_filename(mod))
     val items: list[ref parser.Node] = modinfo.module_items(mod)
-    val errors: list[ref u8] = check_module(arena, items, fname, mod, quiet, src_target)
+    val errors: list[ref u8] = check_module(arena, items, fname, mod, quiet, src_target, no_warn)
     for e in errors {
         @append(all_errors, e)
     }
@@ -12285,10 +12294,11 @@ pub fn check_module_tree(
     arena: allocators.ScopedArenaAllocator,
     root: ref modinfo.ResolvedModule,
     quiet: i64,
-    src_target: ref u8
+    src_target: ref u8,
+    no_warn: bool
 ) list[ref u8] = trust {
     val all_errors: mut list[ref u8] = mem.new[ref u8]()
     val seen: mut list[ref void] = mem.new[ref void]()
-    check_module_rec(arena, root, all_errors, seen, quiet, src_target)
+    check_module_rec(arena, root, all_errors, seen, quiet, src_target, no_warn)
     return all_errors
 }
