@@ -1,0 +1,5 @@
+extern (C) fn extern_malloc(size: usize) ref void = "malloc"
+
+pub fn main() void = {
+    @puts("proceeds to not use malloc :)")
+}

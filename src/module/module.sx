@@ -11,6 +11,7 @@ val lexer      = use("../ast/lexer.sx")
 val defines    = use("../meta/defines.sx")
 val libfind    = use("../meta/libfind.sx")
 val commands   = use("../meta/commands.sx")
+val diag       = use("../meta/diag.sx")
 
 /// Runtime mode used by `when freestanding` / `when hosted` selectors.  The
 /// compiler front end sets this before module resolution and updates it if a
@@ -1340,7 +1341,24 @@ fn display_path(full: ref u8, exe_dir: ref u8) ref u8 = trust {
         }
         val c: u8 = @load8(@ptradd(full, i))
         if c == 47 || c == 92 {
-            return @ptradd(full, i + 1) as ref u8
+            val base: ref u8 = @ptradd(full, i + 1) as ref u8
+            if cstr.eql(base, c"core.sx") {
+                val prev: mut i64 = i - 1
+                for {
+                    if prev < 0 {
+                        break
+                    }
+                    val pc: u8 = @load8(@ptradd(full, prev))
+                    if pc == 47 || pc == 92 {
+                        if prev + 1 < i {
+                            return @ptradd(full, prev + 1) as ref u8
+                        }
+                        break
+                    }
+                    prev--
+                }
+            }
+            return base
         }
         i--
     }
@@ -1440,6 +1458,7 @@ fn resolve_module_impl(
     val module_path = arena_string(arena, canonical_path)
     val m: mut ref ResolvedModule = new_resolved(arena, items, module_path, file_dir)
     m.display_filename = arena_string(arena, display_file)
+    diag.register_source_path(display_file, canonical_path)
 
     val cur_progress: mut list[ref u8] = in_progress
     @append(cur_progress, canonical_path)

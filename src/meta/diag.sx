@@ -29,6 +29,63 @@ type SourceLocation = {
     message: ref u8
 }
 
+type KnownSourcePath = {
+    display: mut ref u8
+    actual: mut ref u8
+    next: mut ref KnownSourcePath
+}
+
+val known_source_paths: mut ref KnownSourcePath = none
+
+fn duplicate_cstr(value: ref u8) ref u8 = trust {
+    val len: i64 = cstr.len(value)
+    val out: ref u8 = @alloc((len + 1) as usize) as ref u8
+    if out == none {
+        return none
+    }
+    if len > 0 {
+        @memcpy(out, value, len as usize)
+    }
+    @store8(@ptradd(out, len), 0)
+    return out
+}
+
+fn lookup_source_path(display: ref u8) ref u8 = trust {
+    val node: mut ref KnownSourcePath = known_source_paths
+    for {
+        if node == none {
+            break
+        }
+        if cstr.eql(node.display, display) {
+            return node.actual
+        }
+        node = node.next
+    }
+    return none
+}
+
+/// Record where a shortened diagnostic filename can be read from disk.
+pub fn register_source_path(display: ref u8, actual: ref u8) void = trust {
+    if display == none || actual == none {
+        return
+    }
+    if lookup_source_path(display) != none {
+        return
+    }
+    val node: mut ref KnownSourcePath = @alloc(@sizeof(KnownSourcePath)) as ref KnownSourcePath
+    if node == none {
+        return
+    }
+    node.display = duplicate_cstr(display)
+    node.actual = duplicate_cstr(actual)
+    if node.display == none || node.actual == none {
+        @free(node as ref void)
+        return
+    }
+    node.next = known_source_paths
+    known_source_paths = node
+}
+
 fn is_digit(c: i64) bool = {
     return c >= 48 && c <= 57
 }
@@ -314,6 +371,14 @@ fn report_at(
                     allocators.Arena.free(arena)
                 }
                 err _ => {}
+            }
+        }
+    }
+    if content_opt is none {
+        if filename != none {
+            val known: ref u8 = lookup_source_path(filename)
+            if known != none {
+                content_opt = fs.read_all_heap_cstr(known)
             }
         }
     }
