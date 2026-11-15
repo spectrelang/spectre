@@ -420,7 +420,8 @@ fn execute_native(ctx: mut ref context.Context, st: mut ref NativeState) i32 = t
             val has_error: bool = ostr.contains(v, error_text)
             if has_error {
                 stdio.print("{s}\n", {ostr.as_cstr(v)})
-                stdio.puts("linking failed.")
+                diag.puts_error_label()
+                stdio.puts(" linking failed.")
                 st.exit_code = 1
             } else {
                 run_dsymutil_native(ctx, st.run_output)
