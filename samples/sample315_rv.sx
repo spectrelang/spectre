@@ -1,0 +1,35 @@
+// Regression sample: calling a function through a function-typed local must
+// use the variable's QBE temporary or slot. Before the fix, the call lowered to
+// `loadl %callback`, naming a source variable that has no QBE temporary.
+
+type Callback = {
+    fnaddr: ref void
+    user: ref void
+}
+
+fn add(a: i64, b: i64) i64 = {
+    return a + b
+}
+
+fn mul(a: i64, b: i64) i64 = {
+    return a * b
+}
+
+fn run(h: Callback, a: i64, b: i64) i64 = trust {
+    val callback: fn(i64, i64) i64 = @bitcast(
+        h.fnaddr,
+        fn(i64, i64) i64
+    )
+    return callback(a, b)
+}
+
+pub fn main() void = trust {
+    val add_cb: Callback = {fnaddr: add as ref void, user: none}
+    val mul_cb: Callback = {fnaddr: mul as ref void, user: none}
+
+    assert run(add_cb, 2, 3) == 5
+    assert run(mul_cb, 2, 3) == 6
+
+    val direct: fn(i64, i64) i64 = add
+    assert direct(4, 5) == 9
+}

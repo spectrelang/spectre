@@ -12011,21 +12011,63 @@ fn gen_call(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
     }
 
     if is_fn_ptr {
-        val dqt: ref u8 = cg_direct_type(ctx, callee_name)
-        if cstr.cmp(dqt, c"") != 0 {
-            @snprintf(hdr, 256, "    %%t{lld} ={s} call %%{s}(", {tmp, ret_qtype, callee_name})
+        val local_var: ref u8 = cg_lookup_local_var(ctx, callee_name)
+        if cstr.cmp(local_var, c"") != 0 {
+            val local_ref: ref u8 = cg_qbe_value_ref(ctx, local_var)
+            if cg_is_slot(ctx, callee_name) {
+                val ptr_tmp: i64 = fresh_tmp(ctx)
+                val load_buf: ref u8 = allocators.ScopedArena.alloc_or_none(
+                    ctx.arena,
+                    64 as usize
+                ) as ref u8
+                @snprintf(load_buf, 64, "    %%t{lld} =l loadl {s}\n", {ptr_tmp, local_ref})
+                emit(
+                    ctx,
+                    load_buf
+                )
+                @snprintf(
+                    hdr,
+                    256,
+                    "    %%t{lld} ={s} call %%t{lld}(",
+                    {tmp, ret_qtype, ptr_tmp}
+                )
+            } else {
+                @snprintf(hdr, 256, "    %%t{lld} ={s} call {s}(", {
+                    tmp,
+                    ret_qtype,
+                    local_ref
+                })
+            }
         } else {
-            val ptr_tmp: i64 = fresh_tmp(ctx)
-            val load_buf: ref u8 = allocators.ScopedArena.alloc_or_none(
-                ctx.arena,
-                64 as usize
-            ) as ref u8
-            @snprintf(load_buf, 64, "    %%t{lld} =l loadl %%{s}\n", {ptr_tmp, callee_name})
-            emit(
-                ctx,
-                load_buf
-            )
-            @snprintf(hdr, 256, "    %%t{lld} ={s} call %%t{lld}(", {tmp, ret_qtype, ptr_tmp})
+            val dqt: ref u8 = cg_direct_type(ctx, callee_name)
+            if cstr.cmp(dqt, c"") != 0 {
+                @snprintf(
+                    hdr,
+                    256,
+                    "    %%t{lld} ={s} call %%{s}(",
+                    {tmp, ret_qtype, callee_name}
+                )
+            } else {
+                val ptr_tmp: i64 = fresh_tmp(ctx)
+                val load_buf: ref u8 = allocators.ScopedArena.alloc_or_none(
+                    ctx.arena,
+                    64 as usize
+                ) as ref u8
+                @snprintf(load_buf, 64, "    %%t{lld} =l loadl %%{s}\n", {
+                    ptr_tmp,
+                    callee_name
+                })
+                emit(
+                    ctx,
+                    load_buf
+                )
+                @snprintf(
+                    hdr,
+                    256,
+                    "    %%t{lld} ={s} call %%t{lld}(",
+                    {tmp, ret_qtype, ptr_tmp}
+                )
+            }
         }
     } else {
         @snprintf(hdr, 256, "    %%t{lld} ={s} call ${s}(", {tmp, ret_qtype, effective_callee})
