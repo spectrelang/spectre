@@ -15,7 +15,7 @@ val terminal   = use("std/terminal")
 /// Prefix for every diagnostic.
 pub val LABEL: ref u8 = c"error:"
 
-val WARNING_LABEL: ref u8 = c"warning"
+val WARNING_LABEL: ref u8 = c"warning:"
 
 type SourceLocation = {
     found: bool
@@ -189,12 +189,41 @@ fn write_error_label_fwrite(to_stderr: bool) void = trust {
     }
 }
 
+fn write_warning_label_fwrite(to_stderr: bool) void = trust {
+    val enabled: bool = terminal.is_enabled()
+    if to_stderr {
+        if enabled {
+            stdio.eprintv(terminal.fg(terminal.Color.BrightRed))
+        }
+        stdio.eprintv(str.from_cstr(WARNING_LABEL))
+        if enabled {
+            stdio.eprintv(terminal.reset())
+        }
+    } else {
+        if enabled {
+            stdio.printv(terminal.fg(terminal.Color.BrightRed))
+        }
+        stdio.printv(str.from_cstr(WARNING_LABEL))
+        if enabled {
+            stdio.printv(terminal.reset())
+        }
+    }
+}
+
 pub fn error_label() void = {
     terminal.print(str.from_cstr(LABEL), terminal.Color.BrightRed)
 }
 
+pub fn warning_label() void = {
+    terminal.print(str.from_cstr(WARNING_LABEL), terminal.Color.Amber)
+}
+
 pub fn eprint_error_label() void = {
     terminal.eprint(str.from_cstr(LABEL), terminal.Color.BrightRed)
+}
+
+pub fn eprint_warning_label() void = {
+    terminal.eprint(str.from_cstr(WARNING_LABEL), terminal.Color.Amber)
 }
 
 pub fn puts_error_label() void = {
@@ -203,6 +232,14 @@ pub fn puts_error_label() void = {
 
 pub fn eputs_error_label() void = {
     trust write_error_label_fwrite(true)
+}
+
+pub fn puts_warning_label() void = {
+    trust write_warning_label_fwrite(false)
+}
+
+pub fn eputs_warning_label() void = {
+    trust write_warning_label_fwrite(true)
 }
 
 fn spaces(count: i64) void = trust {
@@ -420,7 +457,7 @@ pub fn warning(message: ref u8) void = trust {
         }
     } else {
         print_label(WARNING_LABEL)
-        stdio.print(": {s}\n", {message})
+        stdio.print(" {s}\n", {message})
     }
 }
 

@@ -1,0 +1,7 @@
+fn unused_function() void = {
+
+}
+
+pub fn main() void = {
+    @puts("hello")
+}

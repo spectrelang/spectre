@@ -27,6 +27,7 @@ pub enum Color = {
     BrightMagenta
     BrightCyan
     BrightWhite
+    Amber
 }
 
 /// ANSI text styles.
@@ -147,6 +148,9 @@ pub fn fg(color: Color) str.StringView = {
     if color == Color.BrightCyan {
         return "\x1b[96m"
     }
+    if color == Color.Amber {
+        return "\x1b[38;5;172m"
+    }
     return "\x1b[97m"
 }
 
@@ -199,6 +203,9 @@ pub fn bg(color: Color) str.StringView = {
     }
     if color == Color.BrightCyan {
         return "\x1b[106m"
+    }
+    if color == Color.Amber {
+        return "\x1b[48;5;172m"
     }
     return "\x1b[107m"
 }
@@ -372,6 +379,8 @@ test "terminal escape sequences" {
     assert trust str.eql(bg(Color.Green), "\x1b[42m")
     assert trust str.eql(bg(Color.Default), "\x1b[49m")
     assert trust str.eql(style(Style.Bold), "\x1b[1m")
+    assert trust str.eql(fg(Color.Amber), "\x1b[38;5;172m")
+    assert trust str.eql(bg(Color.Amber), "\x1b[48;5;172m")
     assert trust str.eql(style(Style.Plain), "")
 }
 

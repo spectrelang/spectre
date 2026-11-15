@@ -85,8 +85,9 @@ fn resolve_runtime(ctx: mut ref context.Context) bool = trust {
         val selected: ref u8 = builds.select_alt_compiler(ctx.opts.alt_compiler)
         if cstr.cmp(builds.alt_compiler_kind(selected), c"tcc") == 0 {
             if !ctx.opts.quiet {
+                diag.puts_warning_label()
                 stdio.puts(
-                    "warning: tcc on Windows cannot link COFF runtime objects, thus using the hosted runtime\n"
+                    " tcc on Windows cannot link COFF runtime objects, thus using the hosted runtime\n"
                 )
             }
             ctx.runtime_mode = c"hosted"
@@ -210,8 +211,9 @@ fn apply_hosted_fallback(ctx: mut ref context.Context) void = trust {
             module.set_runtime_mode(ctx.runtime_mode)
             codegen.set_runtime_mode(ctx.runtime_mode)
             alt_codegen.set_runtime_mode(ctx.runtime_mode)
+            diag.eprint_warning_label()
             stdio.eprint(
-                "warning: external object detected, thus using hosted runtime (pass -runtime:freestanding to force)\n",
+                " external object detected, thus using hosted runtime (pass -runtime:freestanding to force)\n",
                 {}
             )
             return
@@ -224,8 +226,9 @@ fn apply_hosted_fallback(ctx: mut ref context.Context) void = trust {
                     module.set_runtime_mode(ctx.runtime_mode)
                     codegen.set_runtime_mode(ctx.runtime_mode)
                     alt_codegen.set_runtime_mode(ctx.runtime_mode)
+                    diag.eprint_warning_label()
                     stdio.eprint(
-                        "warning: external C library detected, thus using hosted runtime (pass -runtime:freestanding to force)\n",
+                        " external C library detected, thus using hosted runtime (pass -runtime:freestanding to force)\n",
                         {}
                     )
                 }

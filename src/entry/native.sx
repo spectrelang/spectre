@@ -255,7 +255,8 @@ fn run_dsymutil_native(ctx: ref context.Context, output: ref u8) void = trust {
         }
         err _ => {
             if !ctx.opts.quiet {
-                stdio.print("warning: could not run dsymutil for '{s}'\n", {output})
+                diag.warning_label()
+                stdio.print(" could not run dsymutil for '{s}'\n", {output})
             }
         }
     }
@@ -307,7 +308,8 @@ fn execute_test(ctx: mut ref context.Context, st: mut ref NativeState) i32 = tru
             val run_res = os.run(builds.quote_arg(test_bin))
             if run_res != 0 {
                 if !ctx.opts.quiet && !ctx.opts.emit_qbe {
-                    stdio.print("warning: test binary exited with: {s}\n", {"non-zero exit"})
+                    diag.warning_label()
+                    stdio.print(" test binary exited with: {s}\n", {"non-zero exit"})
                 }
                 st.exit_code = 1
             }

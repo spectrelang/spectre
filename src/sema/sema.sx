@@ -11,6 +11,7 @@ val fs         = use("std/fs")
 val path       = use("std/path")
 val parser     = use("../ast/parser.sx")
 val modinfo    = use("../module/module.sx")
+val diag       = use("../meta/diag.sx")
 
 type ScopeEntry = {
     name: mut ref u8
@@ -12228,7 +12229,8 @@ pub fn check_module(
 
     if quiet == 0 {
         for w in ctx.warnings {
-            stdio.print("warning: {s}\n", {w})
+            diag.warning_label()
+            stdio.print(" {s}\n", {w})
         }
     }
 

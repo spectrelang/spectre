@@ -593,8 +593,9 @@ fn build_link_cmd(ctx: mut ref context.Context, st: mut ref CrossState) bool = t
                 )
             } elif cstr.ends_with(link_flag, c".o") {
                 if !ctx.opts.quiet {
+                    diag.warning_label()
                     stdio.print(
-                        "warning: ignoring host object '{s}' for windows target; provide a target object or library instead\n",
+                        " ignoring host object '{s}' for windows target; provide a target object or library instead\n",
                         {link_flag}
                     )
                 }

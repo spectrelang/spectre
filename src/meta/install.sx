@@ -478,8 +478,9 @@ fn print_manual_path_instructions(bin_dir: ref u8) void = trust {
 fn integrate_path_for_shell(bin_dir: ref u8, shell: ref u8) bool = trust {
     val files: list[ref u8] = rc_files_for(shell)
     if (@len(files) as i64) == 0 {
+        diag.warning_label()
         stdio.print(
-            "warning: could not determine a startup file for shell '{s}'\n",
+            " could not determine a startup file for shell '{s}'\n",
             {shell}
         )
         print_manual_path_instructions(bin_dir)
@@ -490,7 +491,8 @@ fn integrate_path_for_shell(bin_dir: ref u8, shell: ref u8) bool = trust {
     for file in files {
         val status: i32 = append_managed_block(file, shell, bin_dir)
         if status < 0 {
-            stdio.print("warning: could not update {s}\n", {file})
+            diag.warning_label()
+            stdio.print(" could not update {s}\n", {file})
             all_ok = false
         } elif status > 0 {
             stdio.print("Added {s} to PATH via {s}\n", {bin_dir, file})
@@ -727,7 +729,8 @@ pub fn cmd_install(
     if path_ready {
         stdio.puts("Open a new terminal (or restart your shell) to use it.")
     } else {
-        stdio.print("warning: {s} is not on PATH yet\n", {bin_dir})
+        diag.warning_label()
+        stdio.print(" {s} is not on PATH yet\n", {bin_dir})
         print_manual_path_instructions(bin_dir)
     }
 

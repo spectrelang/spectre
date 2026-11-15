@@ -2901,7 +2901,10 @@ fn ctx_free(ctx: mut ref Ctx) void = trust {
 
 fn print_issues(ctx: ref Ctx, filename: ref u8) void = trust {
     for issue in ctx.issues {
-        stdio.print("{s}:{lld}: warning: {s}\n", {filename, issue.line, issue.message})
+        stdio.print("{s}:{lld}: ", {filename, issue.line})
+        diag.warning_label()
+        stdio.print(" {s}\n", {issue.message})
+
     }
 }
 

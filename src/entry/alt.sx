@@ -103,7 +103,8 @@ fn prepare_compiler(ctx: mut ref context.Context, st: mut ref AltState) bool = t
             }
         } else {
             if !ctx.opts.quiet {
-                stdio.puts("warning: tcc does not support static linking, thus, linking dynamically")
+                diag.puts_warning_label()
+                stdio.puts(" tcc does not support static linking, thus, linking dynamically")
             }
             st.static_flag = c""
         }

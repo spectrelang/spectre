@@ -2245,7 +2245,8 @@ pub fn cmd_remove(dep_name: ref u8) i32 = {
         trust os.run(rm_cmd)
         trust stdio.print("Removed {s}\n", {lib_path})
     } else {
-        trust stdio.print("warning: {s} not found, updating manifests only\n", {lib_path})
+        diag.warning_label()
+        trust stdio.print(" {s} not found, updating manifests only\n", {lib_path})
     }
 
     trust drop_dep_lines(c"sx.mod", dep_name)
@@ -2371,7 +2372,8 @@ fn restore_in_dir(base_dir: ref u8, visited: mut list[ref u8]) i32 = trust {
     val lock_deps: mut list[ref SxLockDep] = mem.new[ref SxLockDep]()
     match lock_opt {
         none => {
-            stdio.print("warning: no sx.lock in {s}, skipping transitive deps\n", {base_dir})
+            diag.warning_label()
+            stdio.print(" no sx.lock in {s}, skipping transitive deps\n", {base_dir})
             return 0
         }
         some deps => {
