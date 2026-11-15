@@ -511,7 +511,7 @@ Copy-Item $BOOTSTRAP_OUT $STAGE0 -Force
 
 Push-Location $SPECTRE_DIR
 try {
-    & .\spectre-stage0.exe .\src\sxc.sx -runtime:hosted -o .\spectre-stage1.exe
+    & .\spectre-stage0.exe .\src\sxc.sx -no-warn -runtime:hosted -o .\spectre-stage1.exe
     if ($LASTEXITCODE -ne 0 -or -not (Test-Path .\spectre-stage1.exe)) {
         Err "Stage 1 build failed"
     }
@@ -523,7 +523,7 @@ try {
     }
 
     Log "Building Spectre stage 2 from source..."
-    & .\spectre-stage1.exe "-d:GIT_HASH=$GitHash" .\src\sxc.sx -runtime:hosted -o .\spectre-stage2.exe
+    & .\spectre-stage1.exe "-d:GIT_HASH=$GitHash" .\src\sxc.sx -no-warn -runtime:hosted -o .\spectre-stage2.exe
     if ($LASTEXITCODE -ne 0 -or -not (Test-Path .\spectre-stage2.exe)) {
         Err "Stage 2 build failed"
     }

@@ -524,6 +524,7 @@ fn panic_bus_number() i32 = trust {
     }
 }
 
+//!suppress "unused-function"
 fn panic_signal_name(sig: i32) ref u8 = trust {
     if sig == 11 {
         return c"segmentation fault (sigsegv)"

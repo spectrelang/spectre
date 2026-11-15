@@ -238,6 +238,7 @@ pub fn rename_file(oldpath: ref u8, newpath: ref u8) i32 = trust {
     return rename(oldpath, newpath)
 }
 
+//!suppress "unused-function"
 fn is_dot_dir_entry(name: ref u8) bool = {
     val c0: u8 = trust @load8(name)
     if c0 != 46 {
