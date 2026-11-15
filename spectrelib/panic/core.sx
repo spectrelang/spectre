@@ -365,6 +365,7 @@ fn panic_strlen(s: ref u8) i64 = trust {
     return n
 }
 
+//!suppress "unused-function"
 fn panic_emit_text(s: ref u8) void = trust {
     val n: i64 = panic_strlen(s)
     if n > 0 {
@@ -388,6 +389,7 @@ fn panic_emit_fill(ch: u8, count: i64) void = trust {
     panic_emit_bytes(p, limit)
 }
 
+//!suppress "unused-function"
 fn panic_emit_number(
     value: u64,
     width: i64,
