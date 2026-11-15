@@ -12,11 +12,21 @@ pub enum Level = {
     Fatal
 }
 
-val colors: mut bool = terminal.is_enabled()
+val colors: mut bool = false
+val colors_initialized: mut bool = false
 val min_level: mut Level = Level.Debug
+
+fn current_colors() bool = {
+    if !colors_initialized {
+        colors = terminal.is_enabled()
+        colors_initialized = true
+    }
+    return colors
+}
 
 pub fn set_colors(c: bool) void = {
     colors = c
+    colors_initialized = true
 }
 
 pub fn set_level(l: Level) void = {
@@ -41,7 +51,7 @@ fn get_time_string() ref u8 = {
 
 fn log_out(msg: ref u8, label: ref u8, color: terminal.Color) void = trust {
     val ts = get_time_string()
-    if colors {
+    if current_colors() {
         stdio.print(
             "{s}{s}{s} [{s}{s}{s}] {s}{s}{s}\n",
             {
@@ -59,7 +69,7 @@ fn log_out(msg: ref u8, label: ref u8, color: terminal.Color) void = trust {
 
 fn log_err(msg: ref u8, label: ref u8, color: terminal.Color) void = trust {
     val ts = get_time_string()
-    if colors {
+    if current_colors() {
         stdio.eprint(
             "{s}{s}{s} [{s}{s}{s}] {s}{s}{s}\n",
             {

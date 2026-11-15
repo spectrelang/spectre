@@ -26,9 +26,17 @@ pub type Rng = {
 
 /// The default/global generator.
 ///
-/// It is seeded from the operating system once at program start.  Call
+/// It is seeded from the operating system on first use.  Call
 /// `fastrand.seed` to make it reproducible.
-val global_rng: mut Rng = Rng.new(crypto_random.random_u64())
+val global_rng: mut Rng = Rng{}
+val global_rng_initialized: mut bool = false
+
+fn ensure_global_rng() void = {
+    if !global_rng_initialized {
+        Rng.reseed(global_rng, crypto_random.random_u64())
+        global_rng_initialized = true
+    }
+}
 
 fn rotl(x: u64, n: u64) u64 = {
     return (x << n) | (x >> (64 - n))
@@ -254,65 +262,78 @@ pub fn (Rng) shuffle[T](rng: mut self, items: mut list[T]) void = {
 /// generator.  Seeding it makes their output reproducible across runs.
 pub fn seed(s: u64) void = {
     Rng.reseed(global_rng, s)
+    global_rng_initialized = true
 }
 
 /// Return a fast random u64 from the module-level generator.
 pub fn random_u64() u64 = {
+    ensure_global_rng()
     return Rng.next_u64(global_rng)
 }
 
 /// Return a fast random u32 from the module-level generator.
 pub fn random_u32() u32 = {
+    ensure_global_rng()
     return Rng.next_u32(global_rng)
 }
 
 /// Return a fast random boolean from the module-level generator.
 pub fn random_bool() bool = {
+    ensure_global_rng()
     return Rng.next_bool(global_rng)
 }
 
 /// Return a fast random u64 in [0, bound) from the module-level generator.
 pub fn random_u64_below(bound: u64) u64 = {
+    ensure_global_rng()
     return Rng.next_u64_below(global_rng, bound)
 }
 
 /// Return a fast random u32 in [0, bound) from the module-level generator.
 pub fn random_u32_below(bound: u32) u32 = {
+    ensure_global_rng()
     return Rng.next_u32_below(global_rng, bound)
 }
 
 /// Return a fast random i64 in [lo, hi) from the module-level generator.
 pub fn random_range(lo: i64, hi: i64) i64 = {
+    ensure_global_rng()
     return Rng.next_range(global_rng, lo, hi)
 }
 
 /// Return a fast random f64 in [0.0, 1.0) from the module-level generator.
 pub fn random_f64() f64 = {
+    ensure_global_rng()
     return Rng.next_f64(global_rng)
 }
 
 /// Return a fast random f32 in [0.0, 1.0) from the module-level generator.
 pub fn random_f32() f32 = {
+    ensure_global_rng()
     return Rng.next_f32(global_rng)
 }
 
 /// Fill a byte buffer from the module-level generator.
 pub fn fill(buf: ref u8, len: usize) void = {
+    ensure_global_rng()
     Rng.fill(global_rng, buf, len)
 }
 
 /// Return a random lowercase ASCII letter ('a'..='z').
 pub fn random_lowercase() u8 = {
+    ensure_global_rng()
     return 97 + (Rng.next_u64_below(global_rng, 26) as u8)
 }
 
 /// Return a random uppercase ASCII letter ('A'..='Z').
 pub fn random_uppercase() u8 = {
+    ensure_global_rng()
     return 65 + (Rng.next_u64_below(global_rng, 26) as u8)
 }
 
 /// Return a random ASCII letter.
 pub fn random_alphabetic() u8 = {
+    ensure_global_rng()
     if Rng.next_bool(global_rng) {
         return random_lowercase()
     }
@@ -321,11 +342,13 @@ pub fn random_alphabetic() u8 = {
 
 /// Return a random ASCII digit ('0'..='9').
 pub fn random_digit() u8 = {
+    ensure_global_rng()
     return 48 + (Rng.next_u64_below(global_rng, 10) as u8)
 }
 
 /// Return a random ASCII letter or digit.
 pub fn random_alphanumeric() u8 = {
+    ensure_global_rng()
     val choice: u64 = Rng.next_u64_below(global_rng, 62)
     if choice < 26 {
         return 97 + (choice as u8)

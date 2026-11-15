@@ -204,7 +204,7 @@ The modifier `pub` cannot precede a `link` directive, a `lib` directive, a test 
 
 ### 4.4 Top-level values
 
-A top-level immutable value is written `val name = expression` or `val name: T = expression`. It is initialized before the program entry point is called. A top-level mutable value is written `val name: mut T = expression`; its storage is mutable for the duration of the program. The bulk form `val (a = e1, b = e2, ...)` declares several top-level values in one declaration. Commas between bulk entries are optional in the grammar. The bulk form is not permitted inside a function body.
+A top-level immutable value is written `val name = expression` or `val name: T = expression`. It is initialized before the program entry point is called. The initializer shall not contain a function call. The compile-time file intrinsics `@embed` and `@embedlen` are permitted. Runtime computation must be performed by a function or accessor after the program begins. A top-level mutable value is written `val name: mut T = expression`; its storage is mutable for the duration of the program and its initializer follows the same restriction. The bulk form `val (a = e1, b = e2, ...)` declares several top-level values in one declaration. Commas between bulk entries are optional in the grammar. The bulk form is not permitted inside a function body.
 
 ### 4.5 Functions and methods
 

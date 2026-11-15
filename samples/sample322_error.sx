@@ -1,0 +1,11 @@
+// Top-level values cannot be initialized by function calls.
+
+fn produce() i64 = {
+    return 1
+}
+
+val value: i64 = produce()
+
+pub fn main() i32 = {
+    return value as i32
+}

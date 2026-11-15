@@ -393,7 +393,9 @@ fn resolve_embed_builtin(
         val base_dir: ref u8 = path.dir_cstr(filename)
         val joined: ref u8 = path.join_cstr(base_dir, rel)
         val canonical: ref u8 = canonicalize_path(ctx, joined)
-        @free(base_dir)
+        if cstr.cmp(base_dir, c".") != 0 {
+            @free(base_dir)
+        }
         @free(joined)
         val size_opt = fs.file_size_cstr(canonical)
         match size_opt {
@@ -11342,6 +11344,29 @@ fn check_generic_fn(ctx: mut ref SemaCtx, fn_node: ref parser.Node, filename: re
 }
 
 /// Check a single top-level item (functions, tests, when items).
+fn check_top_level_initializer(
+    ctx: mut ref SemaCtx,
+    name: ref u8,
+    init_node: ref parser.Node,
+    filename: ref u8,
+    line: i64
+) void = trust {
+    if init_node == none || !expr_contains_call(init_node) {
+        return
+    }
+    val buf: ref u8 = allocators.ScopedArena.alloc_or_none(
+        ctx.arena,
+        (512) as usize
+    ) as ref u8
+    @snprintf(
+        buf,
+        512,
+        "{s}:{lld}: top-level value '{s}' must not call functions; move the call into a function body",
+        {filename, line, name}
+    )
+    add_error(ctx, buf)
+}
+
 fn check_top_item(ctx: mut ref SemaCtx, item: ref parser.Node, filename: ref u8) void = trust {
     val k: i64 = item.kind
     if k == parser.NK_USE {
@@ -11399,6 +11424,13 @@ fn check_top_item(ctx: mut ref SemaCtx, item: ref parser.Node, filename: ref u8)
     }
     if k == parser.NK_VAL {
         val init_node: ref parser.Node = item.d3 as ref parser.Node
+        check_top_level_initializer(
+            ctx,
+            parser.node_str_raw(item.d0),
+            init_node,
+            filename,
+            item.line
+        )
         sema_check_fixed_arr_init(
             ctx,
             item.d2 as ref parser.Node,
@@ -11420,6 +11452,13 @@ fn check_top_item(ctx: mut ref SemaCtx, item: ref parser.Node, filename: ref u8)
     }
     if k == parser.NK_CONST {
         val init_node: ref parser.Node = item.d2 as ref parser.Node
+        check_top_level_initializer(
+            ctx,
+            parser.node_str_raw(item.d1),
+            init_node,
+            filename,
+            item.line
+        )
         if !sema_infer_fixed_arr_sizes(
             item.d3 as ref parser.Node,
             init_node
@@ -11681,6 +11720,84 @@ fn expr_uses_import_alias(node: ref parser.Node, import_name: ref u8) bool = tru
             }
         }
         return false
+    }
+    return false
+}
+
+/// Returns true when an expression contains a function call.
+///
+/// Top-level value initializers are evaluated before the program starts, so
+/// they must not invoke user functions. The compile-time file intrinsics
+/// @embed and @embedlen are builtins and are therefore allowed.
+fn expr_contains_call(node: ref parser.Node) bool = trust {
+    if node == none {
+        return false
+    }
+    val k: i64 = node.kind
+    if k == parser.NK_CALL {
+        return true
+    }
+    if k == parser.NK_FIELD {
+        return expr_contains_call(parser.field_base(node))
+    }
+    if k == parser.NK_BUILTIN {
+        if cstr.eql(parser.node_str_raw(node.d0), c"call") {
+            return true
+        }
+        val bargs: ref void = node.d1 as ref void
+        if bargs != none {
+            for barg in bargs as list[ref parser.Node] {
+                if expr_contains_call(barg) {
+                    return true
+                }
+            }
+        }
+        return false
+    }
+    if k == parser.NK_BINOP {
+        if expr_contains_call(parser.binop_left(node)) {
+            return true
+        }
+        return expr_contains_call(parser.binop_right(node))
+    }
+    if k == parser.NK_UNOP {
+        return expr_contains_call(parser.unop_inner(node))
+    }
+    if k == parser.NK_CAST {
+        return expr_contains_call(node.d0 as ref parser.Node)
+    }
+    if k == parser.NK_TRUST || k == parser.NK_TRY || k == parser.NK_ADDR ||
+    k == parser.NK_DEREF || k == parser.NK_SOME || k == parser.NK_OK_VAL ||
+    k == parser.NK_ERR_VAL {
+        if node.d0 == 0 as i64 {
+            return false
+        }
+        return expr_contains_call(node.d0 as ref parser.Node)
+    }
+    if k == parser.NK_LIST_LIT || k == parser.NK_ARGS_PACK {
+        val elems: ref void = node.d0 as ref void
+        if elems != none {
+            for elem in elems as list[ref parser.Node] {
+                if expr_contains_call(elem) {
+                    return true
+                }
+            }
+        }
+        return false
+    }
+    if k == parser.NK_STRUCT_LIT {
+        val fields: ref void = node.d0 as ref void
+        if fields != none {
+            for f in fields as list[ref parser.Node] {
+                if expr_contains_call((f as ref parser.Node).d1 as ref parser.Node) {
+                    return true
+                }
+            }
+        }
+        return false
+    }
+    if k == parser.NK_GENERIC_INST {
+        return expr_contains_call(node.d0 as ref parser.Node)
     }
     return false
 }
