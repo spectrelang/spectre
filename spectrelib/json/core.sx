@@ -254,10 +254,6 @@ fn i64_max_u64() u64 = {
     return 9223372036854775807 as u64
 }
 
-fn u64_max_div10() u64 = {
-    return 1844674407370955161 as u64
-}
-
 fn p_fail(p: mut ref JsonParser) void = inline {
     p.failed = 1
 }
