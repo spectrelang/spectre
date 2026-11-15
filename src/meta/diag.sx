@@ -15,7 +15,10 @@ val terminal   = use("std/terminal")
 /// Prefix for every diagnostic.
 pub val LABEL: ref u8 = c"error:"
 
-val WARNING_LABEL: ref u8 = c"warning:"
+val (
+    WARNING_LABEL: ref u8 = c"warning:"
+    INFO_LABEL: ref u8    = c"note:"
+)
 
 type SourceLocation = {
     found: bool
@@ -208,6 +211,10 @@ fn write_warning_label_fwrite(to_stderr: bool) void = trust {
             stdio.printv(terminal.reset())
         }
     }
+}
+
+pub fn info_label() void = {
+    terminal.print(str.from_cstr(INFO_LABEL), terminal.Color.Cyan)
 }
 
 pub fn error_label() void = {

@@ -36,7 +36,10 @@ fn resolve_target(ctx: mut ref context.Context) bool = trust {
         ctx.target_arch = builds.target_arch_of(ctx.opts.target_spec)
         if cstr.cmp(ctx.target_platform, c"") == 0 || cstr.cmp(ctx.target_arch, c"") == 0 {
             diag.error_label()
-            stdio.print(" invalid target '{s}', expected <os>.<arch> (for example windows.x86_64)\n", {ctx.opts.target_spec})
+            stdio.print(
+                " invalid target '{s}', expected <os>.<arch> (for example windows.x86_64)\n",
+                {ctx.opts.target_spec}
+            )
             return false
         }
         if cstr.cmp(ctx.target_platform, c"darwin") == 0 {
@@ -46,7 +49,10 @@ fn resolve_target(ctx: mut ref context.Context) bool = trust {
         }
         if !builds.target_is_supported(ctx.target_platform, ctx.target_arch) {
             diag.error_label()
-            stdio.print(" unsupported target '{s}'; supported: linux.x86_64, linux.aarch64, windows.x86_64, windows.aarch64\n", {ctx.opts.target_spec})
+            stdio.print(
+                " unsupported target '{s}'; supported: linux.x86_64, linux.aarch64, windows.x86_64, windows.aarch64\n",
+                {ctx.opts.target_spec}
+            )
             return false
         }
         if cstr.cmp(ctx.opts.src_target, c"") == 0 {
@@ -71,7 +77,10 @@ fn resolve_runtime(ctx: mut ref context.Context) bool = trust {
     if !builds.runtime_supported(ctx.target_platform, ctx.target_arch, ctx.runtime_mode) {
         if cstr.len(ctx.opts.runtime_spec) > 0 {
             diag.error_label()
-            stdio.print(" runtime mode '{s}' is not implemented for {s}.{s}\n", {ctx.runtime_mode, ctx.target_platform, ctx.target_arch})
+            stdio.print(
+                " runtime mode '{s}' is not implemented for {s}.{s}\n",
+                {ctx.runtime_mode, ctx.target_platform, ctx.target_arch}
+            )
             return false
         }
         ctx.runtime_mode = c"hosted"
@@ -120,10 +129,16 @@ fn resolve_xwin(ctx: mut ref context.Context) bool = trust {
         if wants_windows_link && !builds.xwin_available_in(ctx.xwin_root, ctx.target_arch) {
             if cstr.len(ctx.xwin_root) > 0 {
                 diag.error_label()
-                stdio.print(" xwin at '{s}' is missing CRT/SDK libraries for {s}\n", {ctx.xwin_root, ctx.target_arch})
+                stdio.print(
+                    " xwin at '{s}' is missing CRT/SDK libraries for {s}\n",
+                    {ctx.xwin_root, ctx.target_arch}
+                )
             } else {
                 diag.error_label()
-                stdio.print(" windows.{s} requires xwin or a compatible Windows SDK\n", {ctx.target_arch})
+                stdio.print(
+                    " windows.{s} requires xwin or a compatible Windows SDK\n",
+                    {ctx.target_arch}
+                )
             }
             stdio.print("  install: cargo install xwin --locked\n", {})
             stdio.print(
@@ -246,7 +261,10 @@ fn check_windows_link(ctx: mut ref context.Context) bool = trust {
     && !ctx.opts.syntax_check && !ctx.opts.print_ast {
         if !builds.xwin_available_in(ctx.xwin_root, ctx.target_arch) {
             diag.error_label()
-            stdio.print(" windows.{s} requires xwin or a compatible Windows SDK\n", {ctx.target_arch})
+            stdio.print(
+                " windows.{s} requires xwin or a compatible Windows SDK\n",
+                {ctx.target_arch}
+            )
             stdio.print("  install: cargo install xwin --locked\n", {})
             stdio.print("  or pass: -xwin:<dir>\n", {})
             stdio.print("  or use:  -runtime:freestanding\n", {})

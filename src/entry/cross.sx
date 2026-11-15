@@ -315,7 +315,10 @@ fn prepare_runtime(ctx: mut ref context.Context, st: mut ref CrossState) bool = 
                 }
                 if !start_ok {
                     diag.error_label()
-                    stdio.print(" freestanding entry compilation failed for '{s}'\n", {start_source})
+                    stdio.print(
+                        " freestanding entry compilation failed for '{s}'\n",
+                        {start_source}
+                    )
                     os.delete(start_tmp)
                     if !st.runtime_cached {
                         os.delete(st.runtime_obj)

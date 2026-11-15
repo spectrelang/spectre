@@ -10543,7 +10543,11 @@ fn emit_enum_tables(ctx: mut ref CCtx) void = trust {
     }
 }
 
-fn gen_enum_def_prefixed(ctx: mut ref CCtx, item: ref parser.Node, mod_prefix: ref u8) void = trust {
+fn gen_enum_def_prefixed(
+    ctx: mut ref CCtx,
+    item: ref parser.Node,
+    mod_prefix: ref u8
+) void = trust {
     val name: ref u8 = parser.node_str_raw(item.d1)
     val variants: ref void = item.d2 as ref void
     if variants == none {

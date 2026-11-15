@@ -292,7 +292,10 @@ pub fn parse(
                 if cstr.cmp(opts.runtime_spec, c"hosted") != 0
                 && cstr.cmp(opts.runtime_spec, c"freestanding") != 0 {
                     diag.error_label()
-                    stdio.print(" unknown runtime mode '{s}'; expected hosted or freestanding\n", {opts.runtime_spec})
+                    stdio.print(
+                        " unknown runtime mode '{s}'; expected hosted or freestanding\n",
+                        {opts.runtime_spec}
+                    )
                     return false
                 }
                 arg_i++

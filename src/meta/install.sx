@@ -671,7 +671,10 @@ pub fn cmd_install(
 
     if commands.rule_has_actions(rule) && cstr.len(rule.output) == 0 {
         diag.error_label()
-        stdio.print(" build config '{s}' uses an action but does not declare an output\n", {cfg.name})
+        stdio.print(
+            " build config '{s}' uses an action but does not declare an output\n",
+            {cfg.name}
+        )
         stdio.puts("Add an 'output' field to the build configuration so the binary can be installed")
         cleanup(clone_dir)
         return 1

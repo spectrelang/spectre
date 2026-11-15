@@ -71,7 +71,10 @@ fn prepare_compiler(ctx: mut ref context.Context, st: mut ref AltState) bool = t
             linker_hint = c"lld-link"
         }
         diag.error_label()
-        stdio.print(" cross compilation to {s}.{s} requires clang and {s}\n", {ctx.target_platform, ctx.target_arch, linker_hint})
+        stdio.print(
+            " cross compilation to {s}.{s} requires clang and {s}\n",
+            {ctx.target_platform, ctx.target_arch, linker_hint}
+        )
         return false
     }
 

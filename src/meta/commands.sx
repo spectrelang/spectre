@@ -1791,7 +1791,10 @@ fn copy_current_stdlib(snapshot_dir: ref u8) bool = trust {
         val marker = path.join_cstr(snapshot_dir, c"stdio/core.sx")
         if !os.exists(marker) {
             diag.error_label()
-            stdio.print(" standard library copy at {s} looks incomplete (missing {s})\n", {snapshot_dir, marker})
+            stdio.print(
+                " standard library copy at {s} looks incomplete (missing {s})\n",
+                {snapshot_dir, marker}
+            )
             its_ok = false
         }
     }
@@ -1993,7 +1996,8 @@ fn run_dep_actions_in_dir(
                 return 1
             }
             for action in dep.actions {
-                stdio.print("note: running build action for '{s}'...\n", {name})
+                diag.info_label()
+                stdio.print(" running build action for '{s}'...\n", {name})
                 if run_in_dir(lib_path, action) != 0 {
                     diag.error_label()
                     stdio.print(" build action failed for '{s}'\n", {name})
@@ -2106,7 +2110,10 @@ pub fn cmd_build(config_name: ref u8, exe_path: ref u8, target: ref u8) i32 = {
                         found_cfg = find_build_config(m, config_name)
                         if found_cfg == none {
                             diag.error_label()
-                            trust stdio.print(" build config '{s}' not found in sx.mod\n", {config_name})
+                            trust stdio.print(
+                                " build config '{s}' not found in sx.mod\n",
+                                {config_name}
+                            )
                             return 1
                         }
                     }

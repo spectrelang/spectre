@@ -10860,10 +10860,13 @@ fn gen_store_field_value(
 
         val val_to_store: mut ref u8 = val_tmp2
         if !needs_aggregate_copy && (cstr.cmp(field_store_op, c"storeb") == 0 ||
-        cstr.cmp(field_store_op, c"storeh") == 0 ||
-        cstr.cmp(field_store_op, c"storew") == 0) {
+            cstr.cmp(field_store_op, c"storeh") == 0 ||
+            cstr.cmp(field_store_op, c"storew") == 0) {
             val_to_store = cg_coerce_qtype(ctx, val_tmp2, val_qtype_n, c"w")
-        } elif !needs_aggregate_copy && cstr.cmp(field_store_op, c"storel") == 0 && cstr.cmp(val_qtype_n, c"w") == 0 {
+        } elif !needs_aggregate_copy && cstr.cmp(
+            field_store_op,
+            c"storel"
+        ) == 0 && cstr.cmp(val_qtype_n, c"w") == 0 {
             val ext_tmp: i64 = fresh_tmp(ctx)
             val ext_buf: ref u8 = allocators.ScopedArena.alloc_or_none(
                 ctx.arena,
@@ -10881,9 +10884,9 @@ fn gen_store_field_value(
             @snprintf(ext_res, 16, "%%t{lld}", {ext_tmp})
             val_to_store = ext_res
         } elif !needs_aggregate_copy && (cstr.cmp(
-            field_store_op,
-            c"stores"
-        ) == 0 || cstr.cmp(field_store_op, c"stored") == 0) {
+                field_store_op,
+                c"stores"
+            ) == 0 || cstr.cmp(field_store_op, c"stored") == 0) {
             val dst_qtype: mut ref u8 = c"d"
             if cstr.cmp(field_store_op, c"stores") == 0 {
                 dst_qtype = c"s"
@@ -12034,10 +12037,10 @@ fn gen_call(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
                 )
             } else {
                 @snprintf(hdr, 256, "    %%t{lld} ={s} call {s}(", {
-                    tmp,
-                    ret_qtype,
-                    local_ref
-                })
+                        tmp,
+                        ret_qtype,
+                        local_ref
+                    })
             }
         } else {
             val dqt: ref u8 = cg_direct_type(ctx, callee_name)
@@ -12055,9 +12058,9 @@ fn gen_call(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
                     64 as usize
                 ) as ref u8
                 @snprintf(load_buf, 64, "    %%t{lld} =l loadl %%{s}\n", {
-                    ptr_tmp,
-                    callee_name
-                })
+                        ptr_tmp,
+                        callee_name
+                    })
                 emit(
                     ctx,
                     load_buf
@@ -13081,7 +13084,10 @@ fn cg_alloc_fn_ptr(ctx: mut ref CgCtx, ty: ref parser.Node, method: ref u8) ref 
     }
     if cstr.len(sym) == 0 {
         diag.eprint_error_label()
-        stdio.eprint(" allocator '{s}' does not implement GeneralAllocator\n", {parser.node_str_raw(ty.d0)})
+        stdio.eprint(
+            " allocator '{s}' does not implement GeneralAllocator\n",
+            {parser.node_str_raw(ty.d0)}
+        )
         os.exit(1)
     }
     val tmp: i64 = fresh_tmp(ctx)
@@ -19568,8 +19574,8 @@ fn gen_fn_prefixed(ctx: mut ref CgCtx, fn_node: ref parser.Node, mod_prefix: ref
                         64 as usize
                     ) as ref u8
                     @snprintf(param_value, 64, "%%{s}", {
-                        cg_param_qbe_name(ctx, pi2, pname2)
-                    })
+                            cg_param_qbe_name(ctx, pi2, pname2)
+                        })
                     cg_emit_dbg_shadow(
                         ctx,
                         pname2,
