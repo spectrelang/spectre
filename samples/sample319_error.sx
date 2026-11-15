@@ -1,0 +1,11 @@
+fn duplicate_function() void = {
+
+}
+
+fn duplicate_function() void = {
+
+}
+
+pub fn main() void = {
+
+}
