@@ -408,7 +408,7 @@ fn lookup_var_n(
         && @load8(@ptradd(name, 1)) == 85
         && @load8(@ptradd(name, 2)) == 84 {
             val target_name: ref u8 = target_dir_name(target)
-            val out_dir: ref u8 = @fmtalloc("{s}/.sx/{s}", {root, target_name})
+            val out_dir: ref u8 = @fmtalloc("{s}/.sxb/{s}", {root, target_name})
             return out_dir
         }
     }
@@ -2014,7 +2014,7 @@ pub fn cmd_init(name_arg: ref u8) i32 = {
     trust fs.write_all_cstr(c"sx.lock", c"version \"1\"\n")
     trust fs.write_all_cstr(
         c".gitignore",
-        c"SPECTRE_LANGUAGE_REFERENCE.md\nlib/\nstd__*\ns-out/\ndocs-out*/\n.sx/\n"
+        c"SPECTRE_LANGUAGE_REFERENCE.md\nlib/\nstd__*\ns-out/\ndocs-out*/\n.sxb/\n"
     )
 
     trust fs.mkdir_path_cstr(c"src")
@@ -2106,7 +2106,7 @@ fn ensure_deps_in_dir(
 
 fn ensure_out_dir(base_dir: ref u8, target: ref u8) void = trust {
     val target_name: ref u8 = target_dir_name(target)
-    val dir: ref u8 = @fmtalloc("{s}/.sx/{s}", {base_dir, target_name})
+    val dir: ref u8 = @fmtalloc("{s}/.sxb/{s}", {base_dir, target_name})
     fs.mkdir_path_cstr(dir)
 }
 
@@ -2291,7 +2291,7 @@ pub fn cmd_build(config_name: ref u8, exe_path: ref u8, target: ref u8) i32 = {
             if trust ensure_deps_in_dir(c".", ensure_visited, effective_target) != 0 {
                 return 1
             }
-            trust fs.mkdir_path_cstr(c".sx")
+            trust fs.mkdir_path_cstr(c".sxb")
             trust ensure_out_dir(c".", effective_target)
             val action_visited: mut list[ref u8] = mem.new[ref u8]()
             if trust run_dep_actions_in_dir(c".", action_visited, effective_target) != 0 {

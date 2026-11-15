@@ -177,7 +177,7 @@ run_multi_actions_app_build() {
 	compiler_abs="$(cd "$(dirname "$COMPILER")" && pwd)/$(basename "$COMPILER")"
 
 	((total++))
-	if (cd "$sample_dir" && rm -rf .sx && SPECTRE_BIN="$compiler_abs" "$compiler_abs" build "$config" && "./$binary") >"$log_file" 2>&1; then
+	if (cd "$sample_dir" && rm -rf .sxb && SPECTRE_BIN="$compiler_abs" "$compiler_abs" build "$config" && "./$binary") >"$log_file" 2>&1; then
 		if grep -q 'multi_actions_app ok' "$log_file" \
 			&& grep -q 'dep-first:list-form' "$log_file" \
 			&& grep -q 'dep-second:free-form' "$log_file" \
@@ -206,9 +206,9 @@ run_multi_actions_app_cross_out() {
 	compiler_abs="$(cd "$(dirname "$COMPILER")" && pwd)/$(basename "$COMPILER")"
 
 	((total++))
-	if (cd "$sample_dir" && rm -rf .sx && SPECTRE_BIN="$compiler_abs" "$compiler_abs" build artifacts -target:windows.x86_64 \
-		&& grep -q '^cross-target$' .sx/windows.x86_64/artifact.txt \
-		&& grep -q '^cross-target-free$' .sx/windows.x86_64/artifact_free.txt) >"$log_file" 2>&1; then
+	if (cd "$sample_dir" && rm -rf .sxb && SPECTRE_BIN="$compiler_abs" "$compiler_abs" build artifacts -target:windows.x86_64 \
+		&& grep -q '^cross-target$' .sxb/windows.x86_64/artifact.txt \
+		&& grep -q '^cross-target-free$' .sxb/windows.x86_64/artifact_free.txt) >"$log_file" 2>&1; then
 		echo "[PASS] multi_actions_app (cross target output)"
 		((passed++))
 	else
