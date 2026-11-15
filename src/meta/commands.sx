@@ -779,7 +779,87 @@ fn parse_actions_field(ctx: mut ref ParseCtx, out: mut list[ref u8]) void = trus
     }
 }
 
-fn parse_dep_body(ctx: mut ref ParseCtx, dep: mut ref SxDep) void = trust {
+fn ctx_skip_block(ctx: mut ref ParseCtx) void = trust {
+    ctx_skip_ws(ctx)
+    val open: i64 = ctx_peek(ctx)
+    if open != 123 && open != 91 {
+        ctx_skip_line(ctx)
+        return
+    }
+    val close: mut i64 = 93
+    if open == 123 {
+        close = 125
+    }
+    val depth: mut i64 = 0
+    for {
+        val c: i64 = ctx_peek(ctx)
+        if c == -1 {
+            break
+        }
+        ctx_advance(ctx)
+        if c == open {
+            depth++
+        } elif c == close {
+            depth--
+            if depth <= 0 {
+                break
+            }
+        }
+    }
+}
+
+/// Returns true when a dep's platform block applies to the selected target.
+fn dep_block_matches(platform: ref u8, arch: ref u8, target: ref u8) bool = trust {
+    val target_platform: ref u8 = builds.target_platform_of(target)
+    if !builds.platform_matches_with_target(platform, target_platform) {
+        return false
+    }
+    if cstr.cmp(arch, c"") != 0 {
+        val target_arch: ref u8 = builds.target_arch_of(target)
+        if cstr.cmp(target_arch, c"") != 0 {
+            return cstr.cmp(arch, target_arch) == 0
+        }
+        return builds.arch_matches(arch)
+    }
+    return true
+}
+
+/// Consume `build_actions`/`build_action` fields, discarding them when the
+/// enclosing platform block does not apply.
+fn parse_dep_fields(ctx: mut ref ParseCtx, dep: mut ref SxDep, active: bool) void = trust {
+    for {
+        ctx_skip_ws(ctx)
+        val c: i64 = ctx_peek(ctx)
+        if c == -1 || c == 125 {
+            break
+        }
+        val name: ref u8 = ctx_read_ident(ctx)
+        if cstr.cmp(name, c"") == 0 {
+            break
+        }
+        if cstr.cmp(name, c"build_actions") == 0 {
+            if active {
+                parse_actions_field(ctx, dep.actions)
+            } else {
+                ctx_skip_block(ctx)
+            }
+        } elif cstr.cmp(name, c"build_action") == 0
+        || cstr.cmp(name, c"ext_build_action") == 0 {
+            if active {
+                parse_build_action_field(ctx, dep)
+            } else {
+                ctx_skip_block(ctx)
+            }
+        } else {
+            ctx_skip_block(ctx)
+        }
+    }
+    if ctx_peek(ctx) == 125 {
+        ctx_advance(ctx)
+    }
+}
+
+fn parse_dep_body(ctx: mut ref ParseCtx, dep: mut ref SxDep, target: ref u8) void = trust {
     ctx_skip_ws(ctx)
     if ctx_peek(ctx) != 123 {
         return
@@ -801,7 +881,16 @@ fn parse_dep_body(ctx: mut ref ParseCtx, dep: mut ref SxDep) void = trust {
         || cstr.cmp(name, c"ext_build_action") == 0 {
             parse_build_action_field(ctx, dep)
         } else {
-            ctx_skip_line(ctx)
+            ctx_skip_ws(ctx)
+            if ctx_peek(ctx) == 123 {
+                ctx_advance(ctx)
+                val platform: ref u8 = builds.target_platform_of(name)
+                val arch: ref u8 = builds.target_arch_of(name)
+                val active: bool = dep_block_matches(platform, arch, target)
+                parse_dep_fields(ctx, dep, active)
+            } else {
+                ctx_skip_line(ctx)
+            }
         }
     }
     if ctx_peek(ctx) == 125 {
@@ -990,7 +1079,7 @@ pub fn parse_sxmod(content: ref u8, root: ref u8, target: ref u8) ref SxMod = tr
             parse_var_entries(ctx, m.vars)
         } elif cstr.cmp(kw, c"dep") == 0 {
             val dep: mut ref SxDep = new_dep(ctx_read_quoted(ctx))
-            parse_dep_body(ctx, dep)
+            parse_dep_body(ctx, dep, target)
             @append(m.deps, dep)
         } elif cstr.cmp(kw, c"build") == 0 {
             val cfg: mut ref SxBuildConfig = mem.alloc(@sizeof(SxBuildConfig) as usize) as mut ref SxBuildConfig
