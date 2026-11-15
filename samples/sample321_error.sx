@@ -1,4 +1,6 @@
-enum E = { A }
+enum E = {
+    A
+}
 
 fn f(_: E, _: f64) void = {}
 

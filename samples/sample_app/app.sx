@@ -17,7 +17,10 @@ extern type json_t = {
 
 extern (C) fn json_create(str: ref u8, mem: ref json_t, qty: u32) ref json_t = "json_create"
 extern (C) fn json_getProperty(obj: ref json_t, property: ref u8) ref json_t = "json_getProperty"
-extern (C) fn json_getPropertyValue(obj: ref json_t, property: ref u8) ref u8 = "json_getPropertyValue"
+extern (C) fn json_getPropertyValue(
+    obj: ref json_t,
+    property: ref u8
+) ref u8 = "json_getPropertyValue"
 extern (C) fn json_getInteger(json: ref json_t) i64 = "json_getInteger"
 extern (C) fn json_getChild(json: ref json_t) ref json_t = "json_getChild"
 extern (C) fn json_getSibling(json: ref json_t) ref json_t = "json_getSibling"
