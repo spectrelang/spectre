@@ -452,7 +452,7 @@ fn report_at(
         shown_col = 1
     }
     print_label(label)
-    stdio.print(": {s}\n", {message})
+    stdio.print(" {s}\n", {message})
     stdio.print(" --> {s}:{lld}:{lld}\n", {filename, line, shown_col})
 }
 
@@ -474,7 +474,7 @@ pub fn error(message: ref u8) void = trust {
         }
     } else {
         print_label(LABEL)
-        stdio.print(": {s}\n", {message})
+        stdio.print(" {s}\n", {message})
     }
 }
 
