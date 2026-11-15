@@ -1,4 +1,3 @@
-warning: spectrelib/runtime/core.sx: unused function 'c_getrandom'
 data $str_w_mode = { b "w", b 0 }
 data $str_r_mode = { b "r", b 0 }
 data $sx_stdin_ptr = { l 0 }
@@ -319134,7 +319133,7 @@ data $__str88 = { b "/spectrelib/env/core.sx", b 0 }
 data $__str89 = { b "/src/meta/env.sx", b 0 }
 data $__str90 = { b "v0.0.17", b 0 }
 data $__str91 = { b "VERSION", b 0 }
-data $__str92 = { b "b11f063", b 0 }
+data $__str92 = { b "34eb235", b 0 }
 data $__str93 = { b "unknown", b 0 }
 data $__str94 = { b "usage:", b 0 }
 data $__str95 = { b "  spectre <command> [args] | <input.sx> [options]", b 0 }

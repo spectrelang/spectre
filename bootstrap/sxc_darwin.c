@@ -1,4 +1,3 @@
-warning: spectrelib/runtime/core.sx: unused function 'c_getrandom'
 #define _POSIX_C_SOURCE 200809L
 #include <stdint.h>
 #include <stdlib.h>
@@ -482,7 +481,7 @@ static char sx__str84[]="/spectrelib/env/core.sx";
 static char sx__str85[]="/src/meta/env.sx";
 static char sx__str86[]="v0.0.17";
 static char sx__str87[]="VERSION";
-static char sx__str88[]="b11f063";
+static char sx__str88[]="34eb235";
 static char sx__str89[]="unknown";
 static char sx__str90[]="usage:";
 static char sx__str91[]="  spectre <command> [args] | <input.sx> [options]";

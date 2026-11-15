@@ -1,20 +1,3 @@
-warning: spectrelib/runtime/core.sx: unused function 'c_strdup'
-warning: spectrelib/runtime/core.sx: unused function 'c_fdopen'
-warning: spectrelib/runtime/core.sx: unused function 'c_fileno'
-warning: spectrelib/runtime/core.sx: unused function 'c_getcwd'
-warning: spectrelib/runtime/core.sx: unused function 'c_chdir'
-warning: spectrelib/runtime/core.sx: unused function 'c_access'
-warning: spectrelib/runtime/core.sx: unused function 'c_mkdir'
-warning: spectrelib/runtime/core.sx: unused function 'c_rmdir'
-warning: spectrelib/runtime/core.sx: unused function 'c_unlink'
-warning: spectrelib/runtime/core.sx: unused function 'c_isatty'
-warning: spectrelib/runtime/core.sx: unused function 'c_popen'
-warning: spectrelib/runtime/core.sx: unused function 'c_pclose'
-warning: spectrelib/runtime/core.sx: unused function 'c_close'
-warning: spectrelib/stdio/core.sx: unused function 'GetStdHandle'
-warning: spectrelib/stdio/core.sx: unused function 'WriteFile'
-warning: spectrelib/os/core.sx: unused function 'is_dot_dir_entry'
-warning: spectrelib/panic/core.sx: unused function 'panic_signal_name'
 #ifndef _CRT_SECURE_NO_WARNINGS
 #define _CRT_SECURE_NO_WARNINGS
 #endif
@@ -522,7 +505,7 @@ static char sx__str89[]="/spectrelib/env/core.sx";
 static char sx__str90[]="/src/meta/env.sx";
 static char sx__str91[]="v0.0.17";
 static char sx__str92[]="VERSION";
-static char sx__str93[]="b11f063";
+static char sx__str93[]="34eb235";
 static char sx__str94[]="unknown";
 static char sx__str95[]="usage:";
 static char sx__str96[]="  spectre <command> [args] | <input.sx> [options]";
