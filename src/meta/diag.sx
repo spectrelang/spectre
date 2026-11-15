@@ -3,15 +3,17 @@
 /// SPDX-License-Identifier: GPL-3.0-only
 /// (C) Navid Momtahen - 2026
 
-val stdio = use("std/stdio")
-val fs    = use("std/fs")
-val cstr  = use("std/string/cstr")
-val path  = use("std/path")
+val stdio      = use("std/stdio")
+val str        = use("std/string")
+val fs         = use("std/fs")
+val cstr       = use("std/string/cstr")
+val path       = use("std/path")
 val reflection = use("std/reflection")
 val allocators = use("std/allocators")
+val terminal   = use("std/terminal")
 
 /// Prefix for every diagnostic.
-pub val LABEL: ref u8 = c"error"
+pub val LABEL: ref u8 = c"error:"
 
 val WARNING_LABEL: ref u8 = c"warning"
 
@@ -146,6 +148,24 @@ fn number_width(value: i64) i64 = trust {
     val width: i64 = cstr.len(buf)
     @free(buf)
     return width
+}
+
+fn label_color(label: ref u8) terminal.Color = {
+    if cstr.eql(label, LABEL) {
+        return terminal.Color.BrightRed
+    }
+    return terminal.Color.BrightYellow
+}
+
+fn caret_color(label: ref u8) terminal.Color = {
+    if cstr.eql(label, LABEL) {
+        return terminal.Color.Red
+    }
+    return terminal.Color.Yellow
+}
+
+fn print_label(label: ref u8) void = trust {
+    terminal.print(str.from_cstr(label), label_color(label))
 }
 
 fn spaces(count: i64) void = trust {
@@ -287,7 +307,8 @@ fn report_at(
                 caret_len = 1
             }
 
-            stdio.print("{s}: {s}\n", {label, message})
+            print_label(label)
+            stdio.print(" {s}\n", {message})
             stdio.print(" --> {s}:{lld}:{lld}\n", {filename, line, actual_col})
             spaces(width)
             stdio.print(" |\n", {})
@@ -306,14 +327,7 @@ fn report_at(
             spaces(width)
             stdio.print(" | ", {})
             spaces(actual_col - 1)
-            val caret_index: mut i64 = 0
-            for {
-                if caret_index >= caret_len {
-                    break
-                }
-                stdio.print("^", {})
-                caret_index++
-            }
+            terminal.print_repeat(str.from_cstr(c"^"), caret_len, caret_color(label))
             stdio.print("\n", {})
             @free(content)
             return
@@ -326,7 +340,8 @@ fn report_at(
     if shown_col <= 0 {
         shown_col = 1
     }
-    stdio.print("{s}: {s}\n", {label, message})
+    print_label(label)
+    stdio.print(": {s}\n", {message})
     stdio.print(" --> {s}:{lld}:{lld}\n", {filename, line, shown_col})
 }
 
@@ -347,7 +362,8 @@ pub fn error(message: ref u8) void = trust {
             @free(location.filename)
         }
     } else {
-        stdio.print("{s}: {s}\n", {LABEL, message})
+        print_label(LABEL)
+        stdio.print(": {s}\n", {message})
     }
 }
 
@@ -366,7 +382,8 @@ pub fn warning(message: ref u8) void = trust {
             @free(location.filename)
         }
     } else {
-        stdio.print("{s}: {s}\n", {WARNING_LABEL, message})
+        print_label(WARNING_LABEL)
+        stdio.print(": {s}\n", {message})
     }
 }
 

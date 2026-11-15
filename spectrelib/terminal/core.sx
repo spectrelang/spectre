@@ -60,26 +60,36 @@ fn default_enabled() bool = trust {
     return true
 }
 
-val enabled_state: mut bool = trust default_enabled()
+val enabled_state: mut bool = false
+val initialized_state: mut bool = false
+
+fn current_enabled() bool = {
+    if !initialized_state {
+        enabled_state = trust default_enabled()
+        initialized_state = true
+    }
+    return enabled_state
+}
 
 /// Return whether colored output is currently enabled.
 pub fn is_enabled() bool = {
-    return enabled_state
+    return current_enabled()
 }
 
 /// Enable or disable colored output.
 pub fn set_enabled(enabled: bool) void = {
     enabled_state = enabled
+    initialized_state = true
 }
 
 /// Enable colored output.
 pub fn enable() void = {
-    enabled_state = true
+    set_enabled(true)
 }
 
 /// Disable colored output.
 pub fn disable() void = {
-    enabled_state = false
+    set_enabled(false)
 }
 
 /// Reset all colors and text styles.
@@ -224,9 +234,9 @@ pub fn style(text_style: Style) str.StringView = {
 
 fn write_out(text: str.StringView, to_stderr: bool) void = trust {
     if to_stderr {
-        stdio.eprintv(text)
+        stdio.eprint("{s}", {text})
     } else {
-        stdio.printv(text)
+        stdio.print("{s}", {text})
     }
 }
 
@@ -238,7 +248,7 @@ fn emit(
     newline: bool,
     to_stderr: bool
 ) void = trust {
-    if enabled_state {
+    if current_enabled() {
         write_out(style(text_style), to_stderr)
         write_out(fg(foreground), to_stderr)
         write_out(bg(background), to_stderr)
@@ -255,6 +265,48 @@ fn emit(
 /// Print colored text to stdout without a trailing newline.
 pub fn print(text: str.StringView, color: Color) void = {
     trust emit(text, color, Color.Default, Style.Plain, false, false)
+}
+
+fn emit_repeat(
+    text: str.StringView,
+    count: i64,
+    foreground: Color,
+    background: Color,
+    text_style: Style,
+    newline: bool,
+    to_stderr: bool
+) void = trust {
+    if count <= 0 {
+        if newline {
+            write_out("\n", to_stderr)
+        }
+        return
+    }
+    val colored: bool = current_enabled()
+    if colored {
+        write_out(style(text_style), to_stderr)
+        write_out(fg(foreground), to_stderr)
+        write_out(bg(background), to_stderr)
+    }
+    val index: mut i64 = 0
+    for {
+        if index >= count {
+            break
+        }
+        write_out(text, to_stderr)
+        index++
+    }
+    if colored {
+        write_out(reset(), to_stderr)
+    }
+    if newline {
+        write_out("\n", to_stderr)
+    }
+}
+
+/// Print `text` `count` times in `color` to stdout without a trailing newline.
+pub fn print_repeat(text: str.StringView, count: i64, color: Color) void = {
+    trust emit_repeat(text, count, color, Color.Default, Style.Plain, false, false)
 }
 
 /// Print colored text to stdout followed by a newline.
