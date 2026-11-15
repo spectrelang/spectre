@@ -2231,6 +2231,89 @@ pub fn cmd_remove(dep_name: ref u8) i32 = {
     return 0
 }
 
+fn remove_path(path: ref u8) void = trust {
+    when windows {
+        os.run(@fmtalloc("rmdir /s /q {s}", {path}))
+    }
+    when posix {
+        os.run(@fmtalloc("rm -rf {s}", {path}))
+    }
+}
+
+/// Restore one dependency, reusing an existing checkout when it is already at
+/// the locked revision and otherwise updating it in place.
+fn restore_dependency(lib_path: ref u8, dep_url: ref u8, hash: ref u8) i32 = trust {
+    if os.exists(lib_path) && !fs.is_directory_cstr(lib_path) {
+        remove_path(lib_path)
+    }
+
+    val git_dir: ref u8 = @fmtalloc("{s}/.git", {lib_path})
+    val is_repo: mut bool = fs.is_directory_cstr(lib_path) && os.exists(git_dir)
+    if is_repo {
+        val head: ref u8 = output_trimmed(@fmtalloc(
+                "git -C {s} rev-parse HEAD",
+                {lib_path}
+            ))
+        if cstr.cmp(head, c"") == 0 {
+            remove_path(lib_path)
+            is_repo = false
+        } elif cstr.cmp(hash, c"unknown") == 0 || cstr.cmp(head, hash) == 0 {
+            return 0
+        }
+    }
+
+    if !is_repo {
+        if os.exists(lib_path) {
+            remove_path(lib_path)
+        }
+        if os.run(@fmtalloc("git clone {s} {s}", {dep_url, lib_path})) != 0 {
+            stdio.print("error: git clone failed for {s}\n", {dep_url})
+            return 1
+        }
+        if cstr.cmp(hash, c"unknown") != 0 {
+            if os.run(@fmtalloc("git -C {s} checkout --quiet {s}", {lib_path, hash})) != 0 {
+                stdio.print("error: failed to checkout {s} for {s}\n", {hash, dep_url})
+                return 1
+            }
+        }
+        return 0
+    }
+
+    if os.run(@fmtalloc("git -C {s} remote set-url origin {s}", {lib_path, dep_url})) != 0 {
+        if os.run(@fmtalloc("git -C {s} remote add origin {s}", {lib_path, dep_url})) != 0 {
+            stdio.print("error: failed to configure remote for {s}\n", {dep_url})
+            return 1
+        }
+    }
+
+    val has_object: bool = os.run(@fmtalloc(
+            "git -C {s} cat-file -e {s}",
+            {lib_path, hash}
+        )) == 0
+    if !has_object {
+        if os.run(@fmtalloc("git -C {s} fetch --quiet --force origin {s}", {lib_path, hash})) != 0 {
+            if os.run(@fmtalloc("git -C {s} fetch --quiet --force origin", {lib_path})) != 0 {
+                stdio.print("error: git fetch failed for {s}\n", {dep_url})
+                return 1
+            }
+        }
+    }
+
+    if os.run(@fmtalloc("git -C {s} checkout --quiet --force {s}", {lib_path, hash})) != 0 {
+        stdio.print("error: failed to checkout {s} for {s}\n", {hash, dep_url})
+        return 1
+    }
+    if os.run(@fmtalloc("git -C {s} reset --hard --quiet {s}", {lib_path, hash})) != 0 {
+        stdio.print("error: failed to reset {s} for {s}\n", {hash, dep_url})
+        return 1
+    }
+    if os.run(@fmtalloc("git -C {s} clean -fdx --quiet", {lib_path})) != 0 {
+        stdio.print("error: failed to clean {s}\n", {dep_url})
+        return 1
+    }
+    return 0
+}
+
 fn restore_in_dir(base_dir: ref u8, visited: mut list[ref u8]) i32 = trust {
     for v in visited {
         if cstr.cmp(v, base_dir) == 0 {
@@ -2267,15 +2350,9 @@ fn restore_in_dir(base_dir: ref u8, visited: mut list[ref u8]) i32 = trust {
     }
 
     val lib_dir: ref u8 = @fmtalloc("{s}/lib", {base_dir})
-    if os.exists(lib_dir) {
-        when windows {
-            os.run(@fmtalloc("rmdir /s /q {s}", {lib_dir}))
-        }
-        when posix {
-            os.run(@fmtalloc("rm -rf {s}", {lib_dir}))
-        }
+    if !os.exists(lib_dir) {
+        fs.mkdir_path_cstr(lib_dir)
     }
-    fs.mkdir_path_cstr(lib_dir)
 
     for dep in sxmod.deps {
         val dep_url: ref u8 = dep.url
@@ -2288,16 +2365,9 @@ fn restore_in_dir(base_dir: ref u8, visited: mut list[ref u8]) i32 = trust {
         val name: ref u8 = repo_name_from_url(dep_url)
         val lib_path: ref u8 = @fmtalloc("{s}/{s}", {lib_dir, name})
         stdio.print("Restoring {s}...\n", {dep_url})
-        if os.run(@fmtalloc("git clone {s} {s}", {dep_url, lib_path})) != 0 {
-            stdio.print("error: git clone failed for {s}\n", {dep_url})
-            return 1
-        }
-
-        if cstr.cmp(hash, c"unknown") != 0 {
-            if os.run(@fmtalloc("git -C {s} checkout --quiet {s}", {lib_path, hash})) != 0 {
-                stdio.print("error: failed to checkout {s} for {s}\n", {hash, dep_url})
-                return 1
-            }
+        val dep_code: i32 = restore_dependency(lib_path, dep_url, hash)
+        if dep_code != 0 {
+            return dep_code
         }
 
         val sub_code: i32 = restore_in_dir(lib_path, visited)
@@ -2334,15 +2404,9 @@ pub fn cmd_restore() i32 = trust {
         }
     }
 
-    if os.exists(c"lib") {
-        when windows {
-            os.run(c"rmdir /s /q lib")
-        }
-        when posix {
-            os.run(c"rm -rf lib")
-        }
+    if !os.exists(c"lib") {
+        fs.mkdir_path_cstr(c"lib")
     }
-    fs.mkdir_path_cstr(c"lib")
 
     val visited: mut list[ref u8] = mem.new[ref u8]()
     @append(visited, c".")
@@ -2357,22 +2421,10 @@ pub fn cmd_restore() i32 = trust {
 
         val name: ref u8 = repo_name_from_url(dep_url)
         val lib_path: ref u8 = @fmtalloc("lib/{s}", {name})
-        val clone_cmd: ref u8 = @fmtalloc("git clone {s} {s}", {dep_url, lib_path})
         stdio.print("Restoring {s}...\n", {dep_url})
-        if os.run(clone_cmd) != 0 {
-            stdio.print("error: git clone failed for {s}\n", {dep_url})
-            return 1
-        }
-
-        if cstr.cmp(hash, c"unknown") != 0 {
-            val checkout_cmd: ref u8 = @fmtalloc(
-                "git -C {s} checkout --quiet {s}",
-                {lib_path, hash}
-            )
-            if os.run(checkout_cmd) != 0 {
-                stdio.print("error: failed to checkout {s} for {s}\n", {hash, dep_url})
-                return 1
-            }
+        val dep_code: i32 = restore_dependency(lib_path, dep_url, hash)
+        if dep_code != 0 {
+            return dep_code
         }
 
         val sub_code: i32 = restore_in_dir(lib_path, visited)
