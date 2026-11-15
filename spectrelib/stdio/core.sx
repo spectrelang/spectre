@@ -27,19 +27,6 @@ pub fn print(fmt: str.StringView, args: argspack) void = trust {
     @print(fmt, args)
 }
 
-val STD_ERROR_HANDLE: i32 = -12
-
-when windows {
-    extern (C, header) fn GetStdHandle(nStdHandle: i32) ref void = "GetStdHandle"
-    extern (C, header) fn WriteFile(
-        hFile: ref void,
-        lpBuffer: ref void,
-        nNumberOfBytesToWrite: u32,
-        lpNumberOfBytesWritten: ref u32,
-        lpOverlapped: ref void
-    ) i32 = "WriteFile"
-}
-
 /// Print a string to stderr followed by a newline (fd 2).
 pub fn eputs(msg: str.StringView) void = {
     trust eprintv(msg)
