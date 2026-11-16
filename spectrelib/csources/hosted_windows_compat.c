@@ -160,4 +160,13 @@ int pthread_mutex_unlock(void *m) { (void)m; return 0; }
 
 int poll(void *fds, unsigned long n, int timeout) { (void)fds; (void)n; (void)timeout; return -1; }
 
+/* Stable entry points used by generated code for POSIX names that the
+ * Microsoft C runtime does not declare in its public headers. */
+char *sx_hosted_realpath(const char *path, char *out) { return realpath(path, out); }
+char *sx_hosted_strtok_r(char *s, const char *delim, char **save) { return strtok_r(s, delim, save); }
+int sx_hosted_readlink(const char *path, char *buf, size_t n) { return readlink(path, buf, n); }
+int sx_hosted_stat(const char *path, void *buf) { return stat(path, buf); }
+int sx_hosted_usleep(unsigned usec) { return usleep(usec); }
+int sx_hosted_sleep(unsigned seconds) { return sleep(seconds); }
+
 #endif
