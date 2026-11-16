@@ -11385,13 +11385,26 @@ fn check_no_global_wrapped(
 }
 
 fn check_top_level_initializer(
-    _: mut ref SemaCtx,
-    _: ref u8,
-    _: ref parser.Node,
-    _: ref u8,
-    _: i64
+    ctx: mut ref SemaCtx,
+    name: ref u8,
+    init: ref parser.Node,
+    filename: ref u8,
+    line: i64
 ) void = trust {
-    return
+    if !expr_contains_call(init) {
+        return
+    }
+    val buf: ref u8 = allocators.ScopedArena.alloc_or_none(
+        ctx.arena,
+        (512) as usize
+    ) as ref u8
+    @snprintf(
+        buf,
+        512,
+        "{s}:{lld}: top-level value '{s}' is not fully evaluable at compile time",
+        {filename, line, name}
+    )
+    add_error(ctx, buf)
 }
 
 fn check_top_item(ctx: mut ref SemaCtx, item: ref parser.Node, filename: ref u8) void = trust {
@@ -11820,7 +11833,7 @@ fn expr_contains_call(node: ref parser.Node) bool = trust {
         }
         return expr_contains_call(node.d0 as ref parser.Node)
     }
-    if k == parser.NK_LIST_LIT || k == parser.NK_ARGS_PACK {
+    if k == parser.NK_LIST_LIT || k == parser.NK_FIXED_ARR_LIT || k == parser.NK_ARGS_PACK {
         val elems: ref void = node.d0 as ref void
         if elems != none {
             for elem in elems as list[ref parser.Node] {

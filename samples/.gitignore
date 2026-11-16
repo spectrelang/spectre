@@ -2,5 +2,10 @@ flightsim
 exo
 SPECTRE_LANGUAGE_REFERENCE.md
 lib/
+!multi_actions_app/lib/
+multi_actions_app/lib/*
+!multi_actions_app/lib/multi-actions-dep/
+multi_actions_app/lib/multi-actions-dep/*
+!multi_actions_app/lib/multi-actions-dep/.gitkeep
 std__*
 s-out/
