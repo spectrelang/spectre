@@ -1,0 +1,6 @@
+pub fn main() void = {
+ val some_str: ref u8 = c\\Hello, world
+        \\hows it going
+   \\it going good? :)
+ trust @print("{s}", {some_str})
+}
