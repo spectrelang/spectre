@@ -1469,7 +1469,10 @@ fn validate_spectre_version(m: ref SxMod) bool = trust {
             {m.spectre_version}
         )
         diag.info_label()
-        stdio.print(" (or update 'spectre_version' in sx.mod to match the installed compiler)\n", {})
+        stdio.print(
+            " (or update 'spectre_version' in sx.mod to match the installed compiler)\n",
+            {}
+        )
         return false
     }
     return true
