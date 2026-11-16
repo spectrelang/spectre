@@ -83,6 +83,21 @@ type World = {
     fn_files: mut list[ref u8]
     fn_states: mut list[i64]
     fn_viols: mut list[ref u8]
+    fn_arrays: mut list[i64]
+    fn_map_keys: mut ref i64
+    fn_map_vals: mut ref i64
+    fn_map_mask: mut i64
+    gc_m: mut ref i64
+    gc_name: mut ref i64
+    gc_item: mut ref i64
+    gc_mod: mut ref i64
+    gc_mask: mut i64
+    gc_count: mut i64
+    tc_m: mut ref i64
+    tc_name: mut ref i64
+    tc_item: mut ref i64
+    tc_mask: mut i64
+    tc_count: mut i64
     used_fns: mut list[ref parser.Node]
     seen_mods: mut list[ref void]
     cur_viol: mut ref u8
@@ -516,6 +531,17 @@ fn is_plain_type(w: ref World, m: ref modinfo.ResolvedModule, ty: ref parser.Nod
     return false
 }
 
+fn type_cache_init(w: mut ref World) void = trust {
+    val cap: i64 = 262144
+    val bytes: usize = (cap * 8) as usize
+    w.tc_m = allocators.ScopedArena.alloc_or_none(w.arena, bytes) as ref i64
+    w.tc_name = allocators.ScopedArena.alloc_or_none(w.arena, bytes) as ref i64
+    w.tc_item = allocators.ScopedArena.alloc_or_none(w.arena, bytes) as ref i64
+    @memset(w.tc_m as ref void, 0, bytes)
+    w.tc_mask = cap - 1
+    w.tc_count = 0
+}
+
 fn find_type_def(
     w: ref World,
     m: ref modinfo.ResolvedModule,
@@ -524,6 +550,41 @@ fn find_type_def(
     if m == none || name == none {
         return none
     }
+    val wm: mut ref World = w
+    if w.tc_m == none {
+        type_cache_init(wm)
+    }
+    val key_m: i64 = parser.ptr_to_i64[ref modinfo.ResolvedModule](m) ^ 0x54595045
+    val name_key: i64 = parser.ptr_to_i64[ref u8](name)
+    if w.tc_count < w.tc_mask {
+        val slot: mut i64 = global_name_hash(key_m, name, w.tc_mask)
+        for {
+            val cur_m: i64 = @load(@ptradd(w.tc_m, slot * 8)) as i64
+            if cur_m == 0 {
+                val res: ref parser.Node = find_type_def_slow(w, m, name)
+                @store(@ptradd(w.tc_m, slot * 8), key_m)
+                @store(@ptradd(w.tc_name, slot * 8), name_key)
+                @store(@ptradd(w.tc_item, slot * 8), parser.ptr_to_i64[ref parser.Node](res))
+                wm.tc_count = wm.tc_count + 1
+                return res
+            }
+            if cur_m == key_m {
+                val cached_name: ref u8 = @bitcast(@load(@ptradd(w.tc_name, slot * 8)) as i64, ref u8)
+                if cstr.eql(cached_name, name) {
+                    return @bitcast(@load(@ptradd(w.tc_item, slot * 8)) as i64, ref parser.Node)
+                }
+            }
+            slot = (slot + 1) & w.tc_mask
+        }
+    }
+    return find_type_def_slow(w, m, name)
+}
+
+fn find_type_def_slow(
+    w: ref World,
+    m: ref modinfo.ResolvedModule,
+    name: ref u8
+) ref parser.Node = trust {
     for item in modinfo.module_items(m) {
         if item == none {
             continue
@@ -610,10 +671,71 @@ type GlobalHit = {
     m: mut ref modinfo.ResolvedModule
 }
 
+fn global_name_hash(m: i64, name: ref u8, mask: i64) i64 = trust {
+    val h: mut i64 = (m >> 4) ^ (m >> 23)
+    val p: mut ref u8 = name
+    for {
+        val c: i64 = @load8(p) as i64
+        if c == 0 {
+            break
+        }
+        h = (h * 1099511628211) ^ c
+        p = @ptradd(p, 1)
+    }
+    return (h ^ (h >> 32)) & mask
+}
+
+fn global_cache_init(w: mut ref World) void = trust {
+    val cap: i64 = 262144
+    val bytes: usize = (cap * 8) as usize
+    w.gc_m = allocators.ScopedArena.alloc_or_none(w.arena, bytes) as ref i64
+    w.gc_name = allocators.ScopedArena.alloc_or_none(w.arena, bytes) as ref i64
+    w.gc_item = allocators.ScopedArena.alloc_or_none(w.arena, bytes) as ref i64
+    w.gc_mod = allocators.ScopedArena.alloc_or_none(w.arena, bytes) as ref i64
+    @memset(w.gc_m as ref void, 0, bytes)
+    w.gc_mask = cap - 1
+    w.gc_count = 0
+}
+
 fn find_global(w: ref World, m: ref modinfo.ResolvedModule, name: ref u8) GlobalHit = trust {
+    val wm: mut ref World = w
     if m == none || name == none {
         return GlobalHit{item: none, m: none}
     }
+    if w.gc_m == none {
+        global_cache_init(wm)
+    }
+    val key_m: i64 = parser.ptr_to_i64[ref modinfo.ResolvedModule](m)
+    val name_key: i64 = parser.ptr_to_i64[ref u8](name)
+    if w.gc_count < w.gc_mask {
+        val slot: mut i64 = global_name_hash(key_m, name, w.gc_mask)
+        for {
+            val cur_m: i64 = @load(@ptradd(w.gc_m, slot * 8)) as i64
+            if cur_m == 0 {
+                val res: GlobalHit = find_global_slow(w, m, name)
+                @store(@ptradd(w.gc_m, slot * 8), key_m)
+                @store(@ptradd(w.gc_name, slot * 8), name_key)
+                @store(@ptradd(w.gc_item, slot * 8), parser.ptr_to_i64[ref parser.Node](res.item))
+                @store(@ptradd(w.gc_mod, slot * 8), parser.ptr_to_i64[ref modinfo.ResolvedModule](res.m))
+                wm.gc_count = wm.gc_count + 1
+                return res
+            }
+            if cur_m == key_m {
+                val cached_name: ref u8 = @bitcast(@load(@ptradd(w.gc_name, slot * 8)) as i64, ref u8)
+                if cstr.eql(cached_name, name) {
+                    return GlobalHit{
+                        item: @bitcast(@load(@ptradd(w.gc_item, slot * 8)) as i64, ref parser.Node),
+                        m: @bitcast(@load(@ptradd(w.gc_mod, slot * 8)) as i64, ref modinfo.ResolvedModule)
+                    }
+                }
+            }
+            slot = (slot + 1) & w.gc_mask
+        }
+    }
+    return find_global_slow(w, m, name)
+}
+
+fn find_global_slow(w: ref World, m: ref modinfo.ResolvedModule, name: ref u8) GlobalHit = trust {
     for item in modinfo.module_items(m) {
         if item == none {
             continue
@@ -762,6 +884,10 @@ fn type_size(w: ref World, m: ref modinfo.ResolvedModule, ty: ref parser.Node) i
     }
     if cstr.eql(n, c"i32") || cstr.eql(n, c"u32") || cstr.eql(n, c"f32") {
         return 4
+    }
+    if cstr.eql(n, c"i64") || cstr.eql(n, c"u64") || cstr.eql(n, c"isize")
+    || cstr.eql(n, c"usize") || cstr.eql(n, c"f64") {
+        return 8
     }
     val td: ref parser.Node = find_type_def(w, m, n)
     if td != none && td.kind == parser.NK_TYPEDEF {
@@ -1667,8 +1793,18 @@ fn fn_name_of(fn_node: ref parser.Node) ref u8 = trust {
     return c""
 }
 
-fn mark_used_fn(w: mut ref World, fn_node: ref parser.Node) void = trust {
+fn mark_used_idx(w: mut ref World, fn_node: ref parser.Node, idx: i64) void = trust {
     if fn_node == none {
+        return
+    }
+    if idx >= 0 {
+        val arr_opt = @get(w.fn_arrays, idx as usize)
+        if arr_opt is some arr {
+            if (arr as i64) == 0 {
+                return
+            }
+        }
+    } elif !fn_has_fixed_arr_signature(fn_node) {
         return
     }
     val n: i64 = @len(w.used_fns) as i64
@@ -1686,6 +1822,10 @@ fn mark_used_fn(w: mut ref World, fn_node: ref parser.Node) void = trust {
         i++
     }
     @append(w.used_fns, fn_node)
+}
+
+fn mark_used_fn(w: mut ref World, fn_node: ref parser.Node) void = trust {
+    mark_used_idx(w, fn_node, pure_index(w, fn_node))
 }
 
 fn fn_is_used(w: ref World, fn_node: ref parser.Node) bool = trust {
@@ -1706,8 +1846,28 @@ fn fn_is_used(w: ref World, fn_node: ref parser.Node) bool = trust {
     return false
 }
 
-fn pure_index(w: ref World, fn_node: ref parser.Node) i64 = trust {
+fn fn_ptr_hash(key: i64, mask: i64) i64 = trust {
+    val x: i64 = key >> 4
+    return (x ^ (x >> 17) ^ (x >> 33)) & mask
+}
+
+fn fn_map_build(w: mut ref World) void = trust {
     val n: i64 = @len(w.fn_nodes) as i64
+    val need: i64 = n * 2
+    val cap: mut i64 = 16
+    for {
+        if cap >= need {
+            break
+        }
+        cap = cap * 2
+    }
+    val bytes: usize = (cap * 8) as usize
+    val keys: ref i64 = allocators.ScopedArena.alloc_or_none(w.arena, bytes) as ref i64
+    val vals: ref i64 = allocators.ScopedArena.alloc_or_none(w.arena, bytes) as ref i64
+    @memset(keys as ref void, 0, bytes)
+    w.fn_map_keys = keys
+    w.fn_map_vals = vals
+    w.fn_map_mask = cap - 1
     val i: mut i64 = 0
     for {
         if i >= n {
@@ -1715,11 +1875,51 @@ fn pure_index(w: ref World, fn_node: ref parser.Node) i64 = trust {
         }
         val f_opt = @get(w.fn_nodes, i as usize)
         if f_opt is some f {
-            if (f as ref parser.Node) == fn_node {
-                return i
+            val key: i64 = parser.ptr_to_i64[ref parser.Node](f as ref parser.Node)
+            val slot: mut i64 = fn_ptr_hash(key, w.fn_map_mask)
+            for {
+                val cur: i64 = @load(@ptradd(keys, slot * 8)) as i64
+                if cur == 0 {
+                    @store(@ptradd(keys, slot * 8), key)
+                    @store(@ptradd(vals, slot * 8), i)
+                    break
+                }
+                slot = (slot + 1) & w.fn_map_mask
             }
         }
         i++
+    }
+}
+
+fn pure_index(w: ref World, fn_node: ref parser.Node) i64 = trust {
+    if w.fn_map_keys == none {
+        val n: i64 = @len(w.fn_nodes) as i64
+        val i: mut i64 = 0
+        for {
+            if i >= n {
+                break
+            }
+            val f_opt = @get(w.fn_nodes, i as usize)
+            if f_opt is some f {
+                if (f as ref parser.Node) == fn_node {
+                    return i
+                }
+            }
+            i++
+        }
+        return -1
+    }
+    val key: i64 = parser.ptr_to_i64[ref parser.Node](fn_node)
+    val slot: mut i64 = fn_ptr_hash(key, w.fn_map_mask)
+    for {
+        val cur: i64 = @load(@ptradd(w.fn_map_keys, slot * 8)) as i64
+        if cur == 0 {
+            return -1
+        }
+        if cur == key {
+            return @load(@ptradd(w.fn_map_vals, slot * 8)) as i64
+        }
+        slot = (slot + 1) & w.fn_map_mask
     }
     return -1
 }
@@ -1743,6 +1943,7 @@ fn collect_fn(w: mut ref World, m: ref modinfo.ResolvedModule, file: ref u8) voi
             @append(w.fn_files, file)
             @append(w.fn_states, 1 as i64)
             @append(w.fn_viols, none)
+            @append(w.fn_arrays, fn_has_fixed_arr_signature(item) as i64)
         }
         if item.kind == parser.NK_WHEN_ITEMS {
             for wi in when_items_selected(w, item) {
@@ -1751,6 +1952,7 @@ fn collect_fn(w: mut ref World, m: ref modinfo.ResolvedModule, file: ref u8) voi
                     @append(w.fn_files, file)
                     @append(w.fn_states, 1 as i64)
                     @append(w.fn_viols, none)
+                    @append(w.fn_arrays, fn_has_fixed_arr_signature(wi) as i64)
                 }
             }
         }
@@ -1801,6 +2003,7 @@ fn make_fn_ctx(
 
 fn purity_analyze(w: mut ref World) void = trust {
     collect_fn(w, w.root, modinfo.module_display_filename(w.root))
+    fn_map_build(w)
     val changed: mut bool = true
     for {
         if !changed {
@@ -3690,12 +3893,27 @@ fn make_empty_ctx(w_in: ref World, m: ref modinfo.ResolvedModule) ref EvalCtx = 
     return ctx
 }
 
-fn rewrite_all(w: mut ref World) void = trust {
-    rewrite_module(w, w.root)
+fn seen_before(seen: mut list[ref void], m: ref modinfo.ResolvedModule) bool = trust {
+    for s in seen {
+        if s == m as ref void {
+            return true
+        }
+    }
+    @append(seen, m as ref void)
+    return false
 }
 
-fn rewrite_module(w: mut ref World, m: ref modinfo.ResolvedModule) void = trust {
-    if m == none {
+fn rewrite_all(w: mut ref World) void = trust {
+    val seen: mut list[ref void] = mem.new[ref void]()
+    rewrite_module(w, w.root, seen)
+}
+
+fn rewrite_module(
+    w: mut ref World,
+    m: ref modinfo.ResolvedModule,
+    seen: mut list[ref void]
+) void = trust {
+    if m == none || seen_before(seen, m) {
         return
     }
     for item in modinfo.module_items(m) {
@@ -3707,7 +3925,7 @@ fn rewrite_module(w: mut ref World, m: ref modinfo.ResolvedModule) void = trust 
         if i >= nimp {
             break
         }
-        rewrite_module(w, modinfo.import_module_at(m, i as usize))
+        rewrite_module(w, modinfo.import_module_at(m, i as usize), seen)
         i++
     }
 }
@@ -3951,6 +4169,90 @@ fn fold_expr(
     }
 }
 
+fn maybe_static_expr(w: ref World, m: ref modinfo.ResolvedModule, expr: ref parser.Node) bool = trust {
+    if expr == none {
+        return true
+    }
+    val k: i64 = expr.kind
+    if k == parser.NK_ADDR || k == parser.NK_DEREF {
+        return false
+    }
+    if k == parser.NK_IDENT {
+        val hit: GlobalHit = find_global(w, m, parser.node_str_raw(expr.d0))
+        return hit.item != none
+    }
+    if k == parser.NK_BINOP {
+        if !maybe_static_expr(w, m, parser.binop_left(expr)) {
+            return false
+        }
+        return maybe_static_expr(w, m, parser.binop_right(expr))
+    }
+    if k == parser.NK_UNOP {
+        return maybe_static_expr(w, m, parser.unop_inner(expr))
+    }
+    if k == parser.NK_CAST || k == parser.NK_TRUST || k == parser.NK_TRY
+    || k == parser.NK_SOME || k == parser.NK_OK_VAL || k == parser.NK_ERR_VAL
+    || k == parser.NK_GENERIC_INST {
+        return maybe_static_expr(w, m, expr.d0 as ref parser.Node)
+    }
+    if k == parser.NK_FIELD {
+        return maybe_static_expr(w, m, parser.field_base(expr))
+    }
+    if k == parser.NK_CALL {
+        val callee: ref parser.Node = parser.call_resolved_fn(expr)
+        if callee == none || callee.kind == parser.NK_EXTERN_FN {
+            return false
+        }
+        return fold_args_maybe_static(w, m, expr)
+    }
+    if k == parser.NK_BUILTIN {
+        val name: ref u8 = parser.node_str_raw(expr.d0)
+        if cstr.eql(name, c"static") || cstr.eql(name, c"staticerror")
+        || cstr.eql(name, c"zeroed") || cstr.eql(name, c"sizeof")
+        || cstr.eql(name, c"len") || cstr.eql(name, c"get")
+        || cstr.eql(name, c"set") {
+            return true
+        }
+        return false
+    }
+    if k == parser.NK_STRUCT_LIT {
+        val fields: ref void = expr.d0 as ref void
+        if fields != none {
+            for f in fields as list[ref parser.Node] {
+                if !maybe_static_expr(w, m, (f as ref parser.Node).d1 as ref parser.Node) {
+                    return false
+                }
+            }
+        }
+        return true
+    }
+    if k == parser.NK_LIST_LIT || k == parser.NK_FIXED_ARR_LIT || k == parser.NK_ARGS_PACK {
+        val elems: ref void = expr.d0 as ref void
+        if elems != none {
+            for e in elems as list[ref parser.Node] {
+                if !maybe_static_expr(w, m, e) {
+                    return false
+                }
+            }
+        }
+        return true
+    }
+    return true
+}
+
+fn fold_args_maybe_static(w: ref World, m: ref modinfo.ResolvedModule, expr: ref parser.Node) bool = trust {
+    val args: ref void = parser.call_args(expr) as ref void
+    if args == none {
+        return true
+    }
+    for a in args as list[ref parser.Node] {
+        if !maybe_static_expr(w, m, a) {
+            return false
+        }
+    }
+    return true
+}
+
 fn try_fold_call(
     w: mut ref World,
     m: ref modinfo.ResolvedModule,
@@ -3966,19 +4268,23 @@ fn try_fold_call(
     }
     val pidx: i64 = pure_index(w, fn_node)
     if pidx < 0 {
-        mark_used_fn(w, fn_node)
+        mark_used_idx(w, fn_node, -1)
         return
     }
     val st_opt = @get(w.fn_states, pidx as usize)
     if st_opt is some st {
         if (st as i64) != 1 {
-            mark_used_fn(w, fn_node)
+            mark_used_idx(w, fn_node, pidx)
             return
         }
     }
+    if !fold_args_maybe_static(w, m, expr) {
+        mark_used_idx(w, fn_node, pidx)
+        return
+    }
     val ret: ref parser.Node = call_ret_ty(make_empty_ctx(w, m), expr)
     if ret != none && !is_plain_type(w, m, ty_unwrap(ret)) {
-        mark_used_fn(w, fn_node)
+        mark_used_idx(w, fn_node, pidx)
         return
     }
     val ctx: mut ref EvalCtx = make_empty_ctx(w, m)
@@ -3996,17 +4302,22 @@ fn try_fold_call(
         }
         err _ => {
             // A failed fold is never a bug; leave the runtime call in place.
-            mark_used_fn(w, fn_node)
+            mark_used_idx(w, fn_node, pidx)
         }
     }
 }
 
 fn fold_all(w: mut ref World) void = trust {
-    fold_module(w, w.root)
+    val seen: mut list[ref void] = mem.new[ref void]()
+    fold_module(w, w.root, seen)
 }
 
-fn fold_module(w: mut ref World, m: ref modinfo.ResolvedModule) void = trust {
-    if m == none {
+fn fold_module(
+    w: mut ref World,
+    m: ref modinfo.ResolvedModule,
+    seen: mut list[ref void]
+) void = trust {
+    if m == none || seen_before(seen, m) {
         return
     }
     for item in modinfo.module_items(m) {
@@ -4018,7 +4329,7 @@ fn fold_module(w: mut ref World, m: ref modinfo.ResolvedModule) void = trust {
         if i >= nimp {
             break
         }
-        fold_module(w, modinfo.import_module_at(m, i as usize))
+        fold_module(w, modinfo.import_module_at(m, i as usize), seen)
         i++
     }
 }
@@ -4089,8 +4400,12 @@ fn prune_dead_item(w: mut ref World, item: mut ref parser.Node) void = trust {
     }
 }
 
-fn prune_dead_module(w: mut ref World, m: ref modinfo.ResolvedModule) void = trust {
-    if m == none {
+fn prune_dead_module(
+    w: mut ref World,
+    m: ref modinfo.ResolvedModule,
+    seen: mut list[ref void]
+) void = trust {
+    if m == none || seen_before(seen, m) {
         return
     }
     for item in modinfo.module_items(m) {
@@ -4103,13 +4418,14 @@ fn prune_dead_module(w: mut ref World, m: ref modinfo.ResolvedModule) void = tru
         if i >= nimp {
             break
         }
-        prune_dead_module(w, modinfo.import_module_at(m, i as usize))
+        prune_dead_module(w, modinfo.import_module_at(m, i as usize), seen)
         i++
     }
 }
 
 fn prune_dead_functions(w: mut ref World) void = trust {
-    prune_dead_module(w, w.root)
+    val seen: mut list[ref void] = mem.new[ref void]()
+    prune_dead_module(w, w.root, seen)
 }
 
 fn expr_has_call(expr: ref parser.Node) bool = trust {
@@ -4208,11 +4524,16 @@ fn check_top_call_item(
 }
 
 fn check_top_calls(w: mut ref World) void = trust {
-    check_top_calls_module(w, w.root)
+    val seen: mut list[ref void] = mem.new[ref void]()
+    check_top_calls_module(w, w.root, seen)
 }
 
-fn check_top_calls_module(w: mut ref World, m: ref modinfo.ResolvedModule) void = trust {
-    if m == none {
+fn check_top_calls_module(
+    w: mut ref World,
+    m: ref modinfo.ResolvedModule,
+    seen: mut list[ref void]
+) void = trust {
+    if m == none || seen_before(seen, m) {
         return
     }
     for item in modinfo.module_items(m) {
@@ -4224,7 +4545,7 @@ fn check_top_calls_module(w: mut ref World, m: ref modinfo.ResolvedModule) void 
         if i >= nimp {
             break
         }
-        check_top_calls_module(w, modinfo.import_module_at(m, i as usize))
+        check_top_calls_module(w, modinfo.import_module_at(m, i as usize), seen)
         i++
     }
 }
@@ -4254,8 +4575,12 @@ fn check_qbe_array_fn_item(w: mut ref World, m: ref modinfo.ResolvedModule, item
     add_error(w, msg)
 }
 
-fn check_qbe_array_fns_module(w: mut ref World, m: ref modinfo.ResolvedModule) void = trust {
-    if m == none {
+fn check_qbe_array_fns_module(
+    w: mut ref World,
+    m: ref modinfo.ResolvedModule,
+    seen: mut list[ref void]
+) void = trust {
+    if m == none || seen_before(seen, m) {
         return
     }
     for item in modinfo.module_items(m) {
@@ -4267,13 +4592,14 @@ fn check_qbe_array_fns_module(w: mut ref World, m: ref modinfo.ResolvedModule) v
         if i >= nimp {
             break
         }
-        check_qbe_array_fns_module(w, modinfo.import_module_at(m, i as usize))
+        check_qbe_array_fns_module(w, modinfo.import_module_at(m, i as usize), seen)
         i++
     }
 }
 
 fn check_qbe_array_fns(w: mut ref World) void = trust {
-    check_qbe_array_fns_module(w, w.root)
+    val seen: mut list[ref void] = mem.new[ref void]()
+    check_qbe_array_fns_module(w, w.root, seen)
 }
 
 pub fn process(
@@ -4303,6 +4629,7 @@ pub fn process(
     w.fn_files = mem.new[ref u8]()
     w.fn_states = mem.new[i64]()
     w.fn_viols = mem.new[ref u8]()
+    w.fn_arrays = mem.new[i64]()
     w.used_fns = mem.new[ref parser.Node]()
     w.seen_mods = mem.new[ref void]()
     w.cur_viol = none
