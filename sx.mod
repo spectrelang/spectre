@@ -13,7 +13,7 @@ var {
 build release {
     flags "-release -o spectre-release$EXT"
     env {
-        GIT_HASH=release-test-build
+        GIT_HASH=$((git rev-parse --short HEAD))
     }
 }
 
