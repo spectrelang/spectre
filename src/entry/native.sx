@@ -200,23 +200,10 @@ fn build_link_flags_native(ctx: ref context.Context, st: mut ref NativeState) vo
     }
     if cstr.cmp(ctx.host_platform, c"windows") == 0
     && !ctx.opts.compile_obj && !ctx.opts.build_dll {
-        val compiler: ref u8 = native_cc(ctx)
-        val kind: ref u8 = builds.alt_compiler_kind(compiler)
-        val msvc_linker: bool = builds.windows_uses_msvc_linker(
-            compiler,
-            kind,
-            false
+        st.link_flags = @fmtalloc(
+            "{s} -Wl,/subsystem:console,/opt:ref",
+            {st.link_flags}
         )
-        val subsystem_flag: ref u8 = builds.windows_subsystem_flag(
-            kind,
-            msvc_linker
-        )
-        if cstr.len(subsystem_flag) > 0 {
-            st.link_flags = @fmtalloc(
-                "{s} {s}",
-                {st.link_flags, subsystem_flag}
-            )
-        }
     }
     if ctx.opts.compile_obj {
         st.link_flags = c""

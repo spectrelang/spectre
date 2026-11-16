@@ -118,15 +118,20 @@ pub fn select_alt_compiler(requested: ref u8) ref u8 = {
     if cstr.cmp(requested, c"") != 0 {
         return requested
     }
-    if is_compiler_available(c"clang") {
-        return c"clang"
-    }
     when windows {
         if is_compiler_available(c"clang-cl") {
             return c"clang-cl"
         }
         if is_compiler_available(c"cl") {
             return c"cl"
+        }
+    }
+    if is_compiler_available(c"clang") {
+        return c"clang"
+    }
+    when windows {
+        if is_compiler_available(c"tcc") {
+            return c"tcc"
         }
     }
     if is_compiler_available(c"gcc") {
@@ -388,20 +393,10 @@ pub fn freestanding_c_flags() ref u8 = {
     return c"-ffreestanding -nostdinc -fno-builtin -fno-stack-protector -fno-common -fno-asynchronous-unwind-tables -ffunction-sections -fdata-sections"
 }
 
-/// Return true when a Windows compiler driver hands its link arguments to an
-/// MSVC-style linker (link.exe or lld-link) rather than GNU ld.
-pub fn windows_uses_msvc_linker(
-    compiler: ref u8,
-    kind: ref u8,
-    cross_target: bool
-) bool = trust {
-    if cross_target {
-        return true
-    }
-    if compiler_uses_msvc_flags(kind) {
-        return true
-    }
-    if cstr.cmp(kind, c"tcc") == 0 {
+/// Returns true when a compiler driver targets MinGW. MinGW is not supported
+/// for Windows builds; callers should require clang-cl or cl instead.
+pub fn compiler_targets_mingw(compiler: ref u8) bool = trust {
+    if cstr.len(compiler) == 0 {
         return false
     }
     val cmd: ref u8 = @fmtalloc("{s} -dumpmachine 2>&1", {compiler})
@@ -409,13 +404,8 @@ pub fn windows_uses_msvc_linker(
     match res {
         ok v => {
             val target: ref u8 = ostr.as_cstr(v)
-            if cstr.contains(target, c"mingw")
-            || cstr.contains(target, c"windows-gnu") {
-                return false
-            }
-            if cstr.contains(target, c"windows-msvc") {
-                return true
-            }
+            return cstr.contains(target, c"mingw")
+            || cstr.contains(target, c"windows-gnu")
         }
         err _ => { }
     }
@@ -423,34 +413,25 @@ pub fn windows_uses_msvc_linker(
 }
 
 /// Linker flag selecting the Windows console subsystem for a compiler driver.
-pub fn windows_subsystem_flag(kind: ref u8, msvc_linker: bool) ref u8 = {
+pub fn windows_subsystem_flag(kind: ref u8) ref u8 = {
     if cstr.cmp(kind, c"tcc") == 0 {
         return c""
     }
-    if msvc_linker {
-        if compiler_uses_msvc_flags(kind) {
-            return c"/link /subsystem:console /opt:ref"
-        }
-        return c"-Wl,/subsystem:console,/opt:ref"
+    if compiler_uses_msvc_flags(kind) {
+        return c"/link /subsystem:console /opt:ref"
     }
-    return c"-Wl,--subsystem,console"
+    return c"-Wl,/subsystem:console,/opt:ref"
 }
 
 /// Link flags for the freestanding Windows runtime.
-pub fn freestanding_windows_link_flags(
-    kind: ref u8,
-    msvc_linker: bool
-) ref u8 = {
+pub fn freestanding_windows_link_flags(kind: ref u8) ref u8 = {
     if cstr.cmp(kind, c"tcc") == 0 {
         return c"-nostdlib"
     }
-    if msvc_linker {
-        if cstr.cmp(kind, c"msvc") == 0 {
-            return c"/link /nodefaultlib /entry:mainCRTStartup /opt:ref /subsystem:console"
-        }
-        return c"-nostdlib -Wl,/nodefaultlib,/entry:mainCRTStartup,/opt:ref,/subsystem:console"
+    if cstr.cmp(kind, c"msvc") == 0 {
+        return c"/link /nodefaultlib /entry:mainCRTStartup /opt:ref /subsystem:console"
     }
-    return c"-nostdlib -Wl,--entry,mainCRTStartup,--subsystem,console"
+    return c"-nostdlib -Wl,/nodefaultlib,/entry:mainCRTStartup,/opt:ref,/subsystem:console"
 }
 
 /// Optional architecture flags for freestanding compiles.
@@ -1278,6 +1259,14 @@ pub fn pick_alt_backend(
     if cstr.cmp(requested, c"") != 0 {
         return requested
     }
+    when windows {
+        if is_compiler_available(c"clang-cl") {
+            return c"clang-cl"
+        }
+        if is_compiler_available(c"cl") {
+            return c"cl"
+        }
+    }
     if release_mode || (!input_is_in_std(input, arena) && root_has_direct_links(root_items)) {
         if is_compiler_available(c"clang") {
             return c"clang"
@@ -1287,11 +1276,8 @@ pub fn pick_alt_backend(
         return c"clang"
     }
     when windows {
-        if is_compiler_available(c"clang-cl") {
-            return c"clang-cl"
-        }
-        if is_compiler_available(c"cl") {
-            return c"cl"
+        if is_compiler_available(c"tcc") {
+            return c"tcc"
         }
     }
     if is_compiler_available(c"gcc") {

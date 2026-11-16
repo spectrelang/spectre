@@ -81,7 +81,16 @@ if grep -q "int64_t sx__ve" "$TMP/fallback.c"; then
 fi
 
 if has_cmd clang || has_cmd clang.exe; then
-	run_mode "clang" -alt:clang
+	clang_cmd="clang"
+	if ! has_cmd clang; then
+		clang_cmd="clang.exe"
+	fi
+	clang_target="$("$clang_cmd" -dumpmachine 2>/dev/null || true)"
+	if [[ "$clang_target" == *mingw* || "$clang_target" == *windows-gnu* ]]; then
+		echo "==> skipping clang (MinGW is not supported on Windows)"
+	else
+		run_mode "clang" -alt:clang
+	fi
 fi
 
 if has_cmd clang-cl || has_cmd clang-cl.exe; then
