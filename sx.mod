@@ -2,20 +2,18 @@ entry "./src/sxc.sx"
 version "v0.0.17"
 spectre_version "v0.0.17"
 
-build release {
-    posix {
-        flags "-release -o spectre-release"
-    }
+var {
+    EXT=""
     windows {
-        flags "-release -o spectre-release.exe"
-    }
-    env {
-        GIT_HASH=release-test-build
+        EXT=".exe"
     }
 }
 
-build prod {
-    action "./fw/build.sh"
+build release {
+    flags "-release -o spectre-release$EXT"
+    env {
+        GIT_HASH=release-test-build
+    }
 }
 
 build loud {
@@ -26,12 +24,7 @@ build loud {
 }
 
 build dev {
-    posix {
-        output "./spectre-dev"
-    }
-    windows {
-        output "./spectre-dev.exe"
-    }
+    output "./spectre-dev$EXT"
     env {
         GIT_HASH=dev-build
     }
@@ -39,7 +32,7 @@ build dev {
 
 build quick {
     flags "-alt"
-    output "./spectre-dev"
+    output "./spectre-dev$EXT"
     env {
         GIT_HASH=dev-build-quick
     }
