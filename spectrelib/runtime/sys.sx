@@ -30,9 +30,15 @@ extern (C) fn __sx_sys_clone_thread(
     arg: ref void
 ) i64 = "__sx_sys_clone_thread"
 
+//!suppress "unused-function"
 extern (C) fn __sx_sys_create_thread(entry: ref void, arg: ref void) i64 = "__sx_sys_create_thread"
+
+//!suppress "unused-function"
 extern (C) fn __sx_sys_wait_thread(handle: i64) i64 = "__sx_sys_wait_thread"
+
+//!suppress "unused-function"
 extern (C) fn __sx_sys_detach_thread(handle: i64) i64 = "__sx_sys_detach_thread"
+
 extern (C) fn __sx_sys_getenv(name: ref u8, out: ref u8, cap: usize) i64 = "__sx_sys_getenv"
 extern (C) fn __sx_sys_getcwd(buf: ref u8, cap: usize) i64 = "__sx_sys_getcwd"
 extern (C) fn __sx_sys_chdir(path: ref u8) i64 = "__sx_sys_chdir"
