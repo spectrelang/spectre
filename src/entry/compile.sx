@@ -338,8 +338,9 @@ pub fn run(
     if fs.is_directory_cstr(input) {
         diag.error_label()
         stdio.print(" '{s}' is a directory, not a source file\n", {input})
-        stdio.puts(
-            "-> run 'spectre build <config>' in a project with sx.mod, or compile a file with 'spectre <file.sx> -o <output>'"
+        diag.info_label()
+        stdio.print(
+            " run 'spectre build <config>' in a project with sx.mod, or compile a file with 'spectre <file.sx> -o <output>'", {}
         )
         return 1
     }
