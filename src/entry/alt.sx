@@ -118,12 +118,28 @@ fn prepare_compiler(ctx: mut ref context.Context, st: mut ref AltState) bool = t
     && cstr.cmp(ctx.target_platform, c"windows") == 0
     && !builds.compiler_uses_msvc_flags(st.compiler_kind)
     && builds.compiler_targets_mingw(st.selected_compiler) {
-        diag.error_label()
-        stdio.print(
-            " the MinGW toolchain is not supported for Windows builds; use clang-cl.exe or cl.exe (found '{s}')\n",
-            {st.selected_compiler}
-        )
-        return false
+        val fallback: mut ref u8 = c""
+        if cstr.cmp(ctx.opts.alt_compiler, c"") == 0 {
+            if builds.is_compiler_available(c"clang-cl") {
+                fallback = c"clang-cl"
+            } elif builds.is_compiler_available(c"cl") {
+                fallback = c"cl"
+            } elif builds.is_compiler_available(c"clang")
+            && !builds.compiler_targets_mingw(c"clang") {
+                fallback = c"clang"
+            }
+        }
+        if cstr.len(fallback) > 0 {
+            st.selected_compiler = fallback
+            st.compiler_kind = builds.alt_compiler_kind(fallback)
+        } else {
+            diag.error_label()
+            stdio.print(
+                " the MinGW toolchain is not supported for Windows builds; use clang-cl.exe or cl.exe (found '{s}')\n",
+                {st.selected_compiler}
+            )
+            return false
+        }
     }
     if builds.compiler_uses_msvc_flags(st.compiler_kind) {
         st.static_flag = c""
@@ -285,10 +301,11 @@ fn prepare_freestanding(ctx: mut ref context.Context, st: mut ref AltState) bool
             if !os.exists(st.sys_rt_obj) {
                 val self_exe: ref u8 = reflection.get_exe_path[allocators.Arena](ctx.arena)
                 val sys_cmd_alt: ref u8 = @fmtalloc(
-                    "{s} {s} -c -runtime:freestanding -target:{s}.{s} -o {s} 2>&1",
+                    "{s} {s} -c {s} -runtime:freestanding -target:{s}.{s} -o {s} 2>&1",
                     {
                         builds.quote_arg(self_exe),
                         builds.quote_arg(sys_src_alt),
+                        builds.quote_arg(@fmtalloc("-alt:{s}", {st.selected_compiler})),
                         ctx.target_platform,
                         ctx.target_arch,
                         builds.quote_arg(sys_base_alt)
