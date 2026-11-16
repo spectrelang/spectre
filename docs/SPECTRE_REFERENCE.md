@@ -232,7 +232,7 @@ The directives `link "name"` and `lib "name"` request linkage against an externa
 
 ### 4.8 Tests
 
-A test declaration has the form `test { ... }` or `test "name" { ... }`. Tests are top-level items. When the compiler is invoked with `-test`, it suppresses the program entry point, emits a generated entry point that calls the tests of the root module, and prints a summary. A test body is a statement block and is checked in its own scope.
+A test declaration has the form `test { ... }` or `test "name" { ... }`. Tests are top-level items. When the compiler is invoked with `spectre test <file.sx>`, it suppresses the program entry point, emits a generated entry point that calls the tests of the root module, and prints a summary. A test body is a statement block and is checked in its own scope.
 
 ### 4.9 Entry point
 
@@ -708,13 +708,13 @@ The target platform for `when` selection is the host platform unless the compile
 
 ### 9.3 Command-line interface
 
-The compiler is invoked as `spectre <input.sx> [options]` for a single source file, or as `spectre <command> [arguments]` for a toolchain command. The principal commands are `init`, `fmt`, `critic`, `build`, `run`, `check`, `ast`, `doc`, `add`, `remove`, `upgrade`, `restore`, `graph`, `ref`, `clean`, `doctor`, `port-c`, and `bind-c`. The principal compilation options are `-emit-ssa`, `-emit-alt`, `-emit-asm`, `-src-target=<os>`, `-inc-path=<dir>`, `-show-cmd`, `-test`, `-release`, `-dynamic`, `-dll`, `-a` or `-alt`, `-b` or `-bootstrap`, `-c` or `-compile`, `-d:<NAME>=<value>`, `-o <file>`, `-l` or `-loud`, `-v` or `-version`, and `-h` or `-help`. The option `-I:<headers>` is accepted only by the alternative backend.
+The compiler is invoked as `spectre <input.sx> [options]` for a single source file, or as `spectre <command> [arguments]` for a toolchain command. The principal commands are `init`, `fmt`, `critic`, `test`, `build`, `run`, `check`, `ast`, `doc`, `add`, `remove`, `upgrade`, `restore`, `graph`, `ref`, `clean`, `doctor`, `port-c`, and `bind-c`. The principal compilation options are `-emit-ssa`, `-emit-alt`, `-emit-asm`, `-src-target=<os>`, `-inc-path=<dir>`, `-show-cmd`, `-release`, `-dynamic`, `-dll`, `-a` or `-alt`, `-b` or `-bootstrap`, `-c` or `-compile`, `-d:<NAME>=<value>`, `-o <file>`, `-l` or `-loud`, `-v` or `-version`, and `-h` or `-help`. The option `-I:<headers>` is accepted only by the alternative backend.
 
 The `check` command accepts `spectre check <input.sx> [options]`. It runs the frontend and semantic analysis and reports diagnostics without generating code.
 
 The `port-c` command accepts `spectre port-c <input.c|input.h|directory> [-o <file|dir>]` and writes one `.sx` per input. The `bind-c` command accepts one or more files or directories and writes one `.sx` per input under `./src-out` by default. It uses the host C preprocessor, emits declarations from the target file and its local quoted includes, skips static functions, and can emit scalar object-like macros. Its options include `-o <dir>`, `-normalize`, `-link <name>`, `-target:<os>.<arch>`, `-I <dir>`, `-D <name[=value]>`, and `-U <name>`.
 
-The `-release` option selects release code generation, which omits ordinary pre- and postcondition checks and runtime invariant checks, but retains guarded contracts and assertions. The `-test` option selects the test runner described in Section 4.8. The `-dynamic` option requests dynamic linking instead of static linking where the platform supports it.
+The `test` command accepts `spectre test [file.sx|directory] [options]`. For a directory, it runs the tests in every `.sx` file recursively, skipping `lib`, hidden directories, and build output directories. Options after the target are forwarded to each compilation. The `-release` option selects release code generation, which omits ordinary pre- and postcondition checks and runtime invariant checks, but retains guarded contracts and assertions. The `-dynamic` option requests dynamic linking instead of static linking where the platform supports it.
 
 ### 9.4 Project manifest
 

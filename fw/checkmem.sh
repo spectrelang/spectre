@@ -57,7 +57,7 @@ for harness in "$HARNESS_DIR"/*.sx; do
 	log_file="$LOG_DIR/$name.log"
 	total=$((total + 1))
 
-	if "$COMPILER" "$harness" -test -leak-check >"$log_file" 2>&1 </dev/null; then
+	if "$COMPILER" test "$harness" -leak-check >"$log_file" 2>&1 </dev/null; then
 		echo "[PASS] $name"
 		passed=$((passed + 1))
 	else

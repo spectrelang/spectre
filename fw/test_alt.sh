@@ -129,7 +129,7 @@ run_std_tests() {
             std_extra_args+=(-runtime:freestanding)
         fi
 
-        "$COMPILER" "$file" -test -alt ${std_link_args[@]+"${std_link_args[@]}"} ${std_extra_args[@]+"${std_extra_args[@]}"} >"$log_file" 2>&1 < /dev/null
+        "$COMPILER" test "$file" -alt ${std_link_args[@]+"${std_link_args[@]}"} ${std_extra_args[@]+"${std_extra_args[@]}"} >"$log_file" 2>&1 < /dev/null
         status=$?
 
         if [ $status -eq 0 ]; then
@@ -137,7 +137,7 @@ run_std_tests() {
             ((passed++))
         else
             echo "[FAIL] $file"
-            echo "  command: $COMPILER $file -test -alt ${std_link_args[*]+"${std_link_args[*]}"} ${std_extra_args[*]+"${std_extra_args[*]}"}"
+            echo "  command: $COMPILER test $file -alt ${std_link_args[*]+"${std_link_args[*]}"} ${std_extra_args[*]+"${std_extra_args[*]}"}"
             echo "  log: $log_file"
             sed 's/^/  /' "$log_file" | sed -n '1,240p'
             log_lines=$(wc -l < "$log_file")
@@ -167,7 +167,7 @@ test "addition works" {
 }
 EOF
     ((total++))
-    named_test_out=$("$COMPILER" "$named_test_src" -test -alt 2>&1)
+    named_test_out=$("$COMPILER" test "$named_test_src" -alt 2>&1)
     if printf '%s' "$named_test_out" | grep -q '\[pass\] addition works'; then
         echo "[PASS] named test output"
         ((passed++))

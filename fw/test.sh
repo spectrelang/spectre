@@ -119,7 +119,7 @@ run_std_tests() {
 			std_extra_args+=(-runtime:freestanding)
 		fi
 
-		"$COMPILER" "$file" -test ${std_link_args[@]+"${std_link_args[@]}"} ${std_extra_args[@]+"${std_extra_args[@]}"} >"$log_file" 2>&1 </dev/null
+		"$COMPILER" test "$file" ${std_link_args[@]+"${std_link_args[@]}"} ${std_extra_args[@]+"${std_extra_args[@]}"} >"$log_file" 2>&1 </dev/null
 		status=$?
 
 		if [ $status -eq 0 ]; then
@@ -127,7 +127,7 @@ run_std_tests() {
 			((passed++))
 		else
 			echo "[FAIL] $file"
-			echo "  command: $COMPILER $file -test ${std_link_args[*]+"${std_link_args[*]}"} ${std_extra_args[*]+"${std_extra_args[*]}"}"
+			echo "  command: $COMPILER test $file ${std_link_args[*]+"${std_link_args[*]}"} ${std_extra_args[*]+"${std_extra_args[*]}"}"
 			echo "  log: $log_file"
 			sed 's/^/  /' "$log_file" | sed -n '1,240p'
 			log_lines=$(wc -l <"$log_file")
@@ -229,7 +229,7 @@ if [ $BOOTSTRAP_ONLY -eq 0 ]; then
 
 	named_test_src="./samples/sample226.sx"
 	((total++))
-	named_test_out=$("$COMPILER" "$named_test_src" -test 2>&1)
+	named_test_out=$("$COMPILER" test "$named_test_src" 2>&1)
 	if printf '%s' "$named_test_out" | grep -q '\[pass\] hello'; then
 		echo "[PASS] named test output"
 		((passed++))
@@ -256,12 +256,12 @@ if [ $BOOTSTRAP_ONLY -eq 0 ]; then
 	run_multi_actions_app_build "free" "free" "multi_actions_app_free"
 	run_multi_actions_app_cross_out
 
-	"$COMPILER" ./src/ast/lexer.sx -l -test
-	"$COMPILER" ./src/ast/parser.sx -l -test
-	"$COMPILER" ./src/sema/sema.sx -l -test
-	"$COMPILER" ./src/module/module.sx -l -test
-	"$COMPILER" ./src/codegen/codegen.sx -l -test
-	"$COMPILER" ./src/sxc.sx -l -test
+	"$COMPILER" test ./src/ast/lexer.sx -l
+	"$COMPILER" test ./src/ast/parser.sx -l
+	"$COMPILER" test ./src/sema/sema.sx -l
+	"$COMPILER" test ./src/module/module.sx -l
+	"$COMPILER" test ./src/codegen/codegen.sx -l
+	"$COMPILER" test ./src/sxc.sx -l
 fi
 
 echo "Bootstrap test:"

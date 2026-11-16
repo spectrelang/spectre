@@ -22,21 +22,31 @@ val fs          = use("std/fs")
 val builds      = use("../meta/builds.sx")
 val installer   = use("../meta/install.sx")
 val diag        = use("../meta/diag.sx")
+val compile     = use("compile.sx")
 
-pub fn test_all(
+/// Run the tests in a single file or in every `.sx` file under a directory.
+pub fn cmd_test(
     args: list[ref u8],
+    argc: i64,
     input_arg_i: i64,
-    exe_path: ref u8
+    exe_path: ref u8,
+    arena: allocators.Arena,
+    frontend_arena: allocators.ScopedArenaAllocator
 ) i32 = trust {
-    val root: mut ref u8 = c"."
+    val target: mut ref u8 = c""
     val max_depth: mut i64 = 25
     val extra_flags: mut list[ref u8] = mem.new[ref u8]()
     val ti: mut i64 = input_arg_i + 1
     for {
+        if ti >= argc {
+            break
+        }
         val opt = @get(args, ti)
         if opt is some av {
             val a: ref u8 = av as ref u8
-            if cstr.cmp(a, c"-test-depth") == 0 {
+            if cstr.cmp(a, c"-h") == 0 || cstr.cmp(a, c"-help") == 0 {
+                return meta.print_help("test")
+            } elif cstr.cmp(a, c"-test-depth") == 0 {
                 ti++
                 val next_opt = @get(args, ti)
                 if next_opt is some nv {
@@ -76,13 +86,28 @@ pub fn test_all(
                         return 1
                     }
                 }
+            } elif cstr.cmp(a, c"-o") == 0
+            || cstr.cmp(a, c"-output") == 0
+            || cstr.cmp(a, c"-d") == 0 {
+                @append(extra_flags, a)
+                ti++
+                val value_opt = @get(args, ti)
+                if value_opt is some vv {
+                    @append(extra_flags, vv as ref u8)
+                } else {
+                    diag.error_label()
+                    stdio.print(" {s} requires a value\n", {a})
+                    return 1
+                }
             } elif cstr.starts_with(a, c"-") {
                 @append(extra_flags, a)
+            } elif cstr.cmp(target, c"") == 0 {
+                target = a
             } else {
-                root = a
+                diag.puts_error_label()
+                stdio.puts(" test accepts a single file or directory")
+                return 1
             }
-        } else {
-            break
         }
         ti++
     }
@@ -91,11 +116,32 @@ pub fn test_all(
         stdio.puts(" -test-depth must be zero or greater")
         return 1
     }
-    return commands.cmd_test_all(
+    if cstr.cmp(target, c"") == 0 {
+        target = c"."
+    }
+
+    if fs.is_directory(str.from_cstr(target)) {
+        return commands.cmd_test(exe_path, target, max_depth, extra_flags)
+    }
+
+    val compile_args: mut list[ref u8] = mem.new[ref u8]()
+    @append(compile_args, exe_path)
+    @append(compile_args, target)
+    for flag in extra_flags {
+        @append(compile_args, flag)
+    }
+    return compile.run(
+        compile_args,
+        @len(compile_args) as i64,
+        1,
+        target,
+        false,
         exe_path,
-        root,
-        max_depth,
-        extra_flags
+        arena,
+        frontend_arena,
+        false,
+        false,
+        true
     )
 }
 

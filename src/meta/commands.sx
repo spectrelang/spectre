@@ -3388,6 +3388,22 @@ pub fn shell_quote(s: ref u8) ref u8 = trust {
     return out
 }
 
+fn skip_test_dir(name: ref u8) bool = trust {
+    if cstr.len(name) == 0 {
+        return false
+    }
+    if @load8(name) == 46 {
+        return true
+    }
+    if cstr.eql(name, c"lib")
+    || cstr.eql(name, c"out")
+    || cstr.eql(name, c"s-out")
+    || cstr.eql(name, c"src-out") {
+        return true
+    }
+    return cstr.starts_with(name, c"docs-out")
+}
+
 fn collect_test_files(
     target: ref u8,
     depth: i64,
@@ -3409,7 +3425,7 @@ fn collect_test_files(
         for entry in entries {
             val child: ref u8 = path.join_cstr(target, entry)
             if fs.is_directory_cstr(child) {
-                if depth < max_depth {
+                if depth < max_depth && !skip_test_dir(entry) {
                     collect_test_files(child, depth + 1, max_depth, out)
                 }
                 @free(child)
@@ -3426,8 +3442,8 @@ fn collect_test_files(
     allocators.ScopedArena.free(walk_arena)
 }
 
-/// Run `-test` for every `.sx` file under `root`, recursively.
-pub fn cmd_test_all(
+/// Run `spectre test` for every `.sx` file under `root`, recursively.
+pub fn cmd_test(
     exe_path: ref u8,
     root: ref u8,
     max_depth: i64,
@@ -3447,18 +3463,24 @@ pub fn cmd_test_all(
         stdio.print("[{lld}/{lld}] {s}\n", {i, count, file})
         val sb: ref void = builder.StringBuilder.new()
         builder.StringBuilder.append_cstr(sb, shell_quote(exe_path))
-        builder.StringBuilder.append_cstr(sb, c" ")
+        builder.StringBuilder.append_cstr(sb, c" test ")
         builder.StringBuilder.append_cstr(sb, shell_quote(file))
-        builder.StringBuilder.append_cstr(sb, c" -test")
         for flag in extra_flags {
             builder.StringBuilder.append_cstr(sb, c" ")
             builder.StringBuilder.append_cstr(sb, flag)
         }
         val built: ref void = builder.StringBuilder.build(sb)
         val cmd: ref u8 = ostr.as_cstr(built)
-        val code: i32 = os.run(cmd)
+        val status = os.run_interruptible(cmd)
         builder.StringBuilder.free(sb)
-        if code != 0 {
+        if status.interrupted {
+            stdio.print("\n[cancelled] interrupted after {lld} of {lld} modules\n", {
+                    i,
+                    count
+                })
+            return 130
+        }
+        if status.code != 0 {
             failures++
             stdio.print("[fail] {s}\n", {file})
         }

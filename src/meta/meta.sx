@@ -27,6 +27,7 @@ pub fn print_usage() void = {
     stdio.puts("  init    <name>       Initialize a new project")
     stdio.puts("  fmt     <path>       Format .sx files or directories in place")
     stdio.puts("  critic  <path>       Point out antipatterns in .sx files")
+    stdio.puts("  test    <path>       Run tests in a .sx file or directory")
     stdio.puts("  build   <config>     Build using a config from sx.mod")
     stdio.puts("  run     <input.sx>   Compile and immediately run a program")
     stdio.puts("  check   <input.sx>   Check syntax without compiling")
@@ -61,9 +62,6 @@ pub fn print_usage() void = {
     stdio.puts("  -inc-path:<dir>      Add an include search path for the alt backend")
     stdio.puts("  -link-obj:<file>     Link an extra object file into the output")
     stdio.puts("  -show-cmd            Show the command used for linking")
-    stdio.puts("  -test                Run the unit tests in the current file")
-    stdio.puts("  -test-all            Run tests in every .sx file under the current directory")
-    stdio.puts("  -test-depth:<n>      Maximum directory depth for -test-all (default: 25)")
     stdio.puts("  -leak-check          Track allocations and enable the @dumpmemleaks intrinsic")
     stdio.puts("  -release             Build in release mode")
     stdio.puts("  -native              Optimize the selected backend for the host CPU")
@@ -146,6 +144,26 @@ pub fn print_help(topic: str.StringView) i32 = trust {
         stdio.puts("")
         stdio.puts("Directories are searched recursively for .sx files. The exit code is")
         stdio.puts("non-zero when issues remain.")
+        return 0
+    }
+
+    if str.eql_cstr(topic, c"test") {
+        stdio.puts("test - Run unit tests")
+        stdio.puts("")
+        stdio.puts("usage:")
+        stdio.puts("  spectre test [file.sx|directory] [options]")
+        stdio.puts("")
+        stdio.puts("A file is compiled in test mode and its tests are run. A directory is")
+        stdio.puts("searched recursively for .sx files. The target defaults to the current")
+        stdio.puts("directory.")
+        stdio.puts("")
+        stdio.puts("The lib directory, hidden directories, and build output directories")
+        stdio.puts("such as s-out and out are skipped. Other options are passed through to")
+        stdio.puts("each compilation, so '-emit-ssa' shows the generated test program.")
+        stdio.puts("")
+        stdio.puts("options:")
+        stdio.puts("  -test-depth:<n>  Maximum recursion depth (default: 25)")
+        stdio.puts("  -h, -help        Show this help message")
         return 0
     }
 
@@ -478,24 +496,6 @@ pub fn print_help(topic: str.StringView) i32 = trust {
             "-show-cmd",
             "Show the command used for linking.",
             "spectre <input.sx> -show-cmd"
-        )
-        return 0
-    }
-
-    if str.eql_cstr(topic, c"-test") {
-        print_flag_help(
-            "-test",
-            "Run the unit tests in the current file.",
-            "spectre <input.sx> -test"
-        )
-        return 0
-    }
-
-    if str.eql_cstr(topic, c"-test-all") {
-        print_flag_help(
-            "-test-all",
-            "Run the unit tests in every .sx file under the current directory, recursively.",
-            "spectre -test-all [-test-depth:<n>] [directory]"
         )
         return 0
     }

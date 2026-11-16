@@ -89,6 +89,7 @@ fn installed_slot(signum: i32) mut ref usize = trust {
     return @ptradd(@addr(installed), (signum as i64) * 8) as ref usize
 }
 
+//!suppress "unused-function"
 fn linux_number(sig: Signal) i32 = {
     match sig {
         Signal.Hangup => {
@@ -185,6 +186,7 @@ fn linux_number(sig: Signal) i32 = {
     return -1
 }
 
+//!suppress "unused-function"
 fn bsd_number(sig: Signal) i32 = {
     match sig {
         Signal.Hangup => {
@@ -278,6 +280,7 @@ fn bsd_number(sig: Signal) i32 = {
     return -1
 }
 
+//!suppress "unused-function"
 fn windows_number(sig: Signal) i32 = {
     match sig {
         Signal.Interrupt => {

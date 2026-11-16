@@ -90,8 +90,15 @@ pub fn run(
         }
     }
 
-    if cstr.cmp(input, c"-test-all") == 0 {
-        return tools.test_all(args, input_arg_i, exe_path)
+    if cstr.cmp(input, c"test") == 0 {
+        return tools.cmd_test(
+            args,
+            argc,
+            input_arg_i,
+            exe_path,
+            arena,
+            frontend_arena
+        )
     }
 
     if cstr.cmp(input, c"-h") == 0 || cstr.cmp(input, c"-help") == 0 {
@@ -240,6 +247,7 @@ pub fn run(
             arena,
             frontend_arena,
             true,
+            false,
             false
         )
     }
@@ -265,7 +273,8 @@ pub fn run(
             arena,
             frontend_arena,
             false,
-            true
+            true,
+            false
         )
     }
 
@@ -282,6 +291,7 @@ pub fn run(
         exe_path,
         arena,
         frontend_arena,
+        false,
         false,
         false
     )

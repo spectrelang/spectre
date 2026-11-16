@@ -219,9 +219,6 @@ pub fn parse(
             } elif cstr.cmp(arg, c"-show-cmd") == 0 {
                 opts.show_cmd = true
                 arg_i++
-            } elif cstr.cmp(arg, c"-test") == 0 {
-                opts.test_mode = true
-                arg_i++
             } elif cstr.cmp(arg, c"-leak-check") == 0 {
                 opts.leak_check = true
                 arg_i++

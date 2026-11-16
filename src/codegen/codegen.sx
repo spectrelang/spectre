@@ -21874,7 +21874,7 @@ fn gen_test_main(
     emit(ctx, ok_buf)
 }
 
-/// Entry point for -test mode: emits test blocks from root module only,
+/// Entry point for test mode: emits test blocks from root module only,
 /// suppresses main(), and emits a test runner $main.
 pub fn gen_module_resolved_test(
     root: ref module.ResolvedModule,

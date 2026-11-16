@@ -1,3 +1,34 @@
+when hosted {
+    when posix {
+        extern "signal.h"
+        extern "sys/types.h"
+        extern "sys/wait.h"
+        extern "unistd.h"
+
+        extern (C, header) fn c_fork() i32 = "fork"
+        extern (C, header) fn c_execl(
+            path: ref u8,
+            name: ref u8,
+            arg1: ref u8,
+            arg2: ref u8,
+            terminator: ref void
+        ) i32 = "execl"
+        extern (C, header) fn c_waitpid(pid: i32, status: ref i32, options: i32) i32 = "waitpid"
+        extern (C, header) fn c_kill(pid: i32, sig: i32) i32 = "kill"
+        extern (C, header) fn c__exit(code: i32) void = "_exit"
+
+        val current_child: mut i32 = 0
+        val pending_signal: mut i32 = 0
+
+        fn interrupt_child(sig: i32) void = trust {
+            pending_signal = sig
+            if current_child > 0 {
+                c_kill(current_child, sig)
+            }
+        }
+    }
+}
+
 when windows {
     extern type WinFindDataA = {
         dwFileAttributes: u32
@@ -452,6 +483,67 @@ pub fn run(cmd: ref u8) i32 = trust {
         @free(actual as ref void)
     }
     return code
+}
+
+/// Exit status of a foreground command that can be interrupted.
+pub type RunStatus = {
+    code: i32
+    interrupted: bool
+}
+
+/// Execute a command in the foreground, forwarding interrupt signals to the
+/// child and reporting when the run was cancelled.
+pub fn run_interruptible(cmd: ref u8) RunStatus = trust {
+    when hosted {
+        when posix {
+            val actual: ref u8 = command_for_shell(cmd)
+            val previous_int: fn(i32) void = rt.signal(2, interrupt_child)
+            val previous_term: fn(i32) void = rt.signal(15, interrupt_child)
+            pending_signal = 0
+            current_child = c_fork()
+            if current_child == 0 {
+                c_execl(c"/bin/sh", c"sh", c"-c", actual, none)
+                c__exit(127)
+            }
+            val pid: i32 = current_child
+            val status: mut i32 = 0
+            val awaited: mut i32 = -1
+            if pid > 0 {
+                for {
+                    awaited = c_waitpid(pid, @addr(status), 0)
+                    if awaited >= 0 {
+                        break
+                    }
+                }
+            }
+            current_child = 0
+            val cancelled: bool = pending_signal != 0
+            val signum: i32 = pending_signal
+            pending_signal = 0
+            rt.signal(2, previous_int)
+            rt.signal(15, previous_term)
+            if actual != cmd {
+                @free(actual as ref void)
+            }
+            if pid <= 0 {
+                return RunStatus{code: 127, interrupted: false}
+            }
+            if cancelled {
+                val code: mut i32 = 0
+                if signum == 2 {
+                    code = 130
+                } else {
+                    code = 128 + signum
+                }
+                return RunStatus{code: code, interrupted: true}
+            }
+            if (status & 0x7f) == 0 {
+                return RunStatus{code: (status >> 8) & 0xff, interrupted: false}
+            }
+            return RunStatus{code: 128 + (status & 0x7f), interrupted: false}
+        }
+    }
+    return RunStatus{code: run(cmd), interrupted: false}
 }
 
 /// Execute some subprocess, capturing its output.

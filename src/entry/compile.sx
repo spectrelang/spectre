@@ -333,7 +333,8 @@ pub fn run(
     arena: allocators.Arena,
     frontend_arena: allocators.ScopedArenaAllocator,
     check_mode: bool,
-    ast_mode: bool
+    ast_mode: bool,
+    test_mode: bool
 ) i32 = trust {
     if fs.is_directory_cstr(input) {
         diag.error_label()
@@ -362,6 +363,9 @@ pub fn run(
     }
     if ast_mode {
         opts.print_ast = true
+    }
+    if test_mode {
+        opts.test_mode = true
     }
     module.set_abs_dbg(opts.abs_dbg)
 
