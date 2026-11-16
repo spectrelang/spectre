@@ -2316,7 +2316,12 @@ fn eval_expr(
         if hit.item != none {
             return eval_global(ctx, hit)
         }
-        return err unsupported(ctx.w, expr.line, c"unknown identifier in compile-time evaluation")
+        val msg: ref u8 = arenafmt.format(
+            ctx.w.arena,
+            "unknown identifier '{s}' in compile-time evaluation (known vars: {lld})",
+            {name, @len(ctx.vars) as i64}
+        ).ptr
+        return err unsupported(ctx.w, expr.line, msg)
     }
     if k == parser.NK_BINOP {
         val op: i64 = parser.binop_op(expr)
@@ -2716,6 +2721,30 @@ fn eval_call(ctx: mut ref EvalCtx, expr: ref parser.Node) result[ref Val, ref Ev
 
     val params: ref void = actual_fn.d3 as ref void
     val args: ref void = parser.call_args(expr) as ref void
+    val arg_vals: mut list[ref Val] = mem.new[ref Val]()
+    if args != none {
+        val ac0: i64 = @len(args as list[ref parser.Node]) as i64
+        val ai0: mut i64 = 0
+        for {
+            if ai0 >= ac0 {
+                break
+            }
+            val a0_opt = @get(args as list[ref parser.Node], ai0 as usize)
+            if a0_opt is some a {
+                val pty0: mut ref parser.Node = none
+                if params != none && ai0 < @len(params as list[ref parser.Node]) as i64 {
+                    val p0_opt = @get(params as list[ref parser.Node], ai0 as usize)
+                    if p0_opt is some p0 {
+                        pty0 = ty_resolve(ctx, (p0 as ref parser.Node).d1 as ref parser.Node)
+                    }
+                }
+                val av0 = eval_expr(ctx, a as ref parser.Node, pty0)?
+                @append(arg_vals, av0)
+            }
+            ai0++
+        }
+    }
+
     val old_vars: list[ref Var] = ctx.vars
     val old_ret: ref parser.Node = ctx.ret_ty
     val old_flow: i64 = ctx.flow
@@ -2726,25 +2755,24 @@ fn eval_call(ctx: mut ref EvalCtx, expr: ref parser.Node) result[ref Val, ref Ev
     ctx.ret = none
     ctx.depth = ctx.depth + 1
 
-    if params != none && args != none {
+    if params != none {
         val pc: i64 = @len(params as list[ref parser.Node]) as i64
-        val ac: i64 = @len(args as list[ref parser.Node]) as i64
+        val ac: i64 = @len(arg_vals) as i64
         val i2: mut i64 = 0
         for {
             if i2 >= pc || i2 >= ac {
                 break
             }
             val p_opt = @get(params as list[ref parser.Node], i2 as usize)
-            val a_opt = @get(args as list[ref parser.Node], i2 as usize)
+            val av_opt = @get(arg_vals, i2 as usize)
             if p_opt is some p {
-                if a_opt is some a {
+                if av_opt is some av {
                     val pname: ref u8 = parser.node_str_raw((p as ref parser.Node).d0)
                     val pty: ref parser.Node = ty_resolve(
                         ctx,
                         (p as ref parser.Node).d1 as ref parser.Node
                     )
-                    val av = eval_expr(ctx, a as ref parser.Node, pty)?
-                    add_var(ctx, pname, pty, coerce(ctx, av, pty), 1)
+                    add_var(ctx, pname, pty, coerce(ctx, av as ref Val, pty), 1)
                 }
             }
             i2++
@@ -2881,24 +2909,8 @@ fn eval_builtin(
             if elem_ty != none {
                 cv = coerce(ctx, nv, elem_ty)
             }
-            val new_list: mut list[ref Val] = mem.new[ref Val]()
-            val count: i64 = @len(v.elems) as i64
-            val i: mut i64 = 0
-            for {
-                if i >= count {
-                    break
-                }
-                if i == iv2 {
-                    @append(new_list, cv)
-                } else {
-                    val old_opt = @get(v.elems, i as usize)
-                    if old_opt is some oldv {
-                        @append(new_list, oldv as ref Val)
-                    }
-                }
-                i++
-            }
-            v.elems = new_list
+            @remove(v.elems, iv2 as usize)
+            @insert(v.elems, iv2 as usize, cv)
             return ok void_val(ctx.w)
         }
         return err unsupported(ctx.w, expr.line, c"@set on this value")
