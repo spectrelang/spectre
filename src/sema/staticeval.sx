@@ -929,6 +929,13 @@ fn val_size(w: ref World, v: ref Val) i64 = trust {
     return type_size(w, w.root, v.ty)
 }
 
+fn val_is_empty_struct(v: ref Val) bool = trust {
+    if v == none || v.kind != VK_STRUCT {
+        return false
+    }
+    return v.elems == none || @len(v.elems) as i64 == 0
+}
+
 fn zero_val(
     w: ref World,
     m: ref modinfo.ResolvedModule,
@@ -4295,9 +4302,11 @@ fn try_fold_call(
     val res = eval_call(ctx, expr)
     match res {
         ok v => {
-            if val_size(w, v) <= w.result_limit {
+            if !val_is_empty_struct(v) && val_size(w, v) <= w.result_limit {
                 write_const(w, expr, v)
                 w.folded = w.folded + 1
+            } else {
+                mark_used_idx(w, fn_node, pidx)
             }
         }
         err _ => {
