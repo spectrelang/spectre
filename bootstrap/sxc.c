@@ -483,7 +483,7 @@ static char sx__str83[]="/spectrelib/env/core.sx";
 static char sx__str84[]="/src/meta/env.sx";
 static char sx__str85[]="v0.0.17";
 static char sx__str86[]="VERSION";
-static char sx__str87[]="066e070";
+static char sx__str87[]="9105834";
 static char sx__str88[]="unknown";
 static char sx__str89[]="usage:";
 static char sx__str90[]="  spectre <command> [args] | <input.sx> [options]";
@@ -28557,9 +28557,28 @@ return(int64_t)(0);
 }
 t_after=(((t_ns)+(INT64_C(1))));
 }
+int64_t t_name_len=(int64_t)(((t_ns)-(t_name_start)));
 int64_t t_r=(int64_t)((int64_t)(mem__alloc((uint64_t)(INT64_C(16)))));
-*(int64_t*)(intptr_t)((int64_t)(intptr_t)((char*)(intptr_t)(t_r)+0))=(int64_t)(commands__lookup_var_n(t_m,t_root,t_target,(int64_t)((int64_t)(intptr_t)((char*)(intptr_t)(t_s)+(t_name_start))),((t_ns)-(t_name_start))));
+*(int64_t*)(intptr_t)((int64_t)(intptr_t)((char*)(intptr_t)(t_r)+0))=(int64_t)(commands__lookup_var_n(t_m,t_root,t_target,(int64_t)((int64_t)(intptr_t)((char*)(intptr_t)(t_s)+(t_name_start))),t_name_len));
 *(int64_t*)(intptr_t)((int64_t)(intptr_t)((char*)(intptr_t)(t_r)+8))=(int64_t)(t_after);
+if((((((*(int64_t*)((char*)(intptr_t)(t_r)+0)))==(0)))?((!(t_braced))):(0)))
+{
+int64_t t_plen=(int64_t)(((t_name_len)-(INT64_C(1))));
+for(;;){
+if(((t_plen)<=(INT64_C(0))))
+{
+break;
+}
+int64_t t_candidate=(int64_t)(commands__lookup_var_n(t_m,t_root,t_target,(int64_t)((int64_t)(intptr_t)((char*)(intptr_t)(t_s)+(t_name_start))),t_plen));
+if(((t_candidate)!=(0)))
+{
+*(int64_t*)(intptr_t)((int64_t)(intptr_t)((char*)(intptr_t)(t_r)+0))=(int64_t)(t_candidate);
+*(int64_t*)(intptr_t)((int64_t)(intptr_t)((char*)(intptr_t)(t_r)+8))=(int64_t)(((t_name_start)+(t_plen)));
+break;
+}
+t_plen--;
+}
+}
 return(int64_t)(t_r);
 }
 
