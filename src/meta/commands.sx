@@ -504,15 +504,38 @@ fn resolve_var_ref(
         }
         after = ns + 1
     }
+    val name_len: i64 = ns - name_start
     val r: mut ref VarRef = mem.alloc(@sizeof(VarRef) as usize) as ref VarRef
     r.value = lookup_var_n(
         m,
         root,
         target,
         @ptradd(s, name_start) as ref u8,
-        ns - name_start
+        name_len
     )
     r.after = after
+
+    if r.value == none && !braced {
+        val plen: mut i64 = name_len - 1
+        for {
+            if plen <= 0 {
+                break
+            }
+            val candidate: ref u8 = lookup_var_n(
+                m,
+                root,
+                target,
+                @ptradd(s, name_start) as ref u8,
+                plen
+            )
+            if candidate != none {
+                r.value = candidate
+                r.after = name_start + plen
+                break
+            }
+            plen--
+        }
+    }
     return r
 }
 

@@ -3,6 +3,7 @@ version "v0.0.17"
 spectre_version "v0.0.17"
 
 var {
+    DEFAULT="dev-build"
     EXT=""
     windows {
         EXT=".exe"
@@ -19,14 +20,14 @@ build release {
 build loud {
     flags "-l"
     env {
-        GIT_HASH=dev-build
+        GIT_HASH="$DEFAULT"
     }
 }
 
 build dev {
     output "./spectre-dev$EXT"
     env {
-        GIT_HASH=dev-build
+        GIT_HASH="$DEFAULT"
     }
 }
 
@@ -34,6 +35,6 @@ build quick {
     flags "-alt"
     output "./spectre-dev$EXT"
     env {
-        GIT_HASH=dev-build-quick
+        GIT_HASH="$DEFAULT-alt"
     }
 }

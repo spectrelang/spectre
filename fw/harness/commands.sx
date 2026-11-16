@@ -102,6 +102,40 @@ test "commands parses sx.mod without leaking" {
     }
 }
 
+test "commands expands variable prefixes in env values" {
+    trust {
+        mem.init()
+        val content = \\version "1.2.3"
+        \\spectre_version "0.0.0"
+        \\var {
+        \\    DEFAULT="dev-build"
+        \\}
+        \\build quick {
+        \\    env {
+        \\        GIT_HASH="$DEFAULT_alt"
+        \\    }
+        \\}
+        val parsed = commands.parse_sxmod(check.cptr(content), check.cptr("."), check.cptr(""), check.cptr("sx.mod"))
+        assert !parsed.parse_failed
+        assert @len(parsed.builds) as i64 == 1
+        val cfg_opt = @get(parsed.builds, 0 as usize)
+        if cfg_opt is some raw_cfg {
+            val cfg: ref commands.SxBuildConfig = raw_cfg as ref commands.SxBuildConfig
+            assert @len(cfg.base.envs) as i64 == 1
+            val env_opt = @get(cfg.base.envs, 0 as usize)
+            if env_opt is some raw_env {
+                assert cstr.cmp(raw_env as ref u8, c"GIT_HASH=dev-build_alt") == 0
+            } else {
+                assert false
+            }
+        } else {
+            assert false
+        }
+        mem.close()
+        check.expect_clean("commands-var-prefix")
+    }
+}
+
 test "commands build does not leak" {
     trust {
         mem.init()
