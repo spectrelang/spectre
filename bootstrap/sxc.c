@@ -483,7 +483,7 @@ static char sx__str83[]="/spectrelib/env/core.sx";
 static char sx__str84[]="/src/meta/env.sx";
 static char sx__str85[]="v0.0.17";
 static char sx__str86[]="VERSION";
-static char sx__str87[]="412819b";
+static char sx__str87[]="5388dd1";
 static char sx__str88[]="unknown";
 static char sx__str89[]="usage:";
 static char sx__str90[]="  spectre <command> [args] | <input.sx> [options]";
@@ -6769,7 +6769,6 @@ static int64_t codegen__cg_node_index_lookup(int64_t,int64_t);
 static int32_t codegen__cg_register_fn(int64_t,int64_t,int64_t,int64_t,int64_t);
 static int64_t codegen__cg_lookup_fn_name_by_node(int64_t,int64_t);
 static int64_t codegen__cg_lookup_fn_params(int64_t,int64_t);
-static int64_t codegen__resolve_fn_mangled(int64_t,int64_t);
 static int64_t codegen__cg_lookup_fn_ret(int64_t,int64_t);
 static int64_t codegen__cg_lookup_fn_ret_type_expr(int64_t,int64_t);
 static int64_t codegen__cg_infer_call_ret_ty(int64_t,int64_t);
@@ -77617,53 +77616,6 @@ return(int64_t)(0);
 return 0;
 }
 
-static int64_t codegen__resolve_fn_mangled(int64_t t_ctx,int64_t t_bare_name){
-int64_t t_names=(int64_t)(codegen__cg_fn_names(t_ctx));
-int64_t t_nlen=(int64_t)((int64_t)(((int64_t)(t_names)==0?0:(*(int64_t*)((char*)(intptr_t)((int64_t)(t_names))+8)))));
-int64_t t_ni=(int64_t)(INT64_C(0));
-for(;;){
-if(((t_ni)>=(t_nlen)))
-{
-break;
-}
-int64_t sx__w0[3];sx__w0[0]=0;sx__w0[1]=0;sx__w0[2]=0;
-int64_t* sx__lh1=(int64_t*)(intptr_t)((int64_t)(t_names));int64_t sx__li1=(int64_t)((uint64_t)(t_ni));if(sx__lh1&&sx__li1>=0&&sx__li1<sx__lh1[1]){int64_t* sx__ld1=(int64_t*)(intptr_t)sx__lh1[0];sx__w0[0]=1;sx__w0[1]=sx__ld1[sx__li1];}
-int64_t t_n_opt=(int64_t)(((int64_t)(intptr_t)sx__w0));
-{int64_t* sx__mp2=(int64_t*)(intptr_t)(t_n_opt);if(sx__mp2[0]!=0)
-{
-int64_t t_n=*((int64_t*)(intptr_t)(&sx__mp2[1]));
-int64_t t_mangled=(int64_t)((int64_t)(t_n));
-int64_t t_mlen=(int64_t)(cstr__len(t_mangled));
-int64_t t_blen=(int64_t)(cstr__len(t_bare_name));
-if(((t_mlen)>(t_blen)))
-{
-int64_t t_suffix_pos=(int64_t)(((t_mlen)-(t_blen)));
-if(((t_suffix_pos)>(INT64_C(0))))
-{
-uint8_t t_sc=(uint8_t)(((int64_t)(*(uint8_t*)(intptr_t)((int64_t)(intptr_t)((char*)(intptr_t)(t_mangled)+(((t_suffix_pos)-(INT64_C(1)))))))));
-if(((t_sc)==(INT64_C(95))))
-{
-int64_t t_rest=(int64_t)((int64_t)((int64_t)(intptr_t)((char*)(intptr_t)(t_mangled)+(t_suffix_pos))));
-if(((cstr__cmp(t_rest,t_bare_name))==(INT64_C(0))))
-{
-return(int64_t)(t_mangled);
-}
-}
-}
-}else if(((t_mlen)==(t_blen)))
-{
-if(((cstr__cmp(t_mangled,t_bare_name))==(INT64_C(0))))
-{
-return(int64_t)(t_mangled);
-}
-}
-}else{
-}}
-t_ni++;
-}
-return(int64_t)(((int64_t)(intptr_t)sx__str3));
-}
-
 static int64_t codegen__cg_lookup_fn_ret(int64_t t_ctx,int64_t t_mangled){
 int64_t sx__rb0[3];
 (void)(std__collections__RawIndexMap__get((int64_t)(intptr_t)sx__rb0,(*(int64_t*)((char*)(intptr_t)(t_ctx)+392)),t_mangled));
@@ -82187,7 +82139,12 @@ if(((t_ext_addr)!=(0)))
 (void)(snprintf((char*)(intptr_t)(t_buf6b),(size_t)(INT64_C(128)),(const char*)(intptr_t)(sx__str2128),(t_tmp6b),(t_name)));
 }
 }else{
-int64_t t_resolved_name=(int64_t)(codegen__resolve_fn_mangled(t_ctx,t_name));
+int64_t t_resolved_fn=(int64_t)(codegen__cg_resolve_fn_name(t_ctx,t_name));
+int64_t t_resolved_name=(int64_t)(((int64_t)(intptr_t)sx__str3));
+if(((t_resolved_fn)!=(0)))
+{
+t_resolved_name=(t_resolved_fn);
+}
 if(((cstr__cmp(t_resolved_name,((int64_t)(intptr_t)sx__str3)))!=(INT64_C(0))))
 {
 int64_t t_ext_addr2=(int64_t)(codegen__cg_lookup_extern_symbol(t_ctx,t_resolved_name));
