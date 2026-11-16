@@ -3402,6 +3402,7 @@ fn skip_test_dir(name: ref u8) bool = trust {
         return true
     }
     return cstr.starts_with(name, c"docs-out")
+    || cstr.starts_with(name, c"std__")
 }
 
 fn collect_test_files(
