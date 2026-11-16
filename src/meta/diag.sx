@@ -214,12 +214,18 @@ fn label_color(label: ref u8) terminal.Color = {
     if cstr.eql(label, LABEL) {
         return terminal.Color.BrightRed
     }
+    if cstr.eql(label, INFO_LABEL) {
+        return terminal.Color.Cyan
+    }
     return terminal.Color.Amber
 }
 
 fn caret_color(label: ref u8) terminal.Color = {
     if cstr.eql(label, LABEL) {
         return terminal.Color.Red
+    }
+    if cstr.eql(label, INFO_LABEL) {
+        return terminal.Color.Cyan
     }
     return terminal.Color.Amber
 }
@@ -599,4 +605,14 @@ pub fn warning_at_span(
     message: ref u8
 ) void = trust {
     report_at(filename, line, col, span, WARNING_LABEL, message)
+}
+
+pub fn note_at_span(
+    filename: ref u8,
+    line: i64,
+    col: i64,
+    span: i64,
+    message: ref u8
+) void = trust {
+    report_at(filename, line, col, span, INFO_LABEL, message)
 }

@@ -14,10 +14,19 @@ val stdio      = use("std/stdio")
 val os         = use("std/os")
 val diag       = use("diag.sx")
 
+pub type SxBuildStep = {
+    kind: mut i64
+    value: mut ref u8
+    line: mut i64
+    col: mut i64
+    span: mut i64
+}
+
 pub type SxBuildRule = {
     platform: mut ref u8
     arch: mut ref u8
     actions: mut list[ref u8]
+    steps: mut list[ref SxBuildStep]
     flags: mut ref u8
     output: mut ref u8
     entry: mut ref u8
@@ -34,6 +43,14 @@ pub type SxDep = {
     url: mut ref u8
     actions: mut list[ref u8]
 }
+
+val (
+    STEP_ACTION: i64 = 0
+    STEP_LOG: i64    = 1
+    STEP_INFO: i64   = 2
+    STEP_WARN: i64   = 3
+    STEP_ERROR: i64  = 4
+)
 
 pub type SxMod = {
     entry: mut ref u8
@@ -591,6 +608,27 @@ fn expand_list(
     }
 }
 
+fn expand_steps(
+    m: ref SxMod,
+    root: ref u8,
+    target: ref u8,
+    steps: list[ref SxBuildStep]
+) void = trust {
+    val n: i64 = @len(steps) as i64
+    val i: mut i64 = 0
+    for {
+        if i >= n {
+            break
+        }
+        val step_opt = @get(steps, i as usize)
+        if step_opt is some step_val {
+            val step: mut ref SxBuildStep = step_val as ref SxBuildStep
+            step.value = expand_var_refs(m, root, target, step.value, true)
+        }
+        i++
+    }
+}
+
 fn expand_mod_strings(m: mut ref SxMod, root: ref u8, target: ref u8) void = trust {
     m.entry = expand_var_refs(m, root, target, m.entry, false)
     m.version = expand_var_refs(m, root, target, m.version, false)
@@ -622,6 +660,7 @@ fn expand_mod_strings(m: mut ref SxMod, root: ref u8, target: ref u8) void = tru
         if cfg_opt is some cfg_val {
             val cfg: mut ref SxBuildConfig = cfg_val as ref SxBuildConfig
             expand_list(m, root, target, cfg.base.actions, true)
+            expand_steps(m, root, target, cfg.base.steps)
             cfg.base.flags = expand_var_refs(m, root, target, cfg.base.flags, true)
             cfg.base.output = expand_var_refs(m, root, target, cfg.base.output, false)
             cfg.base.entry = expand_var_refs(m, root, target, cfg.base.entry, false)
@@ -636,6 +675,7 @@ fn expand_mod_strings(m: mut ref SxMod, root: ref u8, target: ref u8) void = tru
                 if rule_opt is some rule_val {
                     val rule: mut ref SxBuildRule = rule_val as ref SxBuildRule
                     expand_list(m, root, target, rule.actions, true)
+                    expand_steps(m, root, target, rule.steps)
                     rule.flags = expand_var_refs(m, root, target, rule.flags, true)
                     rule.output = expand_var_refs(m, root, target, rule.output, false)
                     rule.entry = expand_var_refs(m, root, target, rule.entry, false)
@@ -898,12 +938,65 @@ fn parse_dep_body(ctx: mut ref ParseCtx, dep: mut ref SxDep, target: ref u8) voi
     }
 }
 
+fn ctx_line_at(ctx: ref ParseCtx, pos: i64) i64 = trust {
+    val line: mut i64 = 1
+    val i: mut i64 = 0
+    for {
+        if i >= pos || i >= ctx.len {
+            break
+        }
+        if @load8(@ptradd(ctx.text, i)) == 10 {
+            line++
+        }
+        i++
+    }
+    return line
+}
+
+fn ctx_col_at(ctx: ref ParseCtx, pos: i64) i64 = trust {
+    val start: mut i64 = 0
+    val i: mut i64 = 0
+    for {
+        if i >= pos || i >= ctx.len {
+            break
+        }
+        if @load8(@ptradd(ctx.text, i)) == 10 {
+            start = i + 1
+        }
+        i++
+    }
+    return pos - start + 1
+}
+
+fn new_build_step(
+    kind: i64,
+    value: ref u8,
+    line: i64,
+    col: i64,
+    span: i64
+) ref SxBuildStep = trust {
+    val step: mut ref SxBuildStep = mem.alloc(@sizeof(SxBuildStep) as usize) as mut ref SxBuildStep
+    @memset(step, 0, @sizeof(SxBuildStep) as usize)
+    step.kind = kind
+    step.value = value
+    step.line = line
+    step.col = col
+    step.span = span
+    return step
+}
+
+fn append_action_step(rule: mut ref SxBuildRule, action: ref u8) void = trust {
+    @append(rule.actions, action)
+    @append(rule.steps, new_build_step(STEP_ACTION, action, 0, 0, 0))
+}
+
 pub fn new_build_rule(platform: ref u8, arch: ref u8) ref SxBuildRule = trust {
     val rule: mut ref SxBuildRule = mem.alloc(@sizeof(SxBuildRule) as usize) as mut ref SxBuildRule
     @memset(rule, 0, @sizeof(SxBuildRule))
     rule.platform = platform
     rule.arch = arch
     rule.actions = mem.new[ref u8]()
+    rule.steps = mem.new[ref SxBuildStep]()
     rule.flags = c""
     rule.output = c""
     rule.entry = c""
@@ -938,6 +1031,40 @@ fn parse_env_entries(ctx: mut ref ParseCtx, out: mut list[ref u8]) void = trust 
     }
 }
 
+fn parse_log_field(
+    ctx: mut ref ParseCtx,
+    target: mut ref SxBuildRule,
+    name: ref u8
+) bool = trust {
+    val kind: mut i64 = -1
+    if cstr.cmp(name, c"log") == 0 {
+        kind = STEP_LOG
+    } elif cstr.cmp(name, c"note") == 0 {
+        kind = STEP_INFO
+    } elif cstr.cmp(name, c"warn") == 0 {
+        kind = STEP_WARN
+    } elif cstr.cmp(name, c"error") == 0 {
+        kind = STEP_ERROR
+    } else {
+        return false
+    }
+    val start: i64 = ctx.pos - cstr.len(name)
+    val message: ref u8 = ctx_read_quoted(ctx)
+    if cstr.len(message) > 0 {
+        @append(
+            target.steps,
+            new_build_step(
+                kind,
+                message,
+                ctx_line_at(ctx, start),
+                ctx_col_at(ctx, start),
+                ctx.pos - start
+            )
+        )
+    }
+    return true
+}
+
 /// Parse one of the fields accepted inside a build config or rule block.
 /// Returns false when `name` is not a field (for example a platform selector).
 fn parse_override_field(
@@ -948,12 +1075,31 @@ fn parse_override_field(
     if cstr.cmp(name, c"action") == 0 {
         val action: ref u8 = ctx_read_quoted(ctx)
         if cstr.len(action) > 0 {
-            @append(target.actions, action)
+            append_action_step(target, action)
         }
         return true
     }
     if cstr.cmp(name, c"actions") == 0 {
+        val before: i64 = @len(target.actions) as i64
         parse_actions_field(ctx, target.actions)
+        val after: i64 = @len(target.actions) as i64
+        val i: mut i64 = before
+        for {
+            if i >= after {
+                break
+            }
+            val action_opt = @get(target.actions, i as usize)
+            if action_opt is some action_value {
+                @append(
+                    target.steps,
+                    new_build_step(STEP_ACTION, action_value as ref u8, 0, 0, 0)
+                )
+            }
+            i++
+        }
+        return true
+    }
+    if parse_log_field(ctx, target, name) {
         return true
     }
     if cstr.cmp(name, c"flags") == 0 {
@@ -1494,11 +1640,23 @@ pub fn rule_has_actions(rule: ref SxBuildRule) bool = {
     return (@len(rule.actions) as i64) > 0
 }
 
+fn copy_build_steps(target: mut ref SxBuildRule, source: ref SxBuildRule) void = {
+    target.steps = mem.new[ref SxBuildStep]()
+    for step in source.steps {
+        @append(target.steps, step)
+    }
+}
+
 fn apply_build_rule(target: mut ref SxBuildRule, source: ref SxBuildRule) void = {
     if (@len(source.actions) as i64) > 0 {
         target.actions = mem.new[ref u8]()
         for action in source.actions {
             @append(target.actions, action)
+        }
+        copy_build_steps(target, source)
+    } else {
+        for step in source.steps {
+            @append(target.steps, step)
         }
     }
     if cstr.cmp(source.flags, c"") != 0 {
@@ -1519,6 +1677,7 @@ pub fn resolve_build_rule(cfg: ref SxBuildConfig, target: mut ref SxBuildRule) v
     target.platform = c""
     target.arch = c""
     target.actions = mem.new[ref u8]()
+    target.steps = mem.new[ref SxBuildStep]()
     target.flags = c""
     target.output = c""
     target.entry = c""
@@ -2224,6 +2383,31 @@ fn target_from_flags(flags: ref u8) ref u8 = trust {
     return c""
 }
 
+fn run_build_steps(
+    resolved: ref SxBuildRule,
+    exe_path: ref u8,
+    entry: ref u8
+) i32 = trust {
+    for step in resolved.steps {
+        if step.kind == STEP_ACTION {
+            val action_cmd: ref u8 = build_config_cmd(resolved, step.value, exe_path, entry)
+            @flush()
+            if os.run(action_cmd) != 0 {
+                return 1
+            }
+        } elif step.kind == STEP_INFO {
+            diag.note_at_span(c"sx.mod", step.line, step.col, step.span, step.value)
+        } elif step.kind == STEP_WARN {
+            diag.warning_at_span(c"sx.mod", step.line, step.col, step.span, step.value)
+        } elif step.kind == STEP_ERROR {
+            diag.error_at_span(c"sx.mod", step.line, step.col, step.span, step.value)
+        } else {
+            stdio.print("sx.mod:{lld}:{lld}: {s}\n", {step.line, step.col, step.value})
+        }
+    }
+    return 0
+}
+
 pub fn cmd_build(config_name: ref u8, exe_path: ref u8, target: ref u8) i32 = {
     match load_sxmod_target(target) {
         none => {
@@ -2301,6 +2485,9 @@ pub fn cmd_build(config_name: ref u8, exe_path: ref u8, target: ref u8) i32 = {
             val entry: mut ref u8 = m.entry
             if cstr.cmp(resolved.entry, c"") != 0 {
                 entry = resolved.entry
+            }
+            if (@len(resolved.steps) as i64) > 0 {
+                return trust run_build_steps(resolved, exe_path, entry)
             }
             if rule_has_actions(resolved) {
                 for action in resolved.actions {
