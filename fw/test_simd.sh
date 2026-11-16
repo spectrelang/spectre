@@ -70,8 +70,17 @@ run_scalar() {
 	fi
 }
 
-run_mode "auto"
-run_scalar "auto"
+AUTO_ALT=()
+if [[ -n "${SPECTRE_WINDOWS_ALT_COMPILER:-}" ]]; then
+	AUTO_ALT=(-alt:"$SPECTRE_WINDOWS_ALT_COMPILER")
+elif has_cmd clang-cl || has_cmd clang-cl.exe; then
+	AUTO_ALT=(-alt:clang-cl)
+elif has_cmd cl || has_cmd cl.exe; then
+	AUTO_ALT=(-alt:cl)
+fi
+
+run_mode "auto" ${AUTO_ALT[@]+"${AUTO_ALT[@]}"}
+run_scalar "auto" ${AUTO_ALT[@]+"${AUTO_ALT[@]}"}
 
 echo "==> fallback: unsupported platform"
 "$COMPILER" "$KERNEL" -release -alt -src-target:freebsd -emit-alt >"$TMP/fallback.c"

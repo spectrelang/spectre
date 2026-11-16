@@ -28,6 +28,10 @@ if (Get-Command clang-cl -ErrorAction SilentlyContinue) {
     throw "clang-cl.exe, cl.exe, or clang.exe is required to build the Windows compiler"
 }
 Write-Host "Using $AltCompiler for stage builds"
+if ($env:GITHUB_ENV) {
+    "SPECTRE_WINDOWS_ALT_COMPILER=$AltCompiler" |
+        Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+}
 
 Write-Host "Building Windows bootstrap compiler..."
 clang -O3 -Wno-everything -Wno-error=int-conversion `
