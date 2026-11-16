@@ -108,8 +108,17 @@ pub fn is_compiler_available(compiler: ref u8) bool = {
             val exe_name: ref u8 = trust @fmtalloc("{s}.exe", {compiler})
             val found: bool = trust os.in_path(exe_name)
             trust @free(exe_name)
-            return found
+            if found {
+                return true
+            }
         }
+        val where_cmd: ref u8 = trust @fmtalloc(
+            "where {s} >nul 2>&1",
+            {quote_arg(compiler)}
+        )
+        val where_status: i32 = trust os.run(where_cmd)
+        trust @free(where_cmd)
+        return where_status == 0
     }
     return false
 }
@@ -511,37 +520,60 @@ pub fn generate_windows_import_library(
     } else {
         return c""
     }
-    val dlltool: mut ref u8 = c"llvm-dlltool"
-    if !is_compiler_available(dlltool) {
-        if is_compiler_available(c"llvm-dlltool-18") {
-            dlltool = c"llvm-dlltool-18"
-        } elif is_compiler_available(c"llvm-dlltool-15") {
-            dlltool = c"llvm-dlltool-15"
-        } else {
-            return c""
-        }
+    val dlltool: mut ref u8 = c""
+    if is_compiler_available(c"llvm-dlltool") {
+        dlltool = c"llvm-dlltool"
+    } elif is_compiler_available(c"llvm-dlltool-18") {
+        dlltool = c"llvm-dlltool-18"
+    } elif is_compiler_available(c"llvm-dlltool-15") {
+        dlltool = c"llvm-dlltool-15"
     }
-    val cmd: ref u8 = @fmtalloc(
-        "{s} -m {s} -d {s} -l {s} 2>&1",
-        {
-            dlltool,
-            machine,
-            quote_arg(def_path),
-            quote_arg(lib_path)
-        }
-    )
-    val res = os.exec(cmd)
-    match res {
-        ok _ => {
-            if os.exists(lib_path) {
-                return lib_path
+    if cstr.len(dlltool) > 0 {
+        val cmd: ref u8 = @fmtalloc(
+            "{s} -m {s} -d {s} -l {s} 2>&1",
+            {
+                dlltool,
+                machine,
+                quote_arg(def_path),
+                quote_arg(lib_path)
             }
-            return c""
-        }
-        err _ => {
-            return c""
+        )
+        val res = os.exec(cmd)
+        match res {
+            ok _ => {
+                if os.exists(lib_path) {
+                    return lib_path
+                }
+            }
+            err _ => { }
         }
     }
+    when windows {
+        if is_compiler_available(c"lib.exe") {
+            val lib_machine: mut ref u8 = c"x64"
+            if cstr.cmp(arch, c"aarch64") == 0 {
+                lib_machine = c"arm64"
+            }
+            val lib_cmd: ref u8 = @fmtalloc(
+                "lib.exe /nologo /machine:{s} /def:{s} /out:{s} 2>&1",
+                {
+                    lib_machine,
+                    quote_arg(def_path),
+                    quote_arg(lib_path)
+                }
+            )
+            val lib_res = os.exec(lib_cmd)
+            match lib_res {
+                ok _ => {
+                    if os.exists(lib_path) {
+                        return lib_path
+                    }
+                }
+                err _ => { }
+            }
+        }
+    }
+    return c""
 }
 
 /// Create (or reuse) a cache directory for generated Windows import libraries.
