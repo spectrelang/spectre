@@ -113,6 +113,7 @@ test "commands expands variable prefixes in env values" {
         \\build quick {
         \\    env {
         \\        GIT_HASH="$DEFAULT_alt"
+        \\        BUILD_ID=$(printf build-123)
         \\    }
         \\}
         val parsed = commands.parse_sxmod(check.cptr(content), check.cptr("."), check.cptr(""), check.cptr("sx.mod"))
@@ -121,10 +122,16 @@ test "commands expands variable prefixes in env values" {
         val cfg_opt = @get(parsed.builds, 0 as usize)
         if cfg_opt is some raw_cfg {
             val cfg: ref commands.SxBuildConfig = raw_cfg as ref commands.SxBuildConfig
-            assert @len(cfg.base.envs) as i64 == 1
+            assert @len(cfg.base.envs) as i64 == 2
             val env_opt = @get(cfg.base.envs, 0 as usize)
             if env_opt is some raw_env {
                 assert cstr.cmp(raw_env as ref u8, c"GIT_HASH=dev-build_alt") == 0
+            } else {
+                assert false
+            }
+            val build_opt = @get(cfg.base.envs, 1 as usize)
+            if build_opt is some raw_build {
+                assert cstr.cmp(raw_build as ref u8, c"BUILD_ID=$(printf build-123)") == 0
             } else {
                 assert false
             }

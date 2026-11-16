@@ -18,6 +18,7 @@ build release {
 }
 
 build loud {
+    output "./spectre-dev$EXT"
     flags "-l"
     env {
         GIT_HASH="$DEFAULT"

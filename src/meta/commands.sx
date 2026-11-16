@@ -163,6 +163,53 @@ fn ctx_skip_ws(ctx: mut ref ParseCtx) void = {
     }
 }
 
+/// Find the closing parenthesis of a `$(...)` or `$((...))` substitution.
+fn command_subst_close(s: ref u8, n: i64, dollar: i64) i64 = trust {
+    val open: i64 = dollar + 1
+    if open >= n || @load8(@ptradd(s, open)) != 40 {
+        return -1
+    }
+    val opens: mut i64 = 0
+    val p: mut i64 = open
+    for {
+        if p >= n || @load8(@ptradd(s, p)) != 40 {
+            break
+        }
+        opens++
+        p++
+    }
+    val depth: mut i64 = opens
+    val single: mut bool = false
+    val double: mut bool = false
+    val i: mut i64 = p
+    for {
+        if i >= n {
+            return -1
+        }
+        val c: u8 = @load8(@ptradd(s, i)) as u8
+        if c == 92 {
+            i = i + 2
+            continue
+        }
+        if c == 39 && !double {
+            single = !single
+        } elif c == 34 && !single {
+            double = !double
+        } elif !single && !double {
+            if c == 40 {
+                depth++
+            } elif c == 41 {
+                depth--
+                if depth == 0 {
+                    return i
+                }
+            }
+        }
+        i++
+    }
+    return -1
+}
+
 fn ctx_read_quoted(ctx: mut ref ParseCtx) ref u8 = trust {
     ctx_skip_ws(ctx)
     if ctx_peek(ctx) != 34 {
@@ -176,6 +223,24 @@ fn ctx_read_quoted(ctx: mut ref ParseCtx) ref u8 = trust {
         val c: i64 = ctx_peek(ctx)
         if c == -1 || c == 34 {
             break
+        }
+        if c == 36 && ctx.pos + 1 < ctx.len {
+            val close: i64 = command_subst_close(ctx.text, ctx.len, ctx.pos)
+            if close >= 0 {
+                val span: i64 = close - ctx.pos + 1
+                val needed: i64 = i + span + 1
+                for {
+                    if cap >= needed {
+                        break
+                    }
+                    cap = cap * 2
+                }
+                buf = @realloc(buf, cap) as ref u8
+                @memcpy(@ptradd(buf, i), @ptradd(ctx.text, ctx.pos), span as usize)
+                i = i + span
+                ctx.pos = close + 1
+                continue
+            }
         }
         if i >= cap - 1 {
             cap = cap * 2
@@ -238,6 +303,24 @@ fn ctx_read_env_value(ctx: mut ref ParseCtx) ref u8 = trust {
         val c: i64 = ctx_peek(ctx)
         if c == -1 || c == 32 || c == 9 || c == 10 || c == 13 || c == 125 {
             break
+        }
+        if c == 36 && ctx.pos + 1 < ctx.len {
+            val close: i64 = command_subst_close(ctx.text, ctx.len, ctx.pos)
+            if close >= 0 {
+                val span: i64 = close - ctx.pos + 1
+                val needed: i64 = i + span + 1
+                for {
+                    if cap >= needed {
+                        break
+                    }
+                    cap = cap * 2
+                }
+                buf = @realloc(buf, cap) as ref u8
+                @memcpy(@ptradd(buf, i), @ptradd(ctx.text, ctx.pos), span as usize)
+                i = i + span
+                ctx.pos = close + 1
+                continue
+            }
         }
         if i >= cap - 1 {
             cap = cap * 2
@@ -1909,6 +1992,49 @@ pub fn resolve_build_rule(cfg: ref SxBuildConfig, target: mut ref SxBuildRule) v
     }
 }
 
+fn env_value_has_space(entry: ref u8, start: i64) bool = trust {
+    val n: i64 = cstr.len(entry)
+    val i: mut i64 = start
+    for {
+        if i >= n {
+            break
+        }
+        val c: u8 = @load8(@ptradd(entry, i)) as u8
+        if c == 32 || c == 9 || c == 10 || c == 13 {
+            return true
+        }
+        i++
+    }
+    return false
+}
+
+fn quote_env_assignment(entry: ref u8) ref u8 = trust {
+    val n: i64 = cstr.len(entry)
+    val eq: mut i64 = -1
+    val i: mut i64 = 0
+    for {
+        if i >= n {
+            break
+        }
+        if @load8(@ptradd(entry, i)) == 61 {
+            eq = i
+            break
+        }
+        i++
+    }
+    if eq < 0 || !env_value_has_space(entry, eq + 1) {
+        return entry
+    }
+    val name: ref u8 = cstr.substr(entry, 0, eq)
+    val value: ref u8 = cstr.substr(entry, eq + 1, n - eq - 1)
+    val quoted: ref u8 = builds.quote_arg(value)
+    val out: ref u8 = @fmtalloc("{s}={s}", {name, quoted})
+    @free(name)
+    @free(value)
+    @free(quoted)
+    return out
+}
+
 fn build_config_cmd(
     cfg: ref SxBuildRule,
     action: ref u8,
@@ -1934,12 +2060,23 @@ fn build_config_cmd(
     if nenv > 0 {
         if cstr.cmp(action, c"") == 0 {
             for e in cfg.envs {
-                cmd = mem_concat3(cmd, c" -d:", e)
+                val define: mut ref u8 = e
+                if env_value_has_space(e, 0) {
+                    define = builds.quote_arg(e)
+                }
+                cmd = mem_concat3(cmd, c" -d:", define)
+                if define != e {
+                    @free(define)
+                }
             }
         } else {
             val prefix: mut ref u8 = c""
             for e in cfg.envs {
-                prefix = mem_concat3(prefix, e, c" ")
+                val assignment: ref u8 = quote_env_assignment(e)
+                prefix = mem_concat3(prefix, assignment, c" ")
+                if assignment != e {
+                    @free(assignment)
+                }
             }
             cmd = mem_concat2(prefix, cmd)
         }
@@ -2114,6 +2251,73 @@ fn output_trimmed(cmd: ref u8) ref u8 = trust {
         err _ => {
             return c""
         }
+    }
+}
+
+/// Replace `$(command)` and `$((command))` segments with trimmed command output.
+fn expand_command_substitutions(value: ref u8) ref u8 = trust {
+    if value == none {
+        return value
+    }
+    val n: i64 = cstr.len(value)
+    val sb: ref void = builder.StringBuilder.new()
+    val i: mut i64 = 0
+    for {
+        if i >= n {
+            break
+        }
+        val c: u8 = @load8(@ptradd(value, i)) as u8
+        if c == 36 {
+            val close: i64 = command_subst_close(value, n, i)
+            if close >= 0 {
+                val opens: mut i64 = 0
+                val p: mut i64 = i + 1
+                for {
+                    if p >= n || @load8(@ptradd(value, p)) != 40 {
+                        break
+                    }
+                    opens++
+                    p++
+                }
+                val cmd_start: i64 = p
+                val cmd_end: i64 = close - (opens - 1)
+                if cmd_end > cmd_start {
+                    val command: ref u8 = cstr.substr(value, cmd_start, cmd_end - cmd_start)
+                    val result: ref u8 = output_trimmed(command)
+                    if cstr.len(result) > 0 {
+                        builder.StringBuilder.append_cstr(sb, result)
+                    }
+                    if result != c"" {
+                        @free(result)
+                    }
+                    @free(command)
+                }
+                i = close + 1
+                continue
+            }
+        }
+        builder.StringBuilder.append_char(sb, c)
+        i++
+    }
+    val built: ref void = builder.StringBuilder.build(sb)
+    val out: ref u8 = ostr.as_cstr(built)
+    @free(built)
+    builder.StringBuilder.free(sb)
+    return out
+}
+
+fn expand_computed_envs(rule: mut ref SxBuildRule) void = trust {
+    val count: i64 = @len(rule.envs) as i64
+    val i: mut i64 = 0
+    for {
+        if i >= count {
+            break
+        }
+        val entry_opt = @get(rule.envs, i as usize)
+        if entry_opt is some entry_value {
+            @set(rule.envs, i as usize, expand_command_substitutions(entry_value as ref u8))
+        }
+        i++
     }
 }
 
@@ -2712,6 +2916,7 @@ pub fn cmd_build(config_name: ref u8, exe_path: ref u8, target: ref u8) i32 = {
             if trust run_dep_actions_in_dir(c".", action_visited, effective_target) != 0 {
                 return 1
             }
+            trust expand_computed_envs(resolved)
 
             val entry: mut ref u8 = m.entry
             if cstr.cmp(resolved.entry, c"") != 0 {
