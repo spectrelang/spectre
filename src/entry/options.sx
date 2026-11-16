@@ -5,6 +5,7 @@
 
 val str      = use("std/string")
 val cstr     = use("std/string/cstr")
+val fmt      = use("std/fmt")
 val stdio    = use("std/stdio")
 val mem      = use("../meta/mem.sx")
 val defines  = use("../meta/defines.sx")
@@ -27,6 +28,8 @@ pub type Options = {
     unroll_mode: mut bool
     abs_dbg: mut bool
     simd_disabled: mut bool
+    no_fold: mut bool
+    static_fuel: mut i64
     output_name: mut ref u8
     build_dll: mut bool
     compile_obj: mut bool
@@ -54,6 +57,7 @@ pub fn new() ref Options = trust {
     val o: mut ref Options = mem.alloc(@sizeof(Options) as usize) as mut ref Options
     @memset(o, 0, @sizeof(Options) as usize)
     o.quiet = true
+    o.static_fuel = 1000000
     o.output_name = c""
     o.alt_compiler = c""
     o.extra_includes = mem.new[ref u8]()
@@ -239,6 +243,27 @@ pub fn parse(
                 arg_i++
             } elif cstr.cmp(arg, c"-no-simd") == 0 {
                 opts.simd_disabled = true
+                arg_i++
+            } elif cstr.cmp(arg, c"-no-fold") == 0 {
+                opts.no_fold = true
+                arg_i++
+            } elif cstr.starts_with(arg, c"-static-fuel:") {
+                val fuel_text: ref u8 = cstr.substr(arg, 13, cstr.len(arg) - 13)
+                match fmt.string_to_i64(fuel_text) {
+                    ok fuel => {
+                        if fuel < 0 {
+                            diag.puts_error_label()
+                            stdio.puts(" -static-fuel requires a non-negative integer")
+                            return false
+                        }
+                        opts.static_fuel = fuel
+                    }
+                    err _ => {
+                        diag.puts_error_label()
+                        stdio.puts(" -static-fuel requires a non-negative integer")
+                        return false
+                    }
+                }
                 arg_i++
             } elif cstr.cmp(arg, c"-abs-dbg") == 0 {
                 opts.abs_dbg = true

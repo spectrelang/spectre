@@ -75,6 +75,7 @@ pub val (
     NK_TRUST: i64                        = 73
     NK_TRUST_BLOCK: i64                  = 84
     NK_VAL_BULK: i64                     = 85
+    NK_FIXED_ARR_LIT: i64                = 86
     NK_BINOP: i64                        = 74
     NK_UNOP: i64                         = 75
     NK_STRUCT_LIT: i64                   = 76
@@ -122,8 +123,10 @@ pub val (
     FN_FLAG_INLINE: i64                  = 2
     FN_FLAG_SUPPRESS_UNUSED: i64         = 4
     FN_FLAG_VARIADIC: i64                = 8
+    FN_FLAG_PURE: i64                    = 16
     GENERIC_FN_FLAG_SUPPRESS_UNUSED: i64 = 8
     GENERIC_FN_FLAG_VARIADIC: i64        = 16
+    GENERIC_FN_FLAG_PURE: i64            = 32
     EXTERN_FLAG_VARIADIC: i64            = 2
     EXTERN_FLAG_HEADER: i64              = 4
     EXTERN_FLAG_SUPPRESS_UNUSED: i64     = 8
@@ -381,6 +384,26 @@ pub fn fixed_arr_size_name_raw(n: ref Node) ref u8 = {
     return node_str_raw(n.d2)
 }
 
+pub fn fixed_arr_lit_elems(n: ref Node) list[ref Node] = {
+    return n.d0 as list[ref Node]
+}
+
+pub fn fixed_arr_lit_type(n: ref Node) ref Node = {
+    return n.d1 as ref Node
+}
+
+pub fn make_fixed_arr_lit(
+    arena: allocators.ScopedArenaAllocator,
+    elems: list[ref Node],
+    ty: ref Node,
+    line: i64
+) ref Node = trust {
+    val n: mut ref Node = make_node(arena, NK_FIXED_ARR_LIT, line)
+    node_store_slot[list[ref Node]](@addr(n.d0), elems)
+    node_store_slot[ref Node](@addr(n.d1), ty)
+    return n
+}
+
 pub fn fn_is_unsafe(n: ref Node) bool = {
     if n.kind == NK_EXTERN_FN {
         return true
@@ -412,6 +435,16 @@ pub fn fn_is_inline(n: ref Node) bool = {
         return ((n.d0 >> 2) & 1) != 0
     }
     return (n.d6 & FN_FLAG_INLINE) != 0
+}
+
+pub fn fn_is_pure(n: ref Node) bool = {
+    if n == none || n.kind == NK_EXTERN_FN {
+        return false
+    }
+    if n.kind == NK_GENERIC_FN {
+        return (n.d0 & GENERIC_FN_FLAG_PURE) != 0
+    }
+    return (n.d6 & FN_FLAG_PURE) != 0
 }
 
 pub fn fn_suppresses_unused(n: ref Node) bool = {
@@ -1171,6 +1204,16 @@ fn kind_is_trust(k: lexer.TokenKind) bool = trust {
 fn kind_is_inline(k: lexer.TokenKind) bool = trust {
     match k {
         Inline() => {
+            return true
+        } else => {
+            return false
+        }
+    }
+}
+
+fn kind_is_pure(k: lexer.TokenKind) bool = trust {
+    match k {
+        Pure() => {
             return true
         } else => {
             return false
@@ -3817,6 +3860,7 @@ fn parse_fn_item(
     }
     val is_unsafe: mut i64 = 0
     val is_inline: mut i64 = 0
+    val is_pure: mut i64 = 0
     val suppress_flag: mut i64 = 0
     if suppress_unused {
         suppress_flag = 1
@@ -3824,6 +3868,10 @@ fn parse_fn_item(
     val body: mut list[ref Node] = mem.new[ref Node]()
     if p_eat_fn(p, kind_is_eq) {
         for {
+            if p_eat_fn(p, kind_is_pure) {
+                is_pure = 1
+                continue
+            }
             if p_eat_fn(p, kind_is_inline) {
                 is_inline = 1
                 continue
@@ -3842,7 +3890,7 @@ fn parse_fn_item(
         val nfn: mut ref Node = make_node(p.arena, NK_GENERIC_FN, line)
         nfn.col = name_col
         nfn.span = name_span
-        nfn.d0 = public | (is_unsafe << 1) | (is_inline << 2) | (suppress_flag << 3) | (is_variadic << 4)
+        nfn.d0 = public | (is_unsafe << 1) | (is_inline << 2) | (suppress_flag << 3) | (is_variadic << 4) | (is_pure << 5)
         node_store_string_slot(@addr(nfn.d1), ns)
         node_store_string_slot(@addr(nfn.d2), name)
         val pl: list[ref Node] = params
@@ -3865,7 +3913,7 @@ fn parse_fn_item(
     node_store_slot[ref Node](@addr(nfn.d4), ret_ty)
     val bl: list[ref Node] = body
     node_store_slot[list[ref Node]](@addr(nfn.d5), bl)
-    nfn.d6 = (is_unsafe * FN_FLAG_UNSAFE) | (is_inline * FN_FLAG_INLINE) | (suppress_flag * FN_FLAG_SUPPRESS_UNUSED) | (is_variadic * FN_FLAG_VARIADIC)
+    nfn.d6 = (is_unsafe * FN_FLAG_UNSAFE) | (is_inline * FN_FLAG_INLINE) | (suppress_flag * FN_FLAG_SUPPRESS_UNUSED) | (is_variadic * FN_FLAG_VARIADIC) | (is_pure * FN_FLAG_PURE)
     return ok nfn
 }
 

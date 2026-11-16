@@ -67,6 +67,8 @@ pub fn print_usage() void = {
     stdio.puts("  -native              Optimize the selected backend for the host CPU")
     stdio.puts("  -unroll              Enable aggressive loop unrolling in the alt backend")
     stdio.puts("  -no-simd             Disable autovectorization, use scalar fallback")
+    stdio.puts("  -no-fold             Disable implicit compile-time call folding")
+    stdio.puts("  -static-fuel:<n>     Set the compile-time evaluation fuel budget")
     stdio.puts("  -no-warn             Suppress compiler warnings")
     stdio.puts("  -abs-dbg             Use absolute paths in diagnostics and debug info")
     stdio.puts("  -dynamic             Link dynamically instead of statically")

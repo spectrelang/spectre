@@ -5319,6 +5319,9 @@ fn infer_type_annotation(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = tru
         }
         return c"StringView"
     }
+    if k == parser.NK_FIXED_ARR_LIT {
+        return type_expr_to_annotation(ctx, parser.fixed_arr_lit_type(expr))
+    }
 
     if k == parser.NK_BUILTIN {
         val bname: ref u8 = parser.node_str_raw(expr.d0)
@@ -6887,7 +6890,7 @@ fn collect_global_fixed_arr_entries(
             }
             return true
         }
-        if expr.kind != parser.NK_LIST_LIT {
+        if expr.kind != parser.NK_LIST_LIT && expr.kind != parser.NK_FIXED_ARR_LIT {
             return false
         }
         val elems: ref void = expr.d0 as ref void
@@ -8563,6 +8566,10 @@ fn gen_expr(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
         } else {
             return c"0"
         }
+    }
+
+    if k == parser.NK_FIXED_ARR_LIT {
+        return gen_fixed_arr_lit(ctx, expr, parser.fixed_arr_lit_type(expr))
     }
 
     if k == parser.NK_LIST_LIT {
@@ -14514,6 +14521,100 @@ fn gen_builtin(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
             emit(ctx, buf_get6)
         }
     } elif cstr.cmp(name, c"set") == 0 {
+        val set_args: list[ref parser.Node] = args as list[ref parser.Node]
+        val set_argc: i64 = @len(set_args) as i64
+        val set_base_opt = @get(set_args, 0 as usize)
+        if set_base_opt is some set_base_node {
+            val set_base_ann: ref u8 = infer_type_annotation(
+                ctx,
+                set_base_node as ref parser.Node
+            )
+            if starts_with_cstr(set_base_ann, c"[") {
+                val set_base_ptr: mut ref u8 = get_arg(ctx, args, 0)
+                val set_cur: mut ref u8 = set_base_ann
+                val set_ai: mut i64 = 1
+                for {
+                    if set_ai >= set_argc - 1 {
+                        break
+                    }
+                    if !starts_with_cstr(set_cur, c"[") {
+                        break
+                    }
+                    val se_idx_raw: ref u8 = get_arg(ctx, args, set_ai)
+                    val se_idx_node_opt = @get(set_args, set_ai as usize)
+                    val se_idx_qt: mut ref u8 = c"l"
+                    if se_idx_node_opt is some sei {
+                        se_idx_qt = expr_qtype(ctx, sei as ref parser.Node)
+                    }
+                    val se_idx: ref u8 = cg_coerce_qtype(ctx, se_idx_raw, se_idx_qt, c"l")
+                    val se_inner: ref u8 = ann_fixed_arr_inner(set_cur)
+                    val se_sz: i64 = cg_ann_size(ctx, se_inner)
+                    val se_off: i64 = fresh_tmp(ctx)
+                    val se_ptr: i64 = fresh_tmp(ctx)
+                    val se_buf: ref u8 = allocators.ScopedArena.alloc_or_none(
+                        ctx.arena,
+                        512 as usize
+                    ) as ref u8
+                    @snprintf(
+                        se_buf,
+                        512,
+                        "    %%t{lld} =l mul {s}, {lld}\n    %%t{lld} =l add {s}, %%t{lld}\n",
+                        {se_off, se_idx, se_sz, se_ptr, set_base_ptr, se_off}
+                    )
+                    emit(ctx, se_buf)
+                    val se_next: ref u8 = allocators.ScopedArena.alloc_or_none(
+                        ctx.arena,
+                        32 as usize
+                    ) as ref u8
+                    @snprintf(se_next, 32, "%%t{lld}", {se_ptr})
+                    set_base_ptr = se_next
+                    set_cur = se_inner
+                    set_ai++
+                }
+                val se_val_index: i64 = set_argc - 1
+                val se_val_node_opt = @get(set_args, se_val_index as usize)
+                if se_val_node_opt is some se_val_node {
+                    val se_val_raw: ref u8 = get_arg(ctx, args, se_val_index)
+                    val se_val_n: ref parser.Node = se_val_node as ref parser.Node
+                    val se_is_agg: bool = starts_with_cstr(set_cur, c"[")
+                    || cg_lookup_struct(ctx, set_cur) != none
+                    if se_is_agg {
+                        val se_val_ann: ref u8 = infer_type_annotation(ctx, se_val_n)
+                        val se_val: ref u8 = cg_materialize_stack_aggregate_ann(
+                            ctx,
+                            se_val_raw,
+                            se_val_ann
+                        )
+                        val se_ty: ref parser.Node = cg_named_ty_from_ann(ctx, set_cur)
+                        cg_emit_store_typed(ctx, set_base_ptr, 0, se_val, se_ty)
+                    } else {
+                        val se_src_qt: ref u8 = expr_qtype(ctx, se_val_n)
+                        val se_dst_qt: ref u8 = cg_ann_qtype(set_cur)
+                        val se_val: ref u8 = cg_coerce_qtype(
+                            ctx,
+                            se_val_raw,
+                            se_src_qt,
+                            se_dst_qt
+                        )
+                        val se_op: ref u8 = cg_ann_store_instr(ctx, set_cur)
+                        val se_st: ref u8 = allocators.ScopedArena.alloc_or_none(
+                            ctx.arena,
+                            256 as usize
+                        ) as ref u8
+                        @snprintf(se_st, 256, "    {s} {s}, {s}\n", {se_op, se_val, set_base_ptr})
+                        emit(ctx, se_st)
+                    }
+                }
+                @snprintf(buf, 512, "    %%t{lld} =l copy 0\n", {tmp})
+                emit(ctx, buf)
+                val se_res: ref u8 = allocators.ScopedArena.alloc_or_none(
+                    ctx.arena,
+                    16 as usize
+                ) as ref u8
+                @snprintf(se_res, 16, "%%t{lld}", {tmp})
+                return se_res
+            }
+        }
         val lst_s: ref u8 = get_list_arg(ctx, args, 0)
         val idx_s: ref u8 = get_arg(ctx, args, 1)
         val val_s_node_opt = @get(args, 2)
@@ -15753,7 +15854,7 @@ fn gen_fixed_arr_lit(
         return zero_res
     }
 
-    if expr.kind == parser.NK_LIST_LIT {
+    if expr.kind == parser.NK_LIST_LIT || expr.kind == parser.NK_FIXED_ARR_LIT {
         val elems: ref void = expr.d0 as ref void
         val elen: mut i64 = 0
         if elems != none {
@@ -20792,6 +20893,27 @@ fn gen_items_with_prefix(
                             emit_global_list_literal(ctx, const_label, cexpr)
                             cg_register_global(ctx, cname, const_label, c"l", c"")
                         } else { }
+                    } elif cexpr.kind == parser.NK_FIXED_ARR_LIT {
+                        val const_ty: ref parser.Node = node.d3 as ref parser.Node
+                        if cg_emit_label_if_new(ctx, const_label) {
+                            emit_global_fixed_arr_literal(
+                                ctx,
+                                const_label,
+                                const_ty,
+                                cexpr
+                            )
+                            val const_ann: ref u8 = type_expr_to_annotation(
+                                ctx,
+                                const_ty
+                            )
+                            cg_register_global(
+                                ctx,
+                                cname,
+                                const_label,
+                                c"l",
+                                const_ann
+                            )
+                        } else { }
                     } elif cexpr.kind == parser.NK_BUILTIN {
                         if !cg_emit_embed_const(ctx, mod_prefix, cname, const_label, cexpr) { }
                     } else {
@@ -22258,6 +22380,27 @@ fn gen_items_with_prefix_skip_links(
                         if cg_emit_label_if_new(ctx, const_label) {
                             emit_global_list_literal(ctx, const_label, cexpr)
                             cg_register_global(ctx, cname, const_label, c"l", c"")
+                        } else { }
+                    } elif cexpr.kind == parser.NK_FIXED_ARR_LIT {
+                        val const_ty: ref parser.Node = node.d3 as ref parser.Node
+                        if cg_emit_label_if_new(ctx, const_label) {
+                            emit_global_fixed_arr_literal(
+                                ctx,
+                                const_label,
+                                const_ty,
+                                cexpr
+                            )
+                            val const_ann: ref u8 = type_expr_to_annotation(
+                                ctx,
+                                const_ty
+                            )
+                            cg_register_global(
+                                ctx,
+                                cname,
+                                const_label,
+                                c"l",
+                                const_ann
+                            )
                         } else { }
                     } elif cexpr.kind == parser.NK_BUILTIN {
                         if !cg_emit_embed_const(ctx, mod_prefix, cname, const_label, cexpr) { }

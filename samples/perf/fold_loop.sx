@@ -1,0 +1,19 @@
+val N: i64 = 50000
+val ROUNDS: i64 = 400
+
+fn sum_to(n: i64) i64 = {
+    val sum: mut i64 = 0
+    for i = 0, i < n, i++ {
+        sum = sum + (i * 7) % 13
+    }
+    return sum
+}
+
+pub fn main() i32 = {
+    val acc: mut i64 = 0
+    for r = 0, r < ROUNDS, r++ {
+        acc = acc + sum_to(N)
+    }
+    trust @print("{d}\n", {acc})
+    return 0
+}

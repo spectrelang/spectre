@@ -1,0 +1,19 @@
+val SEED_A: i64 = 1234567
+val SEED_B: i64 = 7654321
+val ROUNDS: i64 = 2000000
+
+fn step(x: i64, y: i64) i64 = {
+    val a: i64 = x * 3 + y * 5
+    val b: i64 = a % 1000003
+    val c: i64 = (b * b) % 1000009
+    return c % 997 + a % 89
+}
+
+pub fn main() i32 = {
+    val acc: mut i64 = 0
+    for i = 0, i < ROUNDS, i++ {
+        acc = acc + step(SEED_A, SEED_B)
+    }
+    trust @print("{d}\n", {acc})
+    return 0
+}

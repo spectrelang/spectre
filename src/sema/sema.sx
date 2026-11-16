@@ -10,6 +10,7 @@ val fs         = use("std/fs")
 val path       = use("std/path")
 val parser     = use("../ast/parser.sx")
 val modinfo    = use("../module/module.sx")
+val staticeval = use("staticeval.sx")
 val diag       = use("../meta/diag.sx")
 
 type ScopeEntry = {
@@ -339,6 +340,9 @@ fn builtin_min_arity(name: ref u8) i64 = trust {
     if cstr.eql(name, c"staticerror") {
         return 1
     }
+    if cstr.eql(name, c"static") {
+        return 1
+    }
     if cstr.eql(name, c"call") {
         return 1
     }
@@ -476,6 +480,7 @@ fn is_known_builtin(name: ref u8) bool = trust {
     @append(builtins, c"strcmp")
     @append(builtins, c"atoi")
     @append(builtins, c"staticerror")
+    @append(builtins, c"static")
     @append(builtins, c"dumpmemleaks")
     @append(builtins, c"flush")
     @append(builtins, c"bitcast")
@@ -6308,7 +6313,8 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
     if k == parser.NK_TRY {
         val inner: ref parser.Node = expr.d0 as ref parser.Node
         check_expr(ctx, inner, filename)
-        if expr_wrap_kind(ctx, inner) != 1 && sema_try_operand_proves_not_result(ctx, inner) {
+        val inner_wrap: i64 = expr_wrap_kind(ctx, inner)
+        if inner_wrap != 1 && inner_wrap != 2 && sema_try_operand_proves_not_result(ctx, inner) {
             val buf: ref u8 = allocators.ScopedArena.alloc_or_none(
                 ctx.arena,
                 (512) as usize
@@ -11345,26 +11351,13 @@ fn check_generic_fn(ctx: mut ref SemaCtx, fn_node: ref parser.Node, filename: re
 
 /// Check a single top-level item (functions, tests, when items).
 fn check_top_level_initializer(
-    ctx: mut ref SemaCtx,
-    name: ref u8,
-    init_node: ref parser.Node,
-    filename: ref u8,
-    line: i64
+    _: mut ref SemaCtx,
+    _: ref u8,
+    _: ref parser.Node,
+    _: ref u8,
+    _: i64
 ) void = trust {
-    if init_node == none || !expr_contains_call(init_node) {
-        return
-    }
-    val buf: ref u8 = allocators.ScopedArena.alloc_or_none(
-        ctx.arena,
-        (512) as usize
-    ) as ref u8
-    @snprintf(
-        buf,
-        512,
-        "{s}:{lld}: top-level value '{s}' must not call functions; move the call into a function body",
-        {filename, line, name}
-    )
-    add_error(ctx, buf)
+    return
 }
 
 fn check_top_item(ctx: mut ref SemaCtx, item: ref parser.Node, filename: ref u8) void = trust {
@@ -11741,6 +11734,9 @@ fn expr_contains_call(node: ref parser.Node) bool = trust {
         return expr_contains_call(parser.field_base(node))
     }
     if k == parser.NK_BUILTIN {
+        if cstr.eql(parser.node_str_raw(node.d0), c"static") {
+            return false
+        }
         if cstr.eql(parser.node_str_raw(node.d0), c"call") {
             return true
         }
@@ -12458,10 +12454,26 @@ pub fn check_module_tree(
     root: ref modinfo.ResolvedModule,
     quiet: i64,
     src_target: ref u8,
-    no_warn: bool
+    no_warn: bool,
+    static_fuel: i64,
+    no_fold: bool,
+    loud: bool
 ) list[ref u8] = trust {
     val all_errors: mut list[ref u8] = mem.new[ref u8]()
     val seen: mut list[ref void] = mem.new[ref void]()
     check_module_rec(arena, root, all_errors, seen, quiet, src_target, no_warn)
+    if @len(all_errors) as i64 == 0 {
+        val static_errors: list[ref u8] = staticeval.process(
+            arena,
+            root,
+            src_target,
+            static_fuel,
+            no_fold,
+            loud
+        )
+        for e in static_errors {
+            @append(all_errors, e)
+        }
+    }
     return all_errors
 }

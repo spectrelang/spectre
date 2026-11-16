@@ -1,0 +1,4266 @@
+/// Compile-time purity analysis and constant evaluation for `pure` / `@static`.
+///
+/// SPDX-License-Identifier: GPL-3.0-only
+/// (C) Navid Momtahen - 2026
+
+val cstr       = use("std/string/cstr")
+val str        = use("std/string")
+val fmt        = use("std/fmt")
+val stdio      = use("std/stdio")
+val mem        = use("../meta/mem.sx")
+val allocators = use("std/allocators")
+val arenafmt   = use("../meta/arenafmt.sx")
+val parser     = use("../ast/parser.sx")
+val modinfo    = use("../module/module.sx")
+
+val VK_VOID: i64 = 0
+val VK_INT: i64 = 1
+val VK_FLOAT: i64 = 2
+val VK_BOOL: i64 = 3
+val VK_ARRAY: i64 = 4
+val VK_STRUCT: i64 = 5
+val VK_OPTION: i64 = 6
+val VK_RESULT: i64 = 7
+val VK_CSTR: i64 = 8
+
+val EK_TRAP: i64 = 1
+val EK_DIVZERO: i64 = 2
+val EK_PROPAGATE: i64 = 3
+val EK_FUEL: i64 = 4
+val EK_DEPTH: i64 = 5
+val EK_UNSUPPORTED: i64 = 6
+val EK_IMPURE: i64 = 7
+
+type Val = {
+    kind: mut i64
+    i: mut i64
+    f: mut f64
+    path: mut str.StringView
+    elems: mut list[ref Val]
+    names: mut list[ref u8]
+    ty: mut ref parser.Node
+    tag: mut i64
+}
+
+type Var = {
+    name: mut ref u8
+    ty: mut ref parser.Node
+    payload_val: mut ref Val
+    mutable: mut i64
+}
+
+type EvalErr = {
+    kind: mut i64
+    line: mut i64
+    msg: mut ref u8
+}
+
+type EvalCtx = {
+    w: mut ref World
+    m: mut ref modinfo.ResolvedModule
+    vars: mut list[ref Var]
+    subst_names: mut list[ref u8]
+    subst_tys: mut list[ref parser.Node]
+    ret_ty: mut ref parser.Node
+    flow: mut i64
+    ret: mut ref Val
+    depth: mut i64
+    steps: mut i64
+    fuel: mut i64
+}
+
+type World = {
+    arena: mut allocators.ScopedArenaAllocator
+    root: mut ref modinfo.ResolvedModule
+    src_target: mut ref u8
+    fuel_limit: mut i64
+    depth_limit: mut i64
+    result_limit: mut i64
+    no_fold: mut bool
+    loud: mut bool
+    errors: mut list[ref u8]
+    fn_nodes: mut list[ref parser.Node]
+    fn_files: mut list[ref u8]
+    fn_states: mut list[i64]
+    fn_viols: mut list[ref u8]
+    used_fns: mut list[ref parser.Node]
+    seen_mods: mut list[ref void]
+    cur_viol: mut ref u8
+    cur_viol_line: mut i64
+    folded: mut i64
+    statics: mut i64
+}
+
+fn alloc_val(w: ref World) ref Val = trust {
+    val v: mut ref Val = allocators.ScopedArena.alloc_or_none(
+        w.arena,
+        @sizeof(Val) as usize
+    ) as ref Val
+    v.kind = VK_VOID
+    v.i = 0
+    v.f = 0.0
+    v.path = str.view(none, 0)
+    v.elems = mem.new[ref Val]()
+    v.names = mem.new[ref u8]()
+    v.ty = none
+    v.tag = 0
+    return v
+}
+
+fn void_val(w: ref World) ref Val = trust {
+    val v: mut ref Val = alloc_val(w)
+    v.kind = VK_VOID
+    return v
+}
+
+fn int_val(w: ref World, value: i64, ty: ref parser.Node) ref Val = trust {
+    val v: mut ref Val = alloc_val(w)
+    v.kind = VK_INT
+    v.i = value
+    v.ty = ty
+    return v
+}
+
+fn float_val(w: ref World, value: f64, ty: ref parser.Node) ref Val = trust {
+    val v: mut ref Val = alloc_val(w)
+    v.kind = VK_FLOAT
+    v.f = value
+    v.ty = ty
+    return v
+}
+
+fn bool_val(w: ref World, value: bool) ref Val = trust {
+    val v: mut ref Val = alloc_val(w)
+    v.kind = VK_BOOL
+    if value {
+        v.i = 1
+    } else {
+        v.i = 0
+    }
+    return v
+}
+
+fn cstr_val(w: ref World, text: str.StringView) ref Val = trust {
+    val v: mut ref Val = alloc_val(w)
+    v.kind = VK_CSTR
+    v.path = text
+    val ty: mut ref parser.Node = parser.make_node(w.arena, parser.TY_NAMED, 0)
+    parser.node_store_string_slot(@addr(ty.d0), c"ref u8")
+    v.ty = ty
+    return v
+}
+
+fn array_val(w: ref World, ty: ref parser.Node) ref Val = trust {
+    val v: mut ref Val = alloc_val(w)
+    v.kind = VK_ARRAY
+    v.ty = ty
+    return v
+}
+
+fn struct_val(w: ref World, ty: ref parser.Node) ref Val = trust {
+    val v: mut ref Val = alloc_val(w)
+    v.kind = VK_STRUCT
+    v.ty = ty
+    return v
+}
+
+fn option_val(w: ref World, tag: i64, payload: ref Val, ty: ref parser.Node) ref Val = trust {
+    val v: mut ref Val = alloc_val(w)
+    v.kind = VK_OPTION
+    v.tag = tag
+    v.ty = ty
+    if payload != none {
+        @append(v.elems, payload)
+    }
+    return v
+}
+
+fn result_val(w: ref World, tag: i64, payload: ref Val, ty: ref parser.Node) ref Val = trust {
+    val v: mut ref Val = alloc_val(w)
+    v.kind = VK_RESULT
+    v.tag = tag
+    v.ty = ty
+    if payload != none {
+        @append(v.elems, payload)
+    }
+    return v
+}
+
+fn mk_err(w: ref World, line: i64, kind: i64, msg: ref u8) ref EvalErr = trust {
+    val e: mut ref EvalErr = allocators.ScopedArena.alloc_or_none(
+        w.arena,
+        @sizeof(EvalErr) as usize
+    ) as ref EvalErr
+    e.kind = kind
+    e.line = line
+    e.msg = msg
+    return e
+}
+
+fn mk_trap(w: ref World, line: i64, msg: ref u8) ref EvalErr = trust {
+    return mk_err(w, line, EK_TRAP, msg)
+}
+
+fn unsupported(w: ref World, line: i64, what: ref u8) ref EvalErr = trust {
+    val msg: ref u8 = arenafmt.format(
+        w.arena,
+        "unsupported compile-time construct: {s}",
+        {what}
+    ).ptr
+    return mk_err(w, line, EK_UNSUPPORTED, msg)
+}
+
+fn err_text(e: ref EvalErr) ref u8 = trust {
+    if e == none {
+        return c""
+    }
+    return e.msg
+}
+
+fn add_error(w: mut ref World, msg: ref u8) void = trust {
+    @append(w.errors, msg)
+}
+
+fn fuel_tick(ctx: mut ref EvalCtx, line: i64) result[ref Val, ref EvalErr] = trust {
+    ctx.steps = ctx.steps + 1
+    if ctx.steps > ctx.fuel {
+        val msg: ref u8 = arenafmt.format(
+            ctx.w.arena,
+            "compile-time evaluation exhausted its fuel limit",
+            {}
+        ).ptr
+        return err mk_err(ctx.w, line, EK_FUEL, msg)
+    }
+    return ok void_val(ctx.w)
+}
+
+fn find_var(ctx: ref EvalCtx, name: ref u8) i64 = trust {
+    val n: i64 = @len(ctx.vars) as i64
+    val i: mut i64 = n - 1
+    for {
+        if i < 0 {
+            break
+        }
+        val v_opt = @get(ctx.vars, i as usize)
+        if v_opt is some vr {
+            if cstr.eql((vr as ref Var).name, name) {
+                return i
+            }
+        }
+        i--
+    }
+    return -1
+}
+
+fn vars_truncate(ctx: mut ref EvalCtx, depth: i64) void = trust {
+    val cur: mut i64 = @len(ctx.vars) as i64
+    for {
+        if cur <= depth {
+            break
+        }
+        @remove(ctx.vars, (cur - 1) as usize)
+        cur--
+    }
+}
+
+fn add_var(
+    ctx: mut ref EvalCtx,
+    name: ref u8,
+    ty: ref parser.Node,
+    v: ref Val,
+    mutable: i64
+) void = trust {
+    val vr: mut ref Var = allocators.ScopedArena.alloc_or_none(
+        ctx.w.arena,
+        @sizeof(Var) as usize
+    ) as ref Var
+    vr.name = name
+    vr.ty = ty
+    vr.payload_val = v
+    vr.mutable = mutable
+    @append(ctx.vars, vr)
+}
+
+fn subst_lookup(ctx: ref EvalCtx, name: ref u8) ref parser.Node = trust {
+    val n: i64 = @len(ctx.subst_names) as i64
+    val i: mut i64 = n - 1
+    for {
+        if i < 0 {
+            break
+        }
+        val n_opt = @get(ctx.subst_names, i as usize)
+        if n_opt is some sn {
+            if cstr.eql(sn as ref u8, name) {
+                val t_opt = @get(ctx.subst_tys, i as usize)
+                if t_opt is some t {
+                    return t as ref parser.Node
+                }
+            }
+        }
+        i--
+    }
+    return none
+}
+
+fn ty_unwrap(ty: ref parser.Node) ref parser.Node = trust {
+    if ty == none {
+        return none
+    }
+    if ty.kind == parser.TY_MUT || ty.kind == parser.TY_REF {
+        return ty_unwrap(ty.d0 as ref parser.Node)
+    }
+    return ty
+}
+
+fn ty_resolve(ctx: ref EvalCtx, ty: ref parser.Node) ref parser.Node = trust {
+    if ty == none {
+        return none
+    }
+    val k: i64 = ty.kind
+    if k == parser.TY_NAMED {
+        val name: ref u8 = parser.node_str_raw(ty.d0)
+        val sub: ref parser.Node = subst_lookup(ctx, name)
+        if sub != none {
+            return ty_resolve(ctx, sub)
+        }
+        return ty
+    }
+    if k == parser.TY_MUT || k == parser.TY_REF {
+        return ty_resolve(ctx, ty.d0 as ref parser.Node)
+    }
+    return ty
+}
+
+fn ty_name(ty: ref parser.Node) ref u8 = trust {
+    if ty == none {
+        return c""
+    }
+    if ty.kind == parser.TY_NAMED {
+        return parser.node_str_raw(ty.d0)
+    }
+    return c""
+}
+
+fn ty_is_name(ty: ref parser.Node, name: ref u8) bool = trust {
+    return cstr.eql(ty_name(ty), name)
+}
+
+fn ty_is_int(ty: ref parser.Node) bool = trust {
+    val n: ref u8 = ty_name(ty)
+    return cstr.eql(n, c"i8") || cstr.eql(n, c"u8") || cstr.eql(n, c"i16")
+    || cstr.eql(n, c"u16") || cstr.eql(n, c"i32") || cstr.eql(n, c"u32")
+    || cstr.eql(n, c"i64") || cstr.eql(n, c"u64") || cstr.eql(n, c"usize")
+    || cstr.eql(n, c"isize")
+}
+
+fn ty_is_float(ty: ref parser.Node) bool = trust {
+    val n: ref u8 = ty_name(ty)
+    return cstr.eql(n, c"f32") || cstr.eql(n, c"f64")
+}
+
+fn ty_is_unsigned(ty: ref parser.Node) bool = trust {
+    val n: ref u8 = ty_name(ty)
+    return cstr.eql(n, c"u8") || cstr.eql(n, c"u16") || cstr.eql(n, c"u32")
+    || cstr.eql(n, c"u64") || cstr.eql(n, c"usize")
+}
+
+fn ty_is_ref(ty: ref parser.Node) bool = trust {
+    if ty == none {
+        return false
+    }
+    if ty.kind == parser.TY_REF {
+        return true
+    }
+    if ty.kind == parser.TY_MUT {
+        return ty.d0 != 0 && (ty.d0 as ref parser.Node).kind == parser.TY_REF
+    }
+    return false
+}
+
+fn ty_is_list(ty: ref parser.Node) bool = trust {
+    return ty != none && (ty.kind == parser.TY_LIST || ty.kind == parser.TY_SLICE)
+}
+
+fn ty_is_stringview(ty: ref parser.Node) bool = trust {
+    val n: ref u8 = ty_name(ty)
+    return cstr.eql(n, c"StringView") || cstr.ends_with(n, c".StringView")
+}
+
+fn normalize_int(v: i64, ty: ref parser.Node) i64 = trust {
+    val n: ref u8 = ty_name(ty)
+    if cstr.eql(n, c"i8") {
+        val u: i64 = v & 0xff
+        if u >= 128 {
+            return u - 256
+        }
+        return u
+    }
+    if cstr.eql(n, c"u8") || cstr.eql(n, c"bool") {
+        return v & 0xff
+    }
+    if cstr.eql(n, c"i16") {
+        val u2: i64 = v & 0xffff
+        if u2 >= 32768 {
+            return u2 - 65536
+        }
+        return u2
+    }
+    if cstr.eql(n, c"u16") {
+        return v & 0xffff
+    }
+    if cstr.eql(n, c"i32") {
+        val u3: i64 = v & 0xffffffff
+        if u3 >= 2147483648 {
+            return u3 - 4294967296
+        }
+        return u3
+    }
+    if cstr.eql(n, c"u32") {
+        return v & 0xffffffff
+    }
+    return v
+}
+
+fn coerce(ctx: ref EvalCtx, v_in: ref Val, ty: ref parser.Node) ref Val = trust {
+    val v: mut ref Val = v_in
+    if v == none || ty == none {
+        return v
+    }
+    val target: ref parser.Node = ty_resolve(ctx, ty)
+    if target == none {
+        return v
+    }
+    if v.kind == VK_INT || v.kind == VK_BOOL {
+        if ty_is_float(target) {
+            val out: ref Val = float_val(ctx.w, v.i as f64, target)
+            return out
+        }
+        if ty_is_int(target) || ty_is_name(target, c"bool") || target.kind == parser.TY_NAMED {
+            val out2: mut ref Val = int_val(ctx.w, normalize_int(v.i, target), target)
+            if ty_is_name(target, c"bool") {
+                out2.kind = VK_BOOL
+                if out2.i != 0 {
+                    out2.i = 1
+                }
+            }
+            return out2
+        }
+    }
+    if v.kind == VK_FLOAT {
+        if ty_is_int(target) {
+            return int_val(ctx.w, normalize_int(v.f as i64, target), target)
+        }
+        if ty_is_float(target) {
+            val out3: ref Val = float_val(ctx.w, v.f, target)
+            return out3
+        }
+    }
+    v.ty = target
+    return v
+}
+
+fn is_plain_type(w: ref World, m: ref modinfo.ResolvedModule, ty: ref parser.Node) bool = trust {
+    if ty == none {
+        return false
+    }
+    val k: i64 = ty.kind
+    if k == parser.TY_MUT {
+        return is_plain_type(w, m, ty.d0 as ref parser.Node)
+    }
+    if k == parser.TY_REF || k == parser.TY_LIST || k == parser.TY_SLICE || k == parser.TY_FNPTR {
+        return false
+    }
+    if k == parser.TY_FIXED_ARR {
+        return is_plain_type(w, m, ty.d1 as ref parser.Node)
+    }
+    if k == parser.TY_OPTION {
+        return is_plain_type(w, m, ty.d0 as ref parser.Node)
+    }
+    if k == parser.TY_RESULT {
+        return is_plain_type(w, m, ty.d0 as ref parser.Node)
+        && is_plain_type(w, m, ty.d1 as ref parser.Node)
+    }
+    if k == parser.TY_NAMED {
+        val n: ref u8 = parser.node_str_raw(ty.d0)
+        if cstr.eql(n, c"StringView") || cstr.ends_with(n, c".StringView") {
+            return false
+        }
+        if cstr.eql(n, c"i8") || cstr.eql(n, c"u8") || cstr.eql(n, c"i16")
+        || cstr.eql(n, c"u16") || cstr.eql(n, c"i32") || cstr.eql(n, c"u32")
+        || cstr.eql(n, c"i64") || cstr.eql(n, c"u64") || cstr.eql(n, c"usize")
+        || cstr.eql(n, c"isize") || cstr.eql(n, c"f32") || cstr.eql(n, c"f64")
+        || cstr.eql(n, c"bool") {
+            return true
+        }
+        val td: ref parser.Node = find_type_def(w, m, n)
+        if td == none {
+            return false
+        }
+        if td.kind == parser.NK_ENUMDEF || td.kind == parser.NK_TAGGED_UNIONDEF {
+            return td.kind == parser.NK_ENUMDEF
+        }
+        if td.kind != parser.NK_TYPEDEF {
+            return false
+        }
+        val fields: ref void = td.d2 as ref void
+        if fields != none {
+            for f in fields as list[ref parser.Node] {
+                val ft: ref parser.Node = (f as ref parser.Node).d2 as ref parser.Node
+                if !is_plain_type(w, m, ft) {
+                    return false
+                }
+            }
+        }
+        return true
+    }
+    return false
+}
+
+fn find_type_def(
+    w: ref World,
+    m: ref modinfo.ResolvedModule,
+    name: ref u8
+) ref parser.Node = trust {
+    if m == none || name == none {
+        return none
+    }
+    for item in modinfo.module_items(m) {
+        if item == none {
+            continue
+        }
+        val k: i64 = item.kind
+        if k == parser.NK_TYPEDEF || k == parser.NK_ENUMDEF || k == parser.NK_UNIONDEF || k == parser.NK_TAGGED_UNIONDEF {
+            val n: ref u8 = parser.node_str_raw(item.d1)
+            if cstr.eql(n, name) {
+                return item
+            }
+        }
+        if k == parser.NK_WHEN_ITEMS {
+            val selected: list[ref parser.Node] = when_items_selected(w, item)
+            for wi in selected {
+                if wi == none {
+                    continue
+                }
+                if wi.kind == parser.NK_TYPEDEF || wi.kind == parser.NK_ENUMDEF
+                || wi.kind == parser.NK_UNIONDEF || wi.kind == parser.NK_TAGGED_UNIONDEF {
+                    val wn: ref u8 = parser.node_str_raw(wi.d1)
+                    if cstr.eql(wn, name) {
+                        return wi
+                    }
+                }
+            }
+        }
+    }
+    val nimp: i64 = modinfo.import_count(m)
+    val i: mut i64 = 0
+    for {
+        if i >= nimp {
+            break
+        }
+        val child: ref modinfo.ResolvedModule = modinfo.import_module_at(m, i as usize)
+        val found: ref parser.Node = find_type_def(w, child, name)
+        if found != none {
+            return found
+        }
+        i++
+    }
+    return none
+}
+
+fn when_items_selected(w: ref World, item: ref parser.Node) list[ref parser.Node] = trust {
+    val platform: ref u8 = parser.node_str_raw(item.d0)
+    if platform_matches(w, platform) {
+        return item.d1 as list[ref parser.Node]
+    }
+    val ors: ref void = item.d2 as ref void
+    if ors != none {
+        for ow in ors as list[ref parser.Node] {
+            val p: ref u8 = parser.node_str_raw((ow as ref parser.Node).d0)
+            if platform_matches(w, p) {
+                return (ow as ref parser.Node).d1 as list[ref parser.Node]
+            }
+        }
+    }
+    val otherwise: ref void = item.d3 as ref void
+    if otherwise != none {
+        return otherwise as list[ref parser.Node]
+    }
+    return mem.new[ref parser.Node]()
+}
+
+fn platform_matches(w: ref World, name: ref u8) bool = trust {
+    if name == none {
+        return false
+    }
+    val target: ref u8 = w.src_target
+    if cstr.eql(name, c"linux") || cstr.eql(name, c"windows") || cstr.eql(name, c"darwin") {
+        return cstr.starts_with(target, name)
+    }
+    if cstr.eql(name, c"x86_64") || cstr.eql(name, c"aarch64") {
+        return cstr.ends_with(target, name)
+    }
+    if cstr.eql(name, c"freestanding") || cstr.eql(name, c"hosted") {
+        return false
+    }
+    return cstr.starts_with(target, name) || cstr.ends_with(target, name)
+}
+
+type GlobalHit = {
+    item: mut ref parser.Node
+    m: mut ref modinfo.ResolvedModule
+}
+
+fn find_global(w: ref World, m: ref modinfo.ResolvedModule, name: ref u8) GlobalHit = trust {
+    if m == none || name == none {
+        return GlobalHit{item: none, m: none}
+    }
+    for item in modinfo.module_items(m) {
+        if item == none {
+            continue
+        }
+        if item.kind == parser.NK_VAL || item.kind == parser.NK_CONST {
+            val slot: mut i64 = item.d0
+            if item.kind == parser.NK_CONST {
+                slot = item.d1
+            }
+            val n: ref u8 = parser.node_str_raw(slot)
+            if cstr.eql(n, name) {
+                return GlobalHit{item: item, m: m}
+            }
+        }
+        if item.kind == parser.NK_WHEN_ITEMS {
+            for wi in when_items_selected(w, item) {
+                if wi != none && (wi.kind == parser.NK_VAL || wi.kind == parser.NK_CONST) {
+                    val wslot: mut i64 = wi.d0
+                    if wi.kind == parser.NK_CONST {
+                        wslot = wi.d1
+                    }
+                    val wn: ref u8 = parser.node_str_raw(wslot)
+                    if cstr.eql(wn, name) {
+                        return GlobalHit{item: wi, m: m}
+                    }
+                }
+            }
+        }
+    }
+    val nimp: i64 = modinfo.import_count(m)
+    val i: mut i64 = 0
+    for {
+        if i >= nimp {
+            break
+        }
+        val child: ref modinfo.ResolvedModule = modinfo.import_module_at(m, i as usize)
+        val hit: GlobalHit = find_global(w, child, name)
+        if hit.item != none {
+            return hit
+        }
+        i++
+    }
+    return GlobalHit{item: none, m: none}
+}
+
+fn field_index(td: ref parser.Node, name: ref u8) i64 = trust {
+    if td == none || td.kind != parser.NK_TYPEDEF {
+        return -1
+    }
+    val fields: ref void = td.d2 as ref void
+    if fields == none {
+        return -1
+    }
+    val n: i64 = @len(fields as list[ref parser.Node]) as i64
+    val i: mut i64 = 0
+    for {
+        if i >= n {
+            break
+        }
+        val f_opt = @get(fields as list[ref parser.Node], i as usize)
+        if f_opt is some f {
+            val fname: ref u8 = parser.node_str_raw((f as ref parser.Node).d0)
+            if cstr.eql(fname, name) {
+                return i
+            }
+        }
+        i++
+    }
+    return -1
+}
+
+fn field_type(td: ref parser.Node, idx: i64) ref parser.Node = trust {
+    if td == none || td.kind != parser.NK_TYPEDEF {
+        return none
+    }
+    val fields: ref void = td.d2 as ref void
+    if fields == none {
+        return none
+    }
+    val f_opt = @get(fields as list[ref parser.Node], idx as usize)
+    if f_opt is some f {
+        return (f as ref parser.Node).d2 as ref parser.Node
+    }
+    return none
+}
+
+fn field_type_named(
+    w: ref World,
+    m: ref modinfo.ResolvedModule,
+    ty: ref parser.Node,
+    name: ref u8
+) ref parser.Node = trust {
+    val td: ref parser.Node = find_type_def(w, m, ty_name(ty))
+    val idx: i64 = field_index(td, name)
+    if idx < 0 {
+        return none
+    }
+    return field_type(td, idx)
+}
+
+fn struct_field_val(v: ref Val, name: ref u8) i64 = trust {
+    val n: i64 = @len(v.names) as i64
+    val i: mut i64 = 0
+    for {
+        if i >= n {
+            break
+        }
+        val n_opt = @get(v.names, i as usize)
+        if n_opt is some fnm {
+            if cstr.eql(fnm as ref u8, name) {
+                return i
+            }
+        }
+        i++
+    }
+    return -1
+}
+
+fn type_size(w: ref World, m: ref modinfo.ResolvedModule, ty: ref parser.Node) i64 = trust {
+    if ty == none {
+        return 8
+    }
+    val k: i64 = ty.kind
+    if k == parser.TY_MUT {
+        return type_size(w, m, ty.d0 as ref parser.Node)
+    }
+    if k == parser.TY_REF || k == parser.TY_LIST || k == parser.TY_SLICE || k == parser.TY_FNPTR {
+        return 8
+    }
+    if k == parser.TY_FIXED_ARR {
+        val inner: ref parser.Node = ty.d1 as ref parser.Node
+        return parser.fixed_arr_size(ty) * type_size(w, m, inner)
+    }
+    if k == parser.TY_OPTION {
+        return 8 + type_size(w, m, ty.d0 as ref parser.Node)
+    }
+    if k == parser.TY_RESULT {
+        return 8 + type_size(w, m, ty.d0 as ref parser.Node)
+    }
+    val n: ref u8 = ty_name(ty)
+    if cstr.eql(n, c"i8") || cstr.eql(n, c"u8") || cstr.eql(n, c"bool") {
+        return 1
+    }
+    if cstr.eql(n, c"i16") || cstr.eql(n, c"u16") {
+        return 2
+    }
+    if cstr.eql(n, c"i32") || cstr.eql(n, c"u32") || cstr.eql(n, c"f32") {
+        return 4
+    }
+    val td: ref parser.Node = find_type_def(w, m, n)
+    if td != none && td.kind == parser.NK_TYPEDEF {
+        val fields: ref void = td.d2 as ref void
+        val total: mut i64 = 0
+        if fields != none {
+            for f in fields as list[ref parser.Node] {
+                total = total + type_size(w, m, (f as ref parser.Node).d2 as ref parser.Node)
+            }
+        }
+        return total
+    }
+    return 8
+}
+
+fn val_size(w: ref World, v: ref Val) i64 = trust {
+    if v == none {
+        return 0
+    }
+    if v.kind == VK_ARRAY || v.kind == VK_STRUCT {
+        val total: mut i64 = 0
+        for e in v.elems {
+            total = total + val_size(w, e)
+        }
+        return total
+    }
+    if v.kind == VK_OPTION || v.kind == VK_RESULT {
+        if @len(v.elems) as i64 > 0 {
+            val e_opt = @get(v.elems, 0 as usize)
+            if e_opt is some e {
+                return 8 + val_size(w, e as ref Val)
+            }
+        }
+        return 8
+    }
+    if v.kind == VK_CSTR {
+        return v.path.len
+    }
+    return type_size(w, w.root, v.ty)
+}
+
+fn zero_val(
+    w: ref World,
+    m: ref modinfo.ResolvedModule,
+    ty: ref parser.Node,
+    line: i64
+) result[ref Val, ref EvalErr] = trust {
+    if ty == none {
+        return err unsupported(w, line, c"@zeroed without a type")
+    }
+    val k: i64 = ty.kind
+    if k == parser.TY_MUT {
+        return zero_val(w, m, ty.d0 as ref parser.Node, line)
+    }
+    if k == parser.TY_FIXED_ARR {
+        val v: ref Val = array_val(w, ty)
+        val count: i64 = parser.fixed_arr_size(ty)
+        val inner: ref parser.Node = ty.d1 as ref parser.Node
+        val i: mut i64 = 0
+        for {
+            if i >= count {
+                break
+            }
+            val ev = zero_val(w, m, inner, line)?
+            @append(v.elems, ev)
+            i++
+        }
+        return ok v
+    }
+    if ty_is_int(ty) || ty_is_name(ty, c"bool") {
+        return ok int_val(w, 0, ty)
+    }
+    if ty_is_float(ty) {
+        return ok float_val(w, 0.0, ty)
+    }
+    if k == parser.TY_NAMED {
+        val td: ref parser.Node = find_type_def(w, m, ty_name(ty))
+        if td != none && td.kind == parser.NK_TYPEDEF {
+            val v2: ref Val = struct_val(w, ty)
+            val fields: ref void = td.d2 as ref void
+            if fields != none {
+                for f in fields as list[ref parser.Node] {
+                    val fname: ref u8 = parser.node_str_raw((f as ref parser.Node).d0)
+                    val fty: ref parser.Node = (f as ref parser.Node).d2 as ref parser.Node
+                    val fv = zero_val(w, m, fty, line)?
+                    @append(v2.names, fname)
+                    @append(v2.elems, fv)
+                }
+            }
+            return ok v2
+        }
+    }
+    return err unsupported(w, line, c"@zeroed for this type")
+}
+
+// ---------------------------------------------------------------------------
+// Type inference
+// ---------------------------------------------------------------------------
+
+fn infer_ty(
+    ctx: mut ref EvalCtx,
+    expr: ref parser.Node,
+    expected: ref parser.Node
+) ref parser.Node = trust {
+    if expr == none {
+        return expected
+    }
+    val k: i64 = expr.kind
+    if k == parser.NK_INT_LIT || k == parser.NK_CHAR_LIT {
+        if expected != none {
+            return ty_resolve(ctx, expected)
+        }
+        return named_ty(ctx.w, c"i64")
+    }
+    if k == parser.NK_FLOAT_LIT {
+        if expected != none {
+            return ty_resolve(ctx, expected)
+        }
+        return named_ty(ctx.w, c"f64")
+    }
+    if k == parser.NK_BOOL {
+        return named_ty(ctx.w, c"bool")
+    }
+    if k == parser.NK_STR_LIT {
+        if parser.str_lit_is_cstr(expr) {
+            return ref_u8_ty(ctx.w)
+        }
+        return named_ty(ctx.w, c"StringView")
+    }
+    if k == parser.NK_IDENT {
+        val name: ref u8 = parser.node_str_raw(expr.d0)
+        val vi: i64 = find_var(ctx, name)
+        if vi >= 0 {
+            val vr_opt = @get(ctx.vars, vi as usize)
+            if vr_opt is some vr {
+                return ty_resolve(ctx, (vr as ref Var).ty)
+            }
+        }
+        val sub: ref parser.Node = subst_lookup(ctx, name)
+        if sub != none {
+            return ty_resolve(ctx, sub)
+        }
+        val hit: GlobalHit = find_global(ctx.w, ctx.m, name)
+        if hit.item != none {
+            if hit.item.kind == parser.NK_VAL {
+                val t: ref parser.Node = hit.item.d2 as ref parser.Node
+                if t != none {
+                    return ty_resolve(ctx, t)
+                }
+                return infer_ty_new(ctx, hit.item.d3 as ref parser.Node, expected, hit.m)
+            }
+            if hit.item.kind == parser.NK_CONST {
+                val t2: ref parser.Node = hit.item.d3 as ref parser.Node
+                if t2 != none {
+                    return ty_resolve(ctx, t2)
+                }
+                return infer_ty_new(ctx, hit.item.d2 as ref parser.Node, expected, hit.m)
+            }
+        }
+        return expected
+    }
+    if k == parser.NK_CAST {
+        return ty_resolve(ctx, expr.d1 as ref parser.Node)
+    }
+    if k == parser.NK_TRUST {
+        return infer_ty(ctx, expr.d0 as ref parser.Node, expected)
+    }
+    if k == parser.NK_BINOP {
+        val op: i64 = parser.binop_op(expr)
+        if op == parser.OP_EQ || op == parser.OP_NE || op == parser.OP_LT
+        || op == parser.OP_GT || op == parser.OP_LE || op == parser.OP_GE
+        || op == parser.OP_AND || op == parser.OP_OR {
+            return named_ty(ctx.w, c"bool")
+        }
+        val lt: ref parser.Node = infer_ty(ctx, parser.binop_left(expr), none)
+        val rt: ref parser.Node = infer_ty(ctx, parser.binop_right(expr), none)
+        if lt != none && ty_is_float(lt) {
+            return lt
+        }
+        if rt != none && ty_is_float(rt) {
+            return rt
+        }
+        if lt != none && ty_is_int(lt) {
+            return lt
+        }
+        if rt != none && ty_is_int(rt) {
+            return rt
+        }
+        return named_ty(ctx.w, c"i64")
+    }
+    if k == parser.NK_UNOP {
+        if parser.unop_op(expr) == parser.UOP_NOT {
+            return named_ty(ctx.w, c"bool")
+        }
+        return infer_ty(ctx, parser.unop_inner(expr), expected)
+    }
+    if k == parser.NK_CALL {
+        return call_ret_ty(ctx, expr)
+    }
+    if k == parser.NK_BUILTIN {
+        val name: ref u8 = parser.node_str_raw(expr.d0)
+        if cstr.eql(name, c"get") || cstr.eql(name, c"getref") || cstr.eql(name, c"getmut") {
+            val args: ref void = expr.d1 as ref void
+            if args != none && @len(args as list[ref parser.Node]) as i64 > 0 {
+                val a0_opt = @get(args as list[ref parser.Node], 0 as usize)
+                if a0_opt is some a0 {
+                    val base_ty: ref parser.Node = infer_ty(ctx, a0 as ref parser.Node, none)
+                    val bt: ref parser.Node = ty_resolve(ctx, base_ty)
+                    if bt != none && bt.kind == parser.TY_FIXED_ARR {
+                        val inner: ref parser.Node = bt.d1 as ref parser.Node
+                        val opt: mut ref parser.Node = parser.make_node(
+                            ctx.w.arena,
+                            parser.TY_OPTION,
+                            expr.line
+                        )
+                        parser.node_store_slot[ref parser.Node](@addr(opt.d0), inner)
+                        return opt
+                    }
+                }
+            }
+            return expected
+        }
+        if cstr.eql(name, c"len") || cstr.eql(name, c"sizeof") || cstr.eql(name, c"static") {
+            if cstr.eql(name, c"static") {
+                val args2: ref void = expr.d1 as ref void
+                if args2 != none && @len(args2 as list[ref parser.Node]) as i64 > 0 {
+                    val a0_opt = @get(args2 as list[ref parser.Node], 0 as usize)
+                    if a0_opt is some a0 {
+                        return infer_ty(ctx, a0 as ref parser.Node, expected)
+                    }
+                }
+            }
+            return named_ty(ctx.w, c"usize")
+        }
+        if cstr.eql(name, c"zeroed") {
+            return expected
+        }
+        return expected
+    }
+    if k == parser.NK_SOME {
+        if expected != none {
+            return ty_resolve(ctx, expected)
+        }
+        val inner_ty: ref parser.Node = infer_ty(ctx, expr.d0 as ref parser.Node, none)
+        val opt2: mut ref parser.Node = parser.make_node(ctx.w.arena, parser.TY_OPTION, expr.line)
+        parser.node_store_slot[ref parser.Node](@addr(opt2.d0), inner_ty)
+        return opt2
+    }
+    if k == parser.NK_NONE {
+        return expected
+    }
+    if k == parser.NK_OK_VAL || k == parser.NK_ERR_VAL {
+        return expected
+    }
+    if k == parser.NK_TRY {
+        val inner_ty: ref parser.Node = infer_ty(ctx, expr.d0 as ref parser.Node, none)
+        val it: ref parser.Node = ty_resolve(ctx, inner_ty)
+        if it != none && (it.kind == parser.TY_OPTION || it.kind == parser.TY_RESULT) {
+            return it.d0 as ref parser.Node
+        }
+        return expected
+    }
+    if k == parser.NK_STRUCT_LIT {
+        val tname: ref u8 = parser.struct_lit_type_name_raw(expr)
+        if tname != none && cstr.len(tname) > 0 {
+            val t: ref parser.Node = find_type_def(ctx.w, ctx.m, tname)
+            if t != none {
+                return named_ty(ctx.w, parser.node_str_raw(t.d1))
+            }
+            return named_ty(ctx.w, tname)
+        }
+        return expected
+    }
+    if k == parser.NK_LIST_LIT || k == parser.NK_FIXED_ARR_LIT {
+        val et: mut ref parser.Node = none
+        if expected != none {
+            val exp: ref parser.Node = ty_resolve(ctx, expected)
+            if exp != none && exp.kind == parser.TY_FIXED_ARR {
+                et = exp.d1 as ref parser.Node
+            }
+        }
+        val elems: ref void = expr.d0 as ref void
+        val count: i64 = @len(elems as list[ref parser.Node]) as i64
+        if et == none && count > 0 {
+            val e0_opt = @get(elems as list[ref parser.Node], 0 as usize)
+            if e0_opt is some e0 {
+                et = infer_ty(ctx, e0 as ref parser.Node, none)
+            }
+        }
+        if et == none {
+            et = named_ty(ctx.w, c"i64")
+        }
+        val arr: mut ref parser.Node = parser.make_node(ctx.w.arena, parser.TY_FIXED_ARR, expr.line)
+        arr.d0 = count
+        parser.node_store_slot[ref parser.Node](@addr(arr.d1), et)
+        return arr
+    }
+    if k == parser.NK_ZERO_INIT {
+        return expected
+    }
+    if k == parser.NK_FIELD {
+        val base: ref parser.Node = parser.field_base(expr)
+        val fname: ref u8 = parser.field_name_raw(expr)
+        if base != none && base.kind == parser.NK_IDENT {
+            val hit: GlobalHit = find_global(ctx.w, ctx.m, parser.node_str_raw(base.d0))
+            if hit.item == none {
+                val sub: ref parser.Node = subst_lookup(ctx, parser.node_str_raw(base.d0))
+                if sub != none {
+                    val td: ref parser.Node = find_type_def(
+                        ctx.w,
+                        ctx.m,
+                        ty_name(ty_resolve(ctx, sub))
+                    )
+                    val idx: i64 = field_index(td, fname)
+                    if idx >= 0 {
+                        return field_type(td, idx)
+                    }
+                }
+            }
+        }
+        val bt2: ref parser.Node = infer_ty(ctx, base, none)
+        val ft: ref parser.Node = field_type_named(ctx.w, ctx.m, ty_resolve(ctx, bt2), fname)
+        if ft != none {
+            return ft
+        }
+        return expected
+    }
+    return expected
+}
+
+fn infer_ty_new(
+    ctx_in: ref EvalCtx,
+    expr: ref parser.Node,
+    expected: ref parser.Node,
+    m: ref modinfo.ResolvedModule
+) ref parser.Node = trust {
+    val ctx: mut ref EvalCtx = ctx_in
+    val saved: ref modinfo.ResolvedModule = ctx.m
+    ctx.m = m
+    val out: ref parser.Node = infer_ty(ctx, expr, expected)
+    ctx.m = saved
+    return out
+}
+
+fn named_ty(w: ref World, name: ref u8) ref parser.Node = trust {
+    val ty: mut ref parser.Node = parser.make_node(w.arena, parser.TY_NAMED, 0)
+    parser.node_store_string_slot(@addr(ty.d0), name)
+    return ty
+}
+
+fn ref_u8_ty(w: ref World) ref parser.Node = trust {
+    val inner: ref parser.Node = named_ty(w, c"u8")
+    val ty: mut ref parser.Node = parser.make_node(w.arena, parser.TY_REF, 0)
+    parser.node_store_slot[ref parser.Node](@addr(ty.d0), inner)
+    return ty
+}
+
+fn call_ret_ty(ctx_in: ref EvalCtx, expr: ref parser.Node) ref parser.Node = trust {
+    val ctx: mut ref EvalCtx = ctx_in
+    val fn_node: ref parser.Node = parser.call_resolved_fn(expr)
+    if fn_node == none {
+        return none
+    }
+    val callee: ref parser.Node = parser.call_callee(expr)
+    if callee != none && callee.kind == parser.NK_GENERIC_INST && fn_node.kind == parser.NK_GENERIC_FN {
+        val saved_names: list[ref u8] = ctx.subst_names
+        val saved_tys: list[ref parser.Node] = ctx.subst_tys
+        ctx.subst_names = mem.new[ref u8]()
+        ctx.subst_tys = mem.new[ref parser.Node]()
+        val tparams: ref void = fn_node.d6 as ref void
+        val targs: list[ref parser.Node] = parser.generic_inst_type_args(callee)
+        val n: i64 = @len(targs) as i64
+        val i: mut i64 = 0
+        for {
+            if i >= n {
+                break
+            }
+            val pn_opt = @get(tparams as list[ref parser.Node], i as usize)
+            val ta_opt = @get(targs, i as usize)
+            if pn_opt is some pn {
+                if ta_opt is some ta {
+                    @append(ctx.subst_names, parser.tparam_name_raw(pn as ref parser.Node))
+                    @append(ctx.subst_tys, ty_resolve(ctx, ta as ref parser.Node))
+                }
+            }
+            i++
+        }
+        val ret: ref parser.Node = ty_resolve(ctx, fn_node.d4 as ref parser.Node)
+        ctx.subst_names = saved_names
+        ctx.subst_tys = saved_tys
+        return ret
+    }
+    if fn_node.kind == parser.NK_FN || fn_node.kind == parser.NK_GENERIC_FN {
+        return ty_resolve(ctx, fn_node.d4 as ref parser.Node)
+    }
+    if fn_node.kind == parser.NK_EXTERN_FN {
+        return fn_node.d5 as ref parser.Node
+    }
+    return none
+}
+
+// ---------------------------------------------------------------------------
+// Purity analysis
+// ---------------------------------------------------------------------------
+
+fn set_viol(w_in: ref World, line: i64, msg: ref u8) void = trust {
+    val w: mut ref World = w_in
+    if w.cur_viol != none {
+        return
+    }
+    w.cur_viol = msg
+    w.cur_viol_line = line
+}
+
+fn purity_call_ok(w: ref World, expr: ref parser.Node) bool = trust {
+    val fn_node: ref parser.Node = parser.call_resolved_fn(expr)
+    if fn_node == none {
+        set_viol(w, expr.line, c"calls a function the compiler cannot prove pure")
+        return false
+    }
+    if fn_node.kind == parser.NK_EXTERN_FN {
+        set_viol(w, expr.line, c"calls an extern function")
+        return false
+    }
+    if fn_node.kind != parser.NK_FN && fn_node.kind != parser.NK_GENERIC_FN {
+        set_viol(w, expr.line, c"calls a non-pure function")
+        return false
+    }
+    val idx: i64 = pure_index(w, fn_node)
+    if idx >= 0 {
+        val st_opt = @get(w.fn_states, idx as usize)
+        if st_opt is some st {
+            if (st as i64) == 2 {
+                val nm: ref u8 = fn_name_of(fn_node)
+                val msg: ref u8 = arenafmt.format(
+                    w.arena,
+                    "calls non-pure function '{s}'",
+                    {nm}
+                ).ptr
+                set_viol(w, expr.line, msg)
+                return false
+            }
+        }
+    }
+    return true
+}
+
+fn basis_purity(w: ref World, ctx_in: ref EvalCtx, expr: ref parser.Node) bool = trust {
+    val ctx: mut ref EvalCtx = ctx_in
+    if expr == none {
+        return true
+    }
+    val base_ty: ref parser.Node = infer_ty(ctx, expr, none)
+    val bt: ref parser.Node = ty_resolve(ctx, base_ty)
+    if bt == none {
+        return true
+    }
+    if bt.kind == parser.TY_FIXED_ARR {
+        return true
+    }
+    if ty_is_list(bt) {
+        set_viol(w, expr.line, c"operates on a list or slice through a pointer")
+        return false
+    }
+    if ty_is_ref(bt) {
+        set_viol(w, expr.line, c"operates on a reference")
+        return false
+    }
+    if ty_is_stringview(bt) {
+        set_viol(w, expr.line, c"operates on a StringView")
+        return false
+    }
+    return true
+}
+
+fn purity_intrinsic_ok(
+    w: ref World,
+    ctx_in: ref EvalCtx,
+    expr: ref parser.Node,
+    name: ref u8
+) bool = trust {
+    val ctx: mut ref EvalCtx = ctx_in
+    val args: ref void = expr.d1 as ref void
+    if cstr.eql(name, c"static") || cstr.eql(name, c"staticerror") {
+        return true
+    }
+    if cstr.eql(name, c"zeroed") || cstr.eql(name, c"sizeof") {
+        return true
+    }
+    if cstr.eql(name, c"get") || cstr.eql(name, c"set") || cstr.eql(name, c"len") {
+        if args == none || @len(args as list[ref parser.Node]) as i64 == 0 {
+            return true
+        }
+        val a0_opt = @get(args as list[ref parser.Node], 0 as usize)
+        if a0_opt is some a0 {
+            return basis_purity(w, ctx, a0 as ref parser.Node)
+        }
+        return true
+    }
+    if cstr.eql(name, c"bitcast") {
+        if args != none && @len(args as list[ref parser.Node]) as i64 > 0 {
+            val a0_opt2 = @get(args as list[ref parser.Node], 0 as usize)
+            if a0_opt2 is some a0 {
+                val vt: ref parser.Node = ty_resolve(
+                    ctx,
+                    infer_ty(ctx, a0 as ref parser.Node, none)
+                )
+                if vt != none && is_plain_type(w, ctx.m, vt) {
+                    return true
+                }
+            }
+        }
+        set_viol(w, expr.line, c"bitcasts through a non-plain type")
+        return false
+    }
+    val msg: ref u8 = arenafmt.format(
+        w.arena,
+        "uses impure intrinsic '@{s}'",
+        {name}
+    ).ptr
+    set_viol(w, expr.line, msg)
+    return false
+}
+
+fn purity_expr(w: ref World, ctx_in: ref EvalCtx, expr: ref parser.Node) bool = trust {
+    val ctx: mut ref EvalCtx = ctx_in
+    if expr == none {
+        return true
+    }
+    val k: i64 = expr.kind
+    if k == parser.NK_INT_LIT || k == parser.NK_FLOAT_LIT || k == parser.NK_STR_LIT
+    || k == parser.NK_BOOL || k == parser.NK_NONE || k == parser.NK_CHAR_LIT {
+        return true
+    }
+    if k == parser.NK_IDENT {
+        val name: ref u8 = parser.node_str_raw(expr.d0)
+        if find_var(ctx, name) >= 0 {
+            return true
+        }
+        if subst_lookup(ctx, name) != none {
+            return true
+        }
+        val hit: GlobalHit = find_global(w, ctx.m, name)
+        if hit.item != none {
+            if hit.item.kind == parser.NK_VAL && hit.item.d1 as i64 != 0 {
+                val msg2: ref u8 = arenafmt.format(
+                    w.arena,
+                    "reads mutable global '{s}'",
+                    {name}
+                ).ptr
+                set_viol(w, expr.line, msg2)
+                return false
+            }
+            val t: mut ref parser.Node = none
+            if hit.item.kind == parser.NK_VAL {
+                t = hit.item.d2 as ref parser.Node
+            } else {
+                t = hit.item.d3 as ref parser.Node
+            }
+            if t != none && !is_plain_type(w, hit.m, t) {
+                val msg3: ref u8 = arenafmt.format(
+                    w.arena,
+                    "reads non-plain constant '{s}'",
+                    {name}
+                ).ptr
+                set_viol(w, expr.line, msg3)
+                return false
+            }
+            return true
+        }
+        return true
+    }
+    if k == parser.NK_BINOP {
+        return purity_expr(w, ctx, parser.binop_left(expr))
+        && purity_expr(w, ctx, parser.binop_right(expr))
+    }
+    if k == parser.NK_UNOP {
+        return purity_expr(w, ctx, parser.unop_inner(expr))
+    }
+    if k == parser.NK_CAST || k == parser.NK_TRUST {
+        return purity_expr(w, ctx, expr.d0 as ref parser.Node)
+    }
+    if k == parser.NK_TRY {
+        return purity_expr(w, ctx, expr.d0 as ref parser.Node)
+    }
+    if k == parser.NK_ADDR {
+        set_viol(w, expr.line, c"takes an address")
+        return false
+    }
+    if k == parser.NK_DEREF {
+        set_viol(w, expr.line, c"dereferences a pointer")
+        return false
+    }
+    if k == parser.NK_SOME || k == parser.NK_OK_VAL || k == parser.NK_ERR_VAL {
+        return purity_expr(w, ctx, expr.d0 as ref parser.Node)
+    }
+    if k == parser.NK_FIELD {
+        val base: ref parser.Node = parser.field_base(expr)
+        if base != none && base.kind == parser.NK_IDENT {
+            val bname: ref u8 = parser.node_str_raw(base.d0)
+            if subst_lookup(ctx, bname) != none {
+                return true
+            }
+            val sub: ref parser.Node = subst_lookup(ctx, bname)
+            if sub == none && find_var(ctx, bname) < 0 {
+                val hit: GlobalHit = find_global(w, ctx.m, bname)
+                if hit.item == none {
+                    return true
+                }
+            }
+        }
+        return purity_expr(w, ctx, base)
+    }
+    if k == parser.NK_CALL {
+        if !purity_call_ok(w, expr) {
+            return false
+        }
+        val args: ref void = parser.call_args(expr) as ref void
+        if args != none {
+            for a in args as list[ref parser.Node] {
+                if !purity_expr(w, ctx, a) {
+                    return false
+                }
+            }
+        }
+        return true
+    }
+    if k == parser.NK_BUILTIN {
+        val name: ref u8 = parser.node_str_raw(expr.d0)
+        val args: ref void = expr.d1 as ref void
+        if args != none {
+            val ai: mut i64 = 0
+            for a in args as list[ref parser.Node] {
+                if cstr.eql(name, c"va_arg") && ai == 1 {
+                    ai++
+                    continue
+                }
+                if !purity_expr(w, ctx, a) {
+                    return false
+                }
+                ai++
+            }
+        }
+        return purity_intrinsic_ok(w, ctx, expr, name)
+    }
+    if k == parser.NK_STRUCT_LIT {
+        val fields: ref void = expr.d0 as ref void
+        if fields != none {
+            for f in fields as list[ref parser.Node] {
+                if !purity_expr(w, ctx, (f as ref parser.Node).d1 as ref parser.Node) {
+                    return false
+                }
+            }
+        }
+        return true
+    }
+    if k == parser.NK_LIST_LIT || k == parser.NK_FIXED_ARR_LIT || k == parser.NK_ARGS_PACK {
+        val elems: ref void = expr.d0 as ref void
+        if elems != none {
+            for e in elems as list[ref parser.Node] {
+                if !purity_expr(w, ctx, e) {
+                    return false
+                }
+            }
+        }
+        return true
+    }
+    if k == parser.NK_ZERO_INIT {
+        return true
+    }
+    if k == parser.NK_GENERIC_INST {
+        return purity_expr(w, ctx, expr.d0 as ref parser.Node)
+    }
+    return true
+}
+
+fn purity_body_node(w: ref World, ctx_in: ref EvalCtx, node: ref parser.Node) bool = trust {
+    val ctx: mut ref EvalCtx = ctx_in
+    if node == none {
+        return true
+    }
+    val k: i64 = node.kind
+    if k == parser.NK_MATCH_OPT || k == parser.NK_MATCH_RES || k == parser.NK_MATCH_VALUE
+    || k == parser.NK_MATCH_ENUM || k == parser.NK_MATCH_STR || k == parser.NK_MATCH_UNION
+    || k == parser.NK_MATCH_TAGGED_UNION || k == parser.NK_IF || k == parser.NK_GUARD {
+        return purity_stmts(w, ctx, node.d0 as ref parser.Node)
+        && purity_stmts(w, ctx, node.d1 as ref parser.Node)
+        && purity_stmts(w, ctx, node.d2 as ref parser.Node)
+        && purity_stmts(w, ctx, node.d3 as ref parser.Node)
+        && purity_stmts(w, ctx, node.d4 as ref parser.Node)
+    }
+    return purity_stmts(w, ctx, node)
+}
+
+fn purity_stmts(w: ref World, ctx_in: ref EvalCtx, stmts: ref parser.Node) bool = trust {
+    val ctx: mut ref EvalCtx = ctx_in
+    if stmts == none {
+        return true
+    }
+    val n: i64 = @len(stmts) as i64
+    val i: mut i64 = 0
+    for {
+        if i >= n {
+            break
+        }
+        val s_opt = @get(stmts, i as usize)
+        if s_opt is some s {
+            if !purity_stmt(w, ctx, s as ref parser.Node) {
+                return false
+            }
+        }
+        i++
+    }
+    return true
+}
+
+fn purity_stmt(w: ref World, ctx_in: ref EvalCtx, stmt: ref parser.Node) bool = trust {
+    val ctx: mut ref EvalCtx = ctx_in
+    if stmt == none {
+        return true
+    }
+    val k: i64 = stmt.kind
+    if k == parser.NK_VAL {
+        val vinit: ref parser.Node = stmt.d3 as ref parser.Node
+        if !purity_expr(w, ctx, vinit) {
+            return false
+        }
+        val vname: ref u8 = parser.node_str_raw(stmt.d0)
+        val vty: ref parser.Node = infer_ty(ctx, stmt.d2 as ref parser.Node, none)
+        val real_vty: mut ref parser.Node = vty
+        if real_vty == none {
+            real_vty = infer_ty(ctx, vinit, none)
+        }
+        add_var(ctx, vname, real_vty, none, stmt.d1 as i64)
+        return true
+    }
+    if k == parser.NK_ASSIGN || k == parser.NK_ADD_ASSIGN || k == parser.NK_SUB_ASSIGN {
+        val target: ref parser.Node = stmt.d0 as ref parser.Node
+        if target != none && target.kind == parser.NK_IDENT {
+            val name: ref u8 = parser.node_str_raw(target.d0)
+            if find_var(ctx, name) < 0 {
+                val msg: ref u8 = arenafmt.format(
+                    w.arena,
+                    "writes global '{s}'",
+                    {name}
+                ).ptr
+                set_viol(w, stmt.line, msg)
+                return false
+            }
+        }
+        return purity_expr(w, ctx, target) && purity_expr(w, ctx, stmt.d1 as ref parser.Node)
+    }
+    if k == parser.NK_INCREMENT || k == parser.NK_DECREMENT {
+        val target: ref parser.Node = stmt.d0 as ref parser.Node
+        if target != none && target.kind == parser.NK_IDENT {
+            val name: ref u8 = parser.node_str_raw(target.d0)
+            if find_var(ctx, name) < 0 {
+                val msg: ref u8 = arenafmt.format(
+                    w.arena,
+                    "writes global '{s}'",
+                    {name}
+                ).ptr
+                set_viol(w, stmt.line, msg)
+                return false
+            }
+        }
+        return purity_expr(w, ctx, target)
+    }
+    if k == parser.NK_RETURN || k == parser.NK_EXPR_STMT {
+        return purity_expr(w, ctx, stmt.d0 as ref parser.Node)
+    }
+    if k == parser.NK_ASSERT {
+        return purity_expr(w, ctx, stmt.d0 as ref parser.Node)
+    }
+    if k == parser.NK_PRE || k == parser.NK_POST || k == parser.NK_GUARDED_PRE || k == parser.NK_GUARDED_POST {
+        val clist: ref void = stmt.d0 as ref void
+        if clist != none {
+            for c in clist as list[ref parser.Node] {
+                if !purity_expr(w, ctx, (c as ref parser.Node).d1 as ref parser.Node) {
+                    return false
+                }
+            }
+        }
+        return true
+    }
+    if k == parser.NK_IF {
+        if stmt.d1 == 0 as i64 {
+            return purity_stmts(w, ctx, stmt.d0 as ref parser.Node)
+        }
+        if !purity_expr(w, ctx, stmt.d0 as ref parser.Node) {
+            return false
+        }
+        if !purity_stmts(w, ctx, stmt.d1 as ref parser.Node) {
+            return false
+        }
+        val elifs: ref void = stmt.d2 as ref void
+        if elifs != none {
+            for ep in elifs as list[ref parser.Node] {
+                if !purity_expr(w, ctx, (ep as ref parser.Node).d0 as ref parser.Node) {
+                    return false
+                }
+                if !purity_stmts(w, ctx, (ep as ref parser.Node).d1 as ref parser.Node) {
+                    return false
+                }
+            }
+        }
+        val else_body: ref parser.Node = stmt.d3 as ref parser.Node
+        if else_body != none {
+            if !purity_stmts(w, ctx, else_body.d0 as ref parser.Node) {
+                return false
+            }
+        }
+        return true
+    }
+    if k == parser.NK_FOR {
+        if !purity_expr(w, ctx, stmt.d1 as ref parser.Node) {
+            return false
+        }
+        if !purity_expr(w, ctx, stmt.d2 as ref parser.Node) {
+            return false
+        }
+        val loop_name: ref u8 = parser.node_str_raw(stmt.d0)
+        if loop_name != none {
+            add_var(ctx, loop_name, named_ty(w, c"i64"), none, 1)
+        }
+        if !purity_stmt(w, ctx, stmt.d3 as ref parser.Node) {
+            return false
+        }
+        return purity_stmts(w, ctx, stmt.d4 as ref parser.Node)
+    }
+    if k == parser.NK_FORIN {
+        if !purity_expr(w, ctx, stmt.d1 as ref parser.Node) {
+            return false
+        }
+        if !basis_purity(w, ctx, stmt.d1 as ref parser.Node) {
+            return false
+        }
+        val bind_name: ref u8 = parser.node_str_raw(stmt.d0)
+        if bind_name != none {
+            add_var(ctx, bind_name, infer_ty(ctx, stmt.d1 as ref parser.Node, none), none, 0)
+        }
+        return purity_stmts(w, ctx, stmt.d2 as ref parser.Node)
+    }
+    if k == parser.NK_GUARD {
+        return purity_expr(w, ctx, stmt.d0 as ref parser.Node)
+        && purity_stmts(w, ctx, stmt.d1 as ref parser.Node)
+    }
+    if k == parser.NK_DEFER || k == parser.NK_TRUST_BLOCK {
+        return purity_stmts(w, ctx, stmt.d0 as ref parser.Node)
+    }
+    if k == parser.NK_GENERIC_WHEN {
+        return purity_stmts(w, ctx, stmt.d1 as ref parser.Node)
+    }
+    if k == parser.NK_MATCH_OPT || k == parser.NK_MATCH_RES {
+        if !purity_expr(w, ctx, stmt.d0 as ref parser.Node) {
+            return false
+        }
+        if !purity_body_node(w, ctx, stmt.d2 as ref parser.Node) {
+            return false
+        }
+        if k == parser.NK_MATCH_OPT {
+            if !purity_body_node(w, ctx, stmt.d3 as ref parser.Node) {
+                return false
+            }
+        } else {
+            if !purity_body_node(w, ctx, stmt.d4 as ref parser.Node) {
+                return false
+            }
+        }
+        return true
+    }
+    if k == parser.NK_MATCH_VALUE || k == parser.NK_MATCH_ENUM || k == parser.NK_MATCH_STR
+    || k == parser.NK_MATCH_UNION || k == parser.NK_MATCH_TAGGED_UNION {
+        if !purity_expr(w, ctx, stmt.d0 as ref parser.Node) {
+            return false
+        }
+        val arms: ref void = stmt.d1 as ref void
+        if arms != none {
+            for arm in arms as list[ref parser.Node] {
+                if !purity_stmts(w, ctx, (arm as ref parser.Node).d1 as ref parser.Node) {
+                    return false
+                }
+            }
+        }
+        return purity_body_node(w, ctx, stmt.d2 as ref parser.Node)
+    }
+    if k == parser.NK_WHEN_STMT {
+        return purity_stmts(w, ctx, stmt.d1 as ref parser.Node)
+    }
+    return true
+}
+
+fn fn_name_of(fn_node: ref parser.Node) ref u8 = trust {
+    if fn_node == none {
+        return c""
+    }
+    if fn_node.kind == parser.NK_FN || fn_node.kind == parser.NK_GENERIC_FN {
+        return parser.node_str_raw(fn_node.d2)
+    }
+    if fn_node.kind == parser.NK_EXTERN_FN {
+        return parser.node_str_raw(fn_node.d1)
+    }
+    return c""
+}
+
+fn mark_used_fn(w: mut ref World, fn_node: ref parser.Node) void = trust {
+    if fn_node == none {
+        return
+    }
+    val n: i64 = @len(w.used_fns) as i64
+    val i: mut i64 = 0
+    for {
+        if i >= n {
+            break
+        }
+        val f_opt = @get(w.used_fns, i as usize)
+        if f_opt is some f {
+            if (f as ref parser.Node) == fn_node {
+                return
+            }
+        }
+        i++
+    }
+    @append(w.used_fns, fn_node)
+}
+
+fn fn_is_used(w: ref World, fn_node: ref parser.Node) bool = trust {
+    val n: i64 = @len(w.used_fns) as i64
+    val i: mut i64 = 0
+    for {
+        if i >= n {
+            break
+        }
+        val f_opt = @get(w.used_fns, i as usize)
+        if f_opt is some f {
+            if (f as ref parser.Node) == fn_node {
+                return true
+            }
+        }
+        i++
+    }
+    return false
+}
+
+fn pure_index(w: ref World, fn_node: ref parser.Node) i64 = trust {
+    val n: i64 = @len(w.fn_nodes) as i64
+    val i: mut i64 = 0
+    for {
+        if i >= n {
+            break
+        }
+        val f_opt = @get(w.fn_nodes, i as usize)
+        if f_opt is some f {
+            if (f as ref parser.Node) == fn_node {
+                return i
+            }
+        }
+        i++
+    }
+    return -1
+}
+
+fn collect_fn(w: mut ref World, m: ref modinfo.ResolvedModule, file: ref u8) void = trust {
+    if m == none {
+        return
+    }
+    for s in w.seen_mods {
+        if s == m as ref void {
+            return
+        }
+    }
+    @append(w.seen_mods, m as ref void)
+    for item in modinfo.module_items(m) {
+        if item == none {
+            continue
+        }
+        if item.kind == parser.NK_FN || item.kind == parser.NK_GENERIC_FN {
+            @append(w.fn_nodes, item)
+            @append(w.fn_files, file)
+            @append(w.fn_states, 1 as i64)
+            @append(w.fn_viols, none)
+        }
+        if item.kind == parser.NK_WHEN_ITEMS {
+            for wi in when_items_selected(w, item) {
+                if wi != none && (wi.kind == parser.NK_FN || wi.kind == parser.NK_GENERIC_FN) {
+                    @append(w.fn_nodes, wi)
+                    @append(w.fn_files, file)
+                    @append(w.fn_states, 1 as i64)
+                    @append(w.fn_viols, none)
+                }
+            }
+        }
+    }
+    val nimp: i64 = modinfo.import_count(m)
+    val i: mut i64 = 0
+    for {
+        if i >= nimp {
+            break
+        }
+        val child: ref modinfo.ResolvedModule = modinfo.import_module_at(m, i as usize)
+        val child_file: ref u8 = modinfo.module_display_filename(child)
+        collect_fn(w, child, child_file)
+        i++
+    }
+}
+
+fn make_fn_ctx(
+    w_in: ref World,
+    m: ref modinfo.ResolvedModule,
+    fn_node: ref parser.Node
+) ref EvalCtx = trust {
+    val ctx: mut ref EvalCtx = allocators.ScopedArena.alloc_or_none(
+        w_in.arena,
+        @sizeof(EvalCtx) as usize
+    ) as ref EvalCtx
+    ctx.w = w_in
+    ctx.m = m
+    ctx.vars = mem.new[ref Var]()
+    ctx.subst_names = mem.new[ref u8]()
+    ctx.subst_tys = mem.new[ref parser.Node]()
+    ctx.ret_ty = fn_node.d4 as ref parser.Node
+    ctx.flow = 0
+    ctx.ret = none
+    ctx.depth = 0
+    ctx.steps = 0
+    ctx.fuel = w_in.fuel_limit
+    val params: ref void = fn_node.d3 as ref void
+    if params != none {
+        for p in params as list[ref parser.Node] {
+            val pn: ref u8 = parser.node_str_raw((p as ref parser.Node).d0)
+            val pty: ref parser.Node = (p as ref parser.Node).d1 as ref parser.Node
+            add_var(ctx, pn, pty, none, 1)
+        }
+    }
+    return ctx
+}
+
+fn purity_analyze(w: mut ref World) void = trust {
+    collect_fn(w, w.root, modinfo.module_display_filename(w.root))
+    val changed: mut bool = true
+    for {
+        if !changed {
+            break
+        }
+        changed = false
+        val n: i64 = @len(w.fn_nodes) as i64
+        val i: mut i64 = 0
+        for {
+            if i >= n {
+                break
+            }
+            val st_opt = @get(w.fn_states, i as usize)
+            if st_opt is some st {
+                if (st as i64) == 1 {
+                    val f_opt = @get(w.fn_nodes, i as usize)
+                    if f_opt is some f {
+                        val fn_node: ref parser.Node = f as ref parser.Node
+                        val file_opt = @get(w.fn_files, i as usize)
+                        val file: mut ref u8 = c"<unknown>"
+                        if file_opt is some fl {
+                            file = fl as ref u8
+                        }
+                        val ctx: mut ref EvalCtx = make_fn_ctx(w, w.root, fn_node)
+                        ctx.m = module_for_fn(w, fn_node, w.root)
+                        w.cur_viol = none
+                        w.cur_viol_line = 0
+                        val body_pure: bool = purity_stmts(w, ctx, fn_node.d5 as ref parser.Node)
+                        if !body_pure {
+                            @remove(w.fn_states, i as usize)
+                            @insert(w.fn_states, i as usize, 2 as i64)
+                            val vmsg: ref u8 = arenafmt.format(
+                                w.arena,
+                                "{s}:{lld}: {s}",
+                                {file, w.cur_viol_line, w.cur_viol}
+                            ).ptr
+                            @remove(w.fn_viols, i as usize)
+                            @insert(w.fn_viols, i as usize, vmsg)
+                            changed = true
+                        }
+                    }
+                }
+            }
+            i++
+        }
+    }
+    val n2: i64 = @len(w.fn_nodes) as i64
+    val i2: mut i64 = 0
+    for {
+        if i2 >= n2 {
+            break
+        }
+        val f_opt = @get(w.fn_nodes, i2 as usize)
+        if f_opt is some f {
+            val fn_node: ref parser.Node = f as ref parser.Node
+            if parser.fn_is_pure(fn_node) {
+                val st_opt = @get(w.fn_states, i2 as usize)
+                val st: mut i64 = 1
+                if st_opt is some s {
+                    st = s as i64
+                }
+                if st == 2 {
+                    val v_opt = @get(w.fn_viols, i2 as usize)
+                    val detail: mut ref u8 = c"the body has an impure operation"
+                    if v_opt is some vv {
+                        detail = vv as ref u8
+                    }
+                    val nm: ref u8 = fn_name_of(fn_node)
+                    val file_opt2 = @get(w.fn_files, i2 as usize)
+                    val file2: mut ref u8 = c"<unknown>"
+                    if file_opt2 is some fl2 {
+                        file2 = fl2 as ref u8
+                    }
+                    val msg: ref u8 = arenafmt.format(
+                        w.arena,
+                        "{s}:{lld}: function '{s}' is marked pure but is not pure: {s}",
+                        {file2, fn_node.line, nm, detail}
+                    ).ptr
+                    add_error(w, msg)
+                }
+            }
+        }
+        i2++
+    }
+}
+
+fn module_for_fn(
+    w: ref World,
+    fn_node: ref parser.Node,
+    m: ref modinfo.ResolvedModule
+) ref modinfo.ResolvedModule = trust {
+    if m == none {
+        return none
+    }
+    for item in modinfo.module_items(m) {
+        if item == fn_node {
+            return m
+        }
+        if item != none && item.kind == parser.NK_WHEN_ITEMS {
+            for wi in when_items_selected(w, item) {
+                if wi == fn_node {
+                    return m
+                }
+            }
+        }
+    }
+    val nimp: i64 = modinfo.import_count(m)
+    val i: mut i64 = 0
+    for {
+        if i >= nimp {
+            break
+        }
+        val child: ref modinfo.ResolvedModule = modinfo.import_module_at(m, i as usize)
+        val found: ref modinfo.ResolvedModule = module_for_fn(
+            w,
+            fn_node,
+            child
+        )
+        if found != none {
+            return found
+        }
+        i++
+    }
+    return m
+}
+
+// ---------------------------------------------------------------------------
+// Evaluation
+// ---------------------------------------------------------------------------
+
+fn eval_stmts(ctx: mut ref EvalCtx, stmts: ref parser.Node) result[ref Val, ref EvalErr] = trust {
+    if stmts == none {
+        return ok void_val(ctx.w)
+    }
+    val before: i64 = @len(ctx.vars) as i64
+    val n: i64 = @len(stmts) as i64
+    val i: mut i64 = 0
+    for {
+        if i >= n {
+            break
+        }
+        val s_opt = @get(stmts, i as usize)
+        if s_opt is some s {
+            val sv = eval_stmt(ctx, s as ref parser.Node)?
+            if ctx.flow != 0 {
+                vars_truncate(ctx, before)
+                return ok sv
+            }
+        }
+        i++
+    }
+    vars_truncate(ctx, before)
+    return ok void_val(ctx.w)
+}
+
+fn eval_body_node(
+    ctx: mut ref EvalCtx,
+    node: ref parser.Node
+) result[ref Val, ref EvalErr] = trust {
+    if node == none {
+        return ok void_val(ctx.w)
+    }
+    if node.kind == parser.NK_IF && node.d0 != 0 as i64 {
+        val d0: ref parser.Node = node.d0 as ref parser.Node
+        if d0 != none && d0.kind != parser.NK_BINOP && d0.kind != parser.NK_IDENT
+        && d0.kind != parser.NK_BOOL && d0.kind != parser.NK_INT_LIT {
+            return eval_stmts(ctx, node.d0 as ref parser.Node)
+        }
+    }
+    return eval_stmts(ctx, node.d0 as ref parser.Node)
+}
+
+fn eval_stmt(ctx: mut ref EvalCtx, stmt: ref parser.Node) result[ref Val, ref EvalErr] = trust {
+    if stmt == none {
+        return ok void_val(ctx.w)
+    }
+    val _ = fuel_tick(ctx, stmt.line)?
+    val k: i64 = stmt.kind
+    if k == parser.NK_VAL {
+        val name: ref u8 = parser.node_str_raw(stmt.d0)
+        val mutable: i64 = stmt.d1 as i64
+        val ann: ref parser.Node = ty_resolve(ctx, stmt.d2 as ref parser.Node)
+        val init: ref parser.Node = stmt.d3 as ref parser.Node
+        val v0 = eval_expr(ctx, init, ann)?
+        val v: mut ref Val = v0
+        val vty: mut ref parser.Node = v0.ty
+        if ann != none {
+            v = coerce(ctx, v0, ann)
+            vty = ann
+        }
+        add_var(ctx, name, vty, v, mutable)
+        return ok void_val(ctx.w)
+    }
+    if k == parser.NK_ASSIGN {
+        val target: ref parser.Node = stmt.d0 as ref parser.Node
+        val ty: ref parser.Node = infer_ty(ctx, target, none)
+        val rhs = eval_expr(ctx, stmt.d1 as ref parser.Node, ty)?
+        assign_target(ctx, target, coerce(ctx, rhs, ty))?
+        return ok void_val(ctx.w)
+    }
+    if k == parser.NK_ADD_ASSIGN || k == parser.NK_SUB_ASSIGN {
+        val target: ref parser.Node = stmt.d0 as ref parser.Node
+        val ty: ref parser.Node = infer_ty(ctx, target, none)
+        val old = eval_expr(ctx, target, ty)?
+        val rhs = eval_expr(ctx, stmt.d1 as ref parser.Node, ty)?
+        val out: ref Val = arith(ctx, old, rhs, parser.OP_ADD, stmt.line)?
+        assign_target(ctx, target, coerce(ctx, out, ty))?
+        return ok void_val(ctx.w)
+    }
+    if k == parser.NK_INCREMENT || k == parser.NK_DECREMENT {
+        val target: ref parser.Node = stmt.d0 as ref parser.Node
+        val ty: ref parser.Node = infer_ty(ctx, target, none)
+        val old = eval_expr(ctx, target, ty)?
+        val v: ref Val = int_val(ctx.w, 1, ty)
+        val op: mut i64 = parser.OP_SUB
+        if k == parser.NK_INCREMENT {
+            op = parser.OP_ADD
+        }
+        val out = arith(ctx, old, v, op, stmt.line)?
+        assign_target(ctx, target, coerce(ctx, out, ty))?
+        return ok void_val(ctx.w)
+    }
+    if k == parser.NK_RETURN {
+        val expr: ref parser.Node = stmt.d0 as ref parser.Node
+        val rv = eval_expr(ctx, expr, ctx.ret_ty)?
+        ctx.ret = coerce(ctx, rv, ctx.ret_ty)
+        ctx.flow = 3
+        return ok ctx.ret
+    }
+    if k == parser.NK_IF {
+        if stmt.d1 == 0 as i64 {
+            return eval_stmts(ctx, stmt.d0 as ref parser.Node)
+        }
+        val cond = eval_cond(ctx, stmt.d0 as ref parser.Node)?
+        if cond {
+            return eval_stmts(ctx, stmt.d1 as ref parser.Node)
+        }
+        val elifs: ref void = stmt.d2 as ref void
+        if elifs != none {
+            for ep in elifs as list[ref parser.Node] {
+                val c2 = eval_cond(ctx, (ep as ref parser.Node).d0 as ref parser.Node)?
+                if c2 {
+                    return eval_stmts(ctx, (ep as ref parser.Node).d1 as ref parser.Node)
+                }
+            }
+        }
+        val else_body: ref parser.Node = stmt.d3 as ref parser.Node
+        if else_body != none {
+            return eval_stmts(ctx, else_body.d0 as ref parser.Node)
+        }
+        return ok void_val(ctx.w)
+    }
+    if k == parser.NK_FOR {
+        val before: i64 = @len(ctx.vars) as i64
+        val name: ref u8 = parser.node_str_raw(stmt.d0)
+        val init: ref parser.Node = stmt.d1 as ref parser.Node
+        if name != none && init != none {
+            val iv = eval_expr(ctx, init, none)?
+            add_var(ctx, name, iv.ty, iv, 1)
+        }
+        for {
+            val cond_node: ref parser.Node = stmt.d2 as ref parser.Node
+            if cond_node != none {
+                val c = eval_cond(ctx, cond_node)?
+                if !c {
+                    break
+                }
+            }
+            val body_res = eval_stmts(ctx, stmt.d4 as ref parser.Node)?
+            if ctx.flow == 1 {
+                ctx.flow = 0
+                break
+            }
+            if ctx.flow == 2 {
+                ctx.flow = 0
+            }
+            if ctx.flow == 3 {
+                vars_truncate(ctx, before)
+                return ok body_res
+            }
+            if ctx.flow != 0 {
+                break
+            }
+            val post_node: ref parser.Node = stmt.d3 as ref parser.Node
+            if post_node != none {
+                val _ = eval_stmt(ctx, post_node)?
+            }
+        }
+        vars_truncate(ctx, before)
+        return ok void_val(ctx.w)
+    }
+    if k == parser.NK_FORIN {
+        val before: i64 = @len(ctx.vars) as i64
+        val name: ref u8 = parser.node_str_raw(stmt.d0)
+        val iter = eval_expr(ctx, stmt.d1 as ref parser.Node, none)?
+        val it: ref Val = iter
+        if it.kind == VK_ARRAY {
+            for e in it.elems {
+                add_var(ctx, name, e.ty, e, 0)
+                val br = eval_stmts(ctx, stmt.d2 as ref parser.Node)?
+                vars_truncate(ctx, before + 1)
+                if ctx.flow == 1 {
+                    ctx.flow = 0
+                    break
+                }
+                if ctx.flow == 2 {
+                    ctx.flow = 0
+                    continue
+                }
+                if ctx.flow == 3 {
+                    vars_truncate(ctx, before)
+                    return ok br
+                }
+            }
+        }
+        vars_truncate(ctx, before)
+        return ok void_val(ctx.w)
+    }
+    if k == parser.NK_BREAK {
+        ctx.flow = 1
+        return ok void_val(ctx.w)
+    }
+    if k == parser.NK_CONTINUE {
+        ctx.flow = 2
+        return ok void_val(ctx.w)
+    }
+    if k == parser.NK_ASSERT {
+        val cond = eval_cond(ctx, stmt.d0 as ref parser.Node)?
+        if !cond {
+            return err mk_trap(ctx.w, stmt.line, c"assertion failed during compile-time evaluation")
+        }
+        return ok void_val(ctx.w)
+    }
+    if k == parser.NK_PRE || k == parser.NK_POST || k == parser.NK_GUARDED_PRE || k == parser.NK_GUARDED_POST {
+        val clist: ref void = stmt.d0 as ref void
+        if clist != none {
+            for c in clist as list[ref parser.Node] {
+                val cond = eval_cond(ctx, (c as ref parser.Node).d1 as ref parser.Node)?
+                if !cond {
+                    return err mk_trap(
+                        ctx.w,
+                        stmt.line,
+                        c"precondition/assertion failed during compile-time evaluation"
+                    )
+                }
+            }
+        }
+        return ok void_val(ctx.w)
+    }
+    if k == parser.NK_GUARD {
+        val cond = eval_cond(ctx, stmt.d0 as ref parser.Node)?
+        if !cond {
+            return eval_stmts(ctx, stmt.d1 as ref parser.Node)
+        }
+        return ok void_val(ctx.w)
+    }
+    if k == parser.NK_EXPR_STMT {
+        return eval_expr(ctx, stmt.d0 as ref parser.Node, none)
+    }
+    if k == parser.NK_TRUST_BLOCK || k == parser.NK_DEFER {
+        return eval_stmts(ctx, stmt.d0 as ref parser.Node)
+    }
+    if k == parser.NK_GENERIC_WHEN {
+        if gwhen_matches(ctx, stmt) {
+            return eval_stmts(ctx, stmt.d1 as ref parser.Node)
+        }
+        return ok void_val(ctx.w)
+    }
+    if k == parser.NK_MATCH_OPT || k == parser.NK_MATCH_RES {
+        val target = eval_expr(ctx, stmt.d0 as ref parser.Node, none)?
+        val tag: i64 = target.tag
+        if k == parser.NK_MATCH_OPT {
+            if tag == 1 {
+                val bind: ref u8 = parser.match_opt_some_bind_raw(stmt)
+                val before: i64 = @len(ctx.vars) as i64
+                if bind != none && @len(target.elems) as i64 > 0 {
+                    val p_opt = @get(target.elems, 0 as usize)
+                    if p_opt is some p {
+                        add_var(ctx, bind, (p as ref Val).ty, p as ref Val, 0)
+                    }
+                }
+                val out = eval_body_node(ctx, parser.match_opt_some_body(stmt))?
+                vars_truncate(ctx, before)
+                return ok out
+            }
+            return eval_body_node(ctx, parser.match_opt_none_body(stmt))
+        }
+        if tag == 0 {
+            val bind: ref u8 = parser.match_res_ok_bind_raw(stmt)
+            val before2: i64 = @len(ctx.vars) as i64
+            if bind != none && @len(target.elems) as i64 > 0 {
+                val p_opt2 = @get(target.elems, 0 as usize)
+                if p_opt2 is some p2 {
+                    add_var(ctx, bind, (p2 as ref Val).ty, p2 as ref Val, 0)
+                }
+            }
+            val out2 = eval_body_node(ctx, parser.match_res_ok_body(stmt))?
+            vars_truncate(ctx, before2)
+            return ok out2
+        }
+        val bind2: ref u8 = parser.match_res_err_bind_raw(stmt)
+        val before3: i64 = @len(ctx.vars) as i64
+        if bind2 != none && @len(target.elems) as i64 > 0 {
+            val p_opt3 = @get(target.elems, 0 as usize)
+            if p_opt3 is some p3 {
+                add_var(ctx, bind2, (p3 as ref Val).ty, p3 as ref Val, 0)
+            }
+        }
+        val out3 = eval_body_node(ctx, parser.match_res_err_body(stmt))?
+        vars_truncate(ctx, before3)
+        return ok out3
+    }
+    if k == parser.NK_MATCH_VALUE || k == parser.NK_MATCH_ENUM || k == parser.NK_MATCH_STR {
+        val target2 = eval_expr(ctx, stmt.d0 as ref parser.Node, none)?
+        val arms: ref void = stmt.d1 as ref void
+        if arms != none {
+            for arm in arms as list[ref parser.Node] {
+                val pat = eval_expr(
+                    ctx,
+                    (arm as ref parser.Node).d0 as ref parser.Node,
+                    target2.ty
+                )?
+                if val_equal(pat, target2) {
+                    return eval_stmts(ctx, (arm as ref parser.Node).d1 as ref parser.Node)
+                }
+            }
+        }
+        return eval_body_node(ctx, stmt.d2 as ref parser.Node)
+    }
+    if k == parser.NK_WHEN_STMT {
+        if platform_matches(ctx.w, parser.node_str_raw(stmt.d0)) {
+            return eval_stmts(ctx, stmt.d1 as ref parser.Node)
+        }
+        return ok void_val(ctx.w)
+    }
+    return ok void_val(ctx.w)
+}
+
+fn eval_cond(ctx: mut ref EvalCtx, expr: ref parser.Node) result[bool, ref EvalErr] = trust {
+    val v = eval_expr(ctx, expr, none)?
+    if v.kind == VK_BOOL || v.kind == VK_INT {
+        return ok (v.i != 0)
+    }
+    if v.kind == VK_FLOAT {
+        return ok (v.f != 0.0)
+    }
+    val cline: mut i64 = 0
+    if expr != none {
+        cline = expr.line
+    }
+    return err mk_err(ctx.w, cline, EK_TRAP, c"condition is not a scalar value")
+}
+
+fn eval_expr(
+    ctx: mut ref EvalCtx,
+    expr: ref parser.Node,
+    expected: ref parser.Node
+) result[ref Val, ref EvalErr] = trust {
+    if expr == none {
+        return ok void_val(ctx.w)
+    }
+    val _ = fuel_tick(ctx, expr.line)?
+    val k: i64 = expr.kind
+    if k == parser.NK_INT_LIT {
+        val text: ref u8 = parser.int_lit_text_raw(expr)
+        return ok int_val(ctx.w, parse_int(text), ty_resolve(ctx, expected))
+    }
+    if k == parser.NK_FLOAT_LIT {
+        val text2: ref u8 = parser.float_lit_text_raw(expr)
+        val fv: mut f64 = 0.0
+        match fmt.string_to_f64(text2) {
+            ok v => {
+                fv = v
+            }
+            err _ => {
+                return err mk_trap(
+                    ctx.w,
+                    expr.line,
+                    c"invalid float literal during compile-time evaluation"
+                )
+            }
+        }
+        return ok float_val(ctx.w, fv, ty_resolve(ctx, expected))
+    }
+    if k == parser.NK_CHAR_LIT {
+        return ok int_val(ctx.w, expr.d0 as i64, named_ty(ctx.w, c"u8"))
+    }
+    if k == parser.NK_BOOL {
+        return ok bool_val(ctx.w, (expr.d0 as i64) != 0)
+    }
+    if k == parser.NK_STR_LIT {
+        val sv: mut ref Val = cstr_val(ctx.w, parser.str_lit_text(expr))
+        if !parser.str_lit_is_cstr(expr) {
+            sv.ty = named_ty(ctx.w, c"StringView")
+        }
+        return ok sv
+    }
+    if k == parser.NK_IDENT {
+        val name: ref u8 = parser.node_str_raw(expr.d0)
+        val vi: i64 = find_var(ctx, name)
+        if vi >= 0 {
+            val vr_opt = @get(ctx.vars, vi as usize)
+            if vr_opt is some vr {
+                val stored: ref Val = (vr as ref Var).payload_val
+                return ok stored
+            }
+        }
+        val sub: ref parser.Node = subst_lookup(ctx, name)
+        if sub != none {
+            return err unsupported(ctx.w, expr.line, c"a type parameter used as a value")
+        }
+        val hit: GlobalHit = find_global(ctx.w, ctx.m, name)
+        if hit.item != none {
+            return eval_global(ctx, hit)
+        }
+        return err unsupported(ctx.w, expr.line, c"unknown identifier in compile-time evaluation")
+    }
+    if k == parser.NK_BINOP {
+        val op: i64 = parser.binop_op(expr)
+        if op == parser.OP_AND {
+            val l = eval_cond(ctx, parser.binop_left(expr))?
+            if !l {
+                return ok bool_val(ctx.w, false)
+            }
+            val r = eval_cond(ctx, parser.binop_right(expr))?
+            return ok bool_val(ctx.w, r)
+        }
+        if op == parser.OP_OR {
+            val l2 = eval_cond(ctx, parser.binop_left(expr))?
+            if l2 {
+                return ok bool_val(ctx.w, true)
+            }
+            val r2 = eval_cond(ctx, parser.binop_right(expr))?
+            return ok bool_val(ctx.w, r2)
+        }
+        val l = eval_expr(ctx, parser.binop_left(expr), none)?
+        val r = eval_expr(ctx, parser.binop_right(expr), none)?
+        return arith(ctx, l, r, op, expr.line)
+    }
+    if k == parser.NK_UNOP {
+        val op2: i64 = parser.unop_op(expr)
+        val v = eval_expr(ctx, parser.unop_inner(expr), expected)?
+        if op2 == parser.UOP_NEG {
+            if v.kind == VK_FLOAT {
+                return ok float_val(ctx.w, -v.f, v.ty)
+            }
+            return ok int_val(ctx.w, normalize_int(-v.i, v.ty), v.ty)
+        }
+        if op2 == parser.UOP_NOT {
+            return ok bool_val(ctx.w, v.i == 0)
+        }
+        if op2 == parser.UOP_BNOT {
+            return ok int_val(ctx.w, normalize_int(~v.i, v.ty), v.ty)
+        }
+        return err unsupported(ctx.w, expr.line, c"unary operator")
+    }
+    if k == parser.NK_CAST {
+        val target: ref parser.Node = ty_resolve(ctx, expr.d1 as ref parser.Node)
+        val inner = eval_expr(ctx, expr.d0 as ref parser.Node, target)?
+        return ok coerce(ctx, inner, target)
+    }
+    if k == parser.NK_TRUST {
+        return eval_expr(ctx, expr.d0 as ref parser.Node, expected)
+    }
+    if k == parser.NK_TRY {
+        val inner2 = eval_expr(ctx, expr.d0 as ref parser.Node, none)?
+        if inner2.kind == VK_OPTION {
+            if inner2.tag == 1 {
+                if @len(inner2.elems) as i64 > 0 {
+                    val p_opt = @get(inner2.elems, 0 as usize)
+                    if p_opt is some p {
+                        return ok p as ref Val
+                    }
+                }
+                return ok void_val(ctx.w)
+            }
+            return err mk_err(
+                ctx.w,
+                expr.line,
+                EK_PROPAGATE,
+                c"'?' propagated 'none' out of a compile-time expression"
+            )
+        }
+        if inner2.kind == VK_RESULT {
+            if inner2.tag == 0 {
+                if @len(inner2.elems) as i64 > 0 {
+                    val p_opt2 = @get(inner2.elems, 0 as usize)
+                    if p_opt2 is some p2 {
+                        return ok p2 as ref Val
+                    }
+                }
+                return ok void_val(ctx.w)
+            }
+            return err mk_err(
+                ctx.w,
+                expr.line,
+                EK_PROPAGATE,
+                c"'?' propagated 'err' out of a compile-time expression"
+            )
+        }
+        return err mk_trap(ctx.w, expr.line, c"'?' applied to a non-option, non-result value")
+    }
+    if k == parser.NK_SOME {
+        val payload = eval_expr(
+            ctx,
+            expr.d0 as ref parser.Node,
+            option_payload_expected(ctx, expected)
+        )?
+        return ok option_val(ctx.w, 1, payload, ty_resolve(ctx, expected))
+    }
+    if k == parser.NK_NONE {
+        return ok option_val(ctx.w, 0, none, ty_resolve(ctx, expected))
+    }
+    if k == parser.NK_OK_VAL || k == parser.NK_ERR_VAL {
+        val payload2 = eval_expr(
+            ctx,
+            expr.d0 as ref parser.Node,
+            result_payload_expected(ctx, expected, k == parser.NK_ERR_VAL)
+        )?
+        val tag2: mut i64 = 1
+        if k == parser.NK_OK_VAL {
+            tag2 = 0
+        }
+        return ok result_val(ctx.w, tag2, payload2, ty_resolve(ctx, expected))
+    }
+    if k == parser.NK_STRUCT_LIT {
+        return eval_struct_lit(ctx, expr, expected)
+    }
+    if k == parser.NK_LIST_LIT || k == parser.NK_FIXED_ARR_LIT {
+        return eval_array_lit(ctx, expr, expected)
+    }
+    if k == parser.NK_ZERO_INIT {
+        return zero_val(ctx.w, ctx.m, ty_resolve(ctx, expected), expr.line)
+    }
+    if k == parser.NK_FIELD {
+        return eval_field(ctx, expr)
+    }
+    if k == parser.NK_CALL {
+        return eval_call(ctx, expr)
+    }
+    if k == parser.NK_BUILTIN {
+        return eval_builtin(ctx, expr, expected)
+    }
+    if k == parser.NK_GENERIC_INST {
+        return eval_expr(ctx, expr.d0 as ref parser.Node, expected)
+    }
+    return err unsupported(ctx.w, expr.line, c"expression")
+}
+
+fn option_payload_expected(ctx: ref EvalCtx, expected: ref parser.Node) ref parser.Node = trust {
+    val e: ref parser.Node = ty_resolve(ctx, expected)
+    if e != none && e.kind == parser.TY_OPTION {
+        return e.d0 as ref parser.Node
+    }
+    return none
+}
+
+fn result_payload_expected(
+    ctx: ref EvalCtx,
+    expected: ref parser.Node,
+    is_err: bool
+) ref parser.Node = trust {
+    val e: ref parser.Node = ty_resolve(ctx, expected)
+    if e != none && e.kind == parser.TY_RESULT {
+        if is_err {
+            return e.d1 as ref parser.Node
+        }
+        return e.d0 as ref parser.Node
+    }
+    return none
+}
+
+fn parse_int(text: ref u8) i64 = trust {
+    if text == none {
+        return 0
+    }
+    if @load8(text) == 48 {
+        val marker: i64 = @load8(@ptradd(text, 1)) as i64
+        if marker == 120 || marker == 88 {
+            val acc: mut i64 = 0
+            val i: mut i64 = 2
+            for {
+                val c: i64 = @load8(@ptradd(text, i)) as i64
+                if c == 0 {
+                    break
+                }
+                val d: mut i64 = c - 48
+                if c >= 97 && c <= 102 {
+                    d = c - 87
+                } elif c >= 65 && c <= 70 {
+                    d = c - 55
+                }
+                acc = acc * 16 + d
+                i++
+            }
+            return acc
+        }
+    }
+    match fmt.string_to_i64(text) {
+        ok v => {
+            return v
+        }
+        err _ => {
+            return 0
+        }
+    }
+}
+
+fn eval_global(ctx: mut ref EvalCtx, hit: GlobalHit) result[ref Val, ref EvalErr] = trust {
+    val item: ref parser.Node = hit.item
+    val saved_m: ref modinfo.ResolvedModule = ctx.m
+    ctx.m = hit.m
+    if item.kind == parser.NK_VAL {
+        if item.d1 as i64 != 0 {
+            ctx.m = saved_m
+            return err mk_err(ctx.w, item.line, EK_IMPURE, c"reads a mutable global")
+        }
+        val ann: ref parser.Node = ty_resolve(ctx, item.d2 as ref parser.Node)
+        val v = eval_expr(ctx, item.d3 as ref parser.Node, ann)?
+        val out: mut ref Val = v
+        if ann != none {
+            out = coerce(ctx, v, ann)
+        }
+        ctx.m = saved_m
+        return ok out
+    }
+    if item.kind == parser.NK_CONST {
+        val ann2: ref parser.Node = ty_resolve(ctx, item.d3 as ref parser.Node)
+        val v2 = eval_expr(ctx, item.d2 as ref parser.Node, ann2)?
+        val out2: mut ref Val = v2
+        if ann2 != none {
+            out2 = coerce(ctx, v2, ann2)
+        }
+        ctx.m = saved_m
+        return ok out2
+    }
+    ctx.m = saved_m
+    return err unsupported(ctx.w, item.line, c"global initializer")
+}
+
+fn eval_array_lit(
+    ctx: mut ref EvalCtx,
+    expr: ref parser.Node,
+    expected: ref parser.Node
+) result[ref Val, ref EvalErr] = trust {
+    val exp: ref parser.Node = ty_resolve(ctx, expected)
+    val elem_ty: mut ref parser.Node = none
+    if exp != none && exp.kind == parser.TY_FIXED_ARR {
+        elem_ty = exp.d1 as ref parser.Node
+    }
+    val elems: ref void = expr.d0 as ref void
+    val count: i64 = @len(elems as list[ref parser.Node]) as i64
+    if elem_ty == none && count > 0 {
+        val e0_opt = @get(elems as list[ref parser.Node], 0 as usize)
+        if e0_opt is some e0 {
+            elem_ty = infer_ty(ctx, e0 as ref parser.Node, none)
+        }
+    }
+    if elem_ty == none {
+        elem_ty = named_ty(ctx.w, c"i64")
+    }
+    val arr_ty: mut ref parser.Node = parser.make_node(ctx.w.arena, parser.TY_FIXED_ARR, expr.line)
+    arr_ty.d0 = count
+    parser.node_store_slot[ref parser.Node](@addr(arr_ty.d1), elem_ty)
+    val out: ref Val = array_val(ctx.w, arr_ty)
+    val i: mut i64 = 0
+    for {
+        if i >= count {
+            break
+        }
+        val e_opt = @get(elems as list[ref parser.Node], i as usize)
+        if e_opt is some e {
+            val ev = eval_expr(ctx, e as ref parser.Node, elem_ty)?
+            @append(out.elems, coerce(ctx, ev, elem_ty))
+        }
+        i++
+    }
+    return ok out
+}
+
+fn eval_struct_lit(
+    ctx: mut ref EvalCtx,
+    expr: ref parser.Node,
+    expected: ref parser.Node
+) result[ref Val, ref EvalErr] = trust {
+    val exp: ref parser.Node = ty_resolve(ctx, expected)
+    val tname: ref u8 = parser.struct_lit_type_name_raw(expr)
+    val ty: mut ref parser.Node = exp
+    if tname != none && cstr.len(tname) > 0 {
+        val td: ref parser.Node = find_type_def(ctx.w, ctx.m, tname)
+        if td != none {
+            ty = named_ty(ctx.w, parser.node_str_raw(td.d1))
+        } else {
+            ty = named_ty(ctx.w, tname)
+        }
+    }
+    if ty == none {
+        return err unsupported(ctx.w, expr.line, c"struct literal without an inferable type")
+    }
+    val td2: ref parser.Node = find_type_def(ctx.w, ctx.m, ty_name(ty))
+    val out: ref Val = struct_val(ctx.w, ty)
+    val fields: ref void = expr.d0 as ref void
+    if fields != none {
+        for f in fields as list[ref parser.Node] {
+            val fname: ref u8 = parser.node_str_raw((f as ref parser.Node).d0)
+            val fty: ref parser.Node = field_type_named(ctx.w, ctx.m, ty, fname)
+            if fty != none {
+                val fv = eval_expr(ctx, (f as ref parser.Node).d1 as ref parser.Node, fty)?
+                @append(out.names, fname)
+                @append(out.elems, coerce(ctx, fv, fty))
+            }
+        }
+    }
+    if td2 != none && td2.kind == parser.NK_TYPEDEF {
+        val declared: ref void = td2.d2 as ref void
+        if declared != none && @len(out.names) as i64 < @len(declared as list[ref parser.Node]) as i64 {
+            for df in declared as list[ref parser.Node] {
+                val dn: ref u8 = parser.node_str_raw((df as ref parser.Node).d0)
+                if struct_field_val(out, dn) < 0 {
+                    val dft: ref parser.Node = (df as ref parser.Node).d2 as ref parser.Node
+                    val zv = zero_val(ctx.w, ctx.m, dft, expr.line)?
+                    @append(out.names, dn)
+                    @append(out.elems, zv)
+                }
+            }
+        }
+    }
+    return ok out
+}
+
+fn eval_field(ctx: mut ref EvalCtx, expr: ref parser.Node) result[ref Val, ref EvalErr] = trust {
+    val base: ref parser.Node = parser.field_base(expr)
+    val fname: ref u8 = parser.field_name_raw(expr)
+    if base != none && base.kind == parser.NK_IDENT {
+        val bname: ref u8 = parser.node_str_raw(base.d0)
+        if find_var(ctx, bname) < 0 && subst_lookup(ctx, bname) == none {
+            val hit: GlobalHit = find_global(ctx.w, ctx.m, bname)
+            if hit.item == none {
+                return err unsupported(ctx.w, expr.line, c"field access on a type or module")
+            }
+        }
+    }
+    val bv = eval_expr(ctx, base, none)?
+    if bv.kind == VK_STRUCT {
+        val idx: i64 = struct_field_val(bv, fname)
+        if idx >= 0 {
+            val f_opt = @get(bv.elems, idx as usize)
+            if f_opt is some f {
+                return ok f as ref Val
+            }
+        }
+        return err unsupported(ctx.w, expr.line, c"unknown struct field")
+    }
+    if bv.kind == VK_CSTR && cstr.eql(fname, c"len") {
+        return ok int_val(ctx.w, bv.path.len, named_ty(ctx.w, c"usize"))
+    }
+    return err unsupported(ctx.w, expr.line, c"field access on this value")
+}
+
+fn eval_call(ctx: mut ref EvalCtx, expr: ref parser.Node) result[ref Val, ref EvalErr] = trust {
+    val fn_node: ref parser.Node = parser.call_resolved_fn(expr)
+    if fn_node == none {
+        return err mk_err(ctx.w, expr.line, EK_IMPURE, c"calls an unresolved function")
+    }
+    if fn_node.kind == parser.NK_EXTERN_FN {
+        return err mk_err(ctx.w, expr.line, EK_IMPURE, c"calls an extern function")
+    }
+    val pidx: i64 = pure_index(ctx.w, fn_node)
+    if pidx >= 0 {
+        val st_opt = @get(ctx.w.fn_states, pidx as usize)
+        if st_opt is some st {
+            if (st as i64) == 2 {
+                val msg: ref u8 = arenafmt.format(
+                    ctx.w.arena,
+                    "calls non-pure function '{s}'",
+                    {fn_name_of(fn_node)}
+                ).ptr
+                return err mk_err(ctx.w, expr.line, EK_IMPURE, msg)
+            }
+        }
+    }
+    if ctx.depth >= ctx.w.depth_limit {
+        return err mk_err(ctx.w, expr.line, EK_DEPTH, c"compile-time call depth limit exceeded")
+    }
+
+    val saved_names: list[ref u8] = ctx.subst_names
+    val saved_tys: list[ref parser.Node] = ctx.subst_tys
+    ctx.subst_names = mem.new[ref u8]()
+    ctx.subst_tys = mem.new[ref parser.Node]()
+
+    val callee: ref parser.Node = parser.call_callee(expr)
+    val actual_fn: mut ref parser.Node = fn_node
+    if callee != none && callee.kind == parser.NK_GENERIC_INST && fn_node.kind == parser.NK_GENERIC_FN {
+        val targs: list[ref parser.Node] = parser.generic_inst_type_args(callee)
+        val tparams: ref void = fn_node.d6 as ref void
+        val n: i64 = @len(targs) as i64
+        val i: mut i64 = 0
+        for {
+            if i >= n {
+                break
+            }
+            val pn_opt = @get(tparams as list[ref parser.Node], i as usize)
+            val ta_opt = @get(targs, i as usize)
+            if pn_opt is some pn {
+                if ta_opt is some ta {
+                    @append(ctx.subst_names, parser.tparam_name_raw(pn as ref parser.Node))
+                    @append(ctx.subst_tys, ty_resolve(ctx, ta as ref parser.Node))
+                }
+            }
+            i++
+        }
+    }
+
+    val params: ref void = actual_fn.d3 as ref void
+    val args: ref void = parser.call_args(expr) as ref void
+    val old_vars: list[ref Var] = ctx.vars
+    val old_ret: ref parser.Node = ctx.ret_ty
+    val old_flow: i64 = ctx.flow
+    val old_retv: ref Val = ctx.ret
+    ctx.vars = mem.new[ref Var]()
+    ctx.ret_ty = ty_resolve(ctx, actual_fn.d4 as ref parser.Node)
+    ctx.flow = 0
+    ctx.ret = none
+    ctx.depth = ctx.depth + 1
+
+    if params != none && args != none {
+        val pc: i64 = @len(params as list[ref parser.Node]) as i64
+        val ac: i64 = @len(args as list[ref parser.Node]) as i64
+        val i2: mut i64 = 0
+        for {
+            if i2 >= pc || i2 >= ac {
+                break
+            }
+            val p_opt = @get(params as list[ref parser.Node], i2 as usize)
+            val a_opt = @get(args as list[ref parser.Node], i2 as usize)
+            if p_opt is some p {
+                if a_opt is some a {
+                    val pname: ref u8 = parser.node_str_raw((p as ref parser.Node).d0)
+                    val pty: ref parser.Node = ty_resolve(
+                        ctx,
+                        (p as ref parser.Node).d1 as ref parser.Node
+                    )
+                    val av = eval_expr(ctx, a as ref parser.Node, pty)?
+                    add_var(ctx, pname, pty, coerce(ctx, av, pty), 1)
+                }
+            }
+            i2++
+        }
+    }
+
+    val body: ref parser.Node = actual_fn.d5 as ref parser.Node
+    val body_out = eval_stmts(ctx, body)?
+    val result: mut ref Val = body_out
+    if ctx.flow == 3 && ctx.ret != none {
+        result = ctx.ret
+    }
+    val out: mut ref Val = void_val(ctx.w)
+    if ctx.ret_ty != none && ctx.ret_ty.kind != parser.TY_VOID {
+        out = coerce(ctx, result, ctx.ret_ty)
+    }
+    ctx.vars = old_vars
+    ctx.ret_ty = old_ret
+    ctx.flow = old_flow
+    ctx.ret = old_retv
+    ctx.depth = ctx.depth - 1
+    ctx.subst_names = saved_names
+    ctx.subst_tys = saved_tys
+    return ok out
+}
+
+fn eval_builtin(
+    ctx: mut ref EvalCtx,
+    expr: ref parser.Node,
+    expected: ref parser.Node
+) result[ref Val, ref EvalErr] = trust {
+    val name: ref u8 = parser.node_str_raw(expr.d0)
+    val args: ref void = expr.d1 as ref void
+    if cstr.eql(name, c"static") {
+        if args == none || @len(args as list[ref parser.Node]) as i64 != 1 {
+            return err mk_trap(ctx.w, expr.line, c"@static expects exactly one argument")
+        }
+        val a0_opt = @get(args as list[ref parser.Node], 0 as usize)
+        if a0_opt is some a0 {
+            return eval_expr(ctx, a0 as ref parser.Node, expected)
+        }
+        return err mk_trap(ctx.w, expr.line, c"@static expects exactly one argument")
+    }
+    if cstr.eql(name, c"staticerror") {
+        val msg: mut ref u8 = c"@staticerror"
+        if args != none && @len(args as list[ref parser.Node]) as i64 > 0 {
+            val a0_opt2 = @get(args as list[ref parser.Node], 0 as usize)
+            if a0_opt2 is some a0 {
+                val an: ref parser.Node = a0 as ref parser.Node
+                if an.kind == parser.NK_STR_LIT {
+                    msg = parser.str_lit_text_raw(an)
+                }
+            }
+        }
+        return err mk_err(ctx.w, expr.line, EK_TRAP, msg)
+    }
+    if cstr.eql(name, c"zeroed") {
+        return zero_val(ctx.w, ctx.m, ty_resolve(ctx, expected), expr.line)
+    }
+    if cstr.eql(name, c"sizeof") {
+        val targs: list[ref parser.Node] = parser.builtin_type_args(expr)
+        val ty: mut ref parser.Node = expected
+        if @len(targs) as i64 > 0 {
+            val t0_opt = @get(targs, 0 as usize)
+            if t0_opt is some t0 {
+                ty = t0 as ref parser.Node
+            }
+        }
+        val sz: i64 = type_size(ctx.w, ctx.m, ty_resolve(ctx, ty))
+        return ok int_val(ctx.w, sz, named_ty(ctx.w, c"usize"))
+    }
+    if cstr.eql(name, c"len") {
+        if args == none || @len(args as list[ref parser.Node]) as i64 == 0 {
+            return err mk_trap(ctx.w, expr.line, c"@len expects an argument")
+        }
+        val a0_opt3 = @get(args as list[ref parser.Node], 0 as usize)
+        if a0_opt3 is some a0 {
+            val v = eval_expr(ctx, a0 as ref parser.Node, none)?
+            if v.kind == VK_ARRAY || v.kind == VK_STRUCT {
+                return ok int_val(ctx.w, @len(v.elems) as i64, named_ty(ctx.w, c"usize"))
+            }
+            if v.kind == VK_CSTR {
+                return ok int_val(ctx.w, v.path.len, named_ty(ctx.w, c"usize"))
+            }
+        }
+        return err unsupported(ctx.w, expr.line, c"@len on this value")
+    }
+    if cstr.eql(name, c"get") {
+        if args == none || @len(args as list[ref parser.Node]) as i64 < 2 {
+            return err mk_trap(ctx.w, expr.line, c"@get expects a container and an index")
+        }
+        val a0_opt4 = @get(args as list[ref parser.Node], 0 as usize)
+        if a0_opt4 is some a0 {
+            val v = eval_expr(ctx, a0 as ref parser.Node, none)?
+            if v.kind != VK_ARRAY {
+                return err unsupported(ctx.w, expr.line, c"@get on a non-array value")
+            }
+            val idx = eval_expr(ctx, arg_at(args, 1), named_ty(ctx.w, c"usize"))?
+            val iv: i64 = idx.i
+            if iv < 0 || iv >= @len(v.elems) as i64 {
+                val opt_ty: ref parser.Node = ty_resolve(ctx, expected)
+                return ok option_val(ctx.w, 0, none, opt_ty)
+            }
+            val e_opt = @get(v.elems, iv as usize)
+            if e_opt is some e {
+                val opt_ty2: ref parser.Node = ty_resolve(ctx, expected)
+                return ok option_val(ctx.w, 1, e as ref Val, opt_ty2)
+            }
+        }
+        return err unsupported(ctx.w, expr.line, c"@get on this value")
+    }
+    if cstr.eql(name, c"set") {
+        if args == none || @len(args as list[ref parser.Node]) as i64 < 3 {
+            return err mk_trap(ctx.w, expr.line, c"@set expects a container, an index, and a value")
+        }
+        val a0_opt5 = @get(args as list[ref parser.Node], 0 as usize)
+        if a0_opt5 is some a0 {
+            val v0 = eval_expr(ctx, a0 as ref parser.Node, none)?
+            val v: mut ref Val = v0
+            if v.kind != VK_ARRAY {
+                return err unsupported(ctx.w, expr.line, c"@set on a non-array value")
+            }
+            val idx2 = eval_expr(ctx, arg_at(args, 1), named_ty(ctx.w, c"usize"))?
+            val iv2: i64 = idx2.i
+            if iv2 < 0 || iv2 >= @len(v.elems) as i64 {
+                return err mk_trap(ctx.w, expr.line, c"@set index is out of bounds")
+            }
+            val elem_ty: mut ref parser.Node = none
+            if v.ty != none && v.ty.kind == parser.TY_FIXED_ARR {
+                elem_ty = v.ty.d1 as ref parser.Node
+            }
+            val nv = eval_expr(ctx, arg_at(args, 2), elem_ty)?
+            val cv: mut ref Val = nv
+            if elem_ty != none {
+                cv = coerce(ctx, nv, elem_ty)
+            }
+            val new_list: mut list[ref Val] = mem.new[ref Val]()
+            val count: i64 = @len(v.elems) as i64
+            val i: mut i64 = 0
+            for {
+                if i >= count {
+                    break
+                }
+                if i == iv2 {
+                    @append(new_list, cv)
+                } else {
+                    val old_opt = @get(v.elems, i as usize)
+                    if old_opt is some oldv {
+                        @append(new_list, oldv as ref Val)
+                    }
+                }
+                i++
+            }
+            v.elems = new_list
+            return ok void_val(ctx.w)
+        }
+        return err unsupported(ctx.w, expr.line, c"@set on this value")
+    }
+    return err mk_err(ctx.w, expr.line, EK_IMPURE, c"impure intrinsic in compile-time evaluation")
+}
+
+fn arg_at(args: ref void, i: i64) ref parser.Node = trust {
+    val a_opt = @get(args as list[ref parser.Node], i as usize)
+    if a_opt is some a {
+        return a as ref parser.Node
+    }
+    return none
+}
+
+fn arith(
+    ctx: mut ref EvalCtx,
+    l: ref Val,
+    r: ref Val,
+    op: i64,
+    line: i64
+) result[ref Val, ref EvalErr] = trust {
+    val is_float: bool = l.kind == VK_FLOAT || r.kind == VK_FLOAT
+    if is_float {
+        val a: mut f64 = l.i as f64
+        val b: mut f64 = r.i as f64
+        if l.kind == VK_FLOAT {
+            a = l.f
+        }
+        if r.kind == VK_FLOAT {
+            b = r.f
+        }
+        val ty: mut ref parser.Node = r.ty
+        if l.ty != none && ty_is_float(l.ty) {
+            ty = l.ty
+        }
+        if op == parser.OP_EQ {
+            return ok bool_val(ctx.w, a == b)
+        }
+        if op == parser.OP_NE {
+            return ok bool_val(ctx.w, a != b)
+        }
+        if op == parser.OP_LT {
+            return ok bool_val(ctx.w, a < b)
+        }
+        if op == parser.OP_GT {
+            return ok bool_val(ctx.w, a > b)
+        }
+        if op == parser.OP_LE {
+            return ok bool_val(ctx.w, a <= b)
+        }
+        if op == parser.OP_GE {
+            return ok bool_val(ctx.w, a >= b)
+        }
+        if op == parser.OP_ADD {
+            return ok float_val(ctx.w, a + b, ty)
+        }
+        if op == parser.OP_SUB {
+            return ok float_val(ctx.w, a - b, ty)
+        }
+        if op == parser.OP_MUL {
+            return ok float_val(ctx.w, a * b, ty)
+        }
+        if op == parser.OP_DIV {
+            if b == 0.0 {
+                return err mk_err(
+                    ctx.w,
+                    line,
+                    EK_DIVZERO,
+                    c"division by zero during compile-time evaluation"
+                )
+            }
+            return ok float_val(ctx.w, a / b, ty)
+        }
+        return err unsupported(ctx.w, line, c"floating-point operator")
+    }
+    val a2: i64 = l.i
+    val b2: i64 = r.i
+    val ty2: mut ref parser.Node = r.ty
+    if l.ty != none {
+        ty2 = l.ty
+    }
+    if op == parser.OP_EQ {
+        return ok bool_val(ctx.w, a2 == b2)
+    }
+    if op == parser.OP_NE {
+        return ok bool_val(ctx.w, a2 != b2)
+    }
+    if op == parser.OP_LT {
+        return ok bool_val(ctx.w, a2 < b2)
+    }
+    if op == parser.OP_GT {
+        return ok bool_val(ctx.w, a2 > b2)
+    }
+    if op == parser.OP_LE {
+        return ok bool_val(ctx.w, a2 <= b2)
+    }
+    if op == parser.OP_GE {
+        return ok bool_val(ctx.w, a2 >= b2)
+    }
+    if op == parser.OP_ADD {
+        return ok int_val(ctx.w, normalize_int(a2 + b2, ty2), ty2)
+    }
+    if op == parser.OP_SUB {
+        return ok int_val(ctx.w, normalize_int(a2 - b2, ty2), ty2)
+    }
+    if op == parser.OP_MUL {
+        return ok int_val(ctx.w, normalize_int(a2 * b2, ty2), ty2)
+    }
+    if op == parser.OP_DIV || op == parser.OP_REM {
+        if b2 == 0 {
+            return err mk_err(
+                ctx.w,
+                line,
+                EK_DIVZERO,
+                c"division by zero during compile-time evaluation"
+            )
+        }
+        val out: mut i64 = a2 % b2
+        if op == parser.OP_DIV {
+            out = a2 / b2
+        }
+        return ok int_val(ctx.w, normalize_int(out, ty2), ty2)
+    }
+    if op == parser.OP_BAND {
+        return ok int_val(ctx.w, normalize_int(a2 & b2, ty2), ty2)
+    }
+    if op == parser.OP_BOR {
+        return ok int_val(ctx.w, normalize_int(a2 | b2, ty2), ty2)
+    }
+    if op == parser.OP_BXOR {
+        return ok int_val(ctx.w, normalize_int(a2 ^ b2, ty2), ty2)
+    }
+    if op == parser.OP_SHL {
+        return ok int_val(ctx.w, normalize_int(a2 << b2, ty2), ty2)
+    }
+    if op == parser.OP_SHR {
+        if ty_is_unsigned(ty2) {
+            val ua: u64 = @bitcast(a2, u64)
+            val ub: u64 = @bitcast(b2, u64)
+            return ok int_val(ctx.w, normalize_int(@bitcast(ua >> ub, i64), ty2), ty2)
+        }
+        return ok int_val(ctx.w, normalize_int(a2 >> b2, ty2), ty2)
+    }
+    return err unsupported(ctx.w, line, c"integer operator")
+}
+
+fn val_equal(a: ref Val, b: ref Val) bool = trust {
+    if a == none || b == none {
+        return false
+    }
+    if a.kind != b.kind {
+        if (a.kind == VK_INT || a.kind == VK_BOOL) && (b.kind == VK_INT || b.kind == VK_BOOL) {
+            return a.i == b.i
+        }
+        return false
+    }
+    if a.kind == VK_INT || a.kind == VK_BOOL {
+        return a.i == b.i
+    }
+    if a.kind == VK_FLOAT {
+        return a.f == b.f
+    }
+    if a.kind == VK_CSTR {
+        return a.path.len == b.path.len && cstr.cmp(a.path.ptr, b.path.ptr) == 0
+    }
+    return false
+}
+
+fn assign_target(
+    ctx: mut ref EvalCtx,
+    target: ref parser.Node,
+    v: ref Val
+) result[ref Val, ref EvalErr] = trust {
+    if target == none {
+        return err unsupported(ctx.w, 0, c"assignment target")
+    }
+    if target.kind == parser.NK_IDENT {
+        val name: ref u8 = parser.node_str_raw(target.d0)
+        val vi: i64 = find_var(ctx, name)
+        if vi < 0 {
+            return err mk_err(
+                ctx.w,
+                target.line,
+                EK_IMPURE,
+                c"writes a global during compile-time evaluation"
+            )
+        }
+        val vr_opt = @get(ctx.vars, vi as usize)
+        if vr_opt is some vr {
+            val var_mut: mut ref Var = vr as ref Var
+            if var_mut.mutable == 0 {
+                return err mk_trap(ctx.w, target.line, c"assignment to an immutable variable")
+            }
+            var_mut.payload_val = coerce(ctx, v, var_mut.ty)
+            return ok var_mut.payload_val
+        }
+    }
+    if target.kind == parser.NK_FIELD {
+        val base: ref parser.Node = parser.field_base(target)
+        val fname: ref u8 = parser.field_name_raw(target)
+        val bv0 = eval_expr(ctx, base, none)?
+        val bv: mut ref Val = bv0
+        if bv.kind == VK_STRUCT {
+            val idx: i64 = struct_field_val(bv, fname)
+            if idx >= 0 {
+                val old_opt = @get(bv.elems, idx as usize)
+                val ft: mut ref parser.Node = none
+                if old_opt is some old {
+                    ft = (old as ref Val).ty
+                }
+                val cv = coerce(ctx, v, ft)
+                @remove(bv.elems, idx as usize)
+                @insert(bv.elems, idx as usize, cv)
+                return ok cv
+            }
+        }
+    }
+    return err unsupported(ctx.w, target.line, c"assignment target")
+}
+
+fn gwhen_matches(ctx: ref EvalCtx, when_node: ref parser.Node) bool = trust {
+    val conds: ref void = when_node.d0 as ref void
+    if conds == none {
+        return true
+    }
+    for c in conds as list[ref parser.Node] {
+        val cn: ref parser.Node = c as ref parser.Node
+        val tname: ref u8 = parser.gwhen_cond_tparam_raw(cn)
+        val kind: i64 = parser.gwhen_cond_kind(cn)
+        val tys: list[ref parser.Node] = parser.gwhen_cond_types(cn)
+        if kind == 0 {
+            return true
+        }
+        val sub: ref parser.Node = subst_lookup(ctx, tname)
+        if sub == none {
+            return false
+        }
+        val concrete: ref parser.Node = ty_resolve(ctx, sub)
+        val found: mut bool = false
+        if tys != none {
+            for t in tys {
+                val rt: ref parser.Node = ty_resolve(ctx, t as ref parser.Node)
+                if type_nodes_equal(concrete, rt) {
+                    found = true
+                    break
+                }
+            }
+        }
+        if kind == 1 && !found {
+            return false
+        }
+        if kind == 2 && !found {
+            return false
+        }
+        if kind == 3 && found {
+            return false
+        }
+    }
+    return true
+}
+
+fn type_nodes_equal(a: ref parser.Node, b: ref parser.Node) bool = trust {
+    if a == none || b == none {
+        return a == b
+    }
+    if a.kind != b.kind {
+        return false
+    }
+    if a.kind == parser.TY_NAMED {
+        return cstr.eql(parser.node_str_raw(a.d0), parser.node_str_raw(b.d0))
+    }
+    if a.kind == parser.TY_FIXED_ARR {
+        return a.d0 == b.d0 && type_nodes_equal(
+            a.d1 as ref parser.Node,
+            b.d1 as ref parser.Node
+        )
+    }
+    if a.kind == parser.TY_OPTION || a.kind == parser.TY_REF || a.kind == parser.TY_MUT
+    || a.kind == parser.TY_LIST {
+        return type_nodes_equal(a.d0 as ref parser.Node, b.d0 as ref parser.Node)
+    }
+    if a.kind == parser.TY_RESULT {
+        return type_nodes_equal(a.d0 as ref parser.Node, b.d0 as ref parser.Node)
+        && type_nodes_equal(a.d1 as ref parser.Node, b.d1 as ref parser.Node)
+    }
+    return false
+}
+
+// ---------------------------------------------------------------------------
+// Replacing values with AST constants
+// ---------------------------------------------------------------------------
+
+fn clear_node(n: mut ref parser.Node) void = trust {
+    n.d0 = 0
+    n.d1 = 0
+    n.d2 = 0
+    n.d3 = 0
+    n.d4 = 0
+    n.d5 = 0
+    n.d6 = 0
+}
+
+fn int_text(w: ref World, v: i64) ref u8 = trust {
+    return arenafmt.format(w.arena, "{lld}", {v}).ptr
+}
+
+fn float_text(w: ref World, v: f64) ref u8 = trust {
+    val buf: ref u8 = allocators.ScopedArena.alloc_or_none(w.arena, 64 as usize) as ref u8
+    @snprintf(buf, 64, "{g}", {v})
+    return buf
+}
+
+fn make_const_node(w: mut ref World, v: ref Val, line: i64) ref parser.Node = trust {
+    val n: mut ref parser.Node = parser.make_node(w.arena, parser.NK_INT_LIT, line)
+    write_const(w, n, v)
+    return n
+}
+
+fn make_field_node(w: mut ref World, name: ref u8, v: ref Val, line: i64) ref parser.Node = trust {
+    val f: ref parser.Node = parser.make_node(w.arena, parser.NK_FIELD, line)
+    parser.node_store_string_slot(@addr(f.d0), name)
+    parser.node_store_slot[ref parser.Node](@addr(f.d1), make_const_node(w, v, line))
+    return f
+}
+
+fn write_const(w: mut ref World, node: mut ref parser.Node, v: ref Val) void = trust {
+    if node == none || v == none {
+        return
+    }
+    val line: i64 = node.line
+    clear_node(node)
+    node.line = line
+    if v.kind == VK_INT || v.kind == VK_BOOL {
+        if v.kind == VK_BOOL {
+            node.kind = parser.NK_BOOL
+            if v.i != 0 {
+                node.d0 = 1
+            } else {
+                node.d0 = 0
+            }
+        } else {
+            node.kind = parser.NK_INT_LIT
+            parser.node_store_string_slot(@addr(node.d0), int_text(w, v.i))
+        }
+        return
+    }
+    if v.kind == VK_FLOAT {
+        node.kind = parser.NK_FLOAT_LIT
+        parser.node_store_string_slot(@addr(node.d0), float_text(w, v.f))
+        return
+    }
+    if v.kind == VK_CSTR || v.ty != none && ty_is_stringview(v.ty) {
+        node.kind = parser.NK_STR_LIT
+        parser.node_store_string_slot(@addr(node.d0), v.path.ptr)
+        if v.kind == VK_CSTR {
+            node.d1 = 1
+        }
+        return
+    }
+    if v.kind == VK_ARRAY {
+        node.kind = parser.NK_FIXED_ARR_LIT
+        val elems: mut list[ref parser.Node] = mem.new[ref parser.Node]()
+        for e in v.elems {
+            @append(elems, make_const_node(w, e, line))
+        }
+        parser.node_store_slot[list[ref parser.Node]](@addr(node.d0), elems)
+        parser.node_store_slot[ref parser.Node](@addr(node.d1), v.ty)
+        return
+    }
+    if v.kind == VK_STRUCT {
+        node.kind = parser.NK_STRUCT_LIT
+        val fields: mut list[ref parser.Node] = mem.new[ref parser.Node]()
+        val n: i64 = @len(v.elems) as i64
+        val i: mut i64 = 0
+        for {
+            if i >= n {
+                break
+            }
+            val e_opt = @get(v.elems, i as usize)
+            val nm_opt = @get(v.names, i as usize)
+            if e_opt is some e {
+                val nm: mut ref u8 = c""
+                if nm_opt is some nmv {
+                    nm = nmv as ref u8
+                }
+                @append(fields, make_field_node(w, nm, e as ref Val, line))
+            }
+            i++
+        }
+        parser.node_store_slot[list[ref parser.Node]](@addr(node.d0), fields)
+        if v.ty != none {
+            parser.node_store_string_slot(@addr(node.d2), ty_name(v.ty))
+        }
+        return
+    }
+    if v.kind == VK_OPTION {
+        if v.tag == 1 && @len(v.elems) as i64 > 0 {
+            node.kind = parser.NK_SOME
+            val p_opt = @get(v.elems, 0 as usize)
+            if p_opt is some p {
+                parser.node_store_slot[ref parser.Node](
+                    @addr(node.d0),
+                    make_const_node(w, p as ref Val, line)
+                )
+            }
+        } else {
+            node.kind = parser.NK_NONE
+        }
+        return
+    }
+    if v.kind == VK_RESULT {
+        if v.tag == 0 {
+            node.kind = parser.NK_OK_VAL
+        } else {
+            node.kind = parser.NK_ERR_VAL
+        }
+        if @len(v.elems) as i64 > 0 {
+            val p_opt2 = @get(v.elems, 0 as usize)
+            if p_opt2 is some p2 {
+                parser.node_store_slot[ref parser.Node](
+                    @addr(node.d0),
+                    make_const_node(w, p2 as ref Val, line)
+                )
+            }
+        }
+        return
+    }
+    node.kind = parser.NK_ZERO_INIT
+}
+
+fn mod_file(m: ref modinfo.ResolvedModule) ref u8 = trust {
+    if m == none {
+        return c"<unknown>"
+    }
+    return modinfo.module_display_filename(m)
+}
+
+fn static_error(
+    w: mut ref World,
+    m: ref modinfo.ResolvedModule,
+    expr: ref parser.Node,
+    e: ref EvalErr
+) void = trust {
+    val file: ref u8 = mod_file(m)
+    val msg: ref u8 = arenafmt.format(
+        w.arena,
+        "{s}:{lld}: @static evaluation failed: {s}",
+        {file, expr.line, err_text(e)}
+    ).ptr
+    add_error(w, msg)
+}
+
+// ---------------------------------------------------------------------------
+// @static rewriting and implicit folding
+// ---------------------------------------------------------------------------
+
+fn rewrite_static_item(
+    w: mut ref World,
+    m: ref modinfo.ResolvedModule,
+    item_in: ref parser.Node
+) void = trust {
+    if item_in == none || parser.ptr_to_i64[ref parser.Node](item_in) < 4096 {
+        return
+    }
+    val item: mut ref parser.Node = item_in
+    val k: i64 = item.kind
+    if k == parser.NK_FN || k == parser.NK_GENERIC_FN {
+        rewrite_static_stmts(w, m, item.d5 as ref parser.Node)
+        return
+    }
+    if k == parser.NK_VAL {
+        rewrite_static_expr(w, m, item.d3 as ref parser.Node, none)
+        return
+    }
+    if k == parser.NK_CONST {
+        rewrite_static_expr(w, m, item.d2 as ref parser.Node, none)
+        return
+    }
+    if k == parser.NK_TEST {
+        rewrite_static_stmts(w, m, item.d0 as ref parser.Node)
+        return
+    }
+    if k == parser.NK_TYPEDEF {
+        val invs: ref void = item.d3 as ref void
+        if invs != none {
+            for e in invs as list[ref parser.Node] {
+                rewrite_static_expr(w, m, e, none)
+            }
+        }
+        return
+    }
+    if k == parser.NK_WHEN_ITEMS {
+        for wi in when_items_selected(w, item) {
+            rewrite_static_item(w, m, wi)
+        }
+        return
+    }
+}
+
+fn rewrite_static_stmts(
+    w: mut ref World,
+    m: ref modinfo.ResolvedModule,
+    stmts: ref parser.Node
+) void = trust {
+    if stmts == none {
+        return
+    }
+    val n: i64 = @len(stmts) as i64
+    val i: mut i64 = 0
+    for {
+        if i >= n {
+            break
+        }
+        val s_opt = @get(stmts, i as usize)
+        if s_opt is some s {
+            rewrite_static_stmt(w, m, s as ref parser.Node)
+        }
+        i++
+    }
+}
+
+fn rewrite_static_stmt(
+    w: mut ref World,
+    m: ref modinfo.ResolvedModule,
+    stmt_in: ref parser.Node
+) void = trust {
+    if stmt_in == none || parser.ptr_to_i64[ref parser.Node](stmt_in) < 4096 {
+        return
+    }
+    val stmt: mut ref parser.Node = stmt_in
+    val k: i64 = stmt.kind
+    if k == parser.NK_VAL {
+        rewrite_static_expr(w, m, stmt.d3 as ref parser.Node, stmt.d2 as ref parser.Node)
+        return
+    }
+    if k == parser.NK_ASSIGN || k == parser.NK_ADD_ASSIGN || k == parser.NK_SUB_ASSIGN {
+        rewrite_static_expr(w, m, stmt.d0 as ref parser.Node, none)
+        rewrite_static_expr(w, m, stmt.d1 as ref parser.Node, none)
+        return
+    }
+    if k == parser.NK_INCREMENT || k == parser.NK_DECREMENT || k == parser.NK_RETURN
+    || k == parser.NK_EXPR_STMT || k == parser.NK_ASSERT {
+        rewrite_static_expr(w, m, stmt.d0 as ref parser.Node, none)
+        return
+    }
+    if k == parser.NK_IF {
+        if stmt.d1 == 0 as i64 {
+            rewrite_static_stmts(w, m, stmt.d0 as ref parser.Node)
+            return
+        }
+        rewrite_static_expr(w, m, stmt.d0 as ref parser.Node, none)
+        rewrite_static_stmts(w, m, stmt.d1 as ref parser.Node)
+        val elifs: ref void = stmt.d2 as ref void
+        if elifs != none {
+            for ep in elifs as list[ref parser.Node] {
+                rewrite_static_expr(w, m, (ep as ref parser.Node).d0 as ref parser.Node, none)
+                rewrite_static_stmts(w, m, (ep as ref parser.Node).d1 as ref parser.Node)
+            }
+        }
+        val else_body: ref parser.Node = stmt.d3 as ref parser.Node
+        if else_body != none {
+            rewrite_static_stmts(w, m, else_body.d0 as ref parser.Node)
+        }
+        return
+    }
+    if k == parser.NK_FOR {
+        rewrite_static_expr(w, m, stmt.d1 as ref parser.Node, none)
+        rewrite_static_expr(w, m, stmt.d2 as ref parser.Node, none)
+        rewrite_static_stmt(w, m, stmt.d3 as ref parser.Node)
+        rewrite_static_stmts(w, m, stmt.d4 as ref parser.Node)
+        return
+    }
+    if k == parser.NK_FORIN {
+        rewrite_static_expr(w, m, stmt.d1 as ref parser.Node, none)
+        rewrite_static_stmts(w, m, stmt.d2 as ref parser.Node)
+        return
+    }
+    if k == parser.NK_PRE || k == parser.NK_POST || k == parser.NK_GUARDED_PRE || k == parser.NK_GUARDED_POST {
+        val clist: ref void = stmt.d0 as ref void
+        if clist != none {
+            for c in clist as list[ref parser.Node] {
+                rewrite_static_expr(w, m, (c as ref parser.Node).d1 as ref parser.Node, none)
+            }
+        }
+        return
+    }
+    if k == parser.NK_GUARD {
+        rewrite_static_expr(w, m, stmt.d0 as ref parser.Node, none)
+        rewrite_static_stmts(w, m, stmt.d1 as ref parser.Node)
+        return
+    }
+    if k == parser.NK_DEFER || k == parser.NK_TRUST_BLOCK {
+        rewrite_static_stmts(w, m, stmt.d0 as ref parser.Node)
+        return
+    }
+    if k == parser.NK_GENERIC_WHEN {
+        rewrite_static_stmts(w, m, stmt.d1 as ref parser.Node)
+        return
+    }
+    if k == parser.NK_MATCH_OPT {
+        rewrite_static_expr(w, m, stmt.d0 as ref parser.Node, none)
+        rewrite_static_body(w, m, stmt.d2 as ref parser.Node)
+        rewrite_static_body(w, m, stmt.d3 as ref parser.Node)
+        return
+    }
+    if k == parser.NK_MATCH_RES {
+        rewrite_static_expr(w, m, stmt.d0 as ref parser.Node, none)
+        rewrite_static_body(w, m, stmt.d2 as ref parser.Node)
+        rewrite_static_body(w, m, stmt.d4 as ref parser.Node)
+        return
+    }
+    if k == parser.NK_MATCH_VALUE || k == parser.NK_MATCH_ENUM || k == parser.NK_MATCH_STR
+    || k == parser.NK_MATCH_UNION || k == parser.NK_MATCH_TAGGED_UNION {
+        rewrite_static_expr(w, m, stmt.d0 as ref parser.Node, none)
+        val arms: ref void = stmt.d1 as ref void
+        if arms != none {
+            for arm in arms as list[ref parser.Node] {
+                rewrite_static_expr(w, m, (arm as ref parser.Node).d0 as ref parser.Node, none)
+                rewrite_static_stmts(w, m, (arm as ref parser.Node).d1 as ref parser.Node)
+            }
+        }
+        rewrite_static_body(w, m, stmt.d2 as ref parser.Node)
+        return
+    }
+    if k == parser.NK_WHEN_STMT {
+        rewrite_static_stmts(w, m, stmt.d1 as ref parser.Node)
+        return
+    }
+}
+
+fn rewrite_static_body(
+    w: mut ref World,
+    m: ref modinfo.ResolvedModule,
+    node: ref parser.Node
+) void = trust {
+    if node == none {
+        return
+    }
+    rewrite_static_stmts(w, m, node.d0 as ref parser.Node)
+    rewrite_static_stmts(w, m, node.d1 as ref parser.Node)
+    rewrite_static_stmts(w, m, node.d2 as ref parser.Node)
+    rewrite_static_stmts(w, m, node.d3 as ref parser.Node)
+    rewrite_static_stmts(w, m, node.d4 as ref parser.Node)
+}
+
+fn rewrite_static_expr(
+    w: mut ref World,
+    m: ref modinfo.ResolvedModule,
+    expr_in: ref parser.Node,
+    expected: ref parser.Node
+) void = trust {
+    if expr_in == none || parser.ptr_to_i64[ref parser.Node](expr_in) < 4096 {
+        return
+    }
+    val expr: mut ref parser.Node = expr_in
+    val k: i64 = expr.kind
+    if k == parser.NK_BINOP {
+        rewrite_static_expr(w, m, parser.binop_left(expr), none)
+        rewrite_static_expr(w, m, parser.binop_right(expr), none)
+        return
+    }
+    if k == parser.NK_UNOP || k == parser.NK_CAST || k == parser.NK_TRUST || k == parser.NK_TRY
+    || k == parser.NK_ADDR || k == parser.NK_DEREF || k == parser.NK_SOME
+    || k == parser.NK_OK_VAL || k == parser.NK_ERR_VAL || k == parser.NK_GENERIC_INST {
+        rewrite_static_expr(w, m, expr.d0 as ref parser.Node, none)
+        return
+    }
+    if k == parser.NK_FIELD {
+        rewrite_static_expr(w, m, parser.field_base(expr), none)
+        return
+    }
+    if k == parser.NK_CALL {
+        rewrite_static_expr(w, m, parser.call_callee(expr), none)
+        val args: ref void = parser.call_args(expr) as ref void
+        if args != none {
+            for a in args as list[ref parser.Node] {
+                rewrite_static_expr(w, m, a, none)
+            }
+        }
+        return
+    }
+    if k == parser.NK_BUILTIN {
+        val name: ref u8 = parser.node_str_raw(expr.d0)
+        val args2: ref void = expr.d1 as ref void
+        if args2 != none {
+            for a in args2 as list[ref parser.Node] {
+                rewrite_static_expr(w, m, a, none)
+            }
+        }
+        if cstr.eql(name, c"static") {
+            val ctx: mut ref EvalCtx = make_empty_ctx(w, m)
+            val arg: ref parser.Node = arg_at(args2, 0)
+            val v = eval_expr(ctx, arg, expected)
+            match v {
+                ok cval => {
+                    if cval.kind == VK_VOID {
+                        val e: ref EvalErr = mk_trap(
+                            w,
+                            expr.line,
+                            c"@static expression does not produce a value"
+                        )
+                        static_error(w, m, expr, e)
+                    } elif cval.kind != VK_CSTR && !is_plain_type(w, m, cval.ty) {
+                        val e: ref EvalErr = mk_trap(
+                            w,
+                            expr.line,
+                            c"@static result is not plain data"
+                        )
+                        static_error(w, m, expr, e)
+                    } elif val_size(w, cval) > w.result_limit {
+                        val e: ref EvalErr = mk_trap(
+                            w,
+                            expr.line,
+                            c"@static result exceeds the result size limit"
+                        )
+                        static_error(w, m, expr, e)
+                    } else {
+                        write_const(w, expr, cval)
+                        w.statics = w.statics + 1
+                    }
+                }
+                err e => {
+                    static_error(w, m, expr, e)
+                }
+            }
+        }
+        return
+    }
+    if k == parser.NK_STRUCT_LIT {
+        val fields: ref void = expr.d0 as ref void
+        if fields != none {
+            for f in fields as list[ref parser.Node] {
+                val fnode: ref parser.Node = f as ref parser.Node
+                val fname: ref u8 = parser.node_str_raw(fnode.d0)
+                val td: ref parser.Node = find_type_def(w, m, parser.struct_lit_type_name_raw(expr))
+                val fty: mut ref parser.Node = none
+                if td != none {
+                    fty = field_type_named(w, m, named_ty(w, parser.node_str_raw(td.d1)), fname)
+                }
+                rewrite_static_expr(w, m, fnode.d1 as ref parser.Node, fty)
+            }
+        }
+        return
+    }
+    if k == parser.NK_LIST_LIT || k == parser.NK_FIXED_ARR_LIT || k == parser.NK_ARGS_PACK {
+        val elems: ref void = expr.d0 as ref void
+        val ety: mut ref parser.Node = none
+        if expected != none && expected.kind == parser.TY_FIXED_ARR {
+            ety = expected.d1 as ref parser.Node
+        }
+        if elems != none {
+            for e in elems as list[ref parser.Node] {
+                rewrite_static_expr(w, m, e, ety)
+            }
+        }
+        return
+    }
+}
+
+fn make_empty_ctx(w_in: ref World, m: ref modinfo.ResolvedModule) ref EvalCtx = trust {
+    val ctx: mut ref EvalCtx = allocators.ScopedArena.alloc_or_none(
+        w_in.arena,
+        @sizeof(EvalCtx) as usize
+    ) as ref EvalCtx
+    ctx.w = w_in
+    ctx.m = m
+    ctx.vars = mem.new[ref Var]()
+    ctx.subst_names = mem.new[ref u8]()
+    ctx.subst_tys = mem.new[ref parser.Node]()
+    ctx.ret_ty = none
+    ctx.flow = 0
+    ctx.ret = none
+    ctx.depth = 0
+    ctx.steps = 0
+    ctx.fuel = w_in.fuel_limit
+    return ctx
+}
+
+fn rewrite_all(w: mut ref World) void = trust {
+    rewrite_module(w, w.root)
+}
+
+fn rewrite_module(w: mut ref World, m: ref modinfo.ResolvedModule) void = trust {
+    if m == none {
+        return
+    }
+    for item in modinfo.module_items(m) {
+        rewrite_static_item(w, m, item)
+    }
+    val nimp: i64 = modinfo.import_count(m)
+    val i: mut i64 = 0
+    for {
+        if i >= nimp {
+            break
+        }
+        rewrite_module(w, modinfo.import_module_at(m, i as usize))
+        i++
+    }
+}
+
+fn fold_item(
+    w: mut ref World,
+    m: ref modinfo.ResolvedModule,
+    item_in: ref parser.Node
+) void = trust {
+    if item_in == none || parser.ptr_to_i64[ref parser.Node](item_in) < 4096 {
+        return
+    }
+    val item: mut ref parser.Node = item_in
+    val k: i64 = item.kind
+    if k == parser.NK_FN || k == parser.NK_GENERIC_FN {
+        fold_stmts(w, m, item.d5 as ref parser.Node)
+        return
+    }
+    if k == parser.NK_VAL {
+        fold_expr(w, m, item.d3 as ref parser.Node)
+        return
+    }
+    if k == parser.NK_CONST {
+        fold_expr(w, m, item.d2 as ref parser.Node)
+        return
+    }
+    if k == parser.NK_TEST {
+        fold_stmts(w, m, item.d0 as ref parser.Node)
+        return
+    }
+    if k == parser.NK_WHEN_ITEMS {
+        for wi in when_items_selected(w, item) {
+            fold_item(w, m, wi)
+        }
+        return
+    }
+}
+
+fn fold_stmts(
+    w: mut ref World,
+    m: ref modinfo.ResolvedModule,
+    stmts: ref parser.Node
+) void = trust {
+    if stmts == none {
+        return
+    }
+    val n: i64 = @len(stmts) as i64
+    val i: mut i64 = 0
+    for {
+        if i >= n {
+            break
+        }
+        val s_opt = @get(stmts, i as usize)
+        if s_opt is some s {
+            fold_stmt(w, m, s as ref parser.Node)
+        }
+        i++
+    }
+}
+
+fn fold_stmt(
+    w: mut ref World,
+    m: ref modinfo.ResolvedModule,
+    stmt_in: ref parser.Node
+) void = trust {
+    if stmt_in == none || parser.ptr_to_i64[ref parser.Node](stmt_in) < 4096 {
+        return
+    }
+    val stmt: mut ref parser.Node = stmt_in
+    val k: i64 = stmt.kind
+    if k == parser.NK_VAL {
+        fold_expr(w, m, stmt.d3 as ref parser.Node)
+        return
+    }
+    if k == parser.NK_ASSIGN || k == parser.NK_ADD_ASSIGN || k == parser.NK_SUB_ASSIGN {
+        fold_expr(w, m, stmt.d0 as ref parser.Node)
+        fold_expr(w, m, stmt.d1 as ref parser.Node)
+        return
+    }
+    if k == parser.NK_INCREMENT || k == parser.NK_DECREMENT || k == parser.NK_RETURN
+    || k == parser.NK_EXPR_STMT || k == parser.NK_ASSERT || k == parser.NK_GUARD {
+        fold_expr(w, m, stmt.d0 as ref parser.Node)
+        if k == parser.NK_GUARD {
+            fold_stmts(w, m, stmt.d1 as ref parser.Node)
+        }
+        return
+    }
+    if k == parser.NK_IF {
+        if stmt.d1 == 0 as i64 {
+            fold_stmts(w, m, stmt.d0 as ref parser.Node)
+            return
+        }
+        fold_expr(w, m, stmt.d0 as ref parser.Node)
+        fold_stmts(w, m, stmt.d1 as ref parser.Node)
+        val elifs: ref void = stmt.d2 as ref void
+        if elifs != none {
+            for ep in elifs as list[ref parser.Node] {
+                fold_expr(w, m, (ep as ref parser.Node).d0 as ref parser.Node)
+                fold_stmts(w, m, (ep as ref parser.Node).d1 as ref parser.Node)
+            }
+        }
+        val else_body: ref parser.Node = stmt.d3 as ref parser.Node
+        if else_body != none {
+            fold_stmts(w, m, else_body.d0 as ref parser.Node)
+        }
+        return
+    }
+    if k == parser.NK_FOR {
+        fold_expr(w, m, stmt.d1 as ref parser.Node)
+        fold_expr(w, m, stmt.d2 as ref parser.Node)
+        fold_stmt(w, m, stmt.d3 as ref parser.Node)
+        fold_stmts(w, m, stmt.d4 as ref parser.Node)
+        return
+    }
+    if k == parser.NK_FORIN {
+        fold_expr(w, m, stmt.d1 as ref parser.Node)
+        fold_stmts(w, m, stmt.d2 as ref parser.Node)
+        return
+    }
+    if k == parser.NK_PRE || k == parser.NK_POST || k == parser.NK_GUARDED_PRE || k == parser.NK_GUARDED_POST {
+        val clist: ref void = stmt.d0 as ref void
+        if clist != none {
+            for c in clist as list[ref parser.Node] {
+                fold_expr(w, m, (c as ref parser.Node).d1 as ref parser.Node)
+            }
+        }
+        return
+    }
+    if k == parser.NK_DEFER || k == parser.NK_TRUST_BLOCK {
+        fold_stmts(w, m, stmt.d0 as ref parser.Node)
+        return
+    }
+    if k == parser.NK_GENERIC_WHEN {
+        fold_stmts(w, m, stmt.d1 as ref parser.Node)
+        return
+    }
+    if k == parser.NK_MATCH_OPT {
+        fold_expr(w, m, stmt.d0 as ref parser.Node)
+        fold_body(w, m, stmt.d2 as ref parser.Node)
+        fold_body(w, m, stmt.d3 as ref parser.Node)
+        return
+    }
+    if k == parser.NK_MATCH_RES {
+        fold_expr(w, m, stmt.d0 as ref parser.Node)
+        fold_body(w, m, stmt.d2 as ref parser.Node)
+        fold_body(w, m, stmt.d4 as ref parser.Node)
+        return
+    }
+    if k == parser.NK_MATCH_VALUE || k == parser.NK_MATCH_ENUM || k == parser.NK_MATCH_STR
+    || k == parser.NK_MATCH_UNION || k == parser.NK_MATCH_TAGGED_UNION {
+        fold_expr(w, m, stmt.d0 as ref parser.Node)
+        val arms: ref void = stmt.d1 as ref void
+        if arms != none {
+            for arm in arms as list[ref parser.Node] {
+                fold_expr(w, m, (arm as ref parser.Node).d0 as ref parser.Node)
+                fold_stmts(w, m, (arm as ref parser.Node).d1 as ref parser.Node)
+            }
+        }
+        fold_body(w, m, stmt.d2 as ref parser.Node)
+        return
+    }
+    if k == parser.NK_WHEN_STMT {
+        fold_stmts(w, m, stmt.d1 as ref parser.Node)
+        return
+    }
+}
+
+fn fold_body(w: mut ref World, m: ref modinfo.ResolvedModule, node: ref parser.Node) void = trust {
+    if node == none {
+        return
+    }
+    fold_stmts(w, m, node.d0 as ref parser.Node)
+    fold_stmts(w, m, node.d1 as ref parser.Node)
+    fold_stmts(w, m, node.d2 as ref parser.Node)
+    fold_stmts(w, m, node.d3 as ref parser.Node)
+    fold_stmts(w, m, node.d4 as ref parser.Node)
+}
+
+fn fold_expr(
+    w: mut ref World,
+    m: ref modinfo.ResolvedModule,
+    expr_in: ref parser.Node
+) void = trust {
+    if expr_in == none || parser.ptr_to_i64[ref parser.Node](expr_in) < 4096 {
+        return
+    }
+    val expr: mut ref parser.Node = expr_in
+    val k: i64 = expr.kind
+    if k == parser.NK_BINOP {
+        fold_expr(w, m, parser.binop_left(expr))
+        fold_expr(w, m, parser.binop_right(expr))
+        return
+    }
+    if k == parser.NK_UNOP || k == parser.NK_CAST || k == parser.NK_TRUST || k == parser.NK_TRY
+    || k == parser.NK_ADDR || k == parser.NK_DEREF || k == parser.NK_SOME
+    || k == parser.NK_OK_VAL || k == parser.NK_ERR_VAL || k == parser.NK_GENERIC_INST {
+        fold_expr(w, m, expr.d0 as ref parser.Node)
+        return
+    }
+    if k == parser.NK_FIELD {
+        fold_expr(w, m, parser.field_base(expr))
+        return
+    }
+    if k == parser.NK_CALL {
+        fold_expr(w, m, parser.call_callee(expr))
+        val args: ref void = parser.call_args(expr) as ref void
+        if args != none {
+            for a in args as list[ref parser.Node] {
+                fold_expr(w, m, a)
+            }
+        }
+        try_fold_call(w, m, expr)
+        return
+    }
+    if k == parser.NK_BUILTIN {
+        val args2: ref void = expr.d1 as ref void
+        if args2 != none {
+            for a in args2 as list[ref parser.Node] {
+                fold_expr(w, m, a)
+            }
+        }
+        return
+    }
+    if k == parser.NK_STRUCT_LIT {
+        val fields: ref void = expr.d0 as ref void
+        if fields != none {
+            for f in fields as list[ref parser.Node] {
+                fold_expr(w, m, (f as ref parser.Node).d1 as ref parser.Node)
+            }
+        }
+        return
+    }
+    if k == parser.NK_LIST_LIT || k == parser.NK_FIXED_ARR_LIT || k == parser.NK_ARGS_PACK {
+        val elems: ref void = expr.d0 as ref void
+        if elems != none {
+            for e in elems as list[ref parser.Node] {
+                fold_expr(w, m, e)
+            }
+        }
+        return
+    }
+}
+
+fn try_fold_call(
+    w: mut ref World,
+    m: ref modinfo.ResolvedModule,
+    expr: mut ref parser.Node
+) void = trust {
+    val fn_node: ref parser.Node = parser.call_resolved_fn(expr)
+    if fn_node == none || fn_node.kind == parser.NK_EXTERN_FN {
+        return
+    }
+    if w.no_fold {
+        mark_used_fn(w, fn_node)
+        return
+    }
+    val pidx: i64 = pure_index(w, fn_node)
+    if pidx < 0 {
+        mark_used_fn(w, fn_node)
+        return
+    }
+    val st_opt = @get(w.fn_states, pidx as usize)
+    if st_opt is some st {
+        if (st as i64) != 1 {
+            mark_used_fn(w, fn_node)
+            return
+        }
+    }
+    val ret: ref parser.Node = call_ret_ty(make_empty_ctx(w, m), expr)
+    if ret != none && !is_plain_type(w, m, ty_unwrap(ret)) {
+        mark_used_fn(w, fn_node)
+        return
+    }
+    val ctx: mut ref EvalCtx = make_empty_ctx(w, m)
+    ctx.fuel = 1000000
+    if w.fuel_limit < ctx.fuel {
+        ctx.fuel = w.fuel_limit
+    }
+    val res = eval_call(ctx, expr)
+    match res {
+        ok v => {
+            if val_size(w, v) <= w.result_limit {
+                write_const(w, expr, v)
+                w.folded = w.folded + 1
+            }
+        }
+        err _ => {
+            // A failed fold is never a bug; leave the runtime call in place.
+            mark_used_fn(w, fn_node)
+        }
+    }
+}
+
+fn fold_all(w: mut ref World) void = trust {
+    fold_module(w, w.root)
+}
+
+fn fold_module(w: mut ref World, m: ref modinfo.ResolvedModule) void = trust {
+    if m == none {
+        return
+    }
+    for item in modinfo.module_items(m) {
+        fold_item(w, m, item)
+    }
+    val nimp: i64 = modinfo.import_count(m)
+    val i: mut i64 = 0
+    for {
+        if i >= nimp {
+            break
+        }
+        fold_module(w, modinfo.import_module_at(m, i as usize))
+        i++
+    }
+}
+
+fn type_has_fixed_arr(ty: ref parser.Node) bool = trust {
+    if ty == none {
+        return false
+    }
+    val k: i64 = ty.kind
+    if k == parser.TY_FIXED_ARR {
+        return true
+    }
+    if k == parser.TY_MUT || k == parser.TY_REF || k == parser.TY_OPTION
+    || k == parser.TY_LIST || k == parser.TY_SLICE {
+        return type_has_fixed_arr(ty.d0 as ref parser.Node)
+    }
+    if k == parser.TY_RESULT {
+        return type_has_fixed_arr(ty.d0 as ref parser.Node)
+        || type_has_fixed_arr(ty.d1 as ref parser.Node)
+    }
+    return false
+}
+
+fn fn_has_fixed_arr_signature(fn_node: ref parser.Node) bool = trust {
+    if fn_node == none {
+        return false
+    }
+    if type_has_fixed_arr(fn_node.d4 as ref parser.Node) {
+        return true
+    }
+    val params: ref void = fn_node.d3 as ref void
+    if params != none {
+        for p in params as list[ref parser.Node] {
+            if type_has_fixed_arr((p as ref parser.Node).d1 as ref parser.Node) {
+                return true
+            }
+        }
+    }
+    return false
+}
+
+fn prune_dead_item(w: mut ref World, item: mut ref parser.Node) void = trust {
+    if item == none {
+        return
+    }
+    if item.kind == parser.NK_WHEN_ITEMS {
+        for wi in when_items_selected(w, item) {
+            if wi != none {
+                val wm: mut ref parser.Node = wi
+                prune_dead_item(w, wm)
+            }
+        }
+        return
+    }
+    if item.kind != parser.NK_FN && item.kind != parser.NK_GENERIC_FN {
+        return
+    }
+    val public: i64 = item.d0 & 1
+    val name: ref u8 = parser.node_str_raw(item.d2)
+    if public != 0 || cstr.eql(name, c"main") {
+        return
+    }
+    if !fn_has_fixed_arr_signature(item) {
+        return
+    }
+    if !fn_is_used(w, item) {
+        item.kind = 0
+    }
+}
+
+fn prune_dead_module(w: mut ref World, m: ref modinfo.ResolvedModule) void = trust {
+    if m == none {
+        return
+    }
+    for item in modinfo.module_items(m) {
+        val mitem: mut ref parser.Node = item
+        prune_dead_item(w, mitem)
+    }
+    val nimp: i64 = modinfo.import_count(m)
+    val i: mut i64 = 0
+    for {
+        if i >= nimp {
+            break
+        }
+        prune_dead_module(w, modinfo.import_module_at(m, i as usize))
+        i++
+    }
+}
+
+fn prune_dead_functions(w: mut ref World) void = trust {
+    prune_dead_module(w, w.root)
+}
+
+fn expr_has_call(expr: ref parser.Node) bool = trust {
+    if expr == none {
+        return false
+    }
+    val k: i64 = expr.kind
+    if k == parser.NK_CALL {
+        return true
+    }
+    if k == parser.NK_BINOP {
+        return expr_has_call(parser.binop_left(expr))
+        || expr_has_call(parser.binop_right(expr))
+    }
+    if k == parser.NK_UNOP {
+        return expr_has_call(parser.unop_inner(expr))
+    }
+    if k == parser.NK_CAST || k == parser.NK_TRUST || k == parser.NK_TRY
+    || k == parser.NK_ADDR || k == parser.NK_DEREF || k == parser.NK_SOME
+    || k == parser.NK_OK_VAL || k == parser.NK_ERR_VAL || k == parser.NK_GENERIC_INST {
+        return expr_has_call(expr.d0 as ref parser.Node)
+    }
+    if k == parser.NK_FIELD {
+        return expr_has_call(parser.field_base(expr))
+    }
+    if k == parser.NK_BUILTIN {
+        val args: ref void = expr.d1 as ref void
+        if args != none {
+            for a in args as list[ref parser.Node] {
+                if expr_has_call(a) {
+                    return true
+                }
+            }
+        }
+        return false
+    }
+    if k == parser.NK_STRUCT_LIT {
+        val fields: ref void = expr.d0 as ref void
+        if fields != none {
+            for f in fields as list[ref parser.Node] {
+                if expr_has_call((f as ref parser.Node).d1 as ref parser.Node) {
+                    return true
+                }
+            }
+        }
+        return false
+    }
+    if k == parser.NK_LIST_LIT || k == parser.NK_FIXED_ARR_LIT || k == parser.NK_ARGS_PACK {
+        val elems: ref void = expr.d0 as ref void
+        if elems != none {
+            for e in elems as list[ref parser.Node] {
+                if expr_has_call(e) {
+                    return true
+                }
+            }
+        }
+        return false
+    }
+    return false
+}
+
+fn check_top_call_item(
+    w: mut ref World,
+    m: ref modinfo.ResolvedModule,
+    item: ref parser.Node
+) void = trust {
+    if item == none {
+        return
+    }
+    if item.kind == parser.NK_WHEN_ITEMS {
+        for wi in when_items_selected(w, item) {
+            check_top_call_item(w, m, wi)
+        }
+        return
+    }
+    if item.kind != parser.NK_VAL && item.kind != parser.NK_CONST {
+        return
+    }
+    val init: mut ref parser.Node = none
+    val name: mut ref u8 = c""
+    if item.kind == parser.NK_VAL {
+        init = item.d3 as ref parser.Node
+        name = parser.node_str_raw(item.d0)
+    } else {
+        init = item.d2 as ref parser.Node
+        name = parser.node_str_raw(item.d1)
+    }
+    if expr_has_call(init) {
+        val msg: ref u8 = arenafmt.format(
+            w.arena,
+            "{s}:{lld}: top-level value '{s}' is not fully evaluable at compile time",
+            {mod_file(m), item.line, name}
+        ).ptr
+        add_error(w, msg)
+    }
+}
+
+fn check_top_calls(w: mut ref World) void = trust {
+    check_top_calls_module(w, w.root)
+}
+
+fn check_top_calls_module(w: mut ref World, m: ref modinfo.ResolvedModule) void = trust {
+    if m == none {
+        return
+    }
+    for item in modinfo.module_items(m) {
+        check_top_call_item(w, m, item)
+    }
+    val nimp: i64 = modinfo.import_count(m)
+    val i: mut i64 = 0
+    for {
+        if i >= nimp {
+            break
+        }
+        check_top_calls_module(w, modinfo.import_module_at(m, i as usize))
+        i++
+    }
+}
+
+pub fn process(
+    arena: allocators.ScopedArenaAllocator,
+    root: ref modinfo.ResolvedModule,
+    src_target: ref u8,
+    fuel: i64,
+    no_fold: bool,
+    loud: bool
+) list[ref u8] = trust {
+    val w: mut ref World = allocators.ScopedArena.alloc_or_none(
+        arena,
+        @sizeof(World) as usize
+    ) as ref World
+    @memset(w, 0, @sizeof(World) as usize)
+    w.arena = arena
+    w.root = root
+    w.src_target = src_target
+    w.fuel_limit = fuel
+    w.depth_limit = 256
+    w.result_limit = 1048576
+    w.no_fold = no_fold
+    w.loud = loud
+    w.errors = mem.new[ref u8]()
+    w.fn_nodes = mem.new[ref parser.Node]()
+    w.fn_files = mem.new[ref u8]()
+    w.fn_states = mem.new[i64]()
+    w.fn_viols = mem.new[ref u8]()
+    w.used_fns = mem.new[ref parser.Node]()
+    w.seen_mods = mem.new[ref void]()
+    w.cur_viol = none
+    w.cur_viol_line = 0
+    w.folded = 0
+    w.statics = 0
+    parser.set_node_string_arena(arena)
+
+    purity_analyze(w)
+    rewrite_all(w)
+    fold_all(w)
+    prune_dead_functions(w)
+    check_top_calls(w)
+    if loud && @len(w.errors) as i64 == 0 {
+        stdio.print(
+            "[IV ]│ compile-time evaluation: {lld} folded call(s), {lld} @static value(s)\n",
+            {w.folded, w.statics}
+        )
+    }
+    return w.errors
+}

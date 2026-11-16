@@ -20,6 +20,7 @@ pub union TokenKind = {
     | Elif()
     | Trust()
     | Inline()
+    | Pure()
     | Use()
     | Ref()
     | For()
@@ -261,6 +262,9 @@ fn keyword_kind(s: str.StringView) TokenKind = trust {
     }
     if str.eql_cstr(s, c"inline") {
         return Inline()
+    }
+    if str.eql_cstr(s, c"pure") {
+        return Pure()
     }
     if str.eql_cstr(s, c"use") {
         return Use()

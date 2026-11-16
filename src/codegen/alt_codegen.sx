@@ -553,6 +553,9 @@ fn cc_infer_expr_ty(ctx: mut ref CCtx, expr: ref parser.Node) ref parser.Node = 
         parser.node_store_string_slot(@addr(out.d0), c"StringView")
         return out
     }
+    if k == parser.NK_FIXED_ARR_LIT {
+        return parser.fixed_arr_lit_type(expr)
+    }
     if k == parser.NK_STRUCT_LIT {
         val lit_name: ref u8 = parser.struct_lit_type_name_raw(expr)
         if lit_name != none {
@@ -4958,6 +4961,9 @@ fn gen_expr(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
     if k == parser.NK_STRUCT_LIT {
         return gen_struct_lit(ctx, expr)
     }
+    if k == parser.NK_FIXED_ARR_LIT {
+        return gen_fixed_arr_lit(ctx, expr, parser.fixed_arr_lit_type(expr))
+    }
     if k == parser.NK_LIST_LIT {
         val fixed_arr_ty: ref parser.Node = cc_fixed_arr_ty(ctx, ctx.expected_ty as ref parser.Node)
         if fixed_arr_ty != none {
@@ -7065,6 +7071,96 @@ fn gen_builtin(ctx: mut ref CCtx, expr: ref parser.Node) ref u8 = trust {
         return cc_expr_track(ctx, buf)
     }
     if cstr.cmp(bname, c"set") == 0 {
+        val set_args: list[ref parser.Node] = args as list[ref parser.Node]
+        val set_argc: i64 = @len(set_args) as i64
+        val set_a0_opt = @get(set_args, 0 as usize)
+        if set_a0_opt is some set_a0 {
+            val set_ty0: ref parser.Node = cc_infer_expr_ty(ctx, set_a0 as ref parser.Node)
+            val set_concrete0: ref parser.Node = cc_concrete_ty(ctx, set_ty0)
+            val set_concrete: mut ref parser.Node = set_concrete0
+            for {
+                if set_concrete == none || set_concrete.kind != parser.TY_MUT {
+                    break
+                }
+                set_concrete = cc_concrete_ty(ctx, set_concrete.d0 as ref parser.Node)
+            }
+            if set_concrete != none && set_concrete.kind == parser.TY_FIXED_ARR {
+                val set_base: ref u8 = get_arg(ctx, args, 0)
+                val set_ptr_tmp: i64 = fresh_tmp(ctx)
+                val set_decl: ref u8 = allocators.ScopedArena.alloc_or_none(
+                    ctx.arena,
+                    256 as usize
+                ) as ref u8
+                @snprintf(
+                    set_decl,
+                    256,
+                    "int64_t sx__sp{lld}=(int64_t)(intptr_t)({s});\n",
+                    {set_ptr_tmp, set_base}
+                )
+                emit(ctx, set_decl)
+                val set_cur: mut ref parser.Node = set_concrete
+                val set_ai: mut i64 = 1
+                for {
+                    if set_ai >= set_argc - 1 {
+                        break
+                    }
+                    if set_cur == none || set_cur.kind != parser.TY_FIXED_ARR {
+                        break
+                    }
+                    val set_idx: ref u8 = get_arg(ctx, args, set_ai)
+                    val set_next: ref parser.Node = parser.fixed_arr_inner(set_cur)
+                    val set_esz: i64 = c_size_of(ctx, set_next)
+                    val set_i_tmp: i64 = fresh_tmp(ctx)
+                    val set_step: ref u8 = allocators.ScopedArena.alloc_or_none(
+                        ctx.arena,
+                        512 as usize
+                    ) as ref u8
+                    @snprintf(
+                        set_step,
+                        512,
+                        "int64_t sx__si{lld}=(int64_t)({s});sx__sp{lld}+=sx__si{lld}*{lld};\n",
+                        {set_i_tmp, set_idx, set_ptr_tmp, set_i_tmp, set_esz}
+                    )
+                    emit(ctx, set_step)
+                    set_cur = set_next
+                    set_ai++
+                }
+                val set_v: ref u8 = get_arg(ctx, args, set_argc - 1)
+                if cc_type_needs_aggregate_copy(ctx, set_cur) {
+                    val set_sz: i64 = c_size_of(ctx, set_cur)
+                    val set_copy: ref u8 = allocators.ScopedArena.alloc_or_none(
+                        ctx.arena,
+                        256 as usize
+                    ) as ref u8
+                    @snprintf(
+                        set_copy,
+                        256,
+                        "memcpy((void*)(intptr_t)sx__sp{lld},(void*)(intptr_t)({s}),{lld});\n",
+                        {set_ptr_tmp, set_v, set_sz}
+                    )
+                    emit(ctx, set_copy)
+                } else {
+                    val set_ct: ref u8 = cc_c_type_of(ctx, set_cur)
+                    val set_store: ref u8 = allocators.ScopedArena.alloc_or_none(
+                        ctx.arena,
+                        512 as usize
+                    ) as ref u8
+                    @snprintf(
+                        set_store,
+                        512,
+                        "*({s}*)(intptr_t)sx__sp{lld}=({s})({s});\n",
+                        {set_ct, set_ptr_tmp, set_ct, set_v}
+                    )
+                    emit(ctx, set_store)
+                }
+                val set_res: ref u8 = allocators.ScopedArena.alloc_or_none(
+                    ctx.arena,
+                    32 as usize
+                ) as ref u8
+                @snprintf(set_res, 32, "((int64_t)0)")
+                return cc_expr_track(ctx, set_res)
+            }
+        }
         val l: ref u8 = get_arg(
             ctx,
             args,
@@ -7820,7 +7916,7 @@ fn gen_fixed_arr_fill(
 
         val elems: mut ref void = none
         val elen: mut i64 = 0
-        if expr != none && expr.kind == parser.NK_LIST_LIT {
+        if expr != none && (expr.kind == parser.NK_LIST_LIT || expr.kind == parser.NK_FIXED_ARR_LIT) {
             elems = expr.d0 as ref void
             if elems != none {
                 elen = @len(elems as list[ref void]) as i64
