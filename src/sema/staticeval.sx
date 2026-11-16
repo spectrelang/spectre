@@ -4217,13 +4217,61 @@ fn check_top_calls_module(w: mut ref World, m: ref modinfo.ResolvedModule) void 
     }
 }
 
+fn check_qbe_array_fn_item(w: mut ref World, m: ref modinfo.ResolvedModule, item: ref parser.Node) void = trust {
+    if item == none {
+        return
+    }
+    if item.kind == parser.NK_WHEN_ITEMS {
+        for wi in when_items_selected(w, item) {
+            check_qbe_array_fn_item(w, m, wi)
+        }
+        return
+    }
+    if item.kind != parser.NK_FN && item.kind != parser.NK_GENERIC_FN {
+        return
+    }
+    if !fn_has_fixed_arr_signature(item) {
+        return
+    }
+    val name: ref u8 = parser.node_str_raw(item.d2)
+    val msg: ref u8 = arenafmt.format(
+        w.arena,
+        "{s}:{lld}: function '{s}' uses a fixed-size array by value; the QBE backend cannot lower this signature",
+        {mod_file(m), item.line, name}
+    ).ptr
+    add_error(w, msg)
+}
+
+fn check_qbe_array_fns_module(w: mut ref World, m: ref modinfo.ResolvedModule) void = trust {
+    if m == none {
+        return
+    }
+    for item in modinfo.module_items(m) {
+        check_qbe_array_fn_item(w, m, item)
+    }
+    val nimp: i64 = modinfo.import_count(m)
+    val i: mut i64 = 0
+    for {
+        if i >= nimp {
+            break
+        }
+        check_qbe_array_fns_module(w, modinfo.import_module_at(m, i as usize))
+        i++
+    }
+}
+
+fn check_qbe_array_fns(w: mut ref World) void = trust {
+    check_qbe_array_fns_module(w, w.root)
+}
+
 pub fn process(
     arena: allocators.ScopedArenaAllocator,
     root: ref modinfo.ResolvedModule,
     src_target: ref u8,
     fuel: i64,
     no_fold: bool,
-    loud: bool
+    loud: bool,
+    qbe_mode: bool
 ) list[ref u8] = trust {
     val w: mut ref World = allocators.ScopedArena.alloc_or_none(
         arena,
@@ -4255,10 +4303,13 @@ pub fn process(
     rewrite_all(w)
     fold_all(w)
     prune_dead_functions(w)
+    if qbe_mode {
+        check_qbe_array_fns(w)
+    }
     check_top_calls(w)
     if loud && @len(w.errors) as i64 == 0 {
         stdio.print(
-            "[IV ]│ compile-time evaluation: {lld} folded call(s), {lld} @static value(s)\n",
+            "[INF]│ CTE: {lld} folded call(s), {lld} @static value(s)\n",
             {w.folded, w.statics}
         )
     }

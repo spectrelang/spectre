@@ -11350,6 +11350,40 @@ fn check_generic_fn(ctx: mut ref SemaCtx, fn_node: ref parser.Node, filename: re
 }
 
 /// Check a single top-level item (functions, tests, when items).
+fn check_no_global_wrapped(
+    ctx: mut ref SemaCtx,
+    name: ref u8,
+    ty: ref parser.Node,
+    init: ref parser.Node,
+    filename: ref u8,
+    line: i64
+) void = trust {
+    val resolved: ref parser.Node = unwrap_mut_type(ty)
+    val wrapped: mut bool = false
+    if resolved != none && (resolved.kind == parser.TY_OPTION || resolved.kind == parser.TY_RESULT) {
+        wrapped = true
+    }
+    if init != none {
+        val k: i64 = init.kind
+        if k == parser.NK_SOME || k == parser.NK_OK_VAL || k == parser.NK_ERR_VAL {
+            wrapped = true
+        }
+    }
+    if wrapped {
+        val buf: ref u8 = allocators.ScopedArena.alloc_or_none(
+            ctx.arena,
+            (512) as usize
+        ) as ref u8
+        @snprintf(
+            buf,
+            512,
+            "{s}:{lld}: top-level value '{s}' cannot have option/result type; keep wrapped values inside functions",
+            {filename, line, name}
+        )
+        add_error(ctx, buf)
+    }
+}
+
 fn check_top_level_initializer(
     _: mut ref SemaCtx,
     _: ref u8,
@@ -11417,6 +11451,14 @@ fn check_top_item(ctx: mut ref SemaCtx, item: ref parser.Node, filename: ref u8)
     }
     if k == parser.NK_VAL {
         val init_node: ref parser.Node = item.d3 as ref parser.Node
+        check_no_global_wrapped(
+            ctx,
+            parser.node_str_raw(item.d0),
+            item.d2 as ref parser.Node,
+            init_node,
+            filename,
+            item.line
+        )
         check_top_level_initializer(
             ctx,
             parser.node_str_raw(item.d0),
@@ -11445,6 +11487,14 @@ fn check_top_item(ctx: mut ref SemaCtx, item: ref parser.Node, filename: ref u8)
     }
     if k == parser.NK_CONST {
         val init_node: ref parser.Node = item.d2 as ref parser.Node
+        check_no_global_wrapped(
+            ctx,
+            parser.node_str_raw(item.d1),
+            item.d3 as ref parser.Node,
+            init_node,
+            filename,
+            item.line
+        )
         check_top_level_initializer(
             ctx,
             parser.node_str_raw(item.d1),
@@ -12457,7 +12507,8 @@ pub fn check_module_tree(
     no_warn: bool,
     static_fuel: i64,
     no_fold: bool,
-    loud: bool
+    loud: bool,
+    qbe_mode: bool
 ) list[ref u8] = trust {
     val all_errors: mut list[ref u8] = mem.new[ref u8]()
     val seen: mut list[ref void] = mem.new[ref void]()
@@ -12469,7 +12520,8 @@ pub fn check_module_tree(
             src_target,
             static_fuel,
             no_fold,
-            loud
+            loud,
+            qbe_mode
         )
         for e in static_errors {
             @append(all_errors, e)

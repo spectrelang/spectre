@@ -35,6 +35,7 @@ type FnSig = {
     name: mut ref u8
     ret_type: mut ref u8
     params: mut list[ref parser.Node]
+    is_pure: mut bool
 }
 
 type MutVar = {
@@ -70,6 +71,7 @@ type Ctx = {
     in_trust: mut bool
     trust_cursor: mut i64
     mut_vars: mut list[ref MutVar]
+    consts: mut list[ref u8]
 }
 
 /// Free a heap-allocated language-level list (header and backing storage).
@@ -127,6 +129,7 @@ fn ctx_new(
     c.in_trust = false
     c.trust_cursor = 0
     c.mut_vars = mem.new[ref MutVar]()
+    c.consts = mem.new[ref u8]()
     return c
 }
 
@@ -1787,6 +1790,97 @@ fn check_unused_imports(ctx: mut ref Ctx) void = trust {
     }
 }
 
+fn collect_const_names(ctx: mut ref Ctx, items: list[ref parser.Node]) void = trust {
+    for item in items {
+        if item == none {
+            continue
+        }
+        if item.kind == parser.NK_CONST {
+            @append(ctx.consts, parser.node_str_raw(item.d1))
+        } elif item.kind == parser.NK_WHEN_ITEMS {
+            collect_const_names(ctx, item.d1 as list[ref parser.Node])
+            val or_branches: list[ref parser.Node] = item.d2 as list[ref parser.Node]
+            if or_branches != none {
+                for or_node in or_branches {
+                    val branch: ref parser.Node = or_node as ref parser.Node
+                    collect_const_names(ctx, branch.d1 as list[ref parser.Node])
+                }
+            }
+            collect_const_names(ctx, item.d3 as list[ref parser.Node])
+        }
+    }
+}
+
+fn is_constant_name(ctx: ref Ctx, name: ref u8) bool = trust {
+    for cname in ctx.consts {
+        if cstr.cmp(cname, name) == 0 {
+            return true
+        }
+    }
+    return false
+}
+
+fn expr_is_constant(ctx: ref Ctx, node: ref parser.Node) bool = trust {
+    if node == none {
+        return false
+    }
+    val k: i64 = node.kind
+    if k == parser.NK_INT_LIT || k == parser.NK_FLOAT_LIT || k == parser.NK_BOOL
+    || k == parser.NK_CHAR_LIT || k == parser.NK_STR_LIT {
+        return true
+    }
+    if k == parser.NK_IDENT {
+        return is_constant_name(ctx, parser.node_str_raw(node.d0))
+    }
+    if k == parser.NK_UNOP {
+        return expr_is_constant(ctx, parser.unop_inner(node))
+    }
+    if k == parser.NK_CAST || k == parser.NK_TRUST {
+        return expr_is_constant(ctx, node.d0 as ref parser.Node)
+    }
+    if k == parser.NK_BUILTIN {
+        if cstr.cmp(parser.builtin_name_raw(node), c"static") == 0 {
+            return true
+        }
+    }
+    return false
+}
+
+fn check_foldable_call(ctx: mut ref Ctx, call: ref parser.Node) void = trust {
+    val callee: ref parser.Node = call_callee_base(parser.call_callee(call))
+    if callee == none {
+        return
+    }
+    val name: mut ref u8 = c""
+    if callee.kind == parser.NK_IDENT {
+        name = parser.node_str_raw(callee.d0)
+    } elif callee.kind == parser.NK_FIELD {
+        name = parser.field_name_raw(callee)
+    }
+    if cstr.cmp(name, c"") == 0 {
+        return
+    }
+    val sig: ref FnSig = lookup_fn_sig(ctx, name)
+    if sig == none || sig.is_pure {
+        return
+    }
+    val args: list[ref parser.Node] = parser.call_args(call)
+    if args == none || @len(args) as i64 == 0 {
+        return
+    }
+    for arg in args {
+        if !expr_is_constant(ctx, arg) {
+            return
+        }
+    }
+    val msg: ref u8 = ostr.as_cstr(fmt.format[allocators.Arena](
+        ctx.arena,
+        c"call to '{s}' has compile-time constant arguments but is not marked 'pure'; annotate it with '= pure' or use @static(...) to require folding",
+        {name}
+    ))
+    add_issue(ctx, call.line, msg)
+}
+
 fn collect_fn_sigs(ctx: mut ref Ctx, items: list[ref parser.Node]) void = trust {
     for item in items {
         if item == none {
@@ -1807,6 +1901,7 @@ fn collect_fn_sigs(ctx: mut ref Ctx, items: list[ref parser.Node]) void = trust 
             sig.name = name
             sig.ret_type = ret_name
             sig.params = item.d3 as list[ref parser.Node]
+            sig.is_pure = parser.fn_is_pure(item)
             @append(ctx.fns, sig)
         } elif k == parser.NK_WHEN_ITEMS {
             collect_fn_sigs(ctx, item.d1 as list[ref parser.Node])
@@ -2103,6 +2198,7 @@ fn walk_expr(ctx: mut ref Ctx, node: ref parser.Node) void = trust {
             walk_expr(ctx, arg)
         }
         mark_call_mutations(ctx, node)
+        check_foldable_call(ctx, node)
         return
     }
     if k == parser.NK_CAST {
@@ -2661,6 +2757,7 @@ fn walk_items(ctx: mut ref Ctx, items: list[ref parser.Node]) void = trust {
 }
 
 fn analyze(ctx: mut ref Ctx, items: list[ref parser.Node]) void = trust {
+    collect_const_names(ctx, items)
     collect_fn_sigs(ctx, items)
     walk_items(ctx, items)
     check_unused_imports(ctx)
@@ -2897,6 +2994,7 @@ fn ctx_free(ctx: mut ref Ctx) void = trust {
     free_list_buffer[ref FnSig](ctx.fns)
     free_list_buffer[ref parser.Node](ctx.uses)
     free_list_buffer[ref MutVar](ctx.mut_vars)
+    free_list_buffer[ref u8](ctx.consts)
 }
 
 fn print_issues(ctx: ref Ctx, filename: ref u8) void = trust {

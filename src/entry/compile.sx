@@ -290,7 +290,8 @@ fn run_semantics(ctx: mut ref context.Context) bool = trust {
         ctx.opts.no_warn,
         ctx.opts.static_fuel,
         ctx.opts.no_fold,
-        !ctx.opts.quiet
+        !ctx.opts.quiet,
+        !ctx.opts.use_alt && !ctx.opts.emit_alt
     )
     val nerrors: i64 = @len(errors) as i64
     if nerrors > 0 {
