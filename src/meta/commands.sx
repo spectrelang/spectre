@@ -60,6 +60,7 @@ pub type SxMod = {
     vars: mut list[ref u8]
     deps: mut list[ref SxDep]
     builds: mut list[ref SxBuildConfig]
+    parse_failed: mut bool
 }
 
 type SxLockDep = {
@@ -76,6 +77,16 @@ type ParseCtx = {
 type VarRef = {
     value: mut ref u8
     after: mut i64
+}
+
+type SxVarOverride = {
+    name: mut ref u8
+    value: mut ref u8
+    condition: mut ref u8
+    active: mut i64
+    line: mut i64
+    col: mut i64
+    span: mut i64
 }
 
 fn new_ctx(text: ref u8) ref ParseCtx = {
@@ -557,7 +568,7 @@ fn expand_var_refs(
                 val vr: ref VarRef = vr_opt
                 if vr.value != none {
                     val quoted: bool = quote_context && token_needs_quote(vr.value)
-                        && !is_inside_quotes(s, i)
+                    && !is_inside_quotes(s, i)
                     val value: mut ref u8 = vr.value
                     if quoted {
                         value = builds.quote_arg(vr.value)
@@ -597,12 +608,12 @@ fn expand_list(
         val e = @get(values, i as usize)
         if e is some entry {
             @set(values, i as usize, expand_var_refs(
-                m,
-                root,
-                target,
-                entry as ref u8,
-                quote_context
-            ))
+                    m,
+                    root,
+                    target,
+                    entry as ref u8,
+                    quote_context
+                ))
         }
         i++
     }
@@ -688,11 +699,127 @@ fn expand_mod_strings(m: mut ref SxMod, root: ref u8, target: ref u8) void = tru
     }
 }
 
-fn parse_var_entries(ctx: mut ref ParseCtx, out: mut list[ref u8]) void = trust {
+fn var_entry_matches(entry: ref u8, name: ref u8) bool = trust {
+    val n: i64 = cstr.len(name)
+    val elen: i64 = cstr.len(entry)
+    if elen <= n {
+        return false
+    }
+    if @load8(@ptradd(entry, n)) != 61 {
+        return false
+    }
+    val i: mut i64 = 0
+    for {
+        if i >= n {
+            break
+        }
+        if @load8(@ptradd(entry, i)) != @load8(@ptradd(name, i)) {
+            return false
+        }
+        i++
+    }
+    return true
+}
+
+fn var_entry_exists(values: list[ref u8], name: ref u8) bool = trust {
+    for entry in values {
+        if var_entry_matches(entry, name) {
+            return true
+        }
+    }
+    return false
+}
+
+fn set_var_entry(values: mut list[ref u8], name: ref u8, value: ref u8) void = trust {
+    val count: i64 = @len(values) as i64
+    val i: mut i64 = 0
+    for {
+        if i >= count {
+            break
+        }
+        val entry_opt = @get(values, i as usize)
+        if entry_opt is some entry_value {
+            val entry: ref u8 = entry_value as ref u8
+            if var_entry_matches(entry, name) {
+                @set(values, i as usize, mem_concat3(name, c"=", value))
+                return
+            }
+        }
+        i++
+    }
+}
+
+fn parse_var_condition(
+    ctx: mut ref ParseCtx,
+    overrides: mut list[ref SxVarOverride],
+    target: ref u8,
+    active: bool,
+    platform: ref u8,
+    arch: ref u8,
+    condition: ref u8
+) void = trust {
+    ctx_advance(ctx)
+    val matched: bool = active && dep_block_matches(platform, arch, target)
+    for {
+        ctx_skip_ws(ctx)
+        val c: i64 = ctx_peek(ctx)
+        if c == -1 || c == 125 {
+            break
+        }
+        val start: i64 = ctx.pos
+        val name: ref u8 = ctx_read_ident(ctx)
+        if cstr.cmp(name, c"") == 0 {
+            break
+        }
+        ctx_skip_ws(ctx)
+        if ctx_peek(ctx) == 123 {
+            val child_platform: ref u8 = builds.target_platform_of(name)
+            val child_arch: ref u8 = builds.target_arch_of(name)
+            parse_var_condition(
+                ctx,
+                overrides,
+                target,
+                matched,
+                child_platform,
+                child_arch,
+                name
+            )
+            continue
+        }
+        if ctx_peek(ctx) == 61 {
+            ctx_advance(ctx)
+        }
+        val value: ref u8 = ctx_read_env_value(ctx)
+        if cstr.cmp(name, c"OUT") == 0 {
+            continue
+        }
+        val ov: mut ref SxVarOverride = mem.alloc(@sizeof(SxVarOverride) as usize) as mut ref SxVarOverride
+        @memset(ov, 0, @sizeof(SxVarOverride) as usize)
+        ov.name = name
+        ov.value = value
+        ov.condition = condition
+        ov.active = matched as i64
+        ov.line = ctx_line_at(ctx, start)
+        ov.col = ctx_col_at(ctx, start)
+        ov.span = ctx.pos - start
+        @append(overrides, ov)
+    }
+    if ctx_peek(ctx) == 125 {
+        ctx_advance(ctx)
+    }
+}
+
+fn parse_var_entries(
+    ctx: mut ref ParseCtx,
+    out: mut list[ref u8],
+    target: ref u8,
+    filename: ref u8
+) bool = trust {
     ctx_skip_ws(ctx)
     if ctx_peek(ctx) == 123 {
         ctx_advance(ctx)
     }
+    val overrides: mut list[ref SxVarOverride] = mem.new[ref SxVarOverride]()
     for {
         ctx_skip_ws(ctx)
         val c: i64 = ctx_peek(ctx)
@@ -704,6 +831,12 @@ fn parse_var_entries(ctx: mut ref ParseCtx, out: mut list[ref u8]) void = trust 
             break
         }
         ctx_skip_ws(ctx)
+        if ctx_peek(ctx) == 123 {
+            val platform: ref u8 = builds.target_platform_of(name)
+            val arch: ref u8 = builds.target_arch_of(name)
+            parse_var_condition(ctx, overrides, target, true, platform, arch, name)
+            continue
+        }
         if ctx_peek(ctx) == 61 {
             ctx_advance(ctx)
         }
@@ -715,6 +848,36 @@ fn parse_var_entries(ctx: mut ref ParseCtx, out: mut list[ref u8]) void = trust 
     if ctx_peek(ctx) == 125 {
         ctx_advance(ctx)
     }
+
+    val valid: mut bool = true
+    val ocount: i64 = @len(overrides) as i64
+    val oi: mut i64 = 0
+    for {
+        if oi >= ocount {
+            break
+        }
+        val ov_opt = @get(overrides, oi as usize)
+        if ov_opt is some ov_value {
+            val ov: ref SxVarOverride = ov_value as ref SxVarOverride
+            if !var_entry_exists(out, ov.name) {
+                diag.error_at_span(
+                    filename,
+                    ov.line,
+                    ov.col,
+                    ov.span,
+                    @fmtalloc(
+                        "cannot declare variable '{s}' inside the '{s}' conditional block; declare it outside the condition first",
+                        {ov.name, ov.condition}
+                    )
+                )
+                valid = false
+            } elif ov.active != 0 {
+                set_var_entry(out, ov.name, ov.value)
+            }
+        }
+        oi++
+    }
+    return valid
 }
 
 fn new_dep(url: ref u8) ref SxDep = trust {
@@ -1193,7 +1356,12 @@ fn parse_build_body(ctx: mut ref ParseCtx, cfg: mut ref SxBuildConfig) void = tr
     }
 }
 
-pub fn parse_sxmod(content: ref u8, root: ref u8, target: ref u8) ref SxMod = trust {
+pub fn parse_sxmod(
+    content: ref u8,
+    root: ref u8,
+    target: ref u8,
+    filename: ref u8
+) ref SxMod = trust {
     val ctx: mut ref ParseCtx = new_ctx(content)
     val m: mut ref SxMod = mem.alloc(@sizeof(SxMod) as usize) as ref SxMod
     @memset(m, 0, @sizeof(SxMod) as usize)
@@ -1204,6 +1372,7 @@ pub fn parse_sxmod(content: ref u8, root: ref u8, target: ref u8) ref SxMod = tr
     m.vars = mem.new[ref u8]()
     m.deps = mem.new[ref SxDep]()
     m.builds = mem.new[ref SxBuildConfig]()
+    m.parse_failed = false
     for {
         ctx_skip_ws(ctx)
         if ctx_peek(ctx) == -1 {
@@ -1222,7 +1391,9 @@ pub fn parse_sxmod(content: ref u8, root: ref u8, target: ref u8) ref SxMod = tr
         } elif cstr.cmp(kw, c"single_flags") == 0 {
             m.single_flags = ctx_read_quoted(ctx)
         } elif cstr.cmp(kw, c"var") == 0 {
-            parse_var_entries(ctx, m.vars)
+            if !parse_var_entries(ctx, m.vars, target, filename) {
+                m.parse_failed = true
+            }
         } elif cstr.cmp(kw, c"dep") == 0 {
             val dep: mut ref SxDep = new_dep(ctx_read_quoted(ctx))
             parse_dep_body(ctx, dep, target)
@@ -1340,7 +1511,12 @@ pub fn load_sxmod_target(target: ref u8) option[ref SxMod] = {
         }
         some content => {
             val root: ref u8 = trust project_root_for(c".")
-            val m: ref SxMod = trust parse_sxmod(content as ref u8, root, target)
+            val m: ref SxMod = trust parse_sxmod(
+                content as ref u8,
+                root,
+                target,
+                c"sx.mod"
+            )
             trust @free(root)
             trust allocators.Arena.free(arena)
             if !validate_sxmod(m) {
@@ -1424,16 +1600,22 @@ pub fn load_sxmod_at_target(dir: ref u8, target: ref u8) option[ref SxMod] = tru
     }
     val arena: allocators.Arena = allocators.Arena.new((arena_cap + 8) as usize)?
     val content_opt = fs.read_all_cstr[allocators.Arena](arena, mod_path)
-    @free(mod_path)
     match content_opt {
         none => {
+            @free(mod_path)
             allocators.Arena.free(arena)
             return none
         }
         some content => {
             val root: ref u8 = project_root_for(dir)
-            val m: ref SxMod = parse_sxmod(content as ref u8, root, target)
+            val m: ref SxMod = parse_sxmod(
+                content as ref u8,
+                root,
+                target,
+                mod_path
+            )
             @free(root)
+            @free(mod_path)
             allocators.Arena.free(arena)
             return some m
         }
@@ -2219,6 +2401,9 @@ fn ensure_deps_in_dir(
             sxmod = m
         }
     }
+    if sxmod.parse_failed {
+        return 1
+    }
     val ndeps: i64 = @len(sxmod.deps) as i64
     if ndeps == 0 {
         return 0
@@ -2291,6 +2476,9 @@ fn run_dep_actions_in_dir(
         some m => {
             sxmod = m
         }
+    }
+    if sxmod.parse_failed {
+        return 1
     }
     val ndeps: i64 = @len(sxmod.deps) as i64
     if ndeps == 0 {
@@ -2416,6 +2604,9 @@ pub fn cmd_build(config_name: ref u8, exe_path: ref u8, target: ref u8) i32 = {
             return 1
         }
         some initial_m => {
+            if initial_m.parse_failed {
+                return 1
+            }
             if !trust validate_spectre_version(initial_m) {
                 return 1
             }
@@ -2444,6 +2635,9 @@ pub fn cmd_build(config_name: ref u8, exe_path: ref u8, target: ref u8) i32 = {
                         return 1
                     }
                     some reloaded => {
+                        if reloaded.parse_failed {
+                            return 1
+                        }
                         m = reloaded
                         found_cfg = find_build_config(m, config_name)
                         if found_cfg == none {

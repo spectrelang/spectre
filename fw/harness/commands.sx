@@ -10,6 +10,7 @@ val meta     = use("../../src/meta/meta.sx")
 val commands = use("../../src/meta/commands.sx")
 val check    = use("lib/check.sx")
 val str      = use("std/string")
+val cstr     = use("std/string/cstr")
 
 when posix {
     extern (C) fn chdir(path: ref u8) i32 = "chdir"
@@ -22,6 +23,12 @@ test "commands parses sx.mod without leaking" {
         \\version "1.2.3"
         \\spectre_version "0.0.0"
         \\single_flags "-release -dynamic"
+        \\var {
+        \\    OUT_NAME="default"
+        \\    posix {
+        \\        OUT_NAME="posix-name"
+        \\    }
+        \\}
         \\dep "https://example.com/lib.git" {
         \\    build_actions {
         \\        ["ls", "-l"],
@@ -48,7 +55,21 @@ test "commands parses sx.mod without leaking" {
         \\        log "platform message"
         \\    }
         \\}
-        val parsed = commands.parse_sxmod(check.cptr(content), check.cptr("."), check.cptr(""))
+        val parsed = commands.parse_sxmod(check.cptr(content), check.cptr("."), check.cptr(""), check.cptr("sx.mod"))
+        assert !parsed.parse_failed
+        assert @len(parsed.vars) as i64 == 1
+        val var_opt = @get(parsed.vars, 0 as usize)
+        if var_opt is some raw_var {
+            val var_entry: ref u8 = raw_var as ref u8
+            when posix {
+                assert cstr.cmp(var_entry, c"OUT_NAME=posix-name") == 0
+            }
+            when windows {
+                assert cstr.cmp(var_entry, c"OUT_NAME=default") == 0
+            }
+        } else {
+            assert false
+        }
         assert @len(parsed.deps) as i64 == 1
         assert @len(parsed.builds) as i64 == 1
         val dep_opt = @get(parsed.deps, 0 as usize)
