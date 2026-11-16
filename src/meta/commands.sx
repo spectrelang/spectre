@@ -1266,7 +1266,12 @@ fn parse_override_field(
         return true
     }
     if cstr.cmp(name, c"flags") == 0 {
-        target.flags = ctx_read_joined_value(ctx)
+        ctx_skip_ws(ctx)
+        if ctx_peek(ctx) == 34 {
+            target.flags = ctx_read_quoted(ctx)
+        } else {
+            target.flags = ctx_read_joined_value(ctx)
+        }
         return true
     }
     if cstr.cmp(name, c"output") == 0 {
@@ -1445,17 +1450,22 @@ fn validate_spectre_version(m: ref SxMod) bool = trust {
     if cstr.cmp(m.spectre_version, c"") == 0 {
         diag.puts_error_label()
         stdio.puts(" sx.mod is missing the required 'spectre_version' field")
-        stdio.print("-> installed compiler: {s}\n", {installed})
-        stdio.print("-> add this line to sx.mod: spectre_version \"{s}\"\n", {installed})
+        diag.info_label()
+        stdio.print(" installed compiler: {s}\n", {installed})
+        diag.info_label()
+        stdio.print(" add this line to sx.mod: spectre_version \"{s}\"\n", {installed})
         return false
     }
     if !str.eql_cstr(installed, m.spectre_version) {
         diag.puts_error_label()
-        stdio.puts(" Spectre version mismatch")
-        stdio.print("  installed compiler:      {s}\n", {installed})
-        stdio.print("  project spectre_version: {s}\n", {m.spectre_version})
+        stdio.puts(" spectre version mismatch")
+        diag.info_label()
+        stdio.print(" installed compiler:      {s}\n", {installed})
+        diag.info_label()
+        stdio.print(" project spectre_version: {s}\n", {m.spectre_version})
+        diag.info_label()
         stdio.print(
-            "Install the required compiler ({s})\n",
+            "install the required compiler ({s})\n",
             {m.spectre_version}
         )
         stdio.puts("Or update 'spectre_version' in sx.mod to match the installed compiler")

@@ -45,7 +45,7 @@ test "commands parses sx.mod without leaking" {
         \\    note "note message"
         \\    warn "warning message"
         \\    error "error message"
-        \\    flags "-l"
+        \\    flags "-l -dynamic"
         \\    output "./out"
         \\    env {
         \\        FOO=bar
@@ -86,6 +86,7 @@ test "commands parses sx.mod without leaking" {
             assert @len(cfg.base.actions) as i64 == 3
             assert @len(cfg.base.steps) as i64 == 7
             assert @len(cfg.base.envs) as i64 == 1
+            assert cstr.cmp(cfg.base.flags, c"-l -dynamic") == 0
             val rule_opt = @get(cfg.rules, 0 as usize)
             if rule_opt is some raw_rule {
                 val rule: ref commands.SxBuildRule = raw_rule as ref commands.SxBuildRule
