@@ -1,0 +1,3 @@
+pub fn on_event(x: i32) i32 = {
+    return x + 100
+}

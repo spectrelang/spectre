@@ -3531,44 +3531,6 @@ fn cg_lookup_fn_params(ctx: mut ref CgCtx, mangled: ref u8) ref void = trust {
     }
 }
 
-/// Find a mangled function name whose suffix matches the given bare name.
-/// E.g. bare name "kind_is_eq" matches mangled "parser__kind_is_eq".
-/// Returns the mangled name, or empty string if not found.
-fn resolve_fn_mangled(ctx: mut ref CgCtx, bare_name: ref u8) ref u8 = trust {
-    val names: ref void = cg_fn_names(ctx)
-    val nlen: i64 = @len(names as list[ref u8]) as i64
-    val ni: mut i64 = 0
-    for {
-        if ni >= nlen {
-            break
-        }
-        val n_opt = @get(names as list[ref u8], ni as usize)
-        if n_opt is some n {
-            val mangled: ref u8 = n as ref u8
-            val mlen: i64 = cstr.len(mangled)
-            val blen: i64 = cstr.len(bare_name)
-            if mlen > blen {
-                val suffix_pos: i64 = mlen - blen
-                if suffix_pos > 0 {
-                    val sc: u8 = @load8(@ptradd(mangled, suffix_pos - 1))
-                    if sc == 95 {
-                        val rest: ref u8 = @ptradd(mangled, suffix_pos) as ref u8
-                        if cstr.cmp(rest, bare_name) == 0 {
-                            return mangled
-                        }
-                    }
-                }
-            } elif mlen == blen {
-                if cstr.cmp(mangled, bare_name) == 0 {
-                    return mangled
-                }
-            }
-        }
-        ni++
-    }
-    return c""
-}
-
 /// Look up the return type for a mangled function name. Returns 0 if not found.
 fn cg_lookup_fn_ret(ctx: mut ref CgCtx, mangled: ref u8) ref void = trust {
     match collections.RawIndexMap.get(ctx.fn_name_index, mangled) {
@@ -7718,7 +7680,11 @@ fn gen_expr(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
                         @snprintf(buf6b, 128, "    %%t{lld} =l copy ${s}\n", {tmp6b, name})
                     }
                 } else {
-                    val resolved_name: ref u8 = resolve_fn_mangled(ctx, name)
+                    val resolved_fn: ref u8 = cg_resolve_fn_name(ctx, name)
+                    val resolved_name: mut ref u8 = c""
+                    if resolved_fn != none {
+                        resolved_name = resolved_fn
+                    }
                     if cstr.cmp(resolved_name, c"") != 0 {
                         val ext_addr2: ref u8 = cg_lookup_extern_symbol(ctx, resolved_name)
                         if ext_addr2 != none {

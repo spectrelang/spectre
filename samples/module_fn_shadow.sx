@@ -1,0 +1,19 @@
+/// A bare function reference must resolve to the current module's function,
+/// even when an imported module exports a function with the same name.
+val module = use("module_fn_shadow/lib.sx")
+
+fn on_event(x: i32) i32 = {
+    return x + 1
+}
+
+pub fn main() i32 = trust {
+    val local: fn(i32) i32 = on_event
+    val imported: i32 = module.on_event(0)
+    if local(0) != 1 {
+        return 1
+    }
+    if imported != 100 {
+        return 2
+    }
+    return 0
+}
