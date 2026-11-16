@@ -884,6 +884,15 @@ fn tokenize_in(
             @append(tokens, lex_raw_string(l, line, col))
             continue
         }
+        if c == 99 && lx_peek(l) == 92 && lx_peek2(l) == 92 {
+            lx_advance(l)
+            val raw_tok: ref Token = lex_raw_string(l, line, col)
+            val cstr_view: str.StringView = raw_tok.text
+            val cstr_tok: mut ref Token = make_tok(l, CStr(cstr_view.ptr), line, col)
+            cstr_tok.text = cstr_view
+            @append(tokens, cstr_tok)
+            continue
+        }
         if c == 99 && lx_peek(l) == 34 {
             lx_advance(l)
             val cstr_view: str.StringView = lex_string(l)
@@ -1634,6 +1643,21 @@ test "lexer tokenizes keywords, literals, operators and comments" {
         }
         err _ => {
             assert true
+        }
+    }
+
+    val cstr_multiline = "c\\\\ Hello,\n \\\\ world\n \\\\ how\n \\\\ are you today"
+    val r13 = trust tokenize_view(cstr_multiline)
+    match r13 {
+        err _ => {
+            assert false
+        }
+        ok toks => {
+            assert kind_is_cstr(tok_kind(toks, 0))
+            assert cstr.cmp(
+                tok_text_raw(toks, 0),
+                c" Hello,\n world\n how\n are you today"
+            ) == 0
         }
     }
 }
