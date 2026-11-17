@@ -296,7 +296,10 @@ otherwise {
         extern (C) fn c_arc4random_buf(buf: ref void, n: usize) void = "arc4random_buf"
     }
     otherwise {
+        //!suppress "unused-function"
         extern (C, header) fn c_getrandom(buf: ref void, n: usize, flags: u32) i64 = "getrandom"
+
+        //!suppress "unused-function"
         extern (C, header) fn c_arc4random_buf(buf: ref void, n: usize) void = "arc4random_buf"
     }
 
