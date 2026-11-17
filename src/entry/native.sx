@@ -5,6 +5,7 @@
 
 val cstr       = use("std/string/cstr")
 val ostr       = use("std/string/owned")
+val str        = use("std/string")
 val stdio      = use("std/stdio")
 val os         = use("std/os")
 val fs         = use("std/fs")
@@ -22,6 +23,7 @@ type NativeState = {
     strip_link: mut ref u8
     shim_c_file: mut ref u8
     shim_obj: mut ref u8
+    asm_obj: mut ref u8
     win_compat: mut ref u8
     link_flags: mut ref u8
     cc_flags: mut ref u8
@@ -40,6 +42,7 @@ fn new_state() mut ref NativeState = trust {
     st.strip_link = c""
     st.shim_c_file = c""
     st.shim_obj = c""
+    st.asm_obj = c""
     st.win_compat = c""
     st.link_flags = c""
     st.cc_flags = c""
@@ -234,6 +237,47 @@ fn debug_link_flags_native(ctx: ref context.Context) ref u8 = trust {
     return c" -Wl,/debug"
 }
 
+/// Print dsymutil output, ignoring the harmless relocation warning QBE's CU DIE
+/// produces on Mach-O. The rest of the debug info is still linked into the dSYM.
+fn print_dsymutil_output(v: str.String) void = trust {
+    val text: ref u8 = ostr.as_cstr(v)
+    val n: i64 = cstr.len(text)
+    val start: mut i64 = 0
+    val skip_note: mut bool = false
+    val i: mut i64 = 0
+    for {
+        if i > n {
+            break
+        }
+        val at_end: bool = i == n
+        if at_end || (@load8(@ptradd(text, i)) as u8) == 10 {
+            val line: ref u8 = cstr.substr(text, start, i - start)
+            val hide: mut bool = false
+            if cstr.contains(line, c"unsupported relocation in __debug_info section") {
+                hide = true
+                skip_note = true
+            } elif skip_note && cstr.starts_with(line, c"note: while processing ") {
+                hide = true
+                skip_note = false
+            } else {
+                skip_note = false
+            }
+            if !hide {
+                if at_end {
+                    if cstr.len(line) > 0 {
+                        stdio.print("{s}", {line})
+                    }
+                } else {
+                    stdio.print("{s}\n", {line})
+                }
+            }
+            @free(line)
+            start = i + 1
+        }
+        i++
+    }
+}
+
 fn run_dsymutil_native(ctx: ref context.Context, output: ref u8) void = trust {
     if ctx.opts.release_mode || ctx.opts.compile_obj {
         return
@@ -248,10 +292,7 @@ fn run_dsymutil_native(ctx: ref context.Context, output: ref u8) void = trust {
     val res = os.exec(cmd)
     match res {
         ok v => {
-            val vstr: ref u8 = ostr.as_cstr(v)
-            if cstr.len(vstr) > 0 {
-                stdio.print("{s}", {vstr})
-            }
+            print_dsymutil_output(v)
         }
         err _ => {
             if !ctx.opts.quiet {
@@ -289,6 +330,58 @@ fn build_cc_flags_native(ctx: ref context.Context, st: mut ref NativeState) void
     } else {
         st.output_ext = c""
     }
+}
+
+/// Assemble to an object that outlives linking so dsymutil can build the .dSYM.
+fn assemble_debug_object_native(
+    ctx: mut ref context.Context,
+    st: mut ref NativeState
+) bool = trust {
+    if ctx.opts.release_mode || ctx.opts.compile_obj || ctx.opts.test_mode {
+        return true
+    }
+    if cstr.cmp(ctx.host_platform, c"darwin") != 0 {
+        return true
+    }
+
+    st.asm_obj = builds.get_unique_tmp_path(c"spectre_output.o")
+    val cmd: ref u8 = @fmtalloc(
+        "{s} -c -o {s} {s} 2>&1",
+        {
+            native_cc(ctx),
+            builds.quote_arg(st.asm_obj),
+            builds.quote_arg(ctx.asm_file)
+        }
+    )
+    if ctx.opts.show_cmd {
+        stdio.print("{s}\n", {cmd})
+    }
+    val res = os.exec(cmd)
+    match res {
+        ok v => {
+            val vstr: ref u8 = ostr.as_cstr(v)
+            if cstr.len(vstr) > 0 {
+                stdio.print("{s}", {vstr})
+            }
+            val error_text = ostr.from_cstr[allocators.Arena](ctx.arena, c"error")
+            if ostr.contains(v, error_text) {
+                diag.puts_error_label()
+                stdio.puts(" assembly failed")
+                os.delete(ctx.qbe_file)
+                os.delete(ctx.asm_file)
+                os.delete(st.asm_obj)
+                return false
+            }
+        }
+        err _ => {
+            diag.puts_error_label()
+            stdio.puts(" failed to run C compiler for assembly")
+            os.delete(ctx.qbe_file)
+            os.delete(ctx.asm_file)
+            return false
+        }
+    }
+    return true
 }
 
 fn execute_test(ctx: mut ref context.Context, st: mut ref NativeState) i32 = trust {
@@ -340,6 +433,10 @@ fn build_output(ctx: mut ref context.Context, st: mut ref NativeState) void = tr
     }
 
     val output_specified: bool = cstr.cmp(ctx.opts.output_name, c"") != 0
+    val link_input: mut ref u8 = ctx.asm_file
+    if cstr.len(st.asm_obj) > 0 {
+        link_input = st.asm_obj
+    }
     if output_specified {
         val final_output: mut ref u8 = binary_name
         if cstr.cmp(st.output_ext, c"") != 0 {
@@ -356,7 +453,7 @@ fn build_output(ctx: mut ref context.Context, st: mut ref NativeState) void = tr
                 {
                     native_cc(ctx),
                     builds.quote_arg(final_output),
-                    builds.quote_arg(ctx.asm_file),
+                    builds.quote_arg(link_input),
                     st.link_flags
                 }
             )
@@ -367,7 +464,7 @@ fn build_output(ctx: mut ref context.Context, st: mut ref NativeState) void = tr
                     native_cc(ctx),
                     st.cc_flags,
                     builds.quote_arg(final_output),
-                    builds.quote_arg(ctx.asm_file),
+                    builds.quote_arg(link_input),
                     st.link_flags
                 }
             )
@@ -390,7 +487,7 @@ fn build_output(ctx: mut ref context.Context, st: mut ref NativeState) void = tr
                 {
                     native_cc(ctx),
                     builds.quote_arg(final_output),
-                    builds.quote_arg(ctx.asm_file),
+                    builds.quote_arg(link_input),
                     st.link_flags
                 }
             )
@@ -401,7 +498,7 @@ fn build_output(ctx: mut ref context.Context, st: mut ref NativeState) void = tr
                     native_cc(ctx),
                     st.cc_flags,
                     builds.quote_arg(final_output),
-                    builds.quote_arg(ctx.asm_file),
+                    builds.quote_arg(link_input),
                     st.link_flags
                 }
             )
@@ -450,6 +547,9 @@ fn execute_native(ctx: mut ref context.Context, st: mut ref NativeState) i32 = t
     if cstr.len(st.shim_obj) > 0 {
         os.delete(st.shim_obj)
     }
+    if cstr.len(st.asm_obj) > 0 {
+        os.delete(st.asm_obj)
+    }
 
     return st.exit_code
 }
@@ -470,6 +570,9 @@ pub fn run(ctx: mut ref context.Context) i32 = trust {
         return execute_test(ctx, st)
     }
 
+    if !assemble_debug_object_native(ctx, st) {
+        return 1
+    }
     build_output(ctx, st)
     return execute_native(ctx, st)
 }
