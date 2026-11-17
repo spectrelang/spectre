@@ -5,7 +5,6 @@
 
 val cstr       = use("std/string/cstr")
 val ostr       = use("std/string/owned")
-val str        = use("std/string")
 val stdio      = use("std/stdio")
 val os         = use("std/os")
 val fs         = use("std/fs")
@@ -237,47 +236,6 @@ fn debug_link_flags_native(ctx: ref context.Context) ref u8 = trust {
     return c" -Wl,/debug"
 }
 
-/// Print dsymutil output, ignoring the harmless relocation warning QBE's CU DIE
-/// produces on Mach-O. The rest of the debug info is still linked into the dSYM.
-fn print_dsymutil_output(v: str.String) void = trust {
-    val text: ref u8 = ostr.as_cstr(v)
-    val n: i64 = cstr.len(text)
-    val start: mut i64 = 0
-    val skip_note: mut bool = false
-    val i: mut i64 = 0
-    for {
-        if i > n {
-            break
-        }
-        val at_end: bool = i == n
-        if at_end || (@load8(@ptradd(text, i)) as u8) == 10 {
-            val line: ref u8 = cstr.substr(text, start, i - start)
-            val hide: mut bool = false
-            if cstr.contains(line, c"unsupported relocation in __debug_info section") {
-                hide = true
-                skip_note = true
-            } elif skip_note && cstr.starts_with(line, c"note: while processing ") {
-                hide = true
-                skip_note = false
-            } else {
-                skip_note = false
-            }
-            if !hide {
-                if at_end {
-                    if cstr.len(line) > 0 {
-                        stdio.print("{s}", {line})
-                    }
-                } else {
-                    stdio.print("{s}\n", {line})
-                }
-            }
-            @free(line)
-            start = i + 1
-        }
-        i++
-    }
-}
-
 fn run_dsymutil_native(ctx: ref context.Context, output: ref u8) void = trust {
     if ctx.opts.release_mode || ctx.opts.compile_obj {
         return
@@ -292,7 +250,12 @@ fn run_dsymutil_native(ctx: ref context.Context, output: ref u8) void = trust {
     val res = os.exec(cmd)
     match res {
         ok v => {
-            print_dsymutil_output(v)
+            if !ctx.opts.quiet {
+                val vstr: ref u8 = ostr.as_cstr(v)
+                if cstr.len(vstr) > 0 {
+                    stdio.print("{s}", {vstr})
+                }
+            }
         }
         err _ => {
             if !ctx.opts.quiet {
@@ -332,7 +295,8 @@ fn build_cc_flags_native(ctx: ref context.Context, st: mut ref NativeState) void
     }
 }
 
-/// Assemble to an object that outlives linking so dsymutil can build the .dSYM.
+/// Assemble a non-release macOS build to an object that outlives linking so
+/// dsymutil can build the .dSYM.
 fn assemble_debug_object_native(
     ctx: mut ref context.Context,
     st: mut ref NativeState
