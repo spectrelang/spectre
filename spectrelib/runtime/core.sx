@@ -184,6 +184,7 @@ otherwise {
     extern (C, header) fn c_atoi(s: ref u8) i32 = "atoi"
     extern (C, header) fn c_isdigit(c: i32) i32 = "isdigit"
     extern (C, header) fn c_strtol(s: ref u8, end: ref ref u8, base: i32) i64 = "strtol"
+    extern (C, header) fn c_strtod(s: ref u8, end: ref ref u8) f64 = "strtod"
 
     extern (C, header) fn c_fopen(path: ref u8, mode: ref u8) ref void = "fopen"
     extern (C, header) fn c_fclose(f: ref void) i32 = "fclose"
@@ -389,6 +390,33 @@ otherwise {
 
     extern (C, header) fn c_signal(sig: i32, handler: fn(i32) void) fn(i32) void = "signal"
     extern (C, header) fn c_raise(sig: i32) i32 = "raise"
+
+    when posix {
+        extern "signal.h"
+        extern "sys/wait.h"
+        extern "unistd.h"
+        extern "fcntl.h"
+        extern "sys/ioctl.h"
+        extern "termios.h"
+        extern (C, header) fn c_fork() i32 = "fork"
+        extern (C, header) fn c_execvp(file: ref u8, argv: ref ref u8) i32 = "execvp"
+        extern (C, header) fn c_waitpid(pid: i32, status: ref i32, options: i32) i32 = "waitpid"
+        extern (C, header) fn c__exit(code: i32) void = "_exit"
+        extern (C, header) fn c_pipe(fds: ref i32) i32 = "pipe"
+        extern (C, header) fn c_dup(fd: i32) i32 = "dup"
+        extern (C, header) fn c_dup2(oldfd: i32, newfd: i32) i32 = "dup2"
+        extern (C, header) fn c_open(path: ref u8, flags: i32, mode: i32) i32 = "open"
+        extern (C, header) fn c_read(fd: i32, buf: ref void, n: usize) i64 = "read"
+        extern (C, header) fn c_write(fd: i32, buf: ref void, n: usize) i64 = "write"
+        extern (C, header) fn c_getpid() i32 = "getpid"
+        extern (C, header) fn c_kill(pid: i32, sig: i32) i32 = "kill"
+        extern (C, header) fn c_setenv(name: ref u8, value: ref u8, overwrite: i32) i32 = "setenv"
+        extern (C, header) fn c_unsetenv(name: ref u8) i32 = "unsetenv"
+        extern (C, header) fn c_gethostname(buf: ref u8, n: usize) i32 = "gethostname"
+        extern (C, header) fn c_tcgetattr(fd: i32, t: ref void) i32 = "tcgetattr"
+        extern (C, header) fn c_tcsetattr(fd: i32, act: i32, t: ref void) i32 = "tcsetattr"
+        extern (C, header) fn c_ioctl(fd: i32, req: u64, arg: ref void) i32 = "ioctl"
+    }
 
     when windows {
         fn enable_console_vt(handle_id: i32) bool = trust {
@@ -614,6 +642,323 @@ pub fn strtol(s: ref u8, end: ref ref u8, base: i32) i64 = trust {
     }
     otherwise {
         return c_strtol(s, end, base)
+    }
+}
+
+pub fn strtod(s: ref u8, end: ref ref u8) f64 = trust {
+    when freestanding {
+        if s == s && end == end {
+            return 0.0
+        }
+        return 0.0
+    }
+    otherwise {
+        return c_strtod(s, end)
+    }
+}
+
+pub fn fork() i32 = trust {
+    when freestanding {
+        return -1
+    }
+    otherwise {
+        when posix {
+            return c_fork()
+        }
+        otherwise {
+            return -1
+        }
+    }
+}
+
+pub fn execvp(file: ref u8, argv: ref ref u8) i32 = trust {
+    when freestanding {
+        if file == file && argv == argv {
+            return -1
+        }
+        return -1
+    }
+    otherwise {
+        when posix {
+            return c_execvp(file, argv)
+        }
+        otherwise {
+            return -1
+        }
+    }
+}
+
+pub fn waitpid(pid: i32, status: ref i32, options: i32) i32 = trust {
+    when freestanding {
+        if pid == pid && status == status && options == options {
+            return -1
+        }
+        return -1
+    }
+    otherwise {
+        when posix {
+            return c_waitpid(pid, status, options)
+        }
+        otherwise {
+            return -1
+        }
+    }
+}
+
+pub fn exit_now(code: i32) void = trust {
+    when freestanding {
+        val _ = code
+        return
+    }
+    otherwise {
+        when posix {
+            c__exit(code)
+        }
+    }
+}
+
+pub fn pipe(fds: ref i32) i32 = trust {
+    when freestanding {
+        if fds == fds {
+            return -1
+        }
+        return -1
+    }
+    otherwise {
+        when posix {
+            return c_pipe(fds)
+        }
+        otherwise {
+            return -1
+        }
+    }
+}
+
+pub fn dup(fd: i32) i32 = trust {
+    when freestanding {
+        if fd == fd {
+            return -1
+        }
+        return -1
+    }
+    otherwise {
+        when posix {
+            return c_dup(fd)
+        }
+        otherwise {
+            return -1
+        }
+    }
+}
+
+pub fn dup2(oldfd: i32, newfd: i32) i32 = trust {
+    when freestanding {
+        if oldfd == oldfd && newfd == newfd {
+            return -1
+        }
+        return -1
+    }
+    otherwise {
+        when posix {
+            return c_dup2(oldfd, newfd)
+        }
+        otherwise {
+            return -1
+        }
+    }
+}
+
+pub fn close(fd: i32) i32 = trust {
+    when freestanding {
+        val _ = fd
+        return -1
+    }
+    otherwise {
+        return c_close(fd)
+    }
+}
+
+pub fn open(path: ref u8, flags: i32, mode: i32) i32 = trust {
+    when freestanding {
+        if path == path && flags == flags && mode == mode {
+            return -1
+        }
+        return -1
+    }
+    otherwise {
+        when posix {
+            return c_open(path, flags, mode)
+        }
+        otherwise {
+            return -1
+        }
+    }
+}
+
+pub fn read(fd: i32, buf: ref void, n: usize) i64 = trust {
+    when freestanding {
+        if fd == fd && buf == buf && n == n {
+            return -1
+        }
+        return -1
+    }
+    otherwise {
+        when posix {
+            return c_read(fd, buf, n)
+        }
+        otherwise {
+            return -1
+        }
+    }
+}
+
+pub fn write(fd: i32, buf: ref void, n: usize) i64 = trust {
+    when freestanding {
+        if fd == fd && buf == buf && n == n {
+            return -1
+        }
+        return -1
+    }
+    otherwise {
+        when posix {
+            return c_write(fd, buf, n)
+        }
+        otherwise {
+            return -1
+        }
+    }
+}
+
+pub fn getpid() i32 = trust {
+    when freestanding {
+        return 0
+    }
+    otherwise {
+        when posix {
+            return c_getpid()
+        }
+        otherwise {
+            return 0
+        }
+    }
+}
+
+pub fn kill(pid: i32, sig: i32) i32 = trust {
+    when freestanding {
+        if pid == pid && sig == sig {
+            return -1
+        }
+        return -1
+    }
+    otherwise {
+        when posix {
+            return c_kill(pid, sig)
+        }
+        otherwise {
+            return -1
+        }
+    }
+}
+
+pub fn setenv(name: ref u8, value: ref u8, overwrite: i32) i32 = trust {
+    when freestanding {
+        if name == name && value == value && overwrite == overwrite {
+            return -1
+        }
+        return -1
+    }
+    otherwise {
+        when posix {
+            return c_setenv(name, value, overwrite)
+        }
+        otherwise {
+            return -1
+        }
+    }
+}
+
+pub fn unsetenv(name: ref u8) i32 = trust {
+    when freestanding {
+        if name == name {
+            return -1
+        }
+        return -1
+    }
+    otherwise {
+        when posix {
+            return c_unsetenv(name)
+        }
+        otherwise {
+            return -1
+        }
+    }
+}
+
+pub fn gethostname(buf: ref u8, n: usize) i32 = trust {
+    when freestanding {
+        if buf == buf && n == n {
+            return -1
+        }
+        return -1
+    }
+    otherwise {
+        when posix {
+            return c_gethostname(buf, n)
+        }
+        otherwise {
+            return -1
+        }
+    }
+}
+
+pub fn tcgetattr(fd: i32, t: ref void) i32 = trust {
+    when freestanding {
+        if fd == fd && t == t {
+            return -1
+        }
+        return -1
+    }
+    otherwise {
+        when posix {
+            return c_tcgetattr(fd, t)
+        }
+        otherwise {
+            return -1
+        }
+    }
+}
+
+pub fn tcsetattr(fd: i32, act: i32, t: ref void) i32 = trust {
+    when freestanding {
+        if fd == fd && act == act && t == t {
+            return -1
+        }
+        return -1
+    }
+    otherwise {
+        when posix {
+            return c_tcsetattr(fd, act, t)
+        }
+        otherwise {
+            return -1
+        }
+    }
+}
+
+pub fn ioctl(fd: i32, req: u64, arg: ref void) i32 = trust {
+    when freestanding {
+        if fd == fd && req == req && arg == arg {
+            return -1
+        }
+        return -1
+    }
+    otherwise {
+        when posix {
+            return c_ioctl(fd, req, arg)
+        }
+        otherwise {
+            return -1
+        }
     }
 }
 

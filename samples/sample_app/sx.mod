@@ -1,6 +1,6 @@
 entry "app.sx"
 version "v0.0.1"
-spectre_version "v0.0.17"
+spectre_version "v0.0.18"
 
 var {
     CC=gcc // OUT is reserved; it resolves to {project-root}/.sxb/{platform}.{arch}/.
