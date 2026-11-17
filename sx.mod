@@ -1,6 +1,6 @@
 entry "./src/sxc.sx"
 version "v0.0.18"
-spectre_version "v0.0.17"
+spectre_version "v0.0.18"
 
 var {
     DEFAULT="dev-build"
