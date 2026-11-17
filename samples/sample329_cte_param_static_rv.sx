@@ -1,0 +1,39 @@
+fn plus_one(x: i64) i64 = pure {
+    return @static(x + 1)
+}
+
+fn square(x: i64) i64 = pure {
+    return @static(x * x)
+}
+
+fn blend(a: i64, b: i64) i64 = pure {
+    return @static(a * 100 + b)
+}
+
+fn sum_to(n: i64) i64 = pure {
+    if n <= 0 {
+        return 0
+    }
+    return @static(n + sum_to(n - 1))
+}
+
+pub fn main() void = {
+    val a: i64 = plus_one(41)
+    assert a == 42
+
+    val b: i64 = @static(plus_one(41))
+    assert b == 42
+
+    val n: i64 = 7
+    assert square(n) == 49
+
+    val c: i64 = square(@static(6))
+    assert c == 36
+
+    assert blend(1, 2) == 102
+
+    val m: i64 = 9
+    assert blend(m, 2) == 902
+
+    assert sum_to(10) == 55
+}
