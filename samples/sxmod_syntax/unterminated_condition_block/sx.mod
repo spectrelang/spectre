@@ -1,0 +1,6 @@
+version "v0.0.1"
+spectre_version "v0.0.17"
+var {
+    A=1
+    windows {
+        A=2

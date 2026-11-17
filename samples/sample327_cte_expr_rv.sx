@@ -1,0 +1,108 @@
+enum Color = {
+    Red
+    Green
+    Blue
+}
+
+type Point = {
+    x: i64
+    y: i64
+}
+
+fn double(x: i64) i64 = pure {
+    return x * 2
+}
+
+fn color_value(c: Color) i64 = pure {
+    match c {
+        Color.Red => {
+            return 1
+        }
+        Color.Green => {
+            return 2
+        }
+        Color.Blue => {
+            return 3
+        }
+    }
+}
+
+fn is_positive(x: i64) bool = pure {
+    return x > 0
+}
+
+fn classify(x: i64) i64 = pure {
+    match x {
+        0 => {
+            return 100
+        }
+        1 => {
+            return 200
+        }
+        else => {
+            return x + 300
+        }
+    }
+}
+
+fn size_pair() i64 = pure {
+    return @sizeof(Point)
+}
+
+pub fn main() void = {
+    val red: Color = @static(Color.Red)
+    val blue: i64 = @static(Color.Blue as i64)
+    val red_value: i64 = @static(color_value(Color.Red))
+    val green_value: i64 = @static(color_value(Color.Green))
+    assert red == Color.Red
+    assert blue == 2
+    assert red_value == 1
+    assert green_value == 2
+
+    val p: Point = Point {
+        x: @static(1 + 2 + 3),
+        y: @static(21 * 2)
+    }
+    assert p.x == 6
+    assert p.y == 42
+
+    if @static(is_positive(7)) {
+        assert true
+    } else {
+        assert false
+    }
+
+    val total: mut i64 = 0
+    for i = 0, i < @static(double(3)), i++ {
+        total += i
+    }
+    assert total == 15
+
+    val c0: i64 = @static(classify(0))
+    val c1: i64 = @static(classify(1))
+    val c9: i64 = @static(classify(9))
+    assert c0 == 100
+    assert c1 == 200
+    assert c9 == 309
+
+    val neg: i64 = @static((-40) + (-2))
+    assert neg == -42
+
+    val casted: i64 = @static((20 + 22) as i64)
+    assert casted == 42
+
+    val ch: u8 = @static('*')
+    assert ch == 42
+
+    val sp: i64 = @static(size_pair())
+    assert sp == 16
+
+    val ap: i64 = @static(@sizeof([4]i64))
+    assert ap == 32
+
+    val folded_cond: bool = is_positive(double(3))
+    assert folded_cond
+
+    val folded_match: i64 = classify(double(2))
+    assert folded_match == 304
+}

@@ -1,0 +1,1 @@
+expected '=' after environment variable 'A'

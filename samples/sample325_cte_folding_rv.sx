@@ -1,0 +1,139 @@
+fn add(a: i64, b: i64) i64 = pure {
+    return a + b
+}
+
+fn mul(a: i64, b: i64) i64 = pure {
+    return a * b
+}
+
+fn fact(n: i64) i64 = pure {
+    if n <= 1 {
+        return 1
+    }
+    return n * fact(n - 1)
+}
+
+fn fib(n: i64) i64 = pure {
+    if n < 2 {
+        return n
+    }
+    return fib(n - 1) + fib(n - 2)
+}
+
+fn sum_to(n: i64) i64 = pure {
+    val total: mut i64 = 0
+    for i = 0, i <= n, i++ {
+        total += i
+    }
+    return total
+}
+
+fn collatz_steps(n: i64) i64 = pure {
+    val steps: mut i64 = 0
+    val value: mut i64 = n
+    for value != 1 {
+        if value % 2 == 0 {
+            value = value / 2
+        } else {
+            value = 3 * value + 1
+        }
+        steps++
+    }
+    return steps
+}
+
+fn pow2(n: i64) i64 = pure {
+    val out: mut i64 = 1
+    for i = 0, i < n, i++ {
+        out = out * 2
+    }
+    return out
+}
+
+fn choose(n: i64, k: i64) i64 = pure {
+    if k < 0 || k > n {
+        return 0
+    }
+    val r: mut i64 = 1
+    for i = 1, i <= k, i++ {
+        r = r * (n - k + i) / i
+    }
+    return r
+}
+
+type Pair = {
+    x: i64
+    y: i64
+}
+
+fn make_pair(a: i64, b: i64) Pair = pure {
+    return Pair { x: a, y: b }
+}
+
+fn pair_sum(p: Pair) i64 = pure {
+    return p.x + p.y
+}
+
+fn clamp(value: i64, lo: i64, hi: i64) i64 = pure {
+    if value < lo {
+        return lo
+    }
+    if value > hi {
+        return hi
+    }
+    return value
+}
+
+fn is_prime(n: i64) bool = pure {
+    if n < 2 {
+        return false
+    }
+    for i = 2, i * i <= n, i++ {
+        if n % i == 0 {
+            return false
+        }
+    }
+    return true
+}
+
+pub fn main() void = {
+    val a: i64 = @static(add(20, 22))
+    assert a == 42
+
+    val f: i64 = @static(fact(10))
+    assert f == 3628800
+
+    val fb: i64 = @static(fib(12))
+    assert fb == 144
+
+    val s: i64 = @static(sum_to(100))
+    assert s == 5050
+
+    val c: i64 = @static(collatz_steps(27))
+    assert c == 111
+
+    val p: i64 = @static(pow2(20))
+    assert p == 1048576
+
+    val ch: i64 = @static(choose(20, 10))
+    assert ch == 184756
+
+    val pr: Pair = @static(make_pair(19, 23))
+    assert pr.x == 19
+    assert pr.y == 23
+
+    val ps: i64 = @static(pair_sum(make_pair(40, 2)))
+    assert ps == 42
+
+    val cl: i64 = @static(clamp(100, 0, 42))
+    assert cl == 42
+
+    val prime: bool = @static(is_prime(104729))
+    assert prime
+
+    val folded: i64 = add(mul(6, 7), 0)
+    assert folded == 42
+
+    val mixed: i64 = clamp(fib(10) + sum_to(3), 0, 100)
+    assert mixed == 61
+}

@@ -1,0 +1,146 @@
+enum Color = {
+    Red
+    Green
+    Blue
+}
+
+fn color_value(c: Color) i64 = pure {
+    match c {
+        Color.Red => {
+            return 1
+        }
+        Color.Green => {
+            return 2
+        }
+        Color.Blue => {
+            return 3
+        }
+    }
+}
+
+fn sign(x: i64) i64 = pure {
+    if x < 0 {
+        return -1
+    }
+    if x > 0 {
+        return 1
+    }
+    return 0
+}
+
+fn abs64(x: i64) i64 = pure {
+    if x < 0 {
+        return -x
+    }
+    return x
+}
+
+fn gcd(a0: i64, b0: i64) i64 = pure {
+    val a: mut i64 = abs64(a0)
+    val b: mut i64 = abs64(b0)
+    for b != 0 {
+        val t: i64 = b
+        b = a % b
+        a = t
+    }
+    return a
+}
+
+fn lcm(a: i64, b: i64) i64 = pure {
+    if a == 0 || b == 0 {
+        return 0
+    }
+    return abs64((a / gcd(a, b)) * b)
+}
+
+fn is_even(a: i64) bool = pure {
+    return a % 2 == 0
+}
+
+fn is_odd(a: i64) bool = pure {
+    return !is_even(a)
+}
+
+fn even_odd(a: i64, b: i64) bool = pure {
+    return is_even(a) && is_odd(b)
+}
+
+fn bitmix(x: i64) i64 = pure {
+    return ((x << 3) ^ (x >> 2)) + (x & 255)
+}
+
+fn array_sum(xs: [4]i64) i64 = pure {
+    val total: mut i64 = 0
+    for x in xs {
+        total += x
+    }
+    return total
+}
+
+fn sizeof_pair() i64 = pure {
+    return @sizeof(Pair)
+}
+
+type Pair = {
+    a: i64
+    b: i64
+}
+
+fn id[T](x: T) T = pure {
+    return x
+}
+
+fn clamp_generic[T](x: T, lo: T, hi: T) T = pure {
+    if x < lo {
+        return lo
+    }
+    if x > hi {
+        return hi
+    }
+    return x
+}
+
+fn max64(a: i64, b: i64) i64 = pure {
+    return clamp_generic[i64](a, b, a)
+}
+
+pub fn main() void = {
+    val red: i64 = color_value(Color.Red)
+    assert red == 1
+
+    val sg: i64 = @static(sign(-99))
+    assert sg == -1
+
+    val ab: i64 = @static(abs64(-123456))
+    assert ab == 123456
+
+    val g: i64 = @static(gcd(1071, 462))
+    assert g == 21
+
+    val l: i64 = @static(lcm(21, 6))
+    assert l == 42
+
+    val eo: bool = @static(even_odd(10, 7))
+    assert eo
+
+    val bm: i64 = @static(bitmix(42))
+    assert bm == 388
+
+    val arrsum: i64 = @static(array_sum([1, 2, 3, 36]))
+    assert arrsum == 42
+
+    val sp: i64 = @static(sizeof_pair())
+    assert sp == 16
+
+    val ap: i64 = @static(@sizeof([4]i64))
+    assert ap == 32
+
+    val idv: i64 = @static(id[i64](42))
+    assert idv == 42
+
+    val mx: i64 = @static(max64(41, 7))
+    assert mx == 41
+
+    val folded: i64 = lcm(gcd(48, 18), 7)
+    assert folded == 42
+}

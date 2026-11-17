@@ -1,0 +1,3 @@
+pub fn main() void = {
+    @puts("sxmod syntax ok")
+}
