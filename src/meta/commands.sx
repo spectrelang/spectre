@@ -1776,13 +1776,13 @@ fn validate_spectre_version(m: ref SxMod) bool = trust {
             stdio.puts(" sx.mod version mismatch")
         }
         diag.info_label()
-        stdio.print(" installed compiler:      {s}\n", {installed})
+        stdio.print(" installed compiler      -> {s}\n", {installed})
         diag.info_label()
-        stdio.print(" project spectre_version: {s}\n", {m.spectre_version})
+        stdio.print(" project spectre_version -> {s}\n", {m.spectre_version})
         diag.info_label()
         stdio.print(
-            " install the required compiler ({s})\n",
-            {m.spectre_version}
+            " install the required compiler\n",
+            {}
         )
         diag.info_label()
         stdio.print(
