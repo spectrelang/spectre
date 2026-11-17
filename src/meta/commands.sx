@@ -61,6 +61,10 @@ pub type SxMod = {
     deps: mut list[ref SxDep]
     builds: mut list[ref SxBuildConfig]
     parse_failed: mut bool
+    path: mut ref u8
+    spectre_version_line: mut i64
+    spectre_version_col: mut i64
+    spectre_version_span: mut i64
 }
 
 type SxLockDep = {
@@ -1484,6 +1488,10 @@ pub fn parse_sxmod(
     m.deps = mem.new[ref SxDep]()
     m.builds = mem.new[ref SxBuildConfig]()
     m.parse_failed = false
+    m.path = mem_dup_cstr(filename)
+    m.spectre_version_line = 0
+    m.spectre_version_col = 0
+    m.spectre_version_span = 0
     for {
         ctx_skip_ws(ctx)
         if ctx_peek(ctx) == -1 {
@@ -1498,7 +1506,12 @@ pub fn parse_sxmod(
         } elif cstr.cmp(kw, c"version") == 0 {
             m.version = ctx_read_quoted(ctx)
         } elif cstr.cmp(kw, c"spectre_version") == 0 {
+            ctx_skip_ws(ctx)
+            val start: i64 = ctx.pos
             m.spectre_version = ctx_read_quoted(ctx)
+            m.spectre_version_line = ctx_line_at(ctx, start)
+            m.spectre_version_col = ctx_col_at(ctx, start)
+            m.spectre_version_span = ctx.pos - start
         } elif cstr.cmp(kw, c"single_flags") == 0 {
             m.single_flags = ctx_read_quoted(ctx)
         } elif cstr.cmp(kw, c"var") == 0 {
@@ -1563,8 +1576,18 @@ fn validate_spectre_version(m: ref SxMod) bool = trust {
         return false
     }
     if !str.eql_cstr(installed, m.spectre_version) {
-        diag.puts_error_label()
-        stdio.puts(" spectre version mismatch")
+        if m.spectre_version_line > 0 {
+            diag.error_at_span(
+                m.path,
+                m.spectre_version_line,
+                m.spectre_version_col,
+                m.spectre_version_span,
+                c"sx.mod version mismatch"
+            )
+        } else {
+            diag.puts_error_label()
+            stdio.puts(" sx.mod version mismatch")
+        }
         diag.info_label()
         stdio.print(" installed compiler:      {s}\n", {installed})
         diag.info_label()
