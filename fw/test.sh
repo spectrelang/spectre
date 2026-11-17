@@ -220,6 +220,54 @@ run_multi_actions_app_cross_out() {
 	fi
 }
 
+run_sxmod_syntax_tests() {
+	local root="./samples/sxmod_syntax"
+	local compiler_abs
+	compiler_abs="$(cd "$(dirname "$COMPILER")" && pwd)/$(basename "$COMPILER")"
+	local dir name log_file status expected out
+
+	for dir in "$root"/*; do
+		[ -d "$dir" ] || continue
+		name=$(basename "$dir")
+		log_file="$LOG_DIR/sxmod_${name}.log"
+		((total++))
+
+		out=$(cd "$dir" && "$compiler_abs" build dev 2>&1)
+		status=$?
+		printf '%s\n' "$out" >"$log_file"
+
+		if [ -f "$dir/valid" ]; then
+			if [ $status -eq 0 ]; then
+				echo "[PASS] sx.mod $name"
+				((passed++))
+			else
+				echo "[FAIL] sx.mod $name (expected success)"
+				sed 's/^/  /' "$log_file" | sed -n '1,120p'
+				((failed++))
+			fi
+			rm -rf "$dir/.sxb" "$dir/app"
+			continue
+		fi
+
+		expected=$(sed -n '1p' "$dir/expected.txt" 2>/dev/null || true)
+		if [ $status -eq 0 ]; then
+			echo "[FAIL] sx.mod $name (expected a syntax error)"
+			((failed++))
+		elif [ -z "$expected" ] || ! printf '%s' "$out" | grep -Fq -- "$expected"; then
+			echo "[FAIL] sx.mod $name (missing diagnostic: $expected)"
+			sed 's/^/  /' "$log_file" | sed -n '1,120p'
+			((failed++))
+		elif ! printf '%s' "$out" | grep -Fq -- "--> sx.mod:"; then
+			echo "[FAIL] sx.mod $name (diagnostic has no sx.mod source location)"
+			sed 's/^/  /' "$log_file" | sed -n '1,120p'
+			((failed++))
+		else
+			echo "[PASS] sx.mod $name"
+			((passed++))
+		fi
+	done
+}
+
 if [ $BOOTSTRAP_ONLY -eq 0 ]; then
 	run_samples
 
@@ -272,6 +320,10 @@ echo "Bootstrap test:"
 echo "Alt-to-QBE bootstrap test:"
 "$COMPILER" ./src/sxc.sx -l -alt -o sxc2_alt || exit 1
 ./sxc2_alt ./src/sxc.sx -l -o sxc3_from_alt || exit 1
+
+echo
+echo "sx.mod syntax tests:"
+run_sxmod_syntax_tests
 
 echo
 echo "Final Summary:"

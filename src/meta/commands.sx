@@ -76,6 +76,8 @@ type ParseCtx = {
     text: mut ref u8
     pos: mut i64
     len: mut i64
+    filename: mut ref u8
+    failed: mut bool
 }
 
 type VarRef = {
@@ -98,6 +100,8 @@ fn new_ctx(text: ref u8) ref ParseCtx = {
     ctx.text = text
     ctx.pos = 0
     ctx.len = cstr.len(text)
+    ctx.filename = c""
+    ctx.failed = false
     return ctx
 }
 
@@ -219,6 +223,7 @@ fn ctx_read_quoted(ctx: mut ref ParseCtx) ref u8 = trust {
     if ctx_peek(ctx) != 34 {
         return c""
     }
+    val start: i64 = ctx.pos
     ctx_advance(ctx)
     val cap: mut i64 = 256
     val buf: mut ref u8 = @alloc(cap) as ref u8
@@ -256,6 +261,8 @@ fn ctx_read_quoted(ctx: mut ref ParseCtx) ref u8 = trust {
     }
     if ctx_peek(ctx) == 34 {
         ctx_advance(ctx)
+    } else {
+        ctx_report(ctx, start, ctx.pos - start, c"unterminated string literal")
     }
     @store8(@ptradd(buf, i), 0)
     val result: ref u8 = mem.alloc((i + 1) as usize) as ref u8
@@ -390,11 +397,12 @@ fn ctx_read_list(ctx: mut ref ParseCtx) list[ref u8] = trust {
         }
         return out
     }
+    val start: i64 = ctx.pos
     ctx_advance(ctx)
     for {
         ctx_skip_ws(ctx)
         val c: i64 = ctx_peek(ctx)
-        if c == -1 || c == 93 {
+        if c == -1 || c == 93 || c == 125 {
             break
         }
         val item: ref u8 = ctx_read_list_item(ctx)
@@ -408,6 +416,8 @@ fn ctx_read_list(ctx: mut ref ParseCtx) list[ref u8] = trust {
     }
     if ctx_peek(ctx) == 93 {
         ctx_advance(ctx)
+    } else {
+        ctx_report(ctx, start, ctx.pos - start, c"unterminated list")
     }
     return out
 }
@@ -869,6 +879,7 @@ fn parse_var_condition(
     condition: ref u8
 ) void = trust {
     ctx_advance(ctx)
+    val start: i64 = ctx.pos - 1
     val matched: bool = active && dep_block_matches(platform, arch, target)
     for {
         ctx_skip_ws(ctx)
@@ -876,10 +887,12 @@ fn parse_var_condition(
         if c == -1 || c == 125 {
             break
         }
-        val start: i64 = ctx.pos
+        val name_start: i64 = ctx.pos
         val name: ref u8 = ctx_read_ident(ctx)
         if cstr.cmp(name, c"") == 0 {
-            break
+            ctx_report(ctx, name_start, 1, c"expected variable name or condition block")
+            ctx_skip_line(ctx)
+            continue
         }
         ctx_skip_ws(ctx)
         if ctx_peek(ctx) == 123 {
@@ -896,9 +909,17 @@ fn parse_var_condition(
             )
             continue
         }
-        if ctx_peek(ctx) == 61 {
-            ctx_advance(ctx)
+        if ctx_peek(ctx) != 61 {
+            ctx_report(
+                ctx,
+                ctx.pos,
+                1,
+                @fmtalloc("expected '=' after variable '{s}'", {name})
+            )
+            ctx_skip_line(ctx)
+            continue
         }
+        ctx_advance(ctx)
         val value: ref u8 = ctx_read_env_value(ctx)
         if cstr.cmp(name, c"OUT") == 0 {
             continue
@@ -909,13 +930,15 @@ fn parse_var_condition(
         ov.value = value
         ov.condition = condition
         ov.active = matched as i64
-        ov.line = ctx_line_at(ctx, start)
-        ov.col = ctx_col_at(ctx, start)
-        ov.span = ctx.pos - start
+        ov.line = ctx_line_at(ctx, name_start)
+        ov.col = ctx_col_at(ctx, name_start)
+        ov.span = ctx.pos - name_start
         @append(overrides, ov)
     }
     if ctx_peek(ctx) == 125 {
         ctx_advance(ctx)
+    } else {
+        ctx_report(ctx, start, ctx.pos - start, c"unterminated variable condition block")
     }
 }
 
@@ -926,7 +949,9 @@ fn parse_var_entries(
     filename: ref u8
 ) bool = trust {
     ctx_skip_ws(ctx)
-    if ctx_peek(ctx) == 123 {
+    val braces: bool = ctx_peek(ctx) == 123
+    val start: i64 = ctx.pos
+    if braces {
         ctx_advance(ctx)
     }
     val overrides: mut list[ref SxVarOverride] = mem.new[ref SxVarOverride]()
@@ -936,9 +961,12 @@ fn parse_var_entries(
         if c == -1 || c == 125 {
             break
         }
+        val name_start: i64 = ctx.pos
         val name: ref u8 = ctx_read_ident(ctx)
         if cstr.cmp(name, c"") == 0 {
-            break
+            ctx_report(ctx, name_start, 1, c"expected variable name or condition block")
+            ctx_skip_line(ctx)
+            continue
         }
         ctx_skip_ws(ctx)
         if ctx_peek(ctx) == 123 {
@@ -947,9 +975,17 @@ fn parse_var_entries(
             parse_var_condition(ctx, overrides, target, true, platform, arch, name)
             continue
         }
-        if ctx_peek(ctx) == 61 {
-            ctx_advance(ctx)
+        if ctx_peek(ctx) != 61 {
+            ctx_report(
+                ctx,
+                ctx.pos,
+                1,
+                @fmtalloc("expected '=' after variable '{s}'", {name})
+            )
+            ctx_skip_line(ctx)
+            continue
         }
+        ctx_advance(ctx)
         val value: ref u8 = ctx_read_env_value(ctx)
         if cstr.cmp(name, c"OUT") != 0 {
             @append(out, mem_concat3(name, c"=", value))
@@ -957,6 +993,8 @@ fn parse_var_entries(
     }
     if ctx_peek(ctx) == 125 {
         ctx_advance(ctx)
+    } elif braces {
+        ctx_report(ctx, start, ctx.pos - start, c"unterminated var block")
     }
 
     val valid: mut bool = true
@@ -1074,6 +1112,7 @@ fn parse_actions_field(ctx: mut ref ParseCtx, out: mut list[ref u8]) void = trus
         parse_action_entry(ctx, out)
         return
     }
+    val start: i64 = ctx.pos
     ctx_advance(ctx)
     for {
         ctx_skip_ws(ctx)
@@ -1089,6 +1128,8 @@ fn parse_actions_field(ctx: mut ref ParseCtx, out: mut list[ref u8]) void = trus
     }
     if ctx_peek(ctx) == 125 {
         ctx_advance(ctx)
+    } else {
+        ctx_report(ctx, start, ctx.pos - start, c"unterminated actions block")
     }
 }
 
@@ -1099,6 +1140,7 @@ fn ctx_skip_block(ctx: mut ref ParseCtx) void = trust {
         ctx_skip_line(ctx)
         return
     }
+    val start: i64 = ctx.pos
     val close: mut i64 = 93
     if open == 123 {
         close = 125
@@ -1118,6 +1160,9 @@ fn ctx_skip_block(ctx: mut ref ParseCtx) void = trust {
                 break
             }
         }
+    }
+    if depth > 0 {
+        ctx_report(ctx, start, ctx.pos - start, c"unterminated block")
     }
 }
 
@@ -1140,15 +1185,19 @@ fn dep_block_matches(platform: ref u8, arch: ref u8, target: ref u8) bool = trus
 /// Consume `build_actions`/`build_action` fields, discarding them when the
 /// enclosing platform block does not apply.
 fn parse_dep_fields(ctx: mut ref ParseCtx, dep: mut ref SxDep, active: bool) void = trust {
+    val start: i64 = ctx.pos - 1
     for {
         ctx_skip_ws(ctx)
         val c: i64 = ctx_peek(ctx)
         if c == -1 || c == 125 {
             break
         }
+        val name_start: i64 = ctx.pos
         val name: ref u8 = ctx_read_ident(ctx)
         if cstr.cmp(name, c"") == 0 {
-            break
+            ctx_report(ctx, name_start, 1, c"expected dependency field name")
+            ctx_skip_line(ctx)
+            continue
         }
         if cstr.cmp(name, c"build_actions") == 0 {
             if active {
@@ -1164,11 +1213,19 @@ fn parse_dep_fields(ctx: mut ref ParseCtx, dep: mut ref SxDep, active: bool) voi
                 ctx_skip_block(ctx)
             }
         } else {
+            ctx_report(
+                ctx,
+                name_start,
+                cstr.len(name),
+                @fmtalloc("unknown dependency field '{s}'", {name})
+            )
             ctx_skip_block(ctx)
         }
     }
     if ctx_peek(ctx) == 125 {
         ctx_advance(ctx)
+    } else {
+        ctx_report(ctx, start, ctx.pos - start, c"unterminated dependency field block")
     }
 }
 
@@ -1177,6 +1234,7 @@ fn parse_dep_body(ctx: mut ref ParseCtx, dep: mut ref SxDep, target: ref u8) voi
     if ctx_peek(ctx) != 123 {
         return
     }
+    val start: i64 = ctx.pos
     ctx_advance(ctx)
     for {
         ctx_skip_ws(ctx)
@@ -1184,9 +1242,12 @@ fn parse_dep_body(ctx: mut ref ParseCtx, dep: mut ref SxDep, target: ref u8) voi
         if c == -1 || c == 125 {
             break
         }
+        val name_start: i64 = ctx.pos
         val name: ref u8 = ctx_read_ident(ctx)
         if cstr.cmp(name, c"") == 0 {
-            break
+            ctx_report(ctx, name_start, 1, c"expected dependency field or platform block")
+            ctx_skip_line(ctx)
+            continue
         }
         if cstr.cmp(name, c"build_actions") == 0 {
             parse_actions_field(ctx, dep.actions)
@@ -1202,12 +1263,20 @@ fn parse_dep_body(ctx: mut ref ParseCtx, dep: mut ref SxDep, target: ref u8) voi
                 val active: bool = dep_block_matches(platform, arch, target)
                 parse_dep_fields(ctx, dep, active)
             } else {
+                ctx_report(
+                    ctx,
+                    name_start,
+                    cstr.len(name),
+                    @fmtalloc("unknown dependency field '{s}'", {name})
+                )
                 ctx_skip_line(ctx)
             }
         }
     }
     if ctx_peek(ctx) == 125 {
         ctx_advance(ctx)
+    } else {
+        ctx_report(ctx, start, ctx.pos - start, c"unterminated dependency block")
     }
 }
 
@@ -1239,6 +1308,33 @@ fn ctx_col_at(ctx: ref ParseCtx, pos: i64) i64 = trust {
         i++
     }
     return pos - start + 1
+}
+
+fn ctx_report(ctx: mut ref ParseCtx, start: i64, span: i64, message: ref u8) void = trust {
+    ctx.failed = true
+    diag.error_at_span(
+        ctx.filename,
+        ctx_line_at(ctx, start),
+        ctx_col_at(ctx, start),
+        span,
+        message
+    )
+}
+
+fn ctx_required_quoted(ctx: mut ref ParseCtx, what: ref u8) ref u8 = trust {
+    ctx_skip_ws(ctx)
+    val start: i64 = ctx.pos
+    if ctx_peek(ctx) != 34 {
+        ctx_report(
+            ctx,
+            start,
+            1,
+            @fmtalloc("expected a string value after '{s}'", {what})
+        )
+        ctx_skip_line(ctx)
+        return c""
+    }
+    return ctx_read_quoted(ctx)
 }
 
 fn new_build_step(
@@ -1279,7 +1375,9 @@ pub fn new_build_rule(platform: ref u8, arch: ref u8) ref SxBuildRule = trust {
 
 fn parse_env_entries(ctx: mut ref ParseCtx, out: mut list[ref u8]) void = trust {
     ctx_skip_ws(ctx)
-    if ctx_peek(ctx) == 123 {
+    val braces: bool = ctx_peek(ctx) == 123
+    val start: i64 = ctx.pos
+    if braces {
         ctx_advance(ctx)
     }
     for {
@@ -1288,19 +1386,32 @@ fn parse_env_entries(ctx: mut ref ParseCtx, out: mut list[ref u8]) void = trust 
         if c == -1 || c == 125 {
             break
         }
+        val env_start: i64 = ctx.pos
         val env_name: ref u8 = ctx_read_ident(ctx)
         if cstr.cmp(env_name, c"") == 0 {
-            break
+            ctx_report(ctx, env_start, 1, c"expected environment variable name")
+            ctx_skip_line(ctx)
+            continue
         }
         ctx_skip_ws(ctx)
-        if ctx_peek(ctx) == 61 {
-            ctx_advance(ctx)
+        if ctx_peek(ctx) != 61 {
+            ctx_report(
+                ctx,
+                ctx.pos,
+                1,
+                @fmtalloc("expected '=' after environment variable '{s}'", {env_name})
+            )
+            ctx_skip_line(ctx)
+            continue
         }
+        ctx_advance(ctx)
         val env_value: ref u8 = ctx_read_env_value(ctx)
         @append(out, mem_concat3(env_name, c"=", env_value))
     }
     if ctx_peek(ctx) == 125 {
         ctx_advance(ctx)
+    } elif braces {
+        ctx_report(ctx, start, ctx.pos - start, c"unterminated env block")
     }
 }
 
@@ -1322,7 +1433,7 @@ fn parse_log_field(
         return false
     }
     val start: i64 = ctx.pos - cstr.len(name)
-    val message: ref u8 = ctx_read_quoted(ctx)
+    val message: ref u8 = ctx_required_quoted(ctx, name)
     if cstr.len(message) > 0 {
         @append(
             target.steps,
@@ -1346,7 +1457,7 @@ fn parse_override_field(
     name: ref u8
 ) bool = trust {
     if cstr.cmp(name, c"action") == 0 {
-        val action: ref u8 = ctx_read_quoted(ctx)
+        val action: ref u8 = ctx_required_quoted(ctx, name)
         if cstr.len(action) > 0 {
             append_action_step(target, action)
         }
@@ -1381,15 +1492,19 @@ fn parse_override_field(
             target.flags = ctx_read_quoted(ctx)
         } else {
             target.flags = ctx_read_joined_value(ctx)
+            if cstr.len(target.flags) == 0 {
+                ctx_report(ctx, ctx.pos, 1, c"expected a value after 'flags'")
+                ctx_skip_line(ctx)
+            }
         }
         return true
     }
     if cstr.cmp(name, c"output") == 0 {
-        target.output = ctx_read_quoted(ctx)
+        target.output = ctx_required_quoted(ctx, name)
         return true
     }
     if cstr.cmp(name, c"entry") == 0 {
-        target.entry = ctx_read_quoted(ctx)
+        target.entry = ctx_required_quoted(ctx, name)
         return true
     }
     if cstr.cmp(name, c"env") == 0 {
@@ -1400,26 +1515,34 @@ fn parse_override_field(
 }
 
 fn parse_rule_fields(ctx: mut ref ParseCtx, rule: mut ref SxBuildRule) void = trust {
+    val start: i64 = ctx.pos - 1
     for {
         ctx_skip_ws(ctx)
         val c: i64 = ctx_peek(ctx)
         if c == -1 || c == 125 {
             break
         }
+        val name_start: i64 = ctx.pos
         val name: ref u8 = ctx_read_ident(ctx)
         if cstr.cmp(name, c"") == 0 {
-            break
+            ctx_report(ctx, name_start, 1, c"expected build field name")
+            ctx_skip_line(ctx)
+            continue
         }
         if !parse_override_field(ctx, rule, name) {
+            ctx_report(ctx, name_start, cstr.len(name), @fmtalloc("unknown build field '{s}'", {name}))
             ctx_skip_line(ctx)
         }
     }
     if ctx_peek(ctx) == 125 {
         ctx_advance(ctx)
+    } else {
+        ctx_report(ctx, start, ctx.pos - start, c"unterminated build rule block")
     }
 }
 
 fn parse_build_body(ctx: mut ref ParseCtx, cfg: mut ref SxBuildConfig) void = trust {
+    val start: i64 = ctx.pos - 1
     val base: mut ref SxBuildRule = new_build_rule(c"", c"")
     cfg.base = base
     for {
@@ -1428,9 +1551,12 @@ fn parse_build_body(ctx: mut ref ParseCtx, cfg: mut ref SxBuildConfig) void = tr
         if c == -1 || c == 125 {
             break
         }
+        val name_start: i64 = ctx.pos
         val name: ref u8 = ctx_read_ident(ctx)
         if cstr.cmp(name, c"") == 0 {
-            break
+            ctx_report(ctx, name_start, 1, c"expected build field or platform block")
+            ctx_skip_line(ctx)
+            continue
         }
         if parse_override_field(ctx, base, name) {
             continue
@@ -1458,6 +1584,26 @@ fn parse_build_body(ctx: mut ref ParseCtx, cfg: mut ref SxBuildConfig) void = tr
         }
         ctx_skip_ws(ctx)
         if ctx_peek(ctx) != 123 {
+            val is_platform: bool = dot >= 0
+            || builds.is_known_platform(platform)
+            || cstr.cmp(platform, c"posix") == 0
+            || cstr.cmp(platform, c"unix") == 0
+            || cstr.cmp(platform, c"bsd") == 0
+            if is_platform {
+                ctx_report(
+                    ctx,
+                    name_start,
+                    name_len,
+                    @fmtalloc("expected a block after build rule '{s}'", {name})
+                )
+            } else {
+                ctx_report(
+                    ctx,
+                    name_start,
+                    name_len,
+                    @fmtalloc("unknown build field '{s}'", {name})
+                )
+            }
             ctx_skip_line(ctx)
             continue
         }
@@ -1468,6 +1614,8 @@ fn parse_build_body(ctx: mut ref ParseCtx, cfg: mut ref SxBuildConfig) void = tr
     }
     if ctx_peek(ctx) == 125 {
         ctx_advance(ctx)
+    } else {
+        ctx_report(ctx, start, ctx.pos - start, c"unterminated build block")
     }
 }
 
@@ -1478,6 +1626,7 @@ pub fn parse_sxmod(
     filename: ref u8
 ) ref SxMod = trust {
     val ctx: mut ref ParseCtx = new_ctx(content)
+    ctx.filename = filename
     val m: mut ref SxMod = mem.alloc(@sizeof(SxMod) as usize) as ref SxMod
     @memset(m, 0, @sizeof(SxMod) as usize)
     m.entry = c""
@@ -1494,49 +1643,87 @@ pub fn parse_sxmod(
     m.spectre_version_span = 0
     for {
         ctx_skip_ws(ctx)
-        if ctx_peek(ctx) == -1 {
+        val c: i64 = ctx_peek(ctx)
+        if c == -1 {
             break
+        }
+        val start: i64 = ctx.pos
+        if c == 125 {
+            ctx_report(ctx, start, 1, c"unexpected '}'")
+            ctx_advance(ctx)
+            continue
         }
         val kw: ref u8 = ctx_read_ident(ctx)
         if cstr.cmp(kw, c"") == 0 {
-            break
+            ctx_report(ctx, start, 1, c"expected a sx.mod directive")
+            ctx_skip_line(ctx)
+            continue
         }
         if cstr.cmp(kw, c"entry") == 0 {
-            m.entry = ctx_read_quoted(ctx)
+            m.entry = ctx_required_quoted(ctx, kw)
         } elif cstr.cmp(kw, c"version") == 0 {
-            m.version = ctx_read_quoted(ctx)
+            m.version = ctx_required_quoted(ctx, kw)
         } elif cstr.cmp(kw, c"spectre_version") == 0 {
             ctx_skip_ws(ctx)
-            val start: i64 = ctx.pos
-            m.spectre_version = ctx_read_quoted(ctx)
-            m.spectre_version_line = ctx_line_at(ctx, start)
-            m.spectre_version_col = ctx_col_at(ctx, start)
-            m.spectre_version_span = ctx.pos - start
+            val value_start: i64 = ctx.pos
+            m.spectre_version = ctx_required_quoted(ctx, kw)
+            m.spectre_version_line = ctx_line_at(ctx, value_start)
+            m.spectre_version_col = ctx_col_at(ctx, value_start)
+            m.spectre_version_span = ctx.pos - value_start
         } elif cstr.cmp(kw, c"single_flags") == 0 {
-            m.single_flags = ctx_read_quoted(ctx)
+            m.single_flags = ctx_required_quoted(ctx, kw)
         } elif cstr.cmp(kw, c"var") == 0 {
             if !parse_var_entries(ctx, m.vars, target, filename) {
                 m.parse_failed = true
             }
         } elif cstr.cmp(kw, c"dep") == 0 {
-            val dep: mut ref SxDep = new_dep(ctx_read_quoted(ctx))
+            val url: ref u8 = ctx_required_quoted(ctx, kw)
+            if cstr.len(url) == 0 {
+                continue
+            }
+            val dep: mut ref SxDep = new_dep(url)
             parse_dep_body(ctx, dep, target)
             @append(m.deps, dep)
         } elif cstr.cmp(kw, c"build") == 0 {
+            ctx_skip_ws(ctx)
+            val name_start: i64 = ctx.pos
+            val build_name: ref u8 = ctx_read_ident(ctx)
+            if cstr.cmp(build_name, c"") == 0 {
+                ctx_report(ctx, name_start, 1, c"expected build configuration name")
+                ctx_skip_line(ctx)
+                continue
+            }
+            ctx_skip_ws(ctx)
+            if ctx_peek(ctx) != 123 {
+                ctx_report(
+                    ctx,
+                    name_start,
+                    cstr.len(build_name),
+                    @fmtalloc("expected a block after build configuration '{s}'", {build_name})
+                )
+                ctx_skip_line(ctx)
+                continue
+            }
             val cfg: mut ref SxBuildConfig = mem.alloc(@sizeof(SxBuildConfig) as usize) as mut ref SxBuildConfig
             @memset(cfg, 0, @sizeof(SxBuildConfig))
-            cfg.name = ctx_read_ident(ctx)
+            cfg.name = build_name
             cfg.base = none
             cfg.rules = mem.new[ref SxBuildRule]()
-            ctx_skip_ws(ctx)
-            if ctx_peek(ctx) == 123 {
-                ctx_advance(ctx)
-            }
+            ctx_advance(ctx)
             parse_build_body(ctx, cfg)
             @append(m.builds, cfg)
         } else {
+            ctx_report(
+                ctx,
+                start,
+                cstr.len(kw),
+                @fmtalloc("unknown sx.mod directive '{s}'", {kw})
+            )
             ctx_skip_line(ctx)
         }
+    }
+    if ctx.failed {
+        m.parse_failed = true
     }
     @free(ctx)
     expand_mod_strings(m, root, target)

@@ -2423,7 +2423,40 @@ fn eval_stmt(ctx: mut ref EvalCtx, stmt: ref parser.Node) result[ref Val, ref Ev
         vars_truncate(ctx, before3)
         return ok out3
     }
-    if k == parser.NK_MATCH_VALUE || k == parser.NK_MATCH_ENUM || k == parser.NK_MATCH_STR {
+    if k == parser.NK_MATCH_ENUM {
+        val target_enum = eval_expr(ctx, parser.match_enum_expr(stmt), none)?
+        val td: ref parser.Node = find_type_def(ctx.w, ctx.m, ty_name(target_enum.ty))
+        if td != none && td.kind == parser.NK_ENUMDEF {
+            val variants: ref void = td.d2 as ref void
+            if variants != none {
+                val vn: i64 = @len(variants as list[ref u8]) as i64
+                for arm in parser.match_enum_arms(stmt) {
+                    val variant_name: ref u8 = parser.node_str_raw((arm as ref parser.Node).d0)
+                    val vi: mut i64 = 0
+                    for {
+                        if vi >= vn {
+                            break
+                        }
+                        val v_opt = @get(variants as list[ref u8], vi as usize)
+                        if v_opt is some variant {
+                            if cstr.eql(variant as ref u8, variant_name) {
+                                if target_enum.i == vi {
+                                    return eval_stmts(
+                                        ctx,
+                                        parser.match_enum_arm_body(arm as ref parser.Node) as ref parser.Node
+                                    )
+                                }
+                                break
+                            }
+                        }
+                        vi++
+                    }
+                }
+            }
+        }
+        return ok void_val(ctx.w)
+    }
+    if k == parser.NK_MATCH_VALUE || k == parser.NK_MATCH_STR {
         val target2 = eval_expr(ctx, stmt.d0 as ref parser.Node, none)?
         val arms: ref void = stmt.d1 as ref void
         if arms != none {
@@ -2852,6 +2885,31 @@ fn eval_field(ctx: mut ref EvalCtx, expr: ref parser.Node) result[ref Val, ref E
     if base != none && base.kind == parser.NK_IDENT {
         val bname: ref u8 = parser.node_str_raw(base.d0)
         if find_var(ctx, bname) < 0 && subst_lookup(ctx, bname) == none {
+            val td: ref parser.Node = find_type_def(ctx.w, ctx.m, bname)
+            if td != none && td.kind == parser.NK_ENUMDEF {
+                val variants: ref void = td.d2 as ref void
+                if variants != none {
+                    val vn: i64 = @len(variants as list[ref u8]) as i64
+                    val vi: mut i64 = 0
+                    for {
+                        if vi >= vn {
+                            break
+                        }
+                        val v_opt = @get(variants as list[ref u8], vi as usize)
+                        if v_opt is some variant {
+                            if cstr.eql(variant as ref u8, fname) {
+                                return ok int_val(
+                                    ctx.w,
+                                    vi,
+                                    named_ty(ctx.w, bname)
+                                )
+                            }
+                        }
+                        vi++
+                    }
+                }
+                return err unsupported(ctx.w, expr.line, c"unknown enum variant")
+            }
             val hit: GlobalHit = find_global(ctx.w, ctx.m, bname)
             if hit.item == none {
                 return err unsupported(ctx.w, expr.line, c"field access on a type or module")
@@ -3043,10 +3101,10 @@ fn eval_builtin(
         return zero_val(ctx.w, ctx.m, ty_resolve(ctx, expected), expr.line)
     }
     if cstr.eql(name, c"sizeof") {
-        val targs: list[ref parser.Node] = parser.builtin_type_args(expr)
+        val targs: ref void = parser.builtin_args(expr)
         val ty: mut ref parser.Node = expected
-        if @len(targs) as i64 > 0 {
-            val t0_opt = @get(targs, 0 as usize)
+        if targs != none && @len(targs as list[ref parser.Node]) as i64 > 0 {
+            val t0_opt = @get(targs as list[ref parser.Node], 0 as usize)
             if t0_opt is some t0 {
                 ty = t0 as ref parser.Node
             }
@@ -3733,7 +3791,14 @@ fn rewrite_static_stmt(
         rewrite_static_body(w, m, stmt.d4 as ref parser.Node)
         return
     }
-    if k == parser.NK_MATCH_VALUE || k == parser.NK_MATCH_ENUM || k == parser.NK_MATCH_STR
+    if k == parser.NK_MATCH_ENUM {
+        rewrite_static_expr(w, m, parser.match_enum_expr(stmt), none)
+        for arm in parser.match_enum_arms(stmt) {
+            rewrite_static_stmts(w, m, parser.match_enum_arm_body(arm as ref parser.Node) as ref parser.Node)
+        }
+        return
+    }
+    if k == parser.NK_MATCH_VALUE || k == parser.NK_MATCH_STR
     || k == parser.NK_MATCH_UNION || k == parser.NK_MATCH_TAGGED_UNION {
         rewrite_static_expr(w, m, stmt.d0 as ref parser.Node, none)
         val arms: ref void = stmt.d1 as ref void
@@ -3817,6 +3882,9 @@ fn rewrite_static_expr(
             val v = eval_expr(ctx, arg, expected)
             match v {
                 ok cval => {
+                    if cval.ty == none && expected != none {
+                        cval.ty = ty_resolve(ctx, expected)
+                    }
                     if cval.kind == VK_VOID {
                         val e: ref EvalErr = mk_trap(
                             w,
@@ -4081,7 +4149,14 @@ fn fold_stmt(
         fold_body(w, m, stmt.d4 as ref parser.Node)
         return
     }
-    if k == parser.NK_MATCH_VALUE || k == parser.NK_MATCH_ENUM || k == parser.NK_MATCH_STR
+    if k == parser.NK_MATCH_ENUM {
+        fold_expr(w, m, parser.match_enum_expr(stmt))
+        for arm in parser.match_enum_arms(stmt) {
+            fold_stmts(w, m, parser.match_enum_arm_body(arm as ref parser.Node) as ref parser.Node)
+        }
+        return
+    }
+    if k == parser.NK_MATCH_VALUE || k == parser.NK_MATCH_STR
     || k == parser.NK_MATCH_UNION || k == parser.NK_MATCH_TAGGED_UNION {
         fold_expr(w, m, stmt.d0 as ref parser.Node)
         val arms: ref void = stmt.d1 as ref void
