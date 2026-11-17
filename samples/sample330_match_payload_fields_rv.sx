@@ -1,0 +1,36 @@
+type Pair = {
+    a: i64
+    b: i64
+}
+
+val gpair: mut Pair = Pair { a: 20, b: 22 }
+
+fn make_result(ok_value: bool) result[ref Pair, i64] = {
+    if ok_value {
+        return ok @addr(gpair)
+    }
+    return err 42
+}
+
+pub fn main() void = {
+    val r = make_result(true)
+    match r {
+        ok p => {
+            assert p.a == 20
+            assert p.b == 22
+        }
+        err _ => {
+            assert false
+        }
+    }
+
+    val e = make_result(false)
+    match e {
+        ok _ => {
+            assert false
+        }
+        err code => {
+            assert code == 42
+        }
+    }
+}

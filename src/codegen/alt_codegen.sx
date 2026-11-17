@@ -8315,20 +8315,33 @@ fn gen_stmt(ctx: mut ref CCtx, stmt: ref parser.Node) void = trust {
         }
         if ty_node == none && init_expr != none {
             val ie: mut ref parser.Node = init_expr
-            if init_expr.kind == parser.NK_TRY || init_expr.kind == parser.NK_TRUST {
-                ie = init_expr.d0 as ref parser.Node
+            val is_try: mut bool = false
+            for {
+                if ie != none && ie.kind == parser.NK_TRUST {
+                    ie = ie.d0 as ref parser.Node
+                    continue
+                }
+                if ie != none && ie.kind == parser.NK_TRY {
+                    is_try = true
+                    ie = ie.d0 as ref parser.Node
+                    continue
+                }
+                break
             }
             if ie != none && ie.kind == parser.NK_CALL {
                 val ret: ref parser.Node = cc_infer_call_ret_ty(ctx, ie)
                 if ret != none {
                     val rk: i64 = ret.kind
-                    if rk == parser.TY_RESULT {
+                    if is_try && rk == parser.TY_RESULT {
                         val inner: ref parser.Node = ret.d0 as ref parser.Node
                         if inner != none && inner.kind != parser.TY_VOID {
                             ty_node = inner
                         }
-                    } elif rk == parser.TY_OPTION {
-                        ty_node = ret
+                    } elif is_try && rk == parser.TY_OPTION {
+                        val inner: ref parser.Node = ret.d0 as ref parser.Node
+                        if inner != none && inner.kind != parser.TY_VOID {
+                            ty_node = inner
+                        }
                     } elif rk != parser.TY_VOID {
                         ty_node = ret
                     }

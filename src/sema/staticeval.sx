@@ -938,6 +938,27 @@ fn val_is_empty_struct(v: ref Val) bool = trust {
     return v.elems == none || @len(v.elems) as i64 == 0
 }
 
+fn val_kind(v: ref Val) i64 = trust {
+    if v == none {
+        return VK_VOID
+    }
+    return v.kind
+}
+
+fn val_ty(v: ref Val) ref parser.Node = trust {
+    if v == none {
+        return none
+    }
+    return v.ty
+}
+
+fn set_val_ty(v: mut ref Val, ty: ref parser.Node) void = trust {
+    if v == none {
+        return
+    }
+    v.ty = ty
+}
+
 fn zero_val(
     w: ref World,
     m: ref modinfo.ResolvedModule,
@@ -4059,25 +4080,25 @@ fn rewrite_static_expr(
             val v = eval_expr(ctx, arg, expected)
             match v {
                 ok cval => {
-                    if cval.ty == none {
+                    if val_ty(cval) == none {
                         if expected != none {
-                            cval.ty = ty_resolve(ctx, expected)
-                        } elif cval.kind == VK_BOOL {
-                            cval.ty = named_ty(w, c"bool")
-                        } elif cval.kind == VK_FLOAT {
-                            cval.ty = named_ty(w, c"f64")
-                        } elif cval.kind == VK_INT {
-                            cval.ty = named_ty(w, c"i64")
+                            set_val_ty(cval, ty_resolve(ctx, expected))
+                        } elif val_kind(cval) == VK_BOOL {
+                            set_val_ty(cval, named_ty(w, c"bool"))
+                        } elif val_kind(cval) == VK_FLOAT {
+                            set_val_ty(cval, named_ty(w, c"f64"))
+                        } elif val_kind(cval) == VK_INT {
+                            set_val_ty(cval, named_ty(w, c"i64"))
                         }
                     }
-                    if cval.kind == VK_VOID {
+                    if val_kind(cval) == VK_VOID {
                         val e: ref EvalErr = mk_trap(
                             w,
                             expr.line,
                             c"@static expression does not produce a value"
                         )
                         static_error(w, m, expr, e)
-                    } elif cval.kind != VK_CSTR && !is_plain_type(w, m, cval.ty) {
+                    } elif val_kind(cval) != VK_CSTR && !is_plain_type(w, m, val_ty(cval)) {
                         val e: ref EvalErr = mk_trap(
                             w,
                             expr.line,

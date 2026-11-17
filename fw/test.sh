@@ -321,6 +321,19 @@ echo "Alt-to-QBE bootstrap test:"
 "$COMPILER" ./src/sxc.sx -l -alt -o sxc2_alt || exit 1
 ./sxc2_alt ./src/sxc.sx -l -o sxc3_from_alt || exit 1
 
+echo "Alt-built compiler CTE smoke test:"
+((total++))
+alt_cte_bin="$LOG_DIR/alt_built_cte_sample"
+if ./sxc2_alt ./samples/sample325_cte_folding_rv.sx -o "$alt_cte_bin" >"$LOG_DIR/alt_built_cte.log" 2>&1; then
+	echo "[PASS] alt-built compiler CTE sample"
+	((passed++))
+else
+	echo "[FAIL] alt-built compiler CTE sample"
+	sed 's/^/  /' "$LOG_DIR/alt_built_cte.log" | sed -n '1,120p'
+	((failed++))
+fi
+rm -f "$alt_cte_bin"
+
 echo
 echo "sx.mod syntax tests:"
 run_sxmod_syntax_tests
