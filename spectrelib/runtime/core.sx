@@ -89,6 +89,7 @@ when freestanding {
 
     extern (C) fn sx_gettimeofday(tv: ref void, tz: ref void) i32 = "sx_gettimeofday"
     extern (C) fn sx_localtime(t: ref i64) ref void = "sx_localtime"
+    extern (C) fn sx_times(buf: ref void) i64 = "sx_times"
     extern (C) fn sx_usleep(usec: u32) i32 = "sx_usleep"
     extern (C) fn sx_sleep(seconds: u32) i32 = "sx_sleep"
     extern (C) fn sx_time(out: ref i64) i64 = "sx_time"
@@ -110,6 +111,26 @@ when freestanding {
     extern (C) fn sx_mutex_destroy(m: ref void) i32 = "sx_mutex_destroy"
     extern (C) fn sx_mutex_lock(m: ref void) i32 = "sx_mutex_lock"
     extern (C) fn sx_mutex_unlock(m: ref void) i32 = "sx_mutex_unlock"
+
+    extern (C) fn sx_fs_read(fd: i64, buf: ref void, n: usize) i64 = "sx_fs_read"
+    extern (C) fn sx_fs_write(fd: i64, buf: ref void, n: usize) i64 = "sx_fs_write"
+    extern (C) fn sx_fs_open(path: ref u8, flags: i64, mode: i64) i32 = "sx_fs_open"
+    extern (C) fn sx_fs_close(fd: i64) i32 = "sx_fs_close"
+    extern (C) fn sx_fs_fork() i32 = "sx_fs_fork"
+    extern (C) fn sx_fs_execvp(file: ref u8, argv: ref ref u8) i32 = "sx_fs_execvp"
+    extern (C) fn sx_fs_waitpid(pid: i32, status: ref i32, options: i32) i32 = "sx_fs_waitpid"
+    extern (C) fn sx_fs_getpid() i32 = "sx_fs_getpid"
+    extern (C) fn sx_fs_kill(pid: i32, sig: i32) i32 = "sx_fs_kill"
+    extern (C) fn sx_fs_pipe(fds: ref i32) i32 = "sx_fs_pipe"
+    extern (C) fn sx_fs_dup(fd: i32) i32 = "sx_fs_dup"
+    extern (C) fn sx_fs_dup2(oldfd: i32, newfd: i32) i32 = "sx_fs_dup2"
+    extern (C) fn sx_fs_ioctl(fd: i64, req: i64, arg: ref void) i32 = "sx_fs_ioctl"
+    extern (C) fn sx_fs_tcgetattr(fd: i32, t: ref void) i32 = "sx_fs_tcgetattr"
+    extern (C) fn sx_fs_tcsetattr(fd: i32, act: i32, t: ref void) i32 = "sx_fs_tcsetattr"
+    extern (C) fn sx_fs_gethostname(buf: ref u8, n: usize) i32 = "sx_fs_gethostname"
+    extern (C) fn sx_fs_setenv(name: ref u8, value: ref u8, overwrite: i32) i32 = "sx_fs_setenv"
+    extern (C) fn sx_fs_unsetenv(name: ref u8) i32 = "sx_fs_unsetenv"
+    extern (C) fn sx_fs_strtod(s: ref u8, end: ref ref u8) f64 = "sx_fs_strtod"
 
     extern (C) fn sx_socket(domain: i32, kind: i32, protocol: i32) i32 = "sx_socket"
     extern (C) fn sx_bind(fd: i32, addr: ref void, len: u32) i32 = "sx_bind"
@@ -287,6 +308,7 @@ otherwise {
         extern (C) fn c_sleep(seconds: u32) i32 = "sx_hosted_sleep"
     }
     otherwise {
+        extern (C, header) fn c_times(buf: ref void) i64 = "times"
         extern (C, header) fn c_usleep(usec: u32) i32 = "usleep"
         extern (C, header) fn c_sleep(seconds: u32) i32 = "sleep"
     }
@@ -647,10 +669,7 @@ pub fn strtol(s: ref u8, end: ref ref u8, base: i32) i64 = trust {
 
 pub fn strtod(s: ref u8, end: ref ref u8) f64 = trust {
     when freestanding {
-        if s == s && end == end {
-            return 0.0
-        }
-        return 0.0
+        return sx_fs_strtod(s, end)
     }
     otherwise {
         return c_strtod(s, end)
@@ -659,7 +678,7 @@ pub fn strtod(s: ref u8, end: ref ref u8) f64 = trust {
 
 pub fn fork() i32 = trust {
     when freestanding {
-        return -1
+        return sx_fs_fork()
     }
     otherwise {
         when posix {
@@ -673,10 +692,7 @@ pub fn fork() i32 = trust {
 
 pub fn execvp(file: ref u8, argv: ref ref u8) i32 = trust {
     when freestanding {
-        if file == file && argv == argv {
-            return -1
-        }
-        return -1
+        return sx_fs_execvp(file, argv)
     }
     otherwise {
         when posix {
@@ -690,10 +706,7 @@ pub fn execvp(file: ref u8, argv: ref ref u8) i32 = trust {
 
 pub fn waitpid(pid: i32, status: ref i32, options: i32) i32 = trust {
     when freestanding {
-        if pid == pid && status == status && options == options {
-            return -1
-        }
-        return -1
+        return sx_fs_waitpid(pid, status, options)
     }
     otherwise {
         when posix {
@@ -707,8 +720,7 @@ pub fn waitpid(pid: i32, status: ref i32, options: i32) i32 = trust {
 
 pub fn exit_now(code: i32) void = trust {
     when freestanding {
-        val _ = code
-        return
+        sx_exit(code)
     }
     otherwise {
         when posix {
@@ -719,10 +731,7 @@ pub fn exit_now(code: i32) void = trust {
 
 pub fn pipe(fds: ref i32) i32 = trust {
     when freestanding {
-        if fds == fds {
-            return -1
-        }
-        return -1
+        return sx_fs_pipe(fds)
     }
     otherwise {
         when posix {
@@ -736,10 +745,7 @@ pub fn pipe(fds: ref i32) i32 = trust {
 
 pub fn dup(fd: i32) i32 = trust {
     when freestanding {
-        if fd == fd {
-            return -1
-        }
-        return -1
+        return sx_fs_dup(fd)
     }
     otherwise {
         when posix {
@@ -753,10 +759,7 @@ pub fn dup(fd: i32) i32 = trust {
 
 pub fn dup2(oldfd: i32, newfd: i32) i32 = trust {
     when freestanding {
-        if oldfd == oldfd && newfd == newfd {
-            return -1
-        }
-        return -1
+        return sx_fs_dup2(oldfd, newfd)
     }
     otherwise {
         when posix {
@@ -770,8 +773,7 @@ pub fn dup2(oldfd: i32, newfd: i32) i32 = trust {
 
 pub fn close(fd: i32) i32 = trust {
     when freestanding {
-        val _ = fd
-        return -1
+        return sx_fs_close(fd)
     }
     otherwise {
         return c_close(fd)
@@ -780,10 +782,7 @@ pub fn close(fd: i32) i32 = trust {
 
 pub fn open(path: ref u8, flags: i32, mode: i32) i32 = trust {
     when freestanding {
-        if path == path && flags == flags && mode == mode {
-            return -1
-        }
-        return -1
+        return sx_fs_open(path, flags as i64, mode as i64)
     }
     otherwise {
         when posix {
@@ -797,10 +796,7 @@ pub fn open(path: ref u8, flags: i32, mode: i32) i32 = trust {
 
 pub fn read(fd: i32, buf: ref void, n: usize) i64 = trust {
     when freestanding {
-        if fd == fd && buf == buf && n == n {
-            return -1
-        }
-        return -1
+        return sx_fs_read(fd as i64, buf, n)
     }
     otherwise {
         when posix {
@@ -814,10 +810,7 @@ pub fn read(fd: i32, buf: ref void, n: usize) i64 = trust {
 
 pub fn write(fd: i32, buf: ref void, n: usize) i64 = trust {
     when freestanding {
-        if fd == fd && buf == buf && n == n {
-            return -1
-        }
-        return -1
+        return sx_fs_write(fd as i64, buf, n)
     }
     otherwise {
         when posix {
@@ -831,7 +824,7 @@ pub fn write(fd: i32, buf: ref void, n: usize) i64 = trust {
 
 pub fn getpid() i32 = trust {
     when freestanding {
-        return 0
+        return sx_fs_getpid()
     }
     otherwise {
         when posix {
@@ -845,10 +838,7 @@ pub fn getpid() i32 = trust {
 
 pub fn kill(pid: i32, sig: i32) i32 = trust {
     when freestanding {
-        if pid == pid && sig == sig {
-            return -1
-        }
-        return -1
+        return sx_fs_kill(pid, sig)
     }
     otherwise {
         when posix {
@@ -862,10 +852,7 @@ pub fn kill(pid: i32, sig: i32) i32 = trust {
 
 pub fn setenv(name: ref u8, value: ref u8, overwrite: i32) i32 = trust {
     when freestanding {
-        if name == name && value == value && overwrite == overwrite {
-            return -1
-        }
-        return -1
+        return sx_fs_setenv(name, value, overwrite)
     }
     otherwise {
         when posix {
@@ -879,10 +866,7 @@ pub fn setenv(name: ref u8, value: ref u8, overwrite: i32) i32 = trust {
 
 pub fn unsetenv(name: ref u8) i32 = trust {
     when freestanding {
-        if name == name {
-            return -1
-        }
-        return -1
+        return sx_fs_unsetenv(name)
     }
     otherwise {
         when posix {
@@ -896,10 +880,7 @@ pub fn unsetenv(name: ref u8) i32 = trust {
 
 pub fn gethostname(buf: ref u8, n: usize) i32 = trust {
     when freestanding {
-        if buf == buf && n == n {
-            return -1
-        }
-        return -1
+        return sx_fs_gethostname(buf, n)
     }
     otherwise {
         when posix {
@@ -913,10 +894,7 @@ pub fn gethostname(buf: ref u8, n: usize) i32 = trust {
 
 pub fn tcgetattr(fd: i32, t: ref void) i32 = trust {
     when freestanding {
-        if fd == fd && t == t {
-            return -1
-        }
-        return -1
+        return sx_fs_tcgetattr(fd, t)
     }
     otherwise {
         when posix {
@@ -930,10 +908,7 @@ pub fn tcgetattr(fd: i32, t: ref void) i32 = trust {
 
 pub fn tcsetattr(fd: i32, act: i32, t: ref void) i32 = trust {
     when freestanding {
-        if fd == fd && act == act && t == t {
-            return -1
-        }
-        return -1
+        return sx_fs_tcsetattr(fd, act, t)
     }
     otherwise {
         when posix {
@@ -947,10 +922,7 @@ pub fn tcsetattr(fd: i32, act: i32, t: ref void) i32 = trust {
 
 pub fn ioctl(fd: i32, req: u64, arg: ref void) i32 = trust {
     when freestanding {
-        if fd == fd && req == req && arg == arg {
-            return -1
-        }
-        return -1
+        return sx_fs_ioctl(fd as i64, req as i64, arg)
     }
     otherwise {
         when posix {
@@ -1455,6 +1427,20 @@ pub fn time(out: ref i64) i64 = trust {
     }
     otherwise {
         return c_time(out)
+    }
+}
+
+pub fn times(buf: ref void) i64 = trust {
+    when freestanding {
+        return sx_times(buf)
+    }
+    otherwise {
+        when posix {
+            return c_times(buf)
+        }
+        otherwise {
+            return -1
+        }
     }
 }
 

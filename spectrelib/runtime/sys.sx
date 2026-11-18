@@ -17,6 +17,7 @@ extern (C) fn __sx_sys_close(fd: i64) i64 = "__sx_sys_close"
 extern (C) fn __sx_sys_lseek(fd: i64, off: i64, whence: i64) i64 = "__sx_sys_lseek"
 extern (C) fn __sx_sys_stdio(which: i64) i64 = "__sx_sys_stdio"
 extern (C) fn __sx_sys_clock_us() i64 = "__sx_sys_clock_us"
+extern (C) fn __sx_sys_times(buf: ref void) i64 = "__sx_sys_times"
 extern (C) fn __sx_sys_nanosleep_us(us: i64) i64 = "__sx_sys_nanosleep_us"
 extern (C) fn __sx_sys_gettid() i64 = "__sx_sys_gettid"
 extern (C) fn __sx_sys_sched_yield() i64 = "__sx_sys_sched_yield"
@@ -864,6 +865,10 @@ fn r_time(out: ref i64) i64 = trust {
         @store(out, sec)
     }
     return sec
+}
+
+fn r_times(buf: ref void) i64 = trust {
+    return __sx_sys_times(buf)
 }
 
 // ---------------------------------------------------------------------------
@@ -1786,6 +1791,10 @@ pub fn sx_sleep(seconds: u32) i32 = trust {
 
 pub fn sx_time(out: ref i64) i64 = trust {
     return r_time(out)
+}
+
+pub fn sx_times(buf: ref void) i64 = trust {
+    return r_times(buf)
 }
 
 pub fn sx_pthread_create(

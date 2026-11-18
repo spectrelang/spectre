@@ -770,6 +770,7 @@ int sprintf(char *buf, const char *fmt, ...) {
 #define SX_SYS_rt_sigaction 13
 #define SX_SYS_kill 62
 #define SX_SYS_getpid 39
+#define SX_SYS_times 100
 #define SX_SYS_pread64 17
 #define SX_SYS_pwrite64 18
 #define SX_SYS_ptrace 101
@@ -818,6 +819,7 @@ int sprintf(char *buf, const char *fmt, ...) {
 #define SX_SYS_rt_sigaction 134
 #define SX_SYS_kill 129
 #define SX_SYS_getpid 172
+#define SX_SYS_times 153
 #define SX_SYS_pread64 67
 #define SX_SYS_pwrite64 68
 #define SX_SYS_ptrace 117
@@ -2994,6 +2996,9 @@ sx_i64 __sx_sys_clock_us(void) {
   sx_sc2(SX_SYS_clock_gettime, 0, (sx_i64)(sx_uintptr_t)&ts);
   return ts.tv_sec * 1000000 + ts.tv_nsec / 1000;
 }
+sx_i64 __sx_sys_times(void *buf) {
+  return sx_sc1(SX_SYS_times, (sx_i64)(sx_uintptr_t)buf);
+}
 sx_i64 __sx_sys_nanosleep_us(sx_i64 us) {
   sx_timespec ts;
   ts.tv_sec = us / 1000000;
@@ -3061,6 +3066,10 @@ sx_i64 __sx_sys_clock_us(void) {
   sx_u64 u = ((sx_u64)ft.dwHighDateTime << 32) | ft.dwLowDateTime;
   u = (u - 116444736000000000ull) / 10ull;
   return (sx_i64)u;
+}
+sx_i64 __sx_sys_times(void *buf) {
+  (void)buf;
+  return -1;
 }
 sx_i64 __sx_sys_nanosleep_us(sx_i64 us) {
   Sleep((DWORD)(us / 1000));
@@ -3528,3 +3537,293 @@ int pthread_mutex_init(void *m, void *attr) {
 int pthread_mutex_destroy(void *m) { return sx_mutex_destroy(m); }
 int pthread_mutex_lock(void *m) { return sx_mutex_lock(m); }
 int pthread_mutex_unlock(void *m) { return sx_mutex_unlock(m); }
+
+/* ------------------------------------------------------------------------- */
+/* Process, descriptor, and terminal entry points for std/runtime.          */
+/*                                                                           */
+/* std/runtime calls these from its freestanding branches. They forward to  */
+/* the libc-shaped functions above so freestanding programs get the same    */
+/* process and descriptor behavior as hosted ones.                          */
+/* ------------------------------------------------------------------------- */
+
+sx_i64 sx_fs_read(sx_i64 fd, void *buf, sx_size_t n) {
+  return (sx_i64)read((int)fd, buf, n);
+}
+sx_i64 sx_fs_write(sx_i64 fd, const void *buf, sx_size_t n) {
+  return (sx_i64)write((int)fd, buf, n);
+}
+int sx_fs_close(sx_i64 fd) { return close((int)fd); }
+
+#if defined(SX_LINUX)
+int sx_fs_open(const char *path, sx_i64 flags, sx_i64 mode) {
+  return open(path, (int)flags, (int)mode);
+}
+int sx_fs_fork(void) { return fork(); }
+int sx_fs_execvp(const char *file, char *const argv[]) {
+  return execvp(file, argv);
+}
+int sx_fs_waitpid(int pid, int *status, int options) {
+  return waitpid(pid, status, options);
+}
+int sx_fs_getpid(void) { return getpid(); }
+int sx_fs_kill(int pid, int sig) { return kill(pid, sig); }
+#else
+int sx_fs_open(const char *path, sx_i64 flags, sx_i64 mode) {
+  return (int)__sx_sys_open(path, flags, mode);
+}
+int sx_fs_fork(void) { return -1; }
+int sx_fs_execvp(const char *file, char *const argv[]) {
+  (void)file;
+  (void)argv;
+  return -1;
+}
+int sx_fs_waitpid(int pid, int *status, int options) {
+  return waitpid(pid, status, options);
+}
+int sx_fs_getpid(void) { return 0; }
+int sx_fs_kill(int pid, int sig) {
+  (void)pid;
+  (void)sig;
+  return -1;
+}
+#endif
+
+int sx_fs_pipe(int *fds) { return pipe(fds); }
+int sx_fs_dup(int fd) { return dup(fd); }
+int sx_fs_dup2(int oldfd, int newfd) { return dup2(oldfd, newfd); }
+
+sx_i64 sx_fs_ioctl(sx_i64 fd, sx_i64 req, void *arg) {
+#if defined(SX_LINUX)
+  return sx_sc3(SX_SYS_ioctl, fd, req, (sx_i64)(sx_uintptr_t)arg);
+#else
+  (void)fd;
+  (void)req;
+  (void)arg;
+  return -1;
+#endif
+}
+
+int sx_fs_tcgetattr(int fd, void *t) {
+#if defined(SX_LINUX)
+  return (int)sx_sc3(SX_SYS_ioctl, fd, 0x5401,
+                     (sx_i64)(sx_uintptr_t)t);
+#else
+  (void)fd;
+  (void)t;
+  return -1;
+#endif
+}
+
+int sx_fs_tcsetattr(int fd, int act, const void *t) {
+#if defined(SX_LINUX)
+  sx_i64 req = 0x5402; /* TCSETS */
+  if (act == 1)
+    req = 0x5403; /* TCSETSW */
+  else if (act == 2)
+    req = 0x5404; /* TCSETSF */
+  return (int)sx_sc3(SX_SYS_ioctl, fd, req, (sx_i64)(sx_uintptr_t)t);
+#else
+  (void)fd;
+  (void)act;
+  (void)t;
+  return -1;
+#endif
+}
+
+int sx_fs_gethostname(char *buf, sx_size_t n) {
+#if defined(SX_LINUX)
+  struct sx_utsname u;
+  if (!buf || n == 0)
+    return -1;
+  memset(&u, 0, sizeof u);
+  if (sx_sc1(SX_SYS_uname, (sx_i64)(sx_uintptr_t)&u) < 0)
+    return -1;
+  sx_size_t len = strlen(u.nodename);
+  if (len + 1 > n)
+    len = n - 1;
+  memcpy(buf, u.nodename, len);
+  buf[len] = 0;
+  return 0;
+#else
+  (void)buf;
+  (void)n;
+  return -1;
+#endif
+}
+
+#if defined(SX_LINUX)
+static char **sx_env_owned = SX_NULL;
+static sx_size_t sx_env_cap = 0;
+
+static void sx_env_make_owned(void) {
+  if (sx_env_owned)
+    return;
+  sx_size_t n = 0;
+  if (environ) {
+    while (environ[n])
+      n++;
+  }
+  sx_env_cap = n + 8;
+  sx_env_owned = (char **)malloc(sx_env_cap * sizeof(char *));
+  if (!sx_env_owned)
+    return;
+  for (sx_size_t i = 0; i < n; i++)
+    sx_env_owned[i] = environ[i];
+  sx_env_owned[n] = SX_NULL;
+  environ = sx_env_owned;
+  sx_envp = sx_env_owned;
+}
+#endif
+
+int sx_fs_setenv(const char *name, const char *value, int overwrite) {
+#if defined(SX_LINUX)
+  if (!name || !*name || strchr(name, '=') || !value)
+    return -1;
+  sx_env_make_owned();
+  if (!sx_env_owned)
+    return -1;
+  sx_size_t name_len = strlen(name);
+  sx_size_t value_len = strlen(value);
+  sx_size_t count = 0;
+  while (sx_env_owned[count])
+    count++;
+  for (sx_size_t i = 0; i < count; i++) {
+    char *entry = sx_env_owned[i];
+    if (strncmp(entry, name, name_len) == 0 && entry[name_len] == '=') {
+      if (!overwrite)
+        return 0;
+      char *next = (char *)malloc(name_len + value_len + 2);
+      if (!next)
+        return -1;
+      memcpy(next, name, name_len);
+      next[name_len] = '=';
+      memcpy(next + name_len + 1, value, value_len + 1);
+      sx_env_owned[i] = next;
+      return 0;
+    }
+  }
+  if (count + 2 > sx_env_cap) {
+    sx_size_t next_cap = sx_env_cap ? sx_env_cap * 2 : 16;
+    char **grown = (char **)malloc(next_cap * sizeof(char *));
+    if (!grown)
+      return -1;
+    for (sx_size_t i = 0; i < count; i++)
+      grown[i] = sx_env_owned[i];
+    sx_env_owned = grown;
+    sx_env_cap = next_cap;
+    environ = sx_env_owned;
+    sx_envp = sx_env_owned;
+  }
+  char *entry = (char *)malloc(name_len + value_len + 2);
+  if (!entry)
+    return -1;
+  memcpy(entry, name, name_len);
+  entry[name_len] = '=';
+  memcpy(entry + name_len + 1, value, value_len + 1);
+  sx_env_owned[count] = entry;
+  sx_env_owned[count + 1] = SX_NULL;
+  return 0;
+#else
+  (void)name;
+  (void)value;
+  (void)overwrite;
+  return -1;
+#endif
+}
+
+int sx_fs_unsetenv(const char *name) {
+#if defined(SX_LINUX)
+  if (!name || !*name || strchr(name, '='))
+    return -1;
+  sx_env_make_owned();
+  if (!sx_env_owned)
+    return -1;
+  sx_size_t name_len = strlen(name);
+  sx_size_t i = 0;
+  while (sx_env_owned[i]) {
+    char *entry = sx_env_owned[i];
+    if (strncmp(entry, name, name_len) == 0 && entry[name_len] == '=') {
+      sx_size_t j = i;
+      while (sx_env_owned[j + 1]) {
+        sx_env_owned[j] = sx_env_owned[j + 1];
+        j++;
+      }
+      sx_env_owned[j] = SX_NULL;
+      return 0;
+    }
+    i++;
+  }
+  return 0;
+#else
+  (void)name;
+  return -1;
+#endif
+}
+
+double sx_fs_strtod(const char *s, char **end) {
+  const char *p = s;
+  if (!p) {
+    if (end)
+      *end = (char *)s;
+    return 0.0;
+  }
+  while (*p == ' ' || *p == '\t' || *p == '\n' || *p == '\r')
+    p++;
+  int negative = 0;
+  if (*p == '+' || *p == '-') {
+    negative = *p == '-';
+    p++;
+  }
+  double value = 0.0;
+  int any = 0;
+  while (*p >= '0' && *p <= '9') {
+    value = value * 10.0 + (double)(*p - '0');
+    p++;
+    any = 1;
+  }
+  if (*p == '.') {
+    p++;
+    double scale = 0.1;
+    while (*p >= '0' && *p <= '9') {
+      value += (double)(*p - '0') * scale;
+      scale *= 0.1;
+      p++;
+      any = 1;
+    }
+  }
+  if (!any) {
+    if (end)
+      *end = (char *)s;
+    return 0.0;
+  }
+  if (*p == 'e' || *p == 'E') {
+    const char *mark = p;
+    p++;
+    int exp_negative = 0;
+    if (*p == '+' || *p == '-') {
+      exp_negative = *p == '-';
+      p++;
+    }
+    int exp = 0;
+    int exp_any = 0;
+    while (*p >= '0' && *p <= '9') {
+      if (exp < 10000)
+        exp = exp * 10 + (*p - '0');
+      p++;
+      exp_any = 1;
+    }
+    if (!exp_any) {
+      p = mark;
+    } else {
+      while (exp > 0) {
+        value = exp_negative ? value / 10.0 : value * 10.0;
+        exp--;
+      }
+    }
+  }
+  if (negative)
+    value = -value;
+  if (end)
+    *end = (char *)p;
+  return value;
+}
