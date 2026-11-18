@@ -73,7 +73,10 @@ long long sx__allocadapt_allocators__HeapAllocator_alloc(long long ctx,unsigned 
 int sx__allocadapt_allocators__HeapAllocator_free(long long ctx,long long ptr){std__allocators__HeapAllocator__free(ctx,ptr);return 0;}
 long long sx__allocadapt_allocators__HeapAllocator_realloc(long long ctx,long long ptr,unsigned long long size){long long r[3]={0,0,0};std__allocators__HeapAllocator__realloc(r,ctx,ptr,size);return (r[0]!=0&&r[1]!=0)?r[1]+1:0;}
 #include "signal.h"
-#include "sys/types.h"
 #include "sys/wait.h"
 #include "unistd.h"
+#include "fcntl.h"
+#include "sys/ioctl.h"
+#include "termios.h"
+#include "sys/types.h"
 
