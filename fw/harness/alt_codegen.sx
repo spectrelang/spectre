@@ -28,6 +28,7 @@ test "alt codegen does not leak" {
             1000000,
             false,
             false,
+            false,
             false
         )
         if (@len(errors) as i64) > 0 {

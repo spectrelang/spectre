@@ -29,7 +29,8 @@ test "codegen does not leak" {
             1000000,
             false,
             false,
-            true
+            true,
+            false
         )
         if (@len(errors) as i64) > 0 {
             for error in errors {
