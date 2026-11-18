@@ -69,6 +69,8 @@ type SemaCtx = {
     in_trust: mut i64
     in_variadic_fn: mut i64
     trust_used: mut i64
+    lenient_uses: mut i64
+    dead_code_strict: mut bool
     type_params: mut list[ref u8]
     type_param_constraints: mut list[ref u8]
     argspack_params: mut list[ref u8]
@@ -133,6 +135,9 @@ fn sema_select_when_branch(ctx: ref SemaCtx, node: ref parser.Node) ref void = t
 }
 
 fn add_error(ctx: ref SemaCtx, msg: ref u8) void = trust {
+    if ctx.lenient_uses > 0 {
+        return
+    }
     for existing in ctx.errors {
         if cstr.cmp(existing as ref u8, msg) == 0 {
             return
@@ -9453,6 +9458,45 @@ fn check_stmts(ctx: mut ref SemaCtx, stmts: ref void, filename: ref u8) void = t
     }
 }
 
+fn check_stmts_lenient(ctx: mut ref SemaCtx, stmts: ref void, filename: ref u8) void = trust {
+    if stmts == none {
+        return
+    }
+    for s in stmts as list[ref parser.Node] {
+        check_stmt(ctx, s, filename)
+    }
+}
+
+fn check_when_branch_lenient(
+    ctx: mut ref SemaCtx,
+    branch: ref void,
+    filename: ref u8,
+    line: i64
+) void = trust {
+    if branch == none {
+        return
+    }
+    val origins: i64 = @len(ctx.var_origin_names) as i64
+    val origin_types: i64 = @len(ctx.var_origin_types) as i64
+    push_scope(ctx)
+    check_stmts_lenient(ctx, branch, filename)
+    pop_scope(ctx, filename, line)
+    for {
+        val n: usize = @len(ctx.var_origin_names)
+        if n as i64 <= origins {
+            break
+        }
+        @remove(ctx.var_origin_names, n - 1)
+    }
+    for {
+        val n: usize = @len(ctx.var_origin_types)
+        if n as i64 <= origin_types {
+            break
+        }
+        @remove(ctx.var_origin_types, n - 1)
+    }
+}
+
 fn infer_builtin_list_decl_type(
     ctx: ref SemaCtx,
     init_expr: ref parser.Node
@@ -10802,12 +10846,52 @@ fn check_stmt(ctx: mut ref SemaCtx, stmt: ref parser.Node, filename: ref u8) voi
         return
     }
     if k == parser.NK_WHEN_STMT {
+        if ctx.lenient_uses > 0 {
+            check_when_branch_lenient(ctx, stmt.d1 as ref void, filename, line)
+            val ors: ref void = stmt.d2 as ref void
+            if ors != none {
+                for ow in ors as list[ref parser.Node] {
+                    check_when_branch_lenient(
+                        ctx,
+                        (ow as ref parser.Node).d1 as ref void,
+                        filename,
+                        line
+                    )
+                }
+            }
+            check_when_branch_lenient(ctx, stmt.d3 as ref void, filename, line)
+            return
+        }
         val selected: ref void = sema_select_when_branch(ctx, stmt)
         if selected != none {
             push_scope(ctx)
             check_stmts(ctx, selected, filename)
             pop_scope(ctx, filename, line)
         }
+        if ctx.dead_code_strict {
+            return
+        }
+        ctx.lenient_uses++
+        if (stmt.d1 as ref void) != selected {
+            check_when_branch_lenient(ctx, stmt.d1 as ref void, filename, line)
+        }
+        val ors: ref void = stmt.d2 as ref void
+        if ors != none {
+            for ow in ors as list[ref parser.Node] {
+                if ((ow as ref parser.Node).d1 as ref void) != selected {
+                    check_when_branch_lenient(
+                        ctx,
+                        (ow as ref parser.Node).d1 as ref void,
+                        filename,
+                        line
+                    )
+                }
+            }
+        }
+        if (stmt.d3 as ref void) != selected {
+            check_when_branch_lenient(ctx, stmt.d3 as ref void, filename, line)
+        }
+        ctx.lenient_uses--
         return
     }
 
@@ -12373,11 +12457,13 @@ pub fn check_module(
     root: ref modinfo.ResolvedModule,
     _: i64,
     src_target: ref u8,
-    no_warn: bool
+    no_warn: bool,
+    dead_code_strict: bool
 ) list[ref u8] = trust {
     val ctx: mut ref SemaCtx = sema_new(arena)
     ctx.root_mod = root
     ctx.src_target = src_target
+    ctx.dead_code_strict = dead_code_strict
 
     for item in items {
         register_item_name(ctx, item)
@@ -12483,7 +12569,8 @@ fn check_module_rec(
     seen: mut list[ref void],
     quiet: i64,
     src_target: ref u8,
-    no_warn: bool
+    no_warn: bool,
+    dead_code_strict: bool
 ) void = trust {
     if mod == none {
         return
@@ -12500,13 +12587,31 @@ fn check_module_rec(
             break
         }
         val child: ref modinfo.ResolvedModule = modinfo.import_module_at(mod, i as usize)
-        check_module_rec(arena, child, all_errors, seen, quiet, src_target, no_warn)
+        check_module_rec(
+            arena,
+            child,
+            all_errors,
+            seen,
+            quiet,
+            src_target,
+            no_warn,
+            dead_code_strict
+        )
         i++
     }
 
     val fname: ref u8 = normalize_path(arena, modinfo.module_display_filename(mod))
     val items: list[ref parser.Node] = modinfo.module_items(mod)
-    val errors: list[ref u8] = check_module(arena, items, fname, mod, quiet, src_target, no_warn)
+    val errors: list[ref u8] = check_module(
+        arena,
+        items,
+        fname,
+        mod,
+        quiet,
+        src_target,
+        no_warn,
+        dead_code_strict
+    )
     for e in errors {
         @append(all_errors, e)
     }
@@ -12521,11 +12626,21 @@ pub fn check_module_tree(
     static_fuel: i64,
     no_fold: bool,
     loud: bool,
-    qbe_mode: bool
+    qbe_mode: bool,
+    dead_code_strict: bool
 ) list[ref u8] = trust {
     val all_errors: mut list[ref u8] = mem.new[ref u8]()
     val seen: mut list[ref void] = mem.new[ref void]()
-    check_module_rec(arena, root, all_errors, seen, quiet, src_target, no_warn)
+    check_module_rec(
+        arena,
+        root,
+        all_errors,
+        seen,
+        quiet,
+        src_target,
+        no_warn,
+        dead_code_strict
+    )
     if @len(all_errors) as i64 == 0 {
         val static_errors: list[ref u8] = staticeval.process(
             arena,

@@ -51,6 +51,7 @@ pub type FlagSet = {
     tail: mut ref Flag
     positional: mut ref list[ref u8]
     allow_double_dash: mut bool
+    stop_at_positional: mut bool
 }
 
 /// Create an empty flag set. `name` is shown in the usage text.
@@ -79,6 +80,7 @@ pub fn new(name: ref u8, description: ref u8) result[FlagSet, InitError] = trust
             fs.tail = none
             fs.positional = slot
             fs.allow_double_dash = false
+            fs.stop_at_positional = false
             return ok (fs as FlagSet)
         }
         err _ => {
@@ -92,6 +94,11 @@ pub fn new(name: ref u8, description: ref u8) result[FlagSet, InitError] = trust
 /// Also makes a bare `--` terminate flag parsing.
 pub fn allow_double_dash(fs: mut FlagSet, enabled: bool) void = {
     fs.allow_double_dash = enabled
+}
+
+/// Treat the first positional argument and everything after it as positional.
+pub fn stop_at_positional(fs: mut FlagSet, enabled: bool) void = {
+    fs.stop_at_positional = enabled
 }
 
 fn add(
@@ -221,6 +228,9 @@ pub fn parse(
         // A lone "-" and anything that does not start with "-" is positional.
         if arg_len == 0 || @load8(arg) != 45 || arg_len == 1 {
             @append(@deref(fs.positional), arg)
+            if fs.stop_at_positional {
+                only_positional = true
+            }
             i++
             continue
         }

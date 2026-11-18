@@ -68,6 +68,7 @@ pub fn print_usage() void = {
     stdio.puts("  -unroll              Enable aggressive loop unrolling in the alt backend")
     stdio.puts("  -no-simd             Disable autovectorization, use scalar fallback")
     stdio.puts("  -no-fold             Disable implicit compile-time call folding")
+    stdio.puts("  -dead-code:<mode>    strict or normal (default: normal)")
     stdio.puts("  -static-fuel:<n>     Set the compile-time evaluation fuel budget")
     stdio.puts("  -no-warn             Suppress compiler warnings")
     stdio.puts("  -abs-dbg             Use absolute paths in diagnostics and debug info")
@@ -553,6 +554,16 @@ pub fn print_help(topic: str.StringView) i32 = trust {
             "-no-warn",
             "Suppress compiler warnings. Diagnostics for errors are still reported.",
             "spectre <input.sx> -no-warn"
+        )
+        return 0
+    }
+
+    if str.eql_cstr(topic, c"-dead-code")
+    || str.eql_cstr(topic, c"-dead-code:<mode>") {
+        print_flag_help(
+            "-dead-code:<mode>",
+            "Select strict or normal dead-code analysis. Normal counts uses in every when branch; strict only counts the active branch.",
+            "spectre <input.sx> -dead-code:strict"
         )
         return 0
     }

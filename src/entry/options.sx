@@ -29,6 +29,7 @@ pub type Options = {
     abs_dbg: mut bool
     simd_disabled: mut bool
     no_fold: mut bool
+    dead_code_strict: mut bool
     static_fuel: mut i64
     output_name: mut ref u8
     build_dll: mut bool
@@ -246,6 +247,18 @@ pub fn parse(
                 arg_i++
             } elif cstr.cmp(arg, c"-no-fold") == 0 {
                 opts.no_fold = true
+                arg_i++
+            } elif cstr.starts_with(arg, c"-dead-code:") {
+                val mode: ref u8 = cstr.substr(arg, 11, cstr.len(arg) - 11)
+                if cstr.cmp(mode, c"strict") == 0 {
+                    opts.dead_code_strict = true
+                } elif cstr.cmp(mode, c"normal") == 0 {
+                    opts.dead_code_strict = false
+                } else {
+                    diag.puts_error_label()
+                    stdio.puts(" -dead-code requires strict or normal")
+                    return false
+                }
                 arg_i++
             } elif cstr.starts_with(arg, c"-static-fuel:") {
                 val fuel_text: ref u8 = cstr.substr(arg, 13, cstr.len(arg) - 13)
