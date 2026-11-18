@@ -68,7 +68,7 @@ pub fn print_usage() void = {
     stdio.puts("  -unroll              Enable aggressive loop unrolling in the alt backend")
     stdio.puts("  -no-simd             Disable autovectorization, use scalar fallback")
     stdio.puts("  -no-fold             Disable implicit compile-time call folding")
-    stdio.puts("  -dead-code:<mode>    Dead code analysis, defaults to normal")
+    stdio.puts("  -dead-code:<mode>    Dead code analysis: normal (default) or strict")
     stdio.puts("  -static-fuel:<n>     Set the compile-time evaluation fuel budget")
     stdio.puts("  -no-warn             Suppress compiler warnings")
     stdio.puts("  -abs-dbg             Use absolute paths in diagnostics and debug info")
