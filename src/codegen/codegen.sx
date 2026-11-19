@@ -22496,60 +22496,149 @@ fn gen_items_with_prefix_skip_main(
                 val cname: ref u8 = parser.node_str_raw(node.d1)
                 val cexpr: ref parser.Node = node.d2 as ref parser.Node
                 if cexpr != none {
+                    val const_label: ref u8 = allocators.ScopedArena.alloc_or_none(
+                        ctx.arena,
+                        512 as usize
+                    ) as ref u8
+                    if cstr.cmp(mod_prefix, c"") == 0 {
+                        @snprintf(const_label, 512, "{s}", {cname})
+                    } else {
+                        @snprintf(const_label, 512, "{s}__{s}", {mod_prefix, cname})
+                    }
+
                     if cexpr.kind == parser.NK_INT_LIT {
-                        cg_register_module_const_qualified(
+                        val cval: ref u8 = normalize_static_int_text(
                             ctx,
-                            mod_prefix,
-                            cname,
-                            normalize_static_int_text(ctx, parser.int_lit_text_raw(cexpr))
+                            parser.int_lit_text_raw(cexpr)
                         )
+                        cg_register_module_const_qualified(ctx, mod_prefix, cname, cval)
+                        if cg_emit_label_if_new(ctx, const_label) {
+                            val data_buf: ref u8 = allocators.ScopedArena.alloc_or_none(
+                                ctx.arena,
+                                256 as usize
+                            ) as ref u8
+                            @snprintf(
+                                data_buf,
+                                256,
+                                "data ${s} = \{ l {s} \}\n",
+                                {const_label, cval}
+                            )
+                            emit(ctx, data_buf)
+                        } else { }
                     } elif cexpr.kind == parser.NK_FLOAT_LIT {
-                        val ftext3: ref u8 = parser.float_lit_text_raw(cexpr)
-                        val fval3: ref u8 = allocators.ScopedArena.alloc_or_none(
+                        val ftext: ref u8 = parser.float_lit_text_raw(cexpr)
+                        val fval: ref u8 = allocators.ScopedArena.alloc_or_none(
                             ctx.arena,
                             128 as usize
                         ) as ref u8
-                        @snprintf(fval3, 128, "d_{s}", {ftext3})
-                        cg_register_module_const_qualified(ctx, mod_prefix, cname, fval3)
+                        @snprintf(fval, 128, "d_{s}", {ftext})
+                        cg_register_module_const_qualified(ctx, mod_prefix, cname, fval)
                     } elif cexpr.kind == parser.NK_UNOP {
-                        val uval: ref u8 = const_unop_value(ctx, cexpr)
-                        if cstr.cmp(uval, c"") != 0 {
-                            cg_register_module_const_qualified(ctx, mod_prefix, cname, uval)
-                        }
+                        val cval: ref u8 = const_unop_value(ctx, cexpr)
+                        if cstr.cmp(cval, c"") != 0 {
+                            cg_register_module_const_qualified(ctx, mod_prefix, cname, cval)
+                            if starts_with_cstr(
+                                cval,
+                                c"d_"
+                            ) || starts_with_cstr(cval, c"s_") { } else {
+                                if cg_emit_label_if_new(ctx, const_label) {
+                                    val data_buf: ref u8 = allocators.ScopedArena.alloc_or_none(
+                                        ctx.arena,
+                                        256 as usize
+                                    ) as ref u8
+                                    @snprintf(
+                                        data_buf,
+                                        256,
+                                        "data ${s} = \{ l {s} \}\n",
+                                        {const_label, cval}
+                                    )
+                                    emit(ctx, data_buf)
+                                } else { }
+                            }
+                        } else { }
                     } elif cexpr.kind == parser.NK_CAST {
                         val target: ref u8 = type_expr_to_annotation(
                             ctx,
                             cexpr.d1 as ref parser.Node
                         )
-                        val cast_val: ref u8 = const_cast_value(
+                        val cval: ref u8 = const_cast_value(
                             ctx,
                             cexpr.d0 as ref parser.Node,
                             target
                         )
-                        if cstr.cmp(cast_val, c"") != 0 {
-                            cg_register_module_const_qualified(ctx, mod_prefix, cname, cast_val)
-                        }
+                        if cstr.cmp(cval, c"") != 0 {
+                            cg_register_module_const_qualified(ctx, mod_prefix, cname, cval)
+                            if starts_with_cstr(
+                                cval,
+                                c"d_"
+                            ) || starts_with_cstr(cval, c"s_") { } else {
+                                if cg_emit_label_if_new(ctx, const_label) {
+                                    val data_buf: ref u8 = allocators.ScopedArena.alloc_or_none(
+                                        ctx.arena,
+                                        256 as usize
+                                    ) as ref u8
+                                    @snprintf(
+                                        data_buf,
+                                        256,
+                                        "data ${s} = \{ l {s} \}\n",
+                                        {const_label, cval}
+                                    )
+                                    emit(ctx, data_buf)
+                                } else { }
+                            }
+                        } else { }
                     } elif cexpr.kind == parser.NK_BOOL {
-                        val bval2: i64 = cexpr.d0 as i64
-                        if bval2 != 0 {
+                        val bval: i64 = cexpr.d0 as i64
+                        val bstr: mut ref u8 = c"0"
+                        if bval != 0 {
                             cg_register_module_const_qualified(ctx, mod_prefix, cname, c"1")
+                            bstr = c"1"
                         } else {
                             cg_register_module_const_qualified(ctx, mod_prefix, cname, c"0")
                         }
-                    } elif cexpr.kind == parser.NK_LIST_LIT {
-                        val const_label2: ref u8 = allocators.ScopedArena.alloc_or_none(
-                            ctx.arena,
-                            512 as usize
-                        ) as ref u8
-                        if cstr.cmp(mod_prefix, c"") == 0 {
-                            @snprintf(const_label2, 512, "{s}", {cname})
-                        } else {
-                            @snprintf(const_label2, 512, "{s}__{s}", {mod_prefix, cname})
-                        }
-                        if cg_emit_label_if_new(ctx, const_label2) {
-                            emit_global_list_literal(ctx, const_label2, cexpr)
-                            cg_register_global(ctx, cname, const_label2, c"l", c"")
+                        if cg_emit_label_if_new(ctx, const_label) {
+                            val data_buf3: ref u8 = allocators.ScopedArena.alloc_or_none(
+                                ctx.arena,
+                                256 as usize
+                            ) as ref u8
+                            @snprintf(
+                                data_buf3,
+                                256,
+                                "data ${s} = \{ w {s} \}\n",
+                                {const_label, bstr}
+                            )
+                            emit(ctx, data_buf3)
                         } else { }
+                    } elif cexpr.kind == parser.NK_LIST_LIT {
+                        if cg_emit_label_if_new(ctx, const_label) {
+                            emit_global_list_literal(ctx, const_label, cexpr)
+                            cg_register_global(ctx, cname, const_label, c"l", c"")
+                        } else { }
+                    } elif cexpr.kind == parser.NK_FIXED_ARR_LIT {
+                        val const_ty: ref parser.Node = node.d3 as ref parser.Node
+                        if cg_emit_label_if_new(ctx, const_label) {
+                            emit_global_fixed_arr_literal(
+                                ctx,
+                                const_label,
+                                const_ty,
+                                cexpr
+                            )
+                            val const_ann: ref u8 = type_expr_to_annotation(
+                                ctx,
+                                const_ty
+                            )
+                            cg_register_global(
+                                ctx,
+                                cname,
+                                const_label,
+                                c"l",
+                                const_ann
+                            )
+                        } else { }
+                    } elif cexpr.kind == parser.NK_BUILTIN {
+                        if !cg_emit_embed_const(ctx, mod_prefix, cname, const_label, cexpr) { }
+                    } else {
+                        emit_const_runtime_global(ctx, mod_prefix, node)
                     }
                 }
             } elif k == parser.NK_VAL {
