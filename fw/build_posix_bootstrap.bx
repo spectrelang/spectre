@@ -17,13 +17,13 @@ if std.os == "darwin" {
 
 say("Building stage0 from {bootstrap_src}...")
 var build = run([
-"cc",
-"-O2",
-bootstrap_src,
-"-w",
-"-Wno-error=int-conversion",
-"-o",
-"spectre-stage0"
+    "cc",
+    "-O2",
+    bootstrap_src,
+    "-w",
+    "-Wno-error=int-conversion",
+    "-o",
+    "spectre-stage0"
 ])
 if not build.ok {
     if build.stdout != "" {

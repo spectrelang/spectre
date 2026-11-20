@@ -39,11 +39,11 @@ fn module_version(text) {
 }
 
 var runtime = run([
-"cc",
-"-c",
-"spectrelib/csources/qbe_runtime.c",
-"-o",
-"spectrelib/csources/qbe_runtime.o"
+    "cc",
+    "-c",
+    "spectrelib/csources/qbe_runtime.c",
+    "-o",
+    "spectrelib/csources/qbe_runtime.o"
 ])
 if not runtime.ok {
     if runtime.stderr != "" {
@@ -112,9 +112,9 @@ std.remove_file("./spectre-stage1")
 if do_bootstrap {
     say("Emitting bootstrap SSA...")
     var ssa = run(["./spectre-dev"] + defines + [
-    "./src/sxc.sx",
-    "-b",
-    "-emit-ssa"
+        "./src/sxc.sx",
+        "-b",
+        "-emit-ssa"
     ])
     if not ssa.ok {
         if ssa.stderr != "" {

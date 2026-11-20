@@ -71,20 +71,20 @@ var output        = critic_run.stdout
 var critic_status = critic_run.status
 
 var expected_messages = [
-"unused import 'unused'",
-"function name 'BadName' should be snake_case",
-"variable name 'Bad_var' should be snake_case",
-"variable name 'bad_const' should be SCREAMING_SNAKE_CASE",
-"avoid 'ref void'",
-"self-assignment has no effect",
-"redundant arithmetic assignment",
-"duplicate condition in boolean expression",
-"empty else body",
-"type name 'bad_type' should be PascalCase",
-"variable name 'Field' should be snake_case",
-"empty function body for 'empty'",
-"empty if body",
-"empty none arm"
+    "unused import 'unused'",
+    "function name 'BadName' should be snake_case",
+    "variable name 'Bad_var' should be snake_case",
+    "variable name 'bad_const' should be SCREAMING_SNAKE_CASE",
+    "avoid 'ref void'",
+    "self-assignment has no effect",
+    "redundant arithmetic assignment",
+    "duplicate condition in boolean expression",
+    "empty else body",
+    "type name 'bad_type' should be PascalCase",
+    "variable name 'Field' should be snake_case",
+    "empty function body for 'empty'",
+    "empty if body",
+    "empty none arm"
 ]
 
 if critic_status == 0 {

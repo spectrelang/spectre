@@ -77,58 +77,58 @@ fn emit(target, argv) {
 }
 
 var ok = emit("bootstrap/sxc.ssa", ["./spectre-dev"] + defines + [
-"./src/sxc.sx",
-"-b"
+    "./src/sxc.sx",
+    "-b"
 ] + ssa_mode + [
-"-no-warn",
-"-emit-ssa",
-"-emit-shim:spectrelib/csources/qbe_runtime.c",
-"-src-target:linux"
+    "-no-warn",
+    "-emit-ssa",
+    "-emit-shim:spectrelib/csources/qbe_runtime.c",
+    "-src-target:linux"
 ])
 if not ok {
     exit(1)
 }
 
 ok = emit("bootstrap/sxc.c", ["./spectre-dev"] + defines + [
-"./src/sxc.sx",
-"-b",
-"-no-warn",
-"-emit-alt",
-"-src-target:linux"
+    "./src/sxc.sx",
+    "-b",
+    "-no-warn",
+    "-emit-alt",
+    "-src-target:linux"
 ])
 if not ok {
     exit(1)
 }
 
 ok = emit("bootstrap/sxc_darwin.ssa", ["./spectre-dev"] + defines + [
-"./src/sxc.sx",
-"-b"
+    "./src/sxc.sx",
+    "-b"
 ] + ssa_mode + [
-"-emit-ssa",
-"-no-warn",
-"-src-target:darwin"
+    "-emit-ssa",
+    "-no-warn",
+    "-src-target:darwin"
 ])
 if not ok {
     exit(1)
 }
 
 ok = emit("bootstrap/sxc_darwin.c", ["./spectre-dev"] + defines + [
-"./src/sxc.sx",
-"-b",
-"-emit-alt",
-"-no-warn",
-"-src-target:darwin"
+    "./src/sxc.sx",
+    "-b",
+    "-emit-alt",
+    "-no-warn",
+    "-src-target:darwin"
 ])
 if not ok {
     exit(1)
 }
 
 ok = emit("bootstrap/sxcw.c", ["./spectre-dev"] + defines + [
-"./src/sxc.sx",
-"-b",
-"-emit-alt",
-"-no-warn",
-"-src-target:windows"
+    "./src/sxc.sx",
+    "-b",
+    "-emit-alt",
+    "-no-warn",
+    "-src-target:windows"
 ])
 if not ok {
     exit(1)

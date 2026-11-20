@@ -236,11 +236,11 @@ fn run_multi_actions_app_build(config, label, binary) {
     std.remove_all(std.join(sample_dir, ".sxb"))
 
     var build_argv = [
-    "env",
-    "SPECTRE_BIN={compiler_abs}",
-    compiler_abs,
-    "build",
-    config
+        "env",
+        "SPECTRE_BIN={compiler_abs}",
+        compiler_abs,
+        "build",
+        config
     ]
     var build  = capture(build_argv, cwd: sample_dir)
     var output = build.stdout
@@ -284,12 +284,12 @@ fn run_multi_actions_app_cross_out() {
     std.remove_all(std.join(sample_dir, ".sxb"))
 
     var build_argv = [
-    "env",
-    "SPECTRE_BIN={compiler_abs}",
-    compiler_abs,
-    "build",
-    "artifacts",
-    "-target:windows.x86_64"
+        "env",
+        "SPECTRE_BIN={compiler_abs}",
+        compiler_abs,
+        "build",
+        "artifacts",
+        "-target:windows.x86_64"
     ]
     var build = capture(build_argv, cwd: sample_dir)
     std.write_file(log_file, build.stdout)
@@ -408,12 +408,12 @@ if not bootstrap_only {
     run_multi_actions_app_cross_out()
 
     for src in [
-    "./src/ast/lexer.sx",
-    "./src/ast/parser.sx",
-    "./src/sema/sema.sx",
-    "./src/module/module.sx",
-    "./src/codegen/codegen.sx",
-    "./src/sxc.sx"
+        "./src/ast/lexer.sx",
+        "./src/ast/parser.sx",
+        "./src/sema/sema.sx",
+        "./src/module/module.sx",
+        "./src/codegen/codegen.sx",
+        "./src/sxc.sx"
     ] {
         run_visible([compiler, "test", src, "-l"])
     }
@@ -443,10 +443,10 @@ total += 1
 var alt_cte_bin = std.join(log_dir, "alt_built_cte_sample")
 var alt_cte_log = std.join(log_dir, "alt_built_cte.log")
 var alt_cte     = capture([
-"./sxc2_alt",
-"./samples/sample325_cte_folding_rv.sx",
-"-o",
-alt_cte_bin
+    "./sxc2_alt",
+    "./samples/sample325_cte_folding_rv.sx",
+    "-o",
+    alt_cte_bin
 ])
 std.write_file(alt_cte_log, alt_cte.stdout)
 if alt_cte.ok {

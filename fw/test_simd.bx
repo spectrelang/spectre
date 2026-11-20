@@ -110,12 +110,12 @@ run_scalar("auto", auto_alt)
 
 say("==> fallback: unsupported platform")
 var fallback = run_compile([
-compiler,
-kernel,
-"-release",
-"-alt",
-"-src-target:freebsd",
-"-emit-alt"
+    compiler,
+    kernel,
+    "-release",
+    "-alt",
+    "-src-target:freebsd",
+    "-emit-alt"
 ], "freebsd fallback")
 if fallback.stdout.contains("int64_t sx__ve") {
     eprint("error: vectorized loop emitted for an unsupported platform")
