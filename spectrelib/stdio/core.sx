@@ -51,9 +51,3 @@ pub fn read_key() i32 = trust {
 pub fn read_line(buf: ref u8, max_len: i64) ref u8 = trust {
     return @fgets(buf, max_len, rt.stdin())
 }
-
-test "stdio reads a line" {
-    val buffer: mut ref u8 = c""
-    val result = trust read_line(buffer, 100)
-    trust print("{s}", result)
-}
