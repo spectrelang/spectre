@@ -1,0 +1,171 @@
+#!/usr/bin/env blood
+
+var root = std.this_dir().parent()
+cd(root)
+
+var forbidden = {}
+for name in [
+"malloc", "calloc", "realloc", "free", "memcpy", "memmove", "memset", "memcmp",
+"strlen", "strcmp", "strncmp", "strcpy", "strcat", "strchr", "strrchr", "strstr",
+"strdup", "strtok_r", "atoi", "strtol", "isdigit", "toupper", "tolower",
+"printf", "fprintf", "dprintf", "snprintf", "puts", "fputs",
+"fopen", "fclose", "fread", "fwrite", "fseek", "ftell", "rewind", "fflush",
+"fgetc", "getchar", "fputc", "putchar", "fgets", "fdopen", "fileno", "feof", "ferror",
+"getenv", "getcwd", "chdir", "access", "mkdir", "rmdir", "remove", "rename", "unlink",
+"realpath", "readlink", "isatty", "stat", "lstat", "fstat", "opendir", "closedir", "readdir",
+"exit", "system", "popen", "pclose", "gettimeofday", "localtime", "usleep", "sleep", "time",
+"getrandom", "arc4random_buf", "pthread_create", "pthread_join", "pthread_detach",
+"pthread_self", "sched_yield", "pthread_mutex_init", "pthread_mutex_destroy",
+"pthread_mutex_lock", "pthread_mutex_unlock", "socket", "bind", "listen", "accept",
+"connect", "send", "recv", "sendto", "recvfrom", "setsockopt", "getsockopt", "poll",
+"htons", "ntohs", "closesocket", "signal", "raise",
+] {
+    forbidden[name] = true
+}
+
+var skip_paths = {}
+for name in [
+"spectrelib/json/core.sx",
+"spectrelib/net/http.sx",
+"spectrelib/runtime/core.sx",
+] {
+    skip_paths[name] = true
+}
+
+fn collect_sx(dir, out) {
+    for entry in std.glob(std.join(dir, "*")) {
+        if entry.is_dir() {
+            collect_sx(entry, out)
+        } elif entry.ends_with(".sx") {
+            out.append(entry)
+        }
+    }
+    for entry in std.glob(std.join(dir, ".*")) {
+        var name = entry.basename()
+        if name == "." or name == ".." {
+            continue
+        }
+        if entry.is_dir() {
+            collect_sx(entry, out)
+        } elif entry.ends_with(".sx") {
+            out.append(entry)
+        }
+    }
+}
+
+var files = []
+collect_sx("spectrelib", files)
+files.sort()
+
+var errors = []
+for path in files {
+    if skip_paths.contains(path) {
+        continue
+    }
+    var text = std.read_file(path)
+    if not text.contains("extern (C") {
+        continue
+    }
+    var lines            = text.lines()
+    var nlines           = std.len(lines)
+    var parts            = text.split("extern (C")
+    var last_extern_line = 0
+    for j in 0..(std.len(parts) - 1) {
+        last_extern_line += std.len(parts[j].split("\n")) - 1
+    }
+    var stack      = []
+    var skip_count = 0
+    for i in 0..nlines {
+        if i > last_extern_line {
+            break
+        }
+        var lineno = i + 1
+        var line   = lines[i]
+        if not line.contains("}") and not line.contains("when") and not line.contains("otherwise") and not line.contains("extern") {
+            continue
+        }
+        if line.contains("//") {
+            line = line.split("//")[0]
+        }
+        var s = line.strip()
+        if s.starts_with("when ") {
+            var sel  = s.split(r"{")[0].strip()
+            var skip = sel == "when windows" or sel == "when darwin" or sel == "when otherwise" or sel == "when hosted"
+            stack.append(skip)
+            if skip {
+                skip_count += 1
+            }
+        } elif s.starts_with("or when ") {
+            var sel  = s.split(r"{")[0].strip()
+            var skip = sel == "or when windows" or sel == "or when darwin" or sel == "or when otherwise" or sel == "or when hosted"
+            stack.append(skip)
+            if skip {
+                skip_count += 1
+            }
+        } elif s.starts_with("} otherwise") {
+            if std.len(stack) > 0 {
+                if stack.pop() {
+                    skip_count -= 1
+                }
+            }
+            stack.append(true)
+            skip_count += 1
+        } elif s.starts_with("otherwise") {
+            stack.append(true)
+            skip_count += 1
+        } elif s.starts_with("}") {
+            if std.len(stack) > 0 {
+                if stack.pop() {
+                    skip_count -= 1
+                }
+            }
+        }
+        if skip_count > 0 {
+            continue
+        }
+        if not s.starts_with("extern (C") {
+            continue
+        }
+        var stmt = s
+        var look = i + 1
+        while not stmt.contains('= "') and look < nlines {
+            var nxt = lines[look]
+            if nxt.contains("//") {
+                nxt = nxt.split("//")[0]
+            }
+            nxt = nxt.strip()
+            if (nxt.starts_with("extern ") or
+            nxt.starts_with("when ") or
+            nxt.starts_with("otherwise") or
+            nxt.starts_with("pub ") or
+            nxt.starts_with("val ") or
+            nxt.starts_with("fn ") or
+            nxt.starts_with("}")) {
+                break
+            }
+            stmt = stmt + " " + nxt
+            look += 1
+        }
+        if stmt.contains(" fn ") {
+            var name   = stmt.split(" fn ")[1].split("(")[0].strip()
+            var symbol = ""
+            if stmt.contains('= "') {
+                symbol = stmt.split('= "')[-1].split('"')[0]
+            }
+            if not symbol.starts_with("sx_") and not symbol.starts_with("__sx_") and not symbol.starts_with("sxqbe_") {
+                if forbidden.contains(name) or forbidden.contains(symbol) {
+                    errors.append("{path}:{lineno}: host libc extern '{name}' -> '{symbol}' in freestanding source")
+                }
+            }
+        }
+    }
+}
+
+if std.len(errors) > 0 {
+    std.eprint("freestanding runtime audit failed:")
+    for e in errors {
+        std.eprint("  " + e)
+    }
+    std.exit(1)
+}
+say("freestanding runtime audit: OK")
