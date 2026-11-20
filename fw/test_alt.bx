@@ -181,7 +181,7 @@ if not bootstrap_only {
     run_std_tests()
 
     var named_test_src = std.join(log_dir, "named_test_output.sx")
-    std.write_file(named_test_src, "test \"addition works\" {\n    assert 1 + 1 == 2\n}\n")
+    std.write_file(named_test_src, r'test "addition works" { assert 1 + 1 == 2 }')
 
     total += 1
     var named_test = run([compiler, "test", named_test_src, "-alt"], merge_stderr: true)
