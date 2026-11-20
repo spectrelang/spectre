@@ -1,0 +1,476 @@
+#!/usr/bin/env blood
+
+var (
+    samples_dir    = "./samples"
+    std_dir        = "./spectrelib"
+    compiler       = "./spectre-dev"
+    bootstrap_only = false
+    total          = 0
+    passed         = 0
+    failed         = 0
+    skipped        = 0
+)
+
+for arg in args {
+    if arg == "-bs" {
+        bootstrap_only = true
+    }
+}
+
+var root = std.this_dir().parent()
+cd(root)
+
+fn head_lines(text, limit) {
+    var kept = []
+    var i    = 0
+    for line in text.lines() {
+        if i >= limit {
+            break
+        }
+        kept.append(line)
+        i += 1
+    }
+    return kept.join("\n")
+}
+
+fn print_log(log_file, limit) {
+    var text = std.read_file(log_file, default: "")
+    if text == "" {
+        return
+    }
+    print(std.indent(head_lines(text, limit), 2))
+    var line_count = text.lines().count()
+    if line_count > limit {
+        say("  ... ({line_count} lines total; see {log_file})")
+    }
+}
+
+fn capture(argv, cwd: null) {
+    return run(argv, merge_stderr: true, cwd: cwd)
+}
+
+fn run_visible(argv) {
+    var r = run(argv)
+    if r.stdout != "" {
+        print(r.stdout.strip_suffix("\n"))
+    }
+    if r.stderr != "" {
+        eprint(r.stderr.strip_suffix("\n"))
+    }
+    return r
+}
+
+fn show_command(argv) {
+    say("  command: {argv.join(\" \")}")
+}
+
+fn record_pass(label) {
+    say("[PASS] {label}")
+    passed += 1
+}
+
+fn record_fail(label) {
+    say("[FAIL] {label}")
+    failed += 1
+}
+
+if not compiler.is_executable() {
+    say("ERROR: compiler not found or not executable at {compiler}")
+    exit(1)
+}
+
+say("Freestanding runtime audit:")
+var audit = run_visible(["bash", "./fw/audit_freestanding.sh"])
+if not audit.ok {
+    exit(1)
+}
+say()
+
+var log_dir = std.env("TEST_LOG_DIR")
+if log_dir == null or log_dir == "" {
+    log_dir = std.env("RUNNER_TEMP")
+    if log_dir == null or log_dir == "" {
+        log_dir = std.env("TMPDIR")
+    }
+    if log_dir == null or log_dir == "" {
+        log_dir = "/tmp"
+    }
+    log_dir = std.join(log_dir, "spectre-test-logs")
+}
+std.mkdir_p(log_dir)
+
+var link_args = []
+if (std.env("SPECTRE_TEST_DYNAMIC") ?? "0") == "1" {
+    link_args = ["-dynamic"]
+}
+
+fn run_samples() {
+    for file in std.glob(std.join(samples_dir, "*.sx")) {
+        var filename = std.basename(file)
+
+        if filename.ends_with("_rt_error.sx") {
+            say("[SKIP] {filename} (runtime error test)")
+            skipped += 1
+            continue
+        }
+
+        if filename.ends_with("_rv.sx") {
+            total += 1
+            var r = run([compiler, "run", file])
+            if r.ok {
+                record_pass("{filename} (runtime check)")
+            } else {
+                record_fail("{filename} (runtime check)")
+            }
+            continue
+        }
+
+        total += 1
+
+        var argv = [compiler, file]
+        argv     = argv + link_args
+        if filename == "sample167.sx" {
+            argv.append("-dynamic")
+        }
+
+        var r = run(argv)
+        if filename.ends_with("_error.sx") {
+            if not r.ok {
+                record_pass("{filename} (failed as expected)")
+            } else {
+                record_fail("{filename} (expected failure, got success)")
+            }
+        } else {
+            if r.ok {
+                record_pass(filename)
+            } else {
+                record_fail(filename)
+            }
+        }
+    }
+}
+
+fn run_std_tests() {
+    var listing = capture(["find", std_dir, "-type", "f", "-name", "*.sx"])
+    var files   = listing.stdout.lines()
+    files.sort()
+
+    for file in files {
+        if file == "" {
+            continue
+        }
+
+        var log_name = file.replace("./", "").replace("/", "_")
+        var log_file = std.join(log_dir, "std_{log_name}.log")
+
+        total += 1
+
+        var argv = [compiler, "test", file]
+        if file.ends_with("runtime/sys.sx") {
+            argv.append("-runtime:freestanding")
+        } else {
+            argv = argv + link_args
+        }
+
+        var r = capture(argv)
+        std.write_file(log_file, r.stdout)
+
+        if r.ok {
+            record_pass(file)
+        } else {
+            record_fail(file)
+            show_command(argv)
+            say("  log: {log_file}")
+            print_log(log_file, 240)
+        }
+    }
+}
+
+fn run_sample_app_build(config, label) {
+    var sample_dir   = "./samples/sample_app"
+    var log_file     = std.join(log_dir, "sample_app_{label}.log")
+    var compiler_abs = compiler.abs()
+
+    total += 1
+
+    var build_argv = [compiler_abs, "build"]
+    if config != "" {
+        build_argv.append(config)
+    }
+
+    var build  = capture(build_argv, cwd: sample_dir)
+    var output = build.stdout
+    var ok     = build.ok
+
+    if ok {
+        var app = capture(["./some_app"], cwd: sample_dir)
+        output += app.stdout
+        ok = app.ok
+    }
+
+    std.write_file(log_file, output)
+
+    if ok {
+        if output.contains("name: spectre") {
+            record_pass("sample_app ({label})")
+        } else {
+            record_fail("sample_app ({label}) produced unexpected output")
+            say("  log: {log_file}")
+            print_log(log_file, 240)
+        }
+    } else {
+        record_fail("sample_app ({label})")
+        say("  command: cd {sample_dir} && {compiler_abs} build {config} && ./some_app")
+        say("  log: {log_file}")
+        print_log(log_file, 240)
+    }
+}
+
+fn run_multi_actions_app_build(config, label, binary) {
+    var sample_dir   = "./samples/multi_actions_app"
+    var log_file     = std.join(log_dir, "multi_actions_app_{label}.log")
+    var compiler_abs = compiler.abs()
+
+    total += 1
+    std.remove_all(std.join(sample_dir, ".sxb"))
+
+    var build_argv = [
+    "env",
+    "SPECTRE_BIN={compiler_abs}",
+    compiler_abs,
+    "build",
+    config
+    ]
+    var build  = capture(build_argv, cwd: sample_dir)
+    var output = build.stdout
+    var ok     = build.ok
+
+    if ok {
+        var app = capture(["./" + binary], cwd: sample_dir)
+        output += app.stdout
+        ok = app.ok
+    }
+
+    std.write_file(log_file, output)
+
+    var expected_output = output.contains("multi_actions_app ok")
+    expected_output     = expected_output and output.contains("dep-first:list-form")
+    expected_output     = expected_output and output.contains("dep-second:free-form")
+    expected_output     = expected_output and output.contains("prepare:{label}")
+
+    if ok {
+        if expected_output {
+            record_pass("multi_actions_app ({label})")
+        } else {
+            record_fail("multi_actions_app ({label}) produced unexpected output")
+            say("  log: {log_file}")
+            print_log(log_file, 240)
+        }
+    } else {
+        record_fail("multi_actions_app ({label})")
+        say("  command: cd {sample_dir} && {compiler_abs} build {config} && ./{binary}")
+        say("  log: {log_file}")
+        print_log(log_file, 240)
+    }
+}
+
+fn run_multi_actions_app_cross_out() {
+    var sample_dir   = "./samples/multi_actions_app"
+    var log_file     = std.join(log_dir, "multi_actions_app_cross_out.log")
+    var compiler_abs = compiler.abs()
+
+    total += 1
+    std.remove_all(std.join(sample_dir, ".sxb"))
+
+    var build_argv = [
+    "env",
+    "SPECTRE_BIN={compiler_abs}",
+    compiler_abs,
+    "build",
+    "artifacts",
+    "-target:windows.x86_64"
+    ]
+    var build = capture(build_argv, cwd: sample_dir)
+    std.write_file(log_file, build.stdout)
+
+    var artifact = std.read_file(
+    std.join(sample_dir, ".sxb/windows.x86_64/artifact.txt"),
+    default: ""
+    )
+    var artifact_free = std.read_file(
+    std.join(sample_dir, ".sxb/windows.x86_64/artifact_free.txt"),
+    default: ""
+    )
+
+    var artifacts_ok = build.ok
+    artifacts_ok     = artifacts_ok and artifact.lines().contains("cross-target")
+    artifacts_ok     = artifacts_ok and artifact_free.lines().contains("cross-target-free")
+
+    if artifacts_ok {
+        record_pass("multi_actions_app (cross target output)")
+    } else {
+        record_fail("multi_actions_app (cross target output)")
+        say("  command: cd {sample_dir} && {compiler_abs} build artifacts -target:windows.x86_64")
+        say("  log: {log_file}")
+        print_log(log_file, 240)
+    }
+}
+
+fn run_sxmod_syntax_tests() {
+    var syntax_root  = "./samples/sxmod_syntax"
+    var compiler_abs = compiler.abs()
+
+    for dir in std.glob(std.join(syntax_root, "*")) {
+        if not dir.is_dir() {
+            continue
+        }
+
+        var name     = std.basename(dir)
+        var log_file = std.join(log_dir, "sxmod_{name}.log")
+
+        total += 1
+
+        var r   = capture([compiler_abs, "build", "dev"], cwd: dir)
+        var out = r.stdout
+        std.write_file(log_file, out + "\n")
+
+        if std.is_file(std.join(dir, "valid")) {
+            if r.ok {
+                record_pass("sx.mod {name}")
+            } else {
+                record_fail("sx.mod {name} (expected success)")
+                print_log(log_file, 120)
+            }
+            std.remove_all(std.join(dir, ".sxb"))
+            std.remove_all(std.join(dir, "app"))
+            continue
+        }
+
+        var expected      = ""
+        var expected_path = std.join(dir, "expected.txt")
+        if expected_path.is_file() {
+            var expected_lines = (std.read_file(expected_path) ?? "").lines()
+            if expected_lines.len() > 0 {
+                expected = expected_lines[0]
+            }
+        }
+
+        if r.ok {
+            record_fail("sx.mod {name} (expected a syntax error)")
+        } elif expected == "" or not out.contains(expected) {
+            record_fail("sx.mod {name} (missing diagnostic: {expected})")
+            print_log(log_file, 120)
+        } elif not out.contains("--> sx.mod:") {
+            record_fail("sx.mod {name} (diagnostic has no sx.mod source location)")
+            print_log(log_file, 120)
+        } else {
+            record_pass("sx.mod {name}")
+        }
+    }
+}
+
+if not bootstrap_only {
+    run_samples()
+
+    say()
+    say("Extra tests:")
+    run_std_tests()
+
+    var named_test_src = "./samples/sample226.sx"
+    total += 1
+    var named_test = capture([compiler, "test", named_test_src])
+    if named_test.stdout.contains("[pass] hello") {
+        record_pass("named test output")
+    } else {
+        record_fail("named test output")
+        if named_test.stdout != "" {
+            print(std.indent(named_test.stdout, 2))
+        }
+    }
+
+    total += 1
+    var help_graph  = capture([compiler, "help", "graph"])
+    var graph_lines = help_graph.stdout.lines()
+    if graph_lines.count(|line| line.starts_with("graph - Visualize the project dependency tree")) > 0 {
+        record_pass("help graph")
+    } else {
+        record_fail("help graph")
+        if help_graph.stdout != "" {
+            print(std.indent(help_graph.stdout, 2))
+        }
+    }
+
+    run_sample_app_build("", "dev")
+    run_sample_app_build("release", "release")
+    run_multi_actions_app_build("release", "release", "multi_actions_app")
+    run_multi_actions_app_build("free", "free", "multi_actions_app_free")
+    run_multi_actions_app_cross_out()
+
+    for src in [
+    "./src/ast/lexer.sx",
+    "./src/ast/parser.sx",
+    "./src/sema/sema.sx",
+    "./src/module/module.sx",
+    "./src/codegen/codegen.sx",
+    "./src/sxc.sx"
+    ] {
+        run_visible([compiler, "test", src, "-l"])
+    }
+}
+
+say("Bootstrap test:")
+if not run_visible([compiler, "./src/sxc.sx", "-l", "-o", "sxc2"]).ok {
+    exit(1)
+}
+if not run_visible(["./sxc2", "./src/sxc.sx", "-l", "-o", "sxc3"]).ok {
+    exit(1)
+}
+if not run_visible(["./sxc3", "./src/sxc.sx", "-l", "-o", "sxc4"]).ok {
+    exit(1)
+}
+
+say("Alt-to-QBE bootstrap test:")
+if not run_visible([compiler, "./src/sxc.sx", "-l", "-alt", "-o", "sxc2_alt"]).ok {
+    exit(1)
+}
+if not run_visible(["./sxc2_alt", "./src/sxc.sx", "-l", "-o", "sxc3_from_alt"]).ok {
+    exit(1)
+}
+
+say("Alt-built compiler CTE smoke test:")
+total += 1
+var alt_cte_bin = std.join(log_dir, "alt_built_cte_sample")
+var alt_cte_log = std.join(log_dir, "alt_built_cte.log")
+var alt_cte     = capture([
+"./sxc2_alt",
+"./samples/sample325_cte_folding_rv.sx",
+"-o",
+alt_cte_bin
+])
+std.write_file(alt_cte_log, alt_cte.stdout)
+if alt_cte.ok {
+    record_pass("alt-built compiler CTE sample")
+} else {
+    record_fail("alt-built compiler CTE sample")
+    print_log(alt_cte_log, 120)
+}
+std.remove_file(alt_cte_bin)
+
+say()
+say("sx.mod syntax tests:")
+run_sxmod_syntax_tests()
+
+say()
+say("Final Summary:")
+say("Total tests : {total}")
+say("Passed      : {passed}")
+say("Failed      : {failed}")
+say("Skipped     : {skipped}")
+say("Test logs   : {log_dir}")
+say()
+
+if failed != 0 {
+    exit(1)
+}
+
+exit(0)
