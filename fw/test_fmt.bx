@@ -104,7 +104,7 @@ for bad in std.glob(std.join(fixtures, "bad*.sx")) {
 }
 
 std.write_file(std.join(tree, "readme.txt"), "this is not a spectre source file\n")
-std.write_file(std.join(tree, "sub/nested.txt"), "pub fn nested() void = {}\n")
+std.write_file(std.join(tree, "sub/nested.txt"), "pub fn nested() void = {{}}\n")
 
 if not run([compiler, "fmt", tree]).ok {
     record_fail("directory mode (formatter exited non-zero)")

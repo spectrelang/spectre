@@ -7,7 +7,7 @@ var root = std.this_dir().parent()
 cd(root)
 
 var tmp_root = std.env("RUNNER_TEMP") ?? std.env("TMPDIR") ?? "/tmp"
-tmp_root = tmp_root.strip_suffix("/") + "/spectre-bootstrap"
+tmp_root     = tmp_root.strip_suffix("/") + "/spectre-bootstrap"
 std.mkdir_p(tmp_root)
 
 var bootstrap_src = "bootstrap/sxc.c"

@@ -66,8 +66,8 @@ fn check_fix(fixture, good, label) {
     }
 }
 
-var critic_run = run([compiler, "critic", std.join(fixtures, "checks.sx")], merge_stderr: true)
-var output     = critic_run.stdout
+var critic_run    = run([compiler, "critic", std.join(fixtures, "checks.sx")], merge_stderr: true)
+var output        = critic_run.stdout
 var critic_status = critic_run.status
 
 var expected_messages = [
@@ -179,7 +179,7 @@ check_fix("trust_bad.sx", "trust_good.sx", "trust fix mode")
 var crash_dir = std.join(tmpdir, "ref_void_crash")
 std.mkdir_p(crash_dir)
 std.write_file(std.join(crash_dir, "crash.sx"), r"type Thing = {
-    value: mut i32
+value: mut i32
 }
 
 fn f(t: Thing) void = {

@@ -95,7 +95,7 @@ fn run_scalar(label, extra) {
     }
 }
 
-var auto_alt = []
+var auto_alt    = []
 var windows_alt = std.env("SPECTRE_WINDOWS_ALT_COMPILER", default: "")
 if windows_alt != "" {
     auto_alt = ["-alt:" + windows_alt]

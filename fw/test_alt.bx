@@ -3,10 +3,12 @@
 var root = std.this_dir().parent()
 cd(root)
 
-var samples_dir    = "./samples"
-var std_dir        = "./spectrelib"
-var compiler       = "./spectre-dev"
-var bootstrap_only = false
+var (
+    samples_dir    = "./samples"
+    std_dir        = "./spectrelib"
+    compiler       = "./spectre-dev"
+    bootstrap_only = false
+)
 
 for arg in args {
     if arg == "-bs" {
@@ -14,10 +16,12 @@ for arg in args {
     }
 }
 
-var total   = 0
-var passed  = 0
-var failed  = 0
-var skipped = 0
+var (
+    total   = 0
+    passed  = 0
+    failed  = 0
+    skipped = 0
+)
 
 if not compiler.is_executable() {
     say("ERROR: compiler not found or not executable at {compiler}")

@@ -99,7 +99,7 @@ for harness in std.glob(std.join(harness_dir, "*.sx")) {
         say("[FAIL] {name}")
         failed += 1
 
-        var text = std.read_file(log_file, default: "")
+        var text         = std.read_file(log_file, default: "")
         var has_findings = false
         for line in text.lines() {
             if line.starts_with("[FAIL]") {
