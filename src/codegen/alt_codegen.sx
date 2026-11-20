@@ -11434,6 +11434,10 @@ fn emit_c_preamble(ctx: ref CCtx) void = trust {
     } else {
         if cc_platform_matches(ctx, c"posix") {
             emitln_fwd(ctx, c"#define _POSIX_C_SOURCE 200809L")
+            emitln_fwd(ctx, c"#define _DEFAULT_SOURCE 1")
+        }
+        if cc_platform_matches(ctx, c"darwin") {
+            emitln_fwd(ctx, c"#define _DARWIN_C_SOURCE 1")
         }
         if cc_platform_matches(ctx, c"windows") {
             emitln_fwd(ctx, c"#ifndef _CRT_SECURE_NO_WARNINGS")
@@ -11454,6 +11458,7 @@ fn emit_c_preamble(ctx: ref CCtx) void = trust {
             emitln_fwd(ctx, c"#include <sched.h>")
             emitln_fwd(ctx, c"#include <signal.h>")
             emitln_fwd(ctx, c"#include <sys/time.h>")
+            emitln_fwd(ctx, c"#include <sys/times.h>")
             emitln_fwd(ctx, c"#include <sys/types.h>")
             emitln_fwd(ctx, c"#include <sys/stat.h>")
             emitln_fwd(ctx, c"#include <sys/utsname.h>")
