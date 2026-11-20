@@ -37,7 +37,12 @@ jobs:
         run: echo "${HOME}/.local/bin" >> "$GITHUB_PATH"
 
       - name: Build Blood shell
-        run: ./fw/build_blood.sh
+        run: |
+          BLOOD_SRC="${RUNNER_TEMP}/blood-src"
+          rm -rf "$BLOOD_SRC"
+          git clone --depth 1 https://github.com/navid-m/blood.git "$BLOOD_SRC"
+          mkdir -p "${GITHUB_WORKSPACE}/.blood"
+          "$BLOOD_SRC/fw/build.sh" "${GITHUB_WORKSPACE}/.blood/blood"
 
       - name: Add Blood to PATH
         run: echo "${GITHUB_WORKSPACE}/.blood" >> "$GITHUB_PATH"
