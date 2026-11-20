@@ -37,9 +37,15 @@ jobs:
       - name: Add Spectre to PATH
         run: echo "${HOME}/.local/bin" >> "$GITHUB_PATH"
 
+      - name: Build Blood shell
+        run: ./fw/build_blood.sh
+
+      - name: Add Blood to PATH
+        run: echo "${GITHUB_WORKSPACE}/.blood" >> "$GITHUB_PATH"
+
       - name: Build spectre-dev
         id: build
-        run: ./fw/build.sh
+        run: ./fw/build.bx
 
       - name: Collect environment diagnostics
         run: |
@@ -59,33 +65,33 @@ jobs:
           ss -ltn 2>/dev/null | grep ':8080' || true
           echo "::endgroup::"
 
-      - name: Run fw/test_alt.sh (C backend)
+      - name: Run fw/test_alt.bx (C backend)
         env:
           SPECTRE_TEST_DYNAMIC: "1"
         run: |
           set -o pipefail
-          ./fw/test_alt.sh | tee test_alt.log
+          ./fw/test_alt.bx | tee test_alt.log
 
-      - name: Run fw/test_critic.sh
+      - name: Run fw/test_critic.bx
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: |
           set -o pipefail
-          ./fw/test_critic.sh | tee test_critic.log
+          ./fw/test_critic.bx | tee test_critic.log
 
-      - name: Run fw/test_fmt.sh
+      - name: Run fw/test_fmt.bx
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: |
           set -o pipefail
-          ./fw/test_fmt.sh | tee test_fmt.log
+          ./fw/test_fmt.bx | tee test_fmt.log
 
-      - name: Run fw/test.sh (QBE backend)
+      - name: Run fw/test.bx (QBE backend)
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         continue-on-error: true
         env:
           SPECTRE_TEST_DYNAMIC: "1"
         run: |
           set -o pipefail
-          ./fw/test.sh | tee test_qbe.log
+          ./fw/test.bx | tee test_qbe.log
 
       - name: Publish test summary
         if: always()

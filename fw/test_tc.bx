@@ -1,0 +1,86 @@
+#!/usr/bin/env blood
+
+var root = std.this_dir().parent()
+cd(root)
+
+var samples_dir = "./samples/csamples"
+var compiler    = "./spectre-dev"
+
+if not samples_dir.is_dir() {
+    say("Error: directory not found: {samples_dir}")
+    exit(1)
+}
+
+fn copy_file(from, to) {
+    var text = std.read_file(from)
+    if text == null {
+        return false
+    }
+    return std.write_file(to, text)
+}
+
+for cfile in std.glob(std.join(samples_dir, "*.c")) {
+    var name   = std.basename(cfile).stem()
+    var sxfile = name + ".sx"
+
+    say("== Testing {name} ==")
+
+    var translated = run([compiler, "port-c", cfile])
+    if not translated.ok {
+        say("[FAIL] translation failed: {name}")
+        say()
+        continue
+    }
+
+    var compiled = run([compiler, "./src-out/" + sxfile])
+    if not compiled.ok {
+        say("[FAIL] compile failed: {name}")
+        say()
+        continue
+    }
+
+    say("[PASS] {name}")
+    say()
+}
+
+say("== Testing port-c directory ==")
+var port_dir = "./s-out/port-c-dir-test"
+std.remove_all(port_dir)
+std.mkdir_p(std.join(port_dir, "input"))
+copy_file(std.join(samples_dir, "hello.c"), std.join(port_dir, "input/hello.c"))
+copy_file(std.join(samples_dir, "hello2.c"), std.join(port_dir, "input/hello2.c"))
+
+var compiler_abs = compiler.abs()
+var ported       = run([compiler_abs, "port-c", "."], cwd: port_dir)
+var port_ok      = ported.ok
+port_ok          = port_ok and std.is_file(std.join(port_dir, "src-out/hello.sx"))
+port_ok          = port_ok and std.is_file(std.join(port_dir, "src-out/hello2.sx"))
+
+if port_ok {
+    say("[PASS] port-c directory")
+} else {
+    say("[FAIL] port-c directory")
+    exit(1)
+}
+say()
+
+var bind_header = "./samples/csamples/bind_demo.h"
+if std.is_file(bind_header) {
+    say("== Testing bind-c ==")
+    std.remove_all("./s-out/bind-c-test")
+
+    var generated = run([compiler, "bind-c", bind_header, "-o", "./s-out/bind-c-test", "-normalize"])
+    if not generated.ok {
+        say("[FAIL] bind-c generation failed")
+        exit(1)
+    }
+
+    var compiled = run([compiler, "./s-out/bind-c-test/bind_demo.sx", "-c", "-o", "./s-out/bind-c-test/bind_demo.o"])
+    if not compiled.ok {
+        say("[FAIL] generated bindings failed to compile")
+        exit(1)
+    }
+
+    say("[PASS] bind-c")
+    say()
+}

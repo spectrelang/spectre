@@ -1,0 +1,142 @@
+#!/usr/bin/env blood
+
+var strict = false
+for arg in args {
+    if arg == "--strict" {
+        strict = true
+    } elif arg == "-h" or arg == "--help" {
+        say("usage: fw/checkmem.bx [--strict]")
+        say()
+        say("  --strict   exit non-zero when any harness reports a leak")
+        exit(0)
+    } else {
+        say("error: unknown option '{arg}'")
+        say("usage: fw/checkmem.bx [--strict]")
+        exit(1)
+    }
+}
+
+var root_dir    = std.this_dir().parent()
+var harness_dir = std.join(root_dir, "fw/harness")
+var compiler    = std.env("SPECTRE_CHECKMEM_COMPILER", default: std.join(root_dir, "spectre-dev"))
+
+var base = std.env("RUNNER_TEMP", default: "")
+if base == "" {
+    base = std.env("TMPDIR", default: "")
+}
+if base == "" {
+    base = "/tmp"
+}
+var log_dir = std.env("TEST_LOG_DIR", default: "")
+if log_dir == "" {
+    log_dir = std.join(base, "spectre-checkmem-logs")
+}
+
+if not compiler.is_executable() {
+    say("ERROR: compiler not found or not executable at {compiler}")
+    say("Build it with ./fw/build.bx or set SPECTRE_CHECKMEM_COMPILER")
+    exit(1)
+}
+
+std.mkdir_p(log_dir)
+std.mkdir_p(std.join(root_dir, "s-out"))
+
+cd(root_dir)
+
+var total    = 0
+var passed   = 0
+var failed   = 0
+var findings = 0
+var errors   = 0
+
+say("Memory leak check:")
+say("  compiler: {compiler}")
+say("  harness:  {harness_dir}")
+say("  logs:     {log_dir}")
+say()
+
+fn print_first(text, limit) {
+    var n = 0
+    for line in text.lines() {
+        if n >= limit {
+            break
+        }
+        say("  " + line)
+        n += 1
+    }
+}
+
+fn print_findings(text) {
+    var seen = {}
+    var n    = 0
+    for line in text.lines() {
+        if n >= 12 {
+            break
+        }
+        if line.starts_with("[FAIL]") and not seen.contains(line) {
+            seen[line] = true
+            say("  " + line)
+            n += 1
+        }
+    }
+}
+
+for harness in std.glob(std.join(harness_dir, "*.sx")) {
+    var name     = std.basename(harness).stem()
+    var log_file = std.join(log_dir, name + ".log")
+    total += 1
+
+    var r = run([compiler, "test", harness, "-leak-check"], merge_stderr: true)
+    std.write_file(log_file, r.stdout)
+    if r.stderr != "" {
+        std.append_file(log_file, r.stderr)
+    }
+
+    if r.ok {
+        say("[PASS] {name}")
+        passed += 1
+    } else {
+        say("[FAIL] {name}")
+        failed += 1
+
+        var text = std.read_file(log_file, default: "")
+        var has_findings = false
+        for line in text.lines() {
+            if line.starts_with("[FAIL]") {
+                has_findings = true
+                break
+            }
+        }
+
+        if has_findings {
+            findings += 1
+            print_findings(text)
+        } else {
+            errors += 1
+            print_first(text, 40)
+        }
+        say("  log: {log_file}")
+    }
+}
+
+say()
+say("Summary:")
+say("  Total  : {total}")
+say("  Passed : {passed}")
+say("  Failed : {failed}")
+say("  Logs   : {log_dir}")
+
+if errors != 0 {
+    say("ERROR: {errors} harness(es) failed to build or run")
+    exit(1)
+}
+
+if findings != 0 {
+    if strict {
+        say("FAIL: {findings} harness(es) reported leaks")
+        exit(1)
+    }
+    say("NOTE: {findings} harness(es) reported leaks; use --strict to fail the command")
+}
+
+exit(0)

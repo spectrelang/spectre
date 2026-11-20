@@ -1,0 +1,53 @@
+#!/usr/bin/env blood
+
+# Build a stage0 Spectre compiler from the checked-in C bootstrap and then
+# build spectre-dev from the current source. Avoids package-manager installs.
+
+var root = std.this_dir().parent()
+cd(root)
+
+var tmp_root = std.env("RUNNER_TEMP") ?? std.env("TMPDIR") ?? "/tmp"
+tmp_root = tmp_root.strip_suffix("/") + "/spectre-bootstrap"
+std.mkdir_p(tmp_root)
+
+var bootstrap_src = "bootstrap/sxc.c"
+if std.os == "darwin" {
+    bootstrap_src = "bootstrap/sxc_darwin.c"
+}
+
+say("Building stage0 from {bootstrap_src}...")
+var build = run([
+"cc",
+"-O2",
+bootstrap_src,
+"-w",
+"-Wno-error=int-conversion",
+"-o",
+"spectre-stage0"
+])
+if not build.ok {
+    if build.stdout != "" {
+        print(build.stdout.strip_suffix("\n"))
+    }
+    if build.stderr != "" {
+        eprint(build.stderr.strip_suffix("\n"))
+    }
+    exit(1)
+}
+run(["chmod", "+x", "spectre-stage0"])
+
+say("Building spectre-dev with stage0...")
+export SPECTRE_STAGE0 = "spectre-stage0".abs()
+export SPECTRE_BUILD_BACKEND = "-alt"
+
+var blood = std.which("blood") ?? "blood"
+var r     = run([blood, "./fw/build.bx", "-release"])
+if r.stdout != "" {
+    print(r.stdout.strip_suffix("\n"))
+}
+if r.stderr != "" {
+    eprint(r.stderr.strip_suffix("\n"))
+}
+if not r.ok {
+    exit(r.status)
+}

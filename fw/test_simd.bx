@@ -1,0 +1,147 @@
+#!/usr/bin/env blood
+
+var root = std.this_dir().parent()
+cd(root)
+
+var compiler = std.env("SPECTRE", default: "./spectre-dev")
+if not compiler.is_executable() {
+    if "./spectre-dev.exe".is_executable() {
+        compiler = "./spectre-dev.exe"
+    } else {
+        eprint("error: compiler not found: {compiler}")
+        exit(1)
+    }
+}
+
+var kernel   = std.env("SPECTRE_SIMD_KERNEL", default: "./fw/simd_kernel.sx")
+var expected = "2314892023878"
+var tmp      = std.mktemp_dir("spectre-simd-test")
+defer {
+    std.remove_all(tmp)
+}
+
+fn has_cmd(name) {
+    return std.which(name) != null
+}
+
+fn run_compile(argv, label) {
+    var r = run(argv)
+    if not r.ok {
+        if r.stdout != "" {
+            eprint(r.stdout.strip_suffix("\n"))
+        }
+        if r.stderr != "" {
+            eprint(r.stderr.strip_suffix("\n"))
+        }
+        eprint("error: failed to compile {label}")
+        exit(1)
+    }
+    return r
+}
+
+fn run_mode(label, extra) {
+    var output    = std.join(tmp, label + ".exe")
+    var generated = std.join(tmp, label + ".c")
+    var suffix    = extra.join(" ")
+    if suffix == "" {
+        suffix = "auto"
+    }
+
+    say("==> SIMD mode: {label} {suffix}")
+    run_compile([compiler, kernel, "-release", "-alt"] + extra + ["-native", "-o", output], label)
+
+    var actual = run([output])
+    say(actual.stdout.strip_suffix("\n"))
+
+    if not actual.stdout.contains("Checksum: {expected}") {
+        eprint("error: unexpected checksum in {label}")
+        exit(1)
+    }
+
+    var gen = run_compile([compiler, kernel, "-release", "-alt"] + extra + ["-native", "-emit-alt"], label)
+    std.write_file(generated, gen.stdout)
+
+    if not std.read_file(generated, default: "").contains("int64_t sx__ve") {
+        eprint("error: no vectorized loop emitted for {label}")
+        exit(1)
+    }
+}
+
+fn run_scalar(label, extra) {
+    var output    = std.join(tmp, "scalar-" + label + ".exe")
+    var generated = std.join(tmp, "scalar-" + label + ".c")
+    var suffix    = extra.join(" ")
+    if suffix == "" {
+        suffix = "auto"
+    }
+
+    say("==> scalar fallback: {label} {suffix}")
+    run_compile([compiler, kernel, "-release", "-alt"] + extra + ["-native", "-no-simd", "-o", output], label)
+
+    var actual = run([output])
+    say(actual.stdout.strip_suffix("\n"))
+
+    if not actual.stdout.contains("Checksum: {expected}") {
+        eprint("error: unexpected checksum in scalar {label}")
+        exit(1)
+    }
+
+    var gen = run_compile([compiler, kernel, "-release", "-alt"] + extra + ["-native", "-no-simd", "-emit-alt"], label)
+    std.write_file(generated, gen.stdout)
+
+    if std.read_file(generated, default: "").contains("int64_t sx__ve") {
+        eprint("error: vectorized loop emitted under -no-simd for {label}")
+        exit(1)
+    }
+}
+
+var auto_alt = []
+var windows_alt = std.env("SPECTRE_WINDOWS_ALT_COMPILER", default: "")
+if windows_alt != "" {
+    auto_alt = ["-alt:" + windows_alt]
+} elif has_cmd("clang-cl") or has_cmd("clang-cl.exe") {
+    auto_alt = ["-alt:clang-cl"]
+} elif has_cmd("cl") or has_cmd("cl.exe") {
+    auto_alt = ["-alt:cl"]
+}
+
+run_mode("auto", auto_alt)
+run_scalar("auto", auto_alt)
+
+say("==> fallback: unsupported platform")
+var fallback = run_compile([
+compiler,
+kernel,
+"-release",
+"-alt",
+"-src-target:freebsd",
+"-emit-alt"
+], "freebsd fallback")
+if fallback.stdout.contains("int64_t sx__ve") {
+    eprint("error: vectorized loop emitted for an unsupported platform")
+    exit(1)
+}
+
+if has_cmd("clang") or has_cmd("clang.exe") {
+    var clang_cmd = "clang"
+    if not has_cmd("clang") {
+        clang_cmd = "clang.exe"
+    }
+    var clang_target = run([clang_cmd, "-dumpmachine"]).stdout
+    if clang_target.contains("mingw") or clang_target.contains("windows-gnu") {
+        say("==> skipping clang (MinGW is not supported on Windows)")
+    } else {
+        run_mode("clang", ["-alt:clang"])
+    }
+}
+
+if has_cmd("clang-cl") or has_cmd("clang-cl.exe") {
+    run_mode("clang-cl", ["-alt:clang-cl"])
+}
+
+if has_cmd("cl") or has_cmd("cl.exe") {
+    run_mode("msvc", ["-alt:cl"])
+    run_scalar("msvc", ["-alt:cl"])
+}
+
+say("SIMD checks passed.")

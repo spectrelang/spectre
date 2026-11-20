@@ -1,0 +1,18 @@
+#!/usr/bin/env blood
+
+var root = std.this_dir().parent()
+cd(root)
+
+var r = run([
+"cc",
+"-O2",
+"-c",
+"./spectrelib/csources/qbe_runtime.c",
+"-o",
+"./spectrelib/csources/qbe_runtime.o"
+])
+
+if not r.ok {
+    eprint(r.stderr.strip_suffix("\n"))
+    exit(r.status)
+}

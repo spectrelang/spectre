@@ -1,10 +1,12 @@
 .PHONY: all cprev clean test_fmt test_critic checkmem checkmem-strict bench_json
 
+BLOOD ?= blood
+
 all:
 ifeq ($(OS),Windows_NT)
 	@echo "Windows not yet supported"
 else
-	@sh ./fw/build.sh
+	@$(BLOOD) ./fw/build.bx
 endif
 
 cprev:
@@ -14,46 +16,46 @@ clean:
 	@git clean -fdX
 
 ba:
-	@bash ./fw/bootstrap_all.sh
+	@$(BLOOD) ./fw/bootstrap_all.bx
 
 test_samples:
-	@bash ./fw/test.sh
+	@$(BLOOD) ./fw/test.bx
 
 test_fmt:
-	@bash ./fw/test_fmt.sh
+	@$(BLOOD) ./fw/test_fmt.bx
 
 test_critic:
-	@bash ./fw/test_critic.sh
+	@$(BLOOD) ./fw/test_critic.bx
 
 checkmem:
-	@bash ./fw/checkmem.sh
+	@$(BLOOD) ./fw/checkmem.bx
 
 checkmem-strict:
-	@bash ./fw/checkmem.sh --strict
+	@$(BLOOD) ./fw/checkmem.bx --strict
 
 bench_json:
-	@bash ./fw/bench_json.sh
+	@$(BLOOD) ./fw/bench_json.bx
 
 test_surface:
-	@bash ./fw/test_alt.sh
+	@$(BLOOD) ./fw/test_alt.bx
 
 test_all:
-	@sh ./fw/test.sh -bs
-	@bash ./fw/test_alt.sh -bs
+	@$(BLOOD) ./fw/test.bx -bs
+	@$(BLOOD) ./fw/test_alt.bx -bs
 
 bt:
-	@sh ./fw/build.sh
-	@sh ./fw/test.sh -bs
+	@$(BLOOD) ./fw/build.bx
+	@$(BLOOD) ./fw/test.bx -bs
 
 bta:
-	@bash ./fw/test_alt.sh -bs
+	@$(BLOOD) ./fw/test_alt.bx -bs
 
 btfl:
-	@sh ./fw/build.sh
-	@sh ./fw/test.sh
+	@$(BLOOD) ./fw/build.bx
+	@$(BLOOD) ./fw/test.bx
 
 bs:
-	@sh ./fw/build.sh -bs
+	@$(BLOOD) ./fw/build.bx -bs
 
 setup:
-	@bash ./fw/setup_devenv.sh
+	@$(BLOOD) ./fw/setup_devenv.bx

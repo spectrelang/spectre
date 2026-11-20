@@ -1,0 +1,137 @@
+#!/usr/bin/env blood
+
+var root = std.this_dir().parent()
+cd(root)
+
+var debug_bootstrap = false
+for arg in args {
+    if arg == "-debug" {
+        debug_bootstrap = true
+    } else {
+        eprint("error: unknown option '{arg}'")
+        eprint("usage: bootstrap_all.bx [-debug]")
+        exit(1)
+    }
+}
+
+var ssa_mode = ["-release"]
+if debug_bootstrap {
+    ssa_mode = []
+}
+
+if not "./spectre-dev".is_executable() {
+    eprint("error: ./spectre-dev is missing or not executable")
+    exit(1)
+}
+
+var git_hash = "unknown"
+if std.which("git") != null {
+    var git = run(["git", "rev-parse", "--short", "HEAD"])
+    if git.ok {
+        git_hash = git.stdout.strip()
+    }
+}
+
+fn module_version(text) {
+    for line in text.lines() {
+        var s = line.strip()
+        if s.starts_with("version ") {
+            var parts = s.split("\"")
+            if parts.len() >= 2 {
+                return parts[1]
+            }
+        }
+    }
+    return ""
+}
+
+var project_version = module_version(std.read_file("sx.mod", default: ""))
+var defines         = ["-d:GIT_HASH=" + git_hash]
+if project_version != "" {
+    defines.append("-d:SPECTRE_MOD_VERSION=" + project_version)
+}
+
+std.mkdir_p("bootstrap")
+
+# Write through a temporary file so a failed generation never replaces a
+# checked-in bootstrap file with a partial artifact or compiler diagnostics.
+fn emit(target, argv) {
+    var tmp = target + ".tmp"
+    var r   = run(argv)
+    if not r.ok {
+        if r.stderr != "" {
+            eprint(r.stderr.strip_suffix("\n"))
+        }
+        std.remove_file(tmp)
+        return false
+    }
+    if not std.write_file(tmp, r.stdout) {
+        std.remove_file(tmp)
+        return false
+    }
+    if not std.rename(tmp, target) {
+        std.remove_file(tmp)
+        return false
+    }
+    return true
+}
+
+var ok = emit("bootstrap/sxc.ssa", ["./spectre-dev"] + defines + [
+"./src/sxc.sx",
+"-b"
+] + ssa_mode + [
+"-no-warn",
+"-emit-ssa",
+"-emit-shim:spectrelib/csources/qbe_runtime.c",
+"-src-target:linux"
+])
+if not ok {
+    exit(1)
+}
+
+ok = emit("bootstrap/sxc.c", ["./spectre-dev"] + defines + [
+"./src/sxc.sx",
+"-b",
+"-no-warn",
+"-emit-alt",
+"-src-target:linux"
+])
+if not ok {
+    exit(1)
+}
+
+ok = emit("bootstrap/sxc_darwin.ssa", ["./spectre-dev"] + defines + [
+"./src/sxc.sx",
+"-b"
+] + ssa_mode + [
+"-emit-ssa",
+"-no-warn",
+"-src-target:darwin"
+])
+if not ok {
+    exit(1)
+}
+
+ok = emit("bootstrap/sxc_darwin.c", ["./spectre-dev"] + defines + [
+"./src/sxc.sx",
+"-b",
+"-emit-alt",
+"-no-warn",
+"-src-target:darwin"
+])
+if not ok {
+    exit(1)
+}
+
+ok = emit("bootstrap/sxcw.c", ["./spectre-dev"] + defines + [
+"./src/sxc.sx",
+"-b",
+"-emit-alt",
+"-no-warn",
+"-src-target:windows"
+])
+if not ok {
+    exit(1)
+}
+
+say("Bootstrap sources written to ./bootstrap")

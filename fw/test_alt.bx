@@ -1,0 +1,248 @@
+#!/usr/bin/env blood
+
+var root = std.this_dir().parent()
+cd(root)
+
+var samples_dir    = "./samples"
+var std_dir        = "./spectrelib"
+var compiler       = "./spectre-dev"
+var bootstrap_only = false
+
+for arg in args {
+    if arg == "-bs" {
+        bootstrap_only = true
+    }
+}
+
+var total   = 0
+var passed  = 0
+var failed  = 0
+var skipped = 0
+
+if not compiler.is_executable() {
+    say("ERROR: compiler not found or not executable at {compiler}")
+    exit(1)
+}
+
+var base = std.env("RUNNER_TEMP", default: "")
+if base == "" {
+    base = std.env("TMPDIR", default: "")
+}
+if base == "" {
+    base = "/tmp"
+}
+var log_dir = std.env("TEST_LOG_DIR", default: "")
+if log_dir == "" {
+    log_dir = std.join(base, "spectre-test-logs")
+}
+std.mkdir_p(log_dir)
+
+var link_args = []
+if std.env("SPECTRE_TEST_DYNAMIC", default: "0") == "1" {
+    link_args = ["-dynamic"]
+}
+
+fn record_pass(label) {
+    say("[PASS] {label}")
+    passed += 1
+}
+
+fn record_fail(label) {
+    say("[FAIL] {label}")
+    failed += 1
+}
+
+fn head_lines(text, limit) {
+    var kept = []
+    var i    = 0
+    for line in text.lines() {
+        if i >= limit {
+            break
+        }
+        kept.append(line)
+        i += 1
+    }
+    return kept.join("\n")
+}
+
+fn print_log(log_file, limit) {
+    var text = std.read_file(log_file, default: "")
+    if text == "" {
+        return
+    }
+    print(std.indent(head_lines(text, limit), 2))
+    var line_count = text.lines().count()
+    if line_count > limit {
+        say("  ... ({line_count} lines total; see {log_file})")
+    }
+}
+
+fn run_samples() {
+    for file in std.glob(std.join(samples_dir, "*.sx")) {
+        var filename = std.basename(file)
+
+        if filename.ends_with("_rt_error.sx") {
+            say("[SKIP] {filename} (runtime error test)")
+            skipped += 1
+            continue
+        }
+
+        if filename.ends_with("_rv.sx") {
+            total += 1
+            var r = run([compiler, "run", file])
+            if r.ok {
+                record_pass("{filename} (runtime check)")
+            } else {
+                record_fail("{filename} (runtime check)")
+            }
+            continue
+        }
+
+        total += 1
+
+        var extra_args = []
+        if filename == "sample_fps.sx" {
+            extra_args.append("-inc-path:/usr/include/SDL2/")
+        }
+        if filename == "sample100.sx" {
+            extra_args.append("-inc-path:/usr/include/SDL2/")
+        }
+        if filename == "sample167.sx" {
+            extra_args.append("-dynamic")
+        }
+
+        var r = run([compiler, file, "-alt"] + link_args + extra_args)
+        if filename.ends_with("_error.sx") {
+            if not r.ok {
+                record_pass("{filename} (failed as expected)")
+            } else {
+                record_fail("{filename} (expected failure, got success)")
+            }
+        } else {
+            if r.ok {
+                record_pass(filename)
+            } else {
+                record_fail(filename)
+            }
+        }
+    }
+}
+
+fn run_std_tests() {
+    var listing = run(["find", std_dir, "-type", "f", "-name", "*.sx"]).stdout
+    var files   = listing.lines()
+    files.sort()
+
+    for file in files {
+        if file == "" {
+            continue
+        }
+
+        var log_name = file.replace("./", "").replace("/", "_")
+        var log_file = std.join(log_dir, "std_" + log_name + ".log")
+
+        total += 1
+
+        var std_link_args = link_args
+        var std_extra     = []
+        if file.contains("runtime/sys.sx") {
+            std_link_args = []
+            std_extra     = ["-runtime:freestanding"]
+        }
+
+        var argv = [compiler, "test", file, "-alt"] + std_link_args + std_extra
+        var r    = run(argv, merge_stderr: true)
+        std.write_file(log_file, r.stdout)
+
+        if r.ok {
+            record_pass(file)
+        } else {
+            record_fail(file)
+            say("  command: {argv.join(\" \")}")
+            say("  log: {log_file}")
+            print_log(log_file, 240)
+        }
+    }
+}
+
+say("Running C backend tests (-alt)...")
+
+if not bootstrap_only {
+    say()
+
+    run_samples()
+
+    say()
+    say("STD tests:")
+    run_std_tests()
+
+    var named_test_src = std.join(log_dir, "named_test_output.sx")
+    std.write_file(named_test_src, "test \"addition works\" {\n    assert 1 + 1 == 2\n}\n")
+
+    total += 1
+    var named_test = run([compiler, "test", named_test_src, "-alt"], merge_stderr: true)
+    if named_test.stdout.contains("[pass] addition works") {
+        record_pass("named test output")
+    } else {
+        record_fail("named test output")
+        if named_test.stdout != "" {
+            print(std.indent(named_test.stdout, 2))
+        }
+    }
+}
+
+say()
+say("Bootstrap test:")
+
+total += 1
+if not run([compiler, "./src/sxc.sx", "-o", "sxc2", "-alt", "-b", "-l"]).ok {
+    say("[FAIL] stage1")
+    failed += 1
+    exit(1)
+}
+
+total += 1
+if not run(["./sxc2", "./src/sxc.sx", "-o", "sxc3", "-alt", "-l"]).ok {
+    say("[FAIL] stage2")
+    failed += 1
+    exit(1)
+}
+
+total += 1
+if not run(["./sxc3", "./src/sxc.sx", "-o", "sxc4", "-alt", "-l"]).ok {
+    say("[FAIL] stage3")
+    failed += 1
+    exit(1)
+}
+
+total += 1
+if not run(["./sxc2", "./src/sxc.sx", "-l", "-o", "sxc3_qbe"]).ok {
+    say("[FAIL] alt-to-qbe stage2")
+    failed += 1
+    exit(1)
+}
+
+total += 1
+if not run(["./sxc3_qbe", "./src/sxc.sx", "-l", "-o", "sxc4_qbe"]).ok {
+    say("[FAIL] alt-to-qbe stage3")
+    failed += 1
+    exit(1)
+}
+
+say("[PASS] bootstrap")
+
+say()
+say("Final Summary:")
+say("Total tests : {total}")
+say("Passed      : {passed}")
+say("Failed      : {failed}")
+say("Skipped     : {skipped}")
+say("Test logs   : {log_dir}")
+
+say()
+
+if failed != 0 {
+    exit(1)
+}
+
+exit(0)

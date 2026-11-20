@@ -108,7 +108,7 @@ The public names are namespaced and carry no ABI prefix.  In hosted mode the
 same functions call the platform C library; in freestanding mode they call the
 `sx_*` runtime ABI.
 
-The compiler's source audit (`fw/audit_freestanding.sh`) fails if a
+The compiler's source audit (`fw/freestanding_audit.bx`) fails if a
 freestanding standard-library module declares a host libc symbol directly.
 Hosted compatibility branches and Win32/Darwin-only declarations are exempt.
 
@@ -180,7 +180,7 @@ spectrelib/csources/freestanding/
 `sys.sx` is compiled per target and cached alongside the C runtime objects.
 Its exported `sx_*` symbols are the runtime ABI used by generated code; the
 compiler does not need `-alt` to build or use them.  The C boundary is kept
-small and is audited by `fw/audit_freestanding.sh` so new standard-library
+small and is audited by `fw/freestanding_audit.bx` so new standard-library
 code cannot quietly depend on host libc symbols.
 
 == Diagnostics

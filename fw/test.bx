@@ -80,7 +80,8 @@ if not compiler.is_executable() {
 }
 
 say("Freestanding runtime audit:")
-var audit = run_visible(["bash", "./fw/audit_freestanding.sh"])
+var blood = std.which("blood") ?? "blood"
+var audit = run_visible([blood, "./fw/freestanding_audit.bx"])
 if not audit.ok {
     exit(1)
 }

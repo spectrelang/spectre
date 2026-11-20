@@ -22,14 +22,20 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
+      - name: Build Blood shell
+        run: ./fw/build_blood.sh
+
+      - name: Add Blood to PATH
+        run: echo "${GITHUB_WORKSPACE}/.blood" >> "$GITHUB_PATH"
+
       - name: Build bootstrap and spectre-dev
-        run: ./fw/build_posix_bootstrap.sh
+        run: ./fw/build_posix_bootstrap.bx
 
       - name: Verify SIMD backends
-        run: ./fw/test_simd.sh
+        run: ./fw/test_simd.bx
 
       - name: Bootstrap self-host check
-        run: ./fw/test_alt.sh -bs
+        run: ./fw/test_alt.bx -bs
 
   macos:
     name: macOS SIMD
@@ -40,11 +46,17 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
+      - name: Build Blood shell
+        run: ./fw/build_blood.sh
+
+      - name: Add Blood to PATH
+        run: echo "${GITHUB_WORKSPACE}/.blood" >> "$GITHUB_PATH"
+
       - name: Build bootstrap and spectre-dev
-        run: ./fw/build_posix_bootstrap.sh
+        run: ./fw/build_posix_bootstrap.bx
 
       - name: Verify SIMD backends
-        run: ./fw/test_simd.sh
+        run: ./fw/test_simd.bx
 
   windows:
     name: Windows SIMD

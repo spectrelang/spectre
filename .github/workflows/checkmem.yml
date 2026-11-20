@@ -36,8 +36,14 @@ jobs:
       - name: Add Spectre to PATH
         run: echo "${HOME}/.local/bin" >> "$GITHUB_PATH"
 
+      - name: Build Blood shell
+        run: ./fw/build_blood.sh
+
+      - name: Add Blood to PATH
+        run: echo "${GITHUB_WORKSPACE}/.blood" >> "$GITHUB_PATH"
+
       - name: Build spectre-dev
-        run: ./fw/build.sh
+        run: ./fw/build.bx
 
       - name: Check compiler memory leaks
-        run: ./fw/checkmem.sh --strict
+        run: ./fw/checkmem.bx --strict

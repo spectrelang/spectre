@@ -1,0 +1,229 @@
+#!/usr/bin/env blood
+
+var root = std.this_dir().parent()
+cd(root)
+
+var compiler = "./spectre-dev"
+var fixtures = "./samplesmisc/criticsamples"
+
+if not compiler.is_executable() {
+    say("ERROR: compiler not found or not executable at {compiler}")
+    exit(1)
+}
+
+if not fixtures.is_dir() {
+    say("ERROR: critic fixtures not found at {fixtures}")
+    exit(1)
+}
+
+var tmpdir = std.mktemp_dir("spectre-critic-test")
+defer {
+    std.remove_all(tmpdir)
+}
+
+var failed = 0
+
+fn record_fail(label) {
+    say("[FAIL] {label}")
+    failed += 1
+}
+
+fn record_pass(label) {
+    say("[PASS] {label}")
+}
+
+fn copy_file(from, to) {
+    var text = std.read_file(from)
+    if text == null {
+        return false
+    }
+    return std.write_file(to, text)
+}
+
+fn print_diff(expected, actual) {
+    var n = 0
+    for line in std.unified_diff(expected, actual).lines() {
+        if n >= 40 {
+            break
+        }
+        say("    " + line)
+        n += 1
+    }
+}
+
+fn check_fix(fixture, good, label) {
+    var actual = std.join(tmpdir, std.basename(fixture))
+    copy_file(std.join(fixtures, fixture), actual)
+
+    if not run([compiler, "critic", "-fix", actual]).ok {
+        record_fail("{label} (expected zero exit code after fixes)")
+    } elif std.read_file(actual, default: "") != std.read_file(std.join(fixtures, good), default: "") {
+        say("[FAIL] {label} (output differs from {good})")
+        print_diff(std.read_file(std.join(fixtures, good), default: ""), std.read_file(actual, default: ""))
+        failed += 1
+    } else {
+        record_pass(label)
+    }
+}
+
+var critic_run = run([compiler, "critic", std.join(fixtures, "checks.sx")], merge_stderr: true)
+var output     = critic_run.stdout
+var critic_status = critic_run.status
+
+var expected_messages = [
+"unused import 'unused'",
+"function name 'BadName' should be snake_case",
+"variable name 'Bad_var' should be snake_case",
+"variable name 'bad_const' should be SCREAMING_SNAKE_CASE",
+"avoid 'ref void'",
+"self-assignment has no effect",
+"redundant arithmetic assignment",
+"duplicate condition in boolean expression",
+"empty else body",
+"type name 'bad_type' should be PascalCase",
+"variable name 'Field' should be snake_case",
+"empty function body for 'empty'",
+"empty if body",
+"empty none arm"
+]
+
+if critic_status == 0 {
+    record_fail("checks.sx (expected non-zero exit code)")
+}
+
+for message in expected_messages {
+    if not output.contains(message) {
+        record_fail("missing diagnostic: {message}")
+    }
+}
+
+if output.contains("GOOD_CONST") {
+    record_fail("unexpected diagnostic for SCREAMING_SNAKE_CASE constant")
+}
+
+if failed == 0 {
+    record_pass("diagnostics")
+}
+
+# Directory targets with a trailing slash must not produce doubled separators.
+var trailing_output = run([compiler, "critic", fixtures + "/"], merge_stderr: true).stdout
+if trailing_output.contains("criticsamples//") {
+    record_fail("trailing slash (double slash in reported paths)")
+} else {
+    record_pass("trailing slash")
+}
+
+check_fix("fix_bad.sx", "fix_good.sx", "fix mode")
+
+# Mutable bindings that are never mutated must lose the 'mut' qualifier,
+# while bindings that are assigned or incremented keep it.
+var mut_actual = std.join(tmpdir, "mut_bad.sx")
+copy_file(std.join(fixtures, "mut_bad.sx"), mut_actual)
+
+if not run([compiler, "critic", "-fix", mut_actual]).ok {
+    record_fail("mut fix mode (expected zero exit code after fixes)")
+} elif std.read_file(mut_actual, default: "") != std.read_file(std.join(fixtures, "mut_good.sx"), default: "") {
+    say("[FAIL] mut fix mode (output differs from mut_good.sx)")
+    print_diff(std.read_file(std.join(fixtures, "mut_good.sx"), default: ""), std.read_file(mut_actual, default: ""))
+    failed += 1
+} elif not run([compiler, "check", mut_actual]).ok {
+    record_fail("mut fix mode (fixed file does not compile)")
+} else {
+    record_pass("mut fix mode")
+}
+
+var mut_calls_actual = std.join(tmpdir, "mut_calls_bad.sx")
+copy_file(std.join(fixtures, "mut_calls_bad.sx"), mut_calls_actual)
+
+if not run([compiler, "critic", "-fix", mut_calls_actual]).ok {
+    record_fail("mut calls fix mode (expected zero exit code after fixes)")
+} elif std.read_file(mut_calls_actual, default: "") != std.read_file(std.join(fixtures, "mut_calls_good.sx"), default: "") {
+    say("[FAIL] mut calls fix mode (output differs from mut_calls_good.sx)")
+    print_diff(std.read_file(std.join(fixtures, "mut_calls_good.sx"), default: ""), std.read_file(mut_calls_actual, default: ""))
+    failed += 1
+} elif not run([compiler, "check", mut_calls_actual]).ok {
+    record_fail("mut calls fix mode (fixed file does not compile)")
+} else {
+    record_pass("mut calls fix mode")
+}
+
+var mut_regression = std.join(tmpdir, "mut_regression")
+std.mkdir_p(mut_regression)
+copy_file("./spectrelib/collections/core.sx", std.join(mut_regression, "collections.sx"))
+copy_file("./spectrelib/net/core.sx", std.join(mut_regression, "net.sx"))
+copy_file("./spectrelib/algorithms/core.sx", std.join(mut_regression, "algorithms.sx"))
+run([compiler, "critic", "-fix", mut_regression])
+
+var collections = std.read_file(std.join(mut_regression, "collections.sx"), default: "")
+var net         = std.read_file(std.join(mut_regression, "net.sx"), default: "")
+var algorithms  = std.read_file(std.join(mut_regression, "algorithms.sx"), default: "")
+
+var mut_ok = collections.contains("val m: mut Map")
+mut_ok     = mut_ok and collections.contains("val big: mut Map")
+mut_ok     = mut_ok and collections.contains("val list3: mut ref void")
+mut_ok     = mut_ok and net.contains("val free_loop: mut EventLoop")
+mut_ok     = mut_ok and algorithms.contains("val should_break: mut i32")
+
+if not mut_ok {
+    say("[FAIL] mut regression (critic removed a required mut qualifier)")
+    failed += 1
+} else {
+    record_pass("mut regression")
+}
+
+# Nested trust statements must be removed, including same-line nested trust.
+check_fix("trust_bad.sx", "trust_good.sx", "trust fix mode")
+
+# Regression: a named type inferred for a 'ref void' edit used to leave a
+# dangling pointer that made apply_edits call strlen on a freed string.
+var crash_dir = std.join(tmpdir, "ref_void_crash")
+std.mkdir_p(crash_dir)
+std.write_file(std.join(crash_dir, "crash.sx"), r"type Thing = {
+    value: mut i32
+}
+
+fn f(t: Thing) void = {
+    val p: ref void = t
+}
+")
+
+if not run([compiler, "critic", "-fix", crash_dir]).ok {
+    record_fail("ref void fix mode (critic crashed or failed)")
+} elif not std.read_file(std.join(crash_dir, "crash.sx"), default: "").contains("val p: Thing") {
+    record_fail("ref void fix mode (expected inferred type)")
+} else {
+    record_pass("ref void fix mode")
+}
+
+# Regression: critic -fix used to segfault on the compiler source tree.
+var src_copy = std.join(tmpdir, "src")
+run(["cp", "-a", "./src", src_copy])
+var src_status = run([compiler, "critic", "-fix", src_copy]).status
+if src_status >= 128 {
+    record_fail("critic -fix src (crashed with status {src_status})")
+} else {
+    record_pass("critic -fix src")
+}
+
+var tree = std.join(tmpdir, "tree")
+std.mkdir_p(std.join(tree, "sub"))
+copy_file(std.join(fixtures, "fix_bad.sx"), std.join(tree, "sub/fix_bad.sx"))
+
+if not run([compiler, "critic", "-fix", tree]).ok {
+    record_fail("directory fix mode (expected zero exit code after fixes)")
+} elif std.read_file(std.join(tree, "sub/fix_bad.sx"), default: "") != std.read_file(std.join(fixtures, "fix_good.sx"), default: "") {
+    say("[FAIL] directory fix mode (output differs from fix_good.sx)")
+    print_diff(std.read_file(std.join(fixtures, "fix_good.sx"), default: ""), std.read_file(std.join(tree, "sub/fix_bad.sx"), default: ""))
+    failed += 1
+} else {
+    record_pass("directory fix mode")
+}
+
+say()
+say("Critic Test Summary:")
+if failed != 0 {
+    say("Failed: {failed}")
+    exit(1)
+}
+say("Passed: all")
+exit(0)

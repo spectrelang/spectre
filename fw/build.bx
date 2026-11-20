@@ -1,0 +1,129 @@
+#!/usr/bin/env blood
+
+var root = std.this_dir().parent()
+cd(root)
+
+var do_bootstrap = false
+var release      = (std.env("SPECTRE_BUILD_RELEASE", default: "0") == "1")
+
+for arg in args {
+    if arg == "-bs" {
+        do_bootstrap = true
+    } elif arg == "-release" {
+        release = true
+    }
+}
+
+fn run_visible(argv) {
+    var r = run(argv)
+    if r.stdout != "" {
+        print(r.stdout.strip_suffix("\n"))
+    }
+    if r.stderr != "" {
+        eprint(r.stderr.strip_suffix("\n"))
+    }
+    return r
+}
+
+fn module_version(text) {
+    for line in text.lines() {
+        var s = line.strip()
+        if s.starts_with("version ") {
+            var parts = s.split("\"")
+            if parts.len() >= 2 {
+                return parts[1]
+            }
+        }
+    }
+    return ""
+}
+
+var runtime = run([
+"cc",
+"-c",
+"spectrelib/csources/qbe_runtime.c",
+"-o",
+"spectrelib/csources/qbe_runtime.o"
+])
+if not runtime.ok {
+    if runtime.stderr != "" {
+        eprint(runtime.stderr.strip_suffix("\n"))
+    }
+    exit(1)
+}
+
+var git_hash = "unknown"
+if std.which("git") != null {
+    var git = run(["git", "rev-parse", "--short", "HEAD"])
+    if git.ok {
+        git_hash = git.stdout.strip()
+    }
+}
+
+var project_version = module_version(std.read_file("sx.mod", default: ""))
+var defines         = ["-d:GIT_HASH=" + git_hash]
+if project_version != "" {
+    defines.append("-d:SPECTRE_MOD_VERSION=" + project_version)
+}
+
+var stage0 = std.env("SPECTRE_STAGE0", default: "")
+if stage0 == "" {
+    if "./spectre-dev".is_executable() {
+        stage0 = "./spectre-dev"
+    } else {
+        stage0 = "spectre"
+    }
+}
+
+var backend_flag = std.env("SPECTRE_BUILD_BACKEND", default: "")
+var release_flag = if release { "-release" } else { "" }
+
+say("Building spectre stage 1...")
+var stage1_argv = [stage0, "./src/sxc.sx", "-runtime:hosted"]
+if release_flag != "" {
+    stage1_argv.append(release_flag)
+}
+if backend_flag != "" {
+    stage1_argv.append(backend_flag)
+}
+stage1_argv = stage1_argv + ["-o", "./spectre-stage1"]
+
+var stage1 = run_visible(stage1_argv)
+if not stage1.ok {
+    exit(1)
+}
+
+say("Building spectre-dev...")
+var stage2_argv = ["./spectre-stage1"] + defines + ["./src/sxc.sx", "-runtime:hosted"]
+if release_flag != "" {
+    stage2_argv.append(release_flag)
+}
+if backend_flag != "" {
+    stage2_argv.append(backend_flag)
+}
+stage2_argv = stage2_argv + ["-o", "spectre-dev"]
+
+var stage2 = run_visible(stage2_argv)
+if not stage2.ok {
+    exit(1)
+}
+std.remove_file("./spectre-stage1")
+
+if do_bootstrap {
+    say("Emitting bootstrap SSA...")
+    var ssa = run(["./spectre-dev"] + defines + [
+    "./src/sxc.sx",
+    "-b",
+    "-emit-ssa"
+    ])
+    if not ssa.ok {
+        if ssa.stderr != "" {
+            eprint(ssa.stderr.strip_suffix("\n"))
+        }
+        exit(1)
+    }
+    std.write_file("./bootstrap/sxc.ssa", ssa.stdout)
+    say("Bootstrap SSA written to ./bootstrap/sxc.ssa")
+}
+
+say("Done.")

@@ -1,0 +1,167 @@
+#!/usr/bin/env blood
+
+var root = std.this_dir().parent()
+cd(root)
+
+var compiler = "./spectre-dev"
+var fixtures = "./samplesmisc/fmtsamples"
+
+if not compiler.is_executable() {
+    say("ERROR: compiler not found or not executable at {compiler}")
+    exit(1)
+}
+
+if not fixtures.is_dir() {
+    say("ERROR: formatter fixtures not found at {fixtures}")
+    exit(1)
+}
+
+var tmpdir = std.mktemp_dir("spectre-fmt-test")
+defer {
+    std.remove_all(tmpdir)
+}
+
+var total  = 0
+var passed = 0
+var failed = 0
+
+fn record_fail(label) {
+    say("[FAIL] {label}")
+    failed += 1
+}
+
+fn record_pass(label) {
+    say("[PASS] {label}")
+    passed += 1
+}
+
+fn format_file(path) {
+    return run([compiler, "fmt", path]).ok
+}
+
+fn copy_file(from, to) {
+    var text = std.read_file(from)
+    if text == null {
+        return false
+    }
+    return std.write_file(to, text)
+}
+
+fn print_diff(expected, actual) {
+    var n = 0
+    for line in std.unified_diff(expected, actual).lines() {
+        if n >= 40 {
+            break
+        }
+        say("    " + line)
+        n += 1
+    }
+}
+
+for bad in std.glob(std.join(fixtures, "bad*.sx")) {
+    var filename = std.basename(bad)
+    var suffix   = filename.split("bad")[1]
+    var good     = std.join(fixtures, "good" + suffix)
+    total += 1
+
+    if not std.is_file(good) {
+        record_fail("{filename} (missing good{suffix})")
+        continue
+    }
+
+    var actual = std.join(tmpdir, filename)
+    copy_file(bad, actual)
+
+    if not format_file(actual) {
+        record_fail("{filename} (formatter exited non-zero)")
+        continue
+    }
+
+    var got  = std.read_file(actual, default: "")
+    var want = std.read_file(good, default: "")
+    if got != want {
+        say("[FAIL] {filename} (output differs from good{suffix})")
+        print_diff(want, got)
+        failed += 1
+        continue
+    }
+
+    if not format_file(actual) or std.read_file(actual, default: "") != want {
+        record_fail("{filename} (formatter is not idempotent)")
+        continue
+    }
+
+    record_pass(filename)
+}
+
+# Formatting a directory must process the .sx files and ignore other files.
+total += 1
+var tree = std.join(tmpdir, "tree")
+std.mkdir_p(std.join(tree, "sub"))
+
+for bad in std.glob(std.join(fixtures, "bad*.sx")) {
+    copy_file(bad, std.join(tree, std.basename(bad)))
+}
+
+std.write_file(std.join(tree, "readme.txt"), "this is not a spectre source file\n")
+std.write_file(std.join(tree, "sub/nested.txt"), "pub fn nested() void = {}\n")
+
+if not run([compiler, "fmt", tree]).ok {
+    record_fail("directory mode (formatter exited non-zero)")
+} else {
+    var dir_ok = true
+
+    for bad in std.glob(std.join(fixtures, "bad*.sx")) {
+        var filename = std.basename(bad)
+        var suffix   = filename.split("bad")[1]
+        var good     = std.join(fixtures, "good" + suffix)
+        var got      = std.read_file(std.join(tree, filename), default: "")
+        var want     = std.read_file(good, default: "")
+
+        if got != want {
+            say("[FAIL] directory mode ({filename} differs from good{suffix})")
+            print_diff(want, got)
+            dir_ok = false
+            break
+        }
+    }
+
+    if dir_ok {
+        record_pass("directory mode")
+    } else {
+        failed += 1
+    }
+}
+
+total += 1
+var stdout_file = std.join(tmpdir, "stdout_bad1.sx")
+copy_file(std.join(fixtures, "bad1.sx"), stdout_file)
+
+var stdio = run([compiler, "fmt", "-stdio", stdout_file])
+if not stdio.ok {
+    record_fail("stdio mode (formatter exited non-zero)")
+} else {
+    var want = std.read_file(std.join(fixtures, "good1.sx"), default: "")
+    if stdio.stdout != want {
+        say("[FAIL] stdio mode (stdout differs from good1)")
+        print_diff(want, stdio.stdout)
+        failed += 1
+    } elif std.read_file(stdout_file, default: "") != std.read_file(std.join(fixtures, "bad1.sx"), default: "") {
+        record_fail("stdio mode (source was modified in place)")
+    } else {
+        record_pass("stdio mode")
+    }
+}
+
+say()
+say("Formatter Test Summary:")
+say("Total tests : {total}")
+say("Passed      : {passed}")
+say("Failed      : {failed}")
+say()
+
+if failed != 0 {
+    exit(1)
+}
+
+exit(0)
