@@ -8,6 +8,7 @@ SRC_DIR="${PREFIX}/src"
 QBE_OK=1
 UQBE_BIN=""
 FORCE_FALLBACK=0
+NO_TCC=0
 TCC_STAGE1=0
 UQBE_REPO="https://github.com/spectrelang/uqbe.git"
 SPECTRE_REPO="https://github.com/spectrelang/spectre.git"
@@ -301,6 +302,11 @@ while [ "$#" -gt 0 ]; do
 		log "Flag: -minimal set — skipping optional networking deps and spectre-ls."
 		shift
 		;;
+	-no-tcc)
+		NO_TCC=1
+		log "Flag: -no-tcc set — skipping tcc installation and usage."
+		shift
+		;;
 	-ci)
 		CI=1
 		log "Flag: -ci set — skipping spectre-ls."
@@ -344,21 +350,25 @@ else
 	log "clang already installed: $(command -v clang)"
 fi
 
-log "Checking for tcc..."
-if ! command -v tcc >/dev/null 2>&1; then
-	log "tcc not found — attempting install (optional)..."
-	if [ "$PKG_MGR" != "brew" ]; then
-		install_pkg "$PKG_MGR" tcc 2>/dev/null || true
-	fi
-	if command -v tcc >/dev/null 2>&1; then
-		log "tcc installed successfully."
-		TCC_STAGE1=1
-	else
-		log "tcc unavailable on this platform, clang will be used as alt backend instead."
-	fi
+if [ "$NO_TCC" -eq 1 ]; then
+	log "Skipping tcc (-no-tcc); clang will be used as backend."
 else
-	log "tcc already installed: $(command -v tcc)"
-	TCC_STAGE1=1
+	log "Checking for tcc..."
+	if ! command -v tcc >/dev/null 2>&1; then
+		log "tcc not found — attempting install (optional)..."
+		if [ "$PKG_MGR" != "brew" ]; then
+			install_pkg "$PKG_MGR" tcc 2>/dev/null || true
+		fi
+		if command -v tcc >/dev/null 2>&1; then
+			log "tcc installed successfully."
+			TCC_STAGE1=1
+		else
+			log "tcc unavailable on this platform, clang will be used as alt backend instead."
+		fi
+	else
+		log "tcc already installed: $(command -v tcc)"
+		TCC_STAGE1=1
+	fi
 fi
 
 log "Checking for lld (used by -target: cross builds)..."
@@ -550,7 +560,7 @@ else
 	/usr/bin/install -m 0755 "${POSIX_BOOTSTRAP_OUT}" "$STAGE0"
 fi
 STAGE1_OK=1
-if [ "$TCC_STAGE1" -eq 1 ]; then
+if [ "$TCC_STAGE1" -eq 1 ] && [ "$NO_TCC" -eq 0 ]; then
 	log "Using tcc for the stage 1 build."
 	(cd "$SPECTRE_DIR" && ./spectre-stage0 ./src/sxc.sx -release -dynamic -alt:tcc -runtime:hosted -o ./spectre-stage1) || STAGE1_OK=0
 	if [ "$STAGE1_OK" -eq 0 ]; then
@@ -580,7 +590,7 @@ fi
 log "Building Spectre stage 2 from source..."
 STAGE2_OK=1
 (cd "$SPECTRE_DIR" && ./spectre-stage1 $STAGE_DEFINES ./src/sxc.sx -release -alt -runtime:hosted -o ./spectre-stage2) || STAGE2_OK=0
-if [ "$STAGE2_OK" -eq 0 ] && [ "$TCC_STAGE1" -eq 1 ]; then
+if [ "$STAGE2_OK" -eq 0 ] && [ "$TCC_STAGE1" -eq 1 ] && [ "$NO_TCC" -eq 0 ]; then
 	log "stage 2 failed with the tcc stage 1 build — rebuilding stage 1 with clang."
 	rm -f "$STAGE1" "$STAGE2"
 	STAGE1_OK=1
@@ -711,7 +721,9 @@ elif [ "$FORCE_FALLBACK" -eq 1 ]; then
 else
 	echo "  - uqbe       -> (skipped, used fallback)"
 fi
-if command -v tcc >/dev/null 2>&1; then
+if [ "$NO_TCC" -eq 1 ]; then
+	echo "  - tcc        -> (skipped, -no-tcc flag set)"
+elif command -v tcc >/dev/null 2>&1; then
 	echo "  - tcc        -> $(command -v tcc)"
 else
 	echo "  - tcc        -> (unavailable, used fallback)"
