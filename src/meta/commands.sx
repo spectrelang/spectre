@@ -1530,7 +1530,12 @@ fn parse_rule_fields(ctx: mut ref ParseCtx, rule: mut ref SxBuildRule) void = tr
             continue
         }
         if !parse_override_field(ctx, rule, name) {
-            ctx_report(ctx, name_start, cstr.len(name), @fmtalloc("unknown build field '{s}'", {name}))
+            ctx_report(
+                ctx,
+                name_start,
+                cstr.len(name),
+                @fmtalloc("unknown build field '{s}'", {name})
+            )
             ctx_skip_line(ctx)
         }
     }

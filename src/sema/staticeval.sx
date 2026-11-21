@@ -572,7 +572,10 @@ fn find_type_def(
                 return res
             }
             if cur_m == key_m {
-                val cached_name: ref u8 = @bitcast(@load(@ptradd(w.tc_name, slot * 8)) as i64, ref u8)
+                val cached_name: ref u8 = @bitcast(
+                    @load(@ptradd(w.tc_name, slot * 8)) as i64,
+                    ref u8
+                )
                 if cstr.eql(cached_name, name) {
                     return @bitcast(@load(@ptradd(w.tc_item, slot * 8)) as i64, ref parser.Node)
                 }
@@ -717,16 +720,25 @@ fn find_global(w: ref World, m: ref modinfo.ResolvedModule, name: ref u8) Global
                 @store(@ptradd(w.gc_m, slot * 8), key_m)
                 @store(@ptradd(w.gc_name, slot * 8), name_key)
                 @store(@ptradd(w.gc_item, slot * 8), parser.ptr_to_i64[ref parser.Node](res.item))
-                @store(@ptradd(w.gc_mod, slot * 8), parser.ptr_to_i64[ref modinfo.ResolvedModule](res.m))
+                @store(
+                    @ptradd(w.gc_mod, slot * 8),
+                    parser.ptr_to_i64[ref modinfo.ResolvedModule](res.m)
+                )
                 wm.gc_count = wm.gc_count + 1
                 return res
             }
             if cur_m == key_m {
-                val cached_name: ref u8 = @bitcast(@load(@ptradd(w.gc_name, slot * 8)) as i64, ref u8)
+                val cached_name: ref u8 = @bitcast(
+                    @load(@ptradd(w.gc_name, slot * 8)) as i64,
+                    ref u8
+                )
                 if cstr.eql(cached_name, name) {
                     return GlobalHit{
                         item: @bitcast(@load(@ptradd(w.gc_item, slot * 8)) as i64, ref parser.Node),
-                        m: @bitcast(@load(@ptradd(w.gc_mod, slot * 8)) as i64, ref modinfo.ResolvedModule)
+                        m: @bitcast(
+                            @load(@ptradd(w.gc_mod, slot * 8)) as i64,
+                            ref modinfo.ResolvedModule
+                        )
                     }
                 }
             }
@@ -4010,7 +4022,11 @@ fn rewrite_static_stmt(
     if k == parser.NK_MATCH_ENUM {
         rewrite_static_expr(w, m, parser.match_enum_expr(stmt), none)
         for arm in parser.match_enum_arms(stmt) {
-            rewrite_static_stmts(w, m, parser.match_enum_arm_body(arm as ref parser.Node) as ref parser.Node)
+            rewrite_static_stmts(
+                w,
+                m,
+                parser.match_enum_arm_body(arm as ref parser.Node) as ref parser.Node
+            )
         }
         return
     }
@@ -4510,7 +4526,11 @@ fn fold_expr(
     }
 }
 
-fn maybe_static_expr(w: ref World, m: ref modinfo.ResolvedModule, expr: ref parser.Node) bool = trust {
+fn maybe_static_expr(
+    w: ref World,
+    m: ref modinfo.ResolvedModule,
+    expr: ref parser.Node
+) bool = trust {
     if expr == none {
         return true
     }
@@ -4581,7 +4601,11 @@ fn maybe_static_expr(w: ref World, m: ref modinfo.ResolvedModule, expr: ref pars
     return true
 }
 
-fn fold_args_maybe_static(w: ref World, m: ref modinfo.ResolvedModule, expr: ref parser.Node) bool = trust {
+fn fold_args_maybe_static(
+    w: ref World,
+    m: ref modinfo.ResolvedModule,
+    expr: ref parser.Node
+) bool = trust {
     val args: ref void = parser.call_args(expr) as ref void
     if args == none {
         return true
@@ -4893,7 +4917,11 @@ fn check_top_calls_module(
     }
 }
 
-fn check_qbe_array_fn_item(w: mut ref World, m: ref modinfo.ResolvedModule, item: ref parser.Node) void = trust {
+fn check_qbe_array_fn_item(
+    w: mut ref World,
+    m: ref modinfo.ResolvedModule,
+    item: ref parser.Node
+) void = trust {
     if item == none {
         return
     }

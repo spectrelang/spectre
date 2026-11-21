@@ -1874,10 +1874,10 @@ fn check_foldable_call(ctx: mut ref Ctx, call: ref parser.Node) void = trust {
         }
     }
     val msg: ref u8 = ostr.as_cstr(fmt.format[allocators.Arena](
-        ctx.arena,
-        c"call to '{s}' has compile-time constant arguments but is not marked 'pure'; annotate it with '= pure' or use @static(...) to require folding",
-        {name}
-    ))
+            ctx.arena,
+            c"call to '{s}' has compile-time constant arguments but is not marked 'pure'; annotate it with '= pure' or use @static(...) to require folding",
+            {name}
+        ))
     add_issue(ctx, call.line, msg)
 }
 
