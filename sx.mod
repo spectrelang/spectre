@@ -32,7 +32,7 @@ build dev {
     }
 }
 
-build quick {
+build alt {
     flags "-alt"
     output "./spectre-dev$EXT"
     env {
