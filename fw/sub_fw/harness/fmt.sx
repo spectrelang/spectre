@@ -4,8 +4,8 @@
 /// (C) Navid Momtahen - 2026
 
 val fs    = use("std/fs")
-val mem   = use("../../src/meta/mem.sx")
-val fmt   = use("../../src/meta/fmt.sx")
+val mem   = use("../../../src/meta/mem.sx")
+val fmt   = use("../../../src/meta/fmt.sx")
 val check = use("lib/check.sx")
 
 test "formatter does not leak" {

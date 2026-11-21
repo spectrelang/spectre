@@ -17,7 +17,7 @@ for arg in args {
 }
 
 var root_dir    = std.this_dir().parent()
-var harness_dir = std.join(root_dir, "fw/harness")
+var harness_dir = std.join(root_dir, "fw/sub_fw/harness")
 var compiler    = std.env("SPECTRE_CHECKMEM_COMPILER", default: std.join(root_dir, "spectre-dev"))
 
 var base = std.env("RUNNER_TEMP", default: "")

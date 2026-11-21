@@ -5,9 +5,9 @@
 
 val os       = use("std/os")
 val fs       = use("std/fs")
-val mem      = use("../../src/meta/mem.sx")
-val meta     = use("../../src/meta/meta.sx")
-val commands = use("../../src/meta/commands.sx")
+val mem      = use("../../../src/meta/mem.sx")
+val meta     = use("../../../src/meta/meta.sx")
+val commands = use("../../../src/meta/commands.sx")
 val check    = use("lib/check.sx")
 val str      = use("std/string")
 val cstr     = use("std/string/cstr")

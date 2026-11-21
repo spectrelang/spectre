@@ -4,8 +4,8 @@
 /// (C) Navid Momtahen - 2026
 
 val os          = use("std/os")
-val mem         = use("../../src/meta/mem.sx")
-val c_translate = use("../../src/translate/c_translate.sx")
+val mem         = use("../../../src/meta/mem.sx")
+val c_translate = use("../../../src/translate/c_translate.sx")
 val check       = use("lib/check.sx")
 
 test "c translator does not leak" {

@@ -4,8 +4,8 @@
 /// (C) Navid Momtahen - 2026
 
 val fs     = use("std/fs")
-val mem    = use("../../src/meta/mem.sx")
-val critic = use("../../src/meta/critic.sx")
+val mem    = use("../../../src/meta/mem.sx")
+val critic = use("../../../src/meta/critic.sx")
 val check  = use("lib/check.sx")
 
 test "critic does not leak" {

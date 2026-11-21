@@ -117,7 +117,7 @@ jobs:
 
       - name: Build spectre-dev
         shell: pwsh
-        run: pwsh -NoProfile -ExecutionPolicy Bypass -File ./fw/build_windows.ps1
+        run: pwsh -NoProfile -ExecutionPolicy Bypass -File ./fw/sub_fw/build_windows.ps1
 
       - name: Show compiler version
         shell: pwsh
@@ -129,6 +129,6 @@ jobs:
           SPECTRE: ./spectre-dev.exe
         run: |
           set -o pipefail
-          bash ./fw/test_simd.sh | tee simd-test.log
+          bash ./fw/sub_fw/test_simd.sh | tee simd-test.log
           grep -q "SIMD mode: clang-cl" simd-test.log
           grep -q "SIMD mode: msvc" simd-test.log

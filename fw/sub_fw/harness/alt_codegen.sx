@@ -1,23 +1,22 @@
-/// Leak harness for src/codegen/codegen.sx.
+/// Leak harness for src/codegen/alt_codegen.sx.
 ///
 /// SPDX-License-Identifier: GPL-3.0-only
 /// (C) Navid Momtahen - 2026
 
-val stdio      = use("std/stdio")
-val cstr       = use("std/string/cstr")
-val allocators = use("std/allocators")
-val mem        = use("../../src/meta/mem.sx")
-val sema       = use("../../src/sema/sema.sx")
-val codegen    = use("../../src/codegen/codegen.sx")
-val check      = use("lib/check.sx")
+val stdio       = use("std/stdio")
+val allocators  = use("std/allocators")
+val mem         = use("../../../src/meta/mem.sx")
+val sema        = use("../../../src/sema/sema.sx")
+val alt_codegen = use("../../../src/codegen/alt_codegen.sx")
+val check       = use("lib/check.sx")
 
-test "codegen does not leak" {
+test "alt codegen does not leak" {
     trust {
         mem.init()
         val arena: allocators.ScopedArenaAllocator = allocators.ScopedArena.new(
             67108864 as usize
         )?
-        val path = "./fw/harness/fixtures/smoke.sx"
+        val path = "./fw/sub_fw/harness/fixtures/smoke.sx"
         val src_target = ""
         val root = check.resolve(arena, path)
         val errors = sema.check_module_tree(
@@ -29,7 +28,7 @@ test "codegen does not leak" {
             1000000,
             false,
             false,
-            true,
+            false,
             false
         )
         if (@len(errors) as i64) > 0 {
@@ -40,23 +39,18 @@ test "codegen does not leak" {
         }
 
         val before = check.baseline()
-        val output: mut ref codegen.CgOutput = codegen.gen_module_resolved_test(
+        val output: ref u8 = alt_codegen.gen_module_c_test(
             root,
             false,
+            mem.new[ref u8](),
             check.cptr(src_target),
             false,
+            0,
             false
         )
-        if output.qbe != none && cstr.len(output.qbe) > 0 {
-            @free(output.qbe as ref void)
-        }
-        if output.shim != none && cstr.len(output.shim) > 0 {
-            @free(output.shim as ref void)
-        }
         @free(output as ref void)
-
         allocators.ScopedArena.free(arena)
         mem.close()
-        check.expect_clean_since("codegen", before)
+        check.expect_clean_since("alt_codegen", before)
     }
 }

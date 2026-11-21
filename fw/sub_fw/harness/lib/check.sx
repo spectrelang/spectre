@@ -8,8 +8,8 @@ val str        = use("std/string")
 val cstr       = use("std/string/cstr")
 val testing    = use("std/testing")
 val allocators = use("std/allocators")
-val mem        = use("../../../src/meta/mem.sx")
-val module     = use("../../../src/module/module.sx")
+val mem        = use("../../../../src/meta/mem.sx")
+val module     = use("../../../../src/module/module.sx")
 
 extern (C) fn c_malloc(size: usize) ref void = "malloc"
 extern (C) fn c_free(ptr: ref void) void = "free"

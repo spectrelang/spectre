@@ -4,15 +4,15 @@
 /// (C) Navid Momtahen - 2026
 
 val os    = use("std/os")
-val mem   = use("../../src/meta/mem.sx")
-val docs  = use("../../src/meta/docs.sx")
+val mem   = use("../../../src/meta/mem.sx")
+val docs  = use("../../../src/meta/docs.sx")
 val check = use("lib/check.sx")
 
 test "docs generator does not leak" {
     trust {
         mem.init()
         val before = check.baseline()
-        val target = "./fw/harness/fixtures/smoke.sx"
+        val target = "./fw/sub_fw/harness/fixtures/smoke.sx"
         val output = "./s-out/checkmem-docs"
         val read = ""
         val code: i32 = docs.cmd_doc(

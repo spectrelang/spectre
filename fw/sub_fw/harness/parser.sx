@@ -4,9 +4,9 @@
 /// (C) Navid Momtahen - 2026
 
 val allocators = use("std/allocators")
-val lexer      = use("../../src/ast/lexer.sx")
-val parser     = use("../../src/ast/parser.sx")
-val mem        = use("../../src/meta/mem.sx")
+val lexer      = use("../../../src/ast/lexer.sx")
+val parser     = use("../../../src/ast/parser.sx")
+val mem        = use("../../../src/meta/mem.sx")
 val check      = use("lib/check.sx")
 
 test "parser does not leak" {

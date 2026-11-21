@@ -1,24 +1,25 @@
-/// Leak harness for src/sema/sema.sx.
+/// Leak harness for src/codegen/codegen.sx.
 ///
 /// SPDX-License-Identifier: GPL-3.0-only
 /// (C) Navid Momtahen - 2026
 
 val stdio      = use("std/stdio")
+val cstr       = use("std/string/cstr")
 val allocators = use("std/allocators")
-val mem        = use("../../src/meta/mem.sx")
-val sema       = use("../../src/sema/sema.sx")
+val mem        = use("../../../src/meta/mem.sx")
+val sema       = use("../../../src/sema/sema.sx")
+val codegen    = use("../../../src/codegen/codegen.sx")
 val check      = use("lib/check.sx")
 
-test "sema does not leak" {
+test "codegen does not leak" {
     trust {
         mem.init()
         val arena: allocators.ScopedArenaAllocator = allocators.ScopedArena.new(
             67108864 as usize
         )?
-        val path = "./fw/harness/fixtures/smoke.sx"
+        val path = "./fw/sub_fw/harness/fixtures/smoke.sx"
         val src_target = ""
         val root = check.resolve(arena, path)
-        val before = check.baseline()
         val errors = sema.check_module_tree(
             arena,
             root,
@@ -37,8 +38,25 @@ test "sema does not leak" {
             }
             assert false
         }
+
+        val before = check.baseline()
+        val output: mut ref codegen.CgOutput = codegen.gen_module_resolved_test(
+            root,
+            false,
+            check.cptr(src_target),
+            false,
+            false
+        )
+        if output.qbe != none && cstr.len(output.qbe) > 0 {
+            @free(output.qbe as ref void)
+        }
+        if output.shim != none && cstr.len(output.shim) > 0 {
+            @free(output.shim as ref void)
+        }
+        @free(output as ref void)
+
         allocators.ScopedArena.free(arena)
         mem.close()
-        check.expect_clean_since("sema", before)
+        check.expect_clean_since("codegen", before)
     }
 }

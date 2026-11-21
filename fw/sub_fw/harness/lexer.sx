@@ -3,8 +3,8 @@
 /// SPDX-License-Identifier: GPL-3.0-only
 /// (C) Navid Momtahen - 2026
 
-val lexer = use("../../src/ast/lexer.sx")
-val mem   = use("../../src/meta/mem.sx")
+val lexer = use("../../../src/ast/lexer.sx")
+val mem   = use("../../../src/meta/mem.sx")
 val check = use("lib/check.sx")
 
 test "lexer does not leak tokens" {
