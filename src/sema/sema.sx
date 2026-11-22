@@ -24,6 +24,7 @@ type ScopeEntry = {
     mutated: mut i64
     implicit_mut: mut i64
     wrap_kind: mut i64
+    is_type_alias: mut i64
 }
 
 /// Result of a compile-time constant evaluation. Unlike option[i64], this can
@@ -629,6 +630,7 @@ fn scope_define(
         entry.used = 0
         entry.mutated = 0
         entry.wrap_kind = 0
+        entry.is_type_alias = 0
         @append(frame, entry)
 
         guarded post {
@@ -662,6 +664,65 @@ fn scope_set_implicit_mut(ctx: ref SemaCtx, name: ref u8) void = trust {
             i++
         }
     }
+}
+
+fn scope_set_type_alias(ctx: ref SemaCtx, name: ref u8) void = trust {
+    val len: usize = @len(ctx.scopes)
+    if len == 0 {
+        return
+    }
+    val frame_opt = @get(ctx.scopes, len - 1)
+    if frame_opt is some frame {
+        val flen: i64 = @len(frame) as i64
+        val i: mut i64 = 0
+        for {
+            if i >= flen {
+                break
+            }
+            val e_opt = @get(frame, i as usize)
+            if e_opt is some e {
+                val entry: mut ref ScopeEntry = e as ref ScopeEntry
+                if entry.name != none {
+                    if cstr.cmp(entry.name, name) == 0 {
+                        entry.is_type_alias = 1
+                    }
+                }
+            }
+            i++
+        }
+    }
+}
+
+/// Returns 1 when a local name was bound to a type, such as
+/// `val Stack = allocators.Stack`, so it may be used as a namespace.
+fn scope_lookup_is_type_alias(ctx: ref SemaCtx, name: ref u8) i64 = trust {
+    val len: i64 = @len(ctx.scopes) as i64
+    val i: mut i64 = len - 1
+    for {
+        if i < 0 {
+            break
+        }
+        val frame_opt = @get(ctx.scopes, i as usize)
+        if frame_opt is some frame {
+            val flen: i64 = @len(frame) as i64
+            val j: mut i64 = flen - 1
+            for {
+                if j < 0 {
+                    break
+                }
+                val e_opt = @get(frame, j as usize)
+                if e_opt is some e {
+                    val entry: ref ScopeEntry = e as ref ScopeEntry
+                    if cstr.cmp(entry.name, name) == 0 {
+                        return entry.is_type_alias
+                    }
+                }
+                j--
+            }
+        }
+        i--
+    }
+    return 0
 }
 
 /// Walks a chain of NK_FIELD nodes down to the root NK_IDENT, returning it (or null if none).
@@ -1703,6 +1764,58 @@ fn sema_is_type_name(ctx: ref SemaCtx, name: ref u8) bool = trust {
         }
     }
     return false
+}
+
+/// Returns true when `expr` names a type, used to recognize local namespace
+/// aliases such as `val Stack = allocators.Stack`.
+fn expr_is_type_reference(ctx: ref SemaCtx, expr: ref parser.Node) bool = trust {
+    if expr == none {
+        return false
+    }
+    if expr.kind == parser.NK_IDENT {
+        val name: ref u8 = parser.node_str_raw(expr.d0)
+        if name == none {
+            return false
+        }
+        if sema_is_type_name(ctx, name) || sema_lookup_typedef(ctx, name) != none ||
+        sema_lookup_uniondef(ctx, name) != none || sema_lookup_enumdef(ctx, name) != none ||
+        sema_lookup_tagged_uniondef(ctx, name) != none {
+            return true
+        }
+        val root: ref modinfo.ResolvedModule = ctx.root_mod
+        return root != none && find_type_def_in_module_tree(ctx, root, name) != none
+    }
+    if expr.kind == parser.NK_FIELD {
+        val dotted: ref u8 = dotted_chain_name(ctx, expr)
+        return dotted != none && find_typedef_anywhere(ctx, dotted) != none
+    }
+    return false
+}
+
+/// Returns true when `callee` is a call of the form `value.method(...)`.
+/// Methods are free functions and must be called with an explicit type
+/// namespace, such as `Type.method(value, ...)`.
+fn callee_is_value_method_call(ctx: ref SemaCtx, callee: ref parser.Node) bool = trust {
+    val base: ref parser.Node = unwrap_generic_callee(callee)
+    if base == none || base.kind != parser.NK_FIELD {
+        return false
+    }
+    val root: ref parser.Node = find_root_ident(parser.field_base(base))
+    if root == none || root.kind != parser.NK_IDENT {
+        return false
+    }
+    val name: ref u8 = parser.node_str_raw(root.d0)
+    if name == none {
+        return false
+    }
+    if scope_lookup(ctx, name) != -1 {
+        return scope_lookup_is_type_alias(ctx, name) == 0
+    }
+    if find_imported_mod(ctx, name) != none || sema_is_type_name(ctx, name) ||
+    cstr.eql(name, c"C") {
+        return false
+    }
+    return is_global_name(ctx, name)
 }
 
 fn sema_is_wrap_kind(kind: i64) bool = trust {
@@ -6429,6 +6542,21 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
                     )
                 }
                 add_error(ctx, ebuf)
+            } elif callee_is_value_method_call(ctx, callee) {
+                val method: ref u8 = parser.field_name_raw(base_callee)
+                val recv: ref parser.Node = find_root_ident(parser.field_base(base_callee))
+                val recv_name: ref u8 = parser.node_str_raw(recv.d0)
+                val ebuf: ref u8 = allocators.ScopedArena.alloc_or_none(
+                    ctx.arena,
+                    (512) as usize
+                ) as ref u8
+                @snprintf(
+                    ebuf,
+                    512,
+                    "{s}:{lld}: method call syntax 'object.method(...)' is not supported; call it as 'Type.{s}({s}, ...)' instead",
+                    {filename, line, method, recv_name}
+                )
+                add_error(ctx, ebuf)
             }
         }
         if base_callee != none {
@@ -10047,6 +10175,10 @@ fn check_stmt(ctx: mut ref SemaCtx, stmt: ref parser.Node, filename: ref u8) voi
                 if inferred_ty != none {
                     scope_set_type_node(ctx, name, inferred_ty)
                 }
+            }
+            if ty_node == none && init_expr != none &&
+            expr_is_type_reference(ctx, init_expr) {
+                scope_set_type_alias(ctx, name)
             }
             if tname == none && init_expr != none {
                 val origin_ns: ref u8 = extract_constructor_namespace(ctx, init_expr)
