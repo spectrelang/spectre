@@ -1,0 +1,12 @@
+val alloc = use("std/allocators")
+
+pub fn takes_allocator[A: alloc.Allocator](ac: A) void = {
+    return A.alloc(ac, 1024)
+}
+
+pub fn main() void = {
+    val arena = trust alloc.Arena.new(1024)
+    if arena is ok arr {
+        takes_allocator[_](arr)
+    }
+}

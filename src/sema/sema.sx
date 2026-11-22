@@ -1807,6 +1807,10 @@ fn find_typedef_anywhere(ctx: ref SemaCtx, type_name: ref u8) ref parser.Node = 
     if local != none {
         return local
     }
+    val root: ref modinfo.ResolvedModule = ctx.root_mod
+    if root != none {
+        return find_type_def_in_module_tree(ctx, root, type_name)
+    }
     return none
 }
 
@@ -5289,6 +5293,12 @@ fn check_generic_call_constraints(ctx: ref SemaCtx, fn_found: ref parser.Node, c
                         }
                         val its_ok: mut bool = false
                         if impl_spec != none && cstr.eql(impl_spec, expected_spec) {
+                            its_ok = true
+                        }
+                        if !its_ok && impl_spec != none && cstr.eql(
+                            unqualified_type_name(impl_spec),
+                            unqualified_type_name(expected_spec)
+                        ) {
                             its_ok = true
                         }
                         if !its_ok && impl_spec != none {
@@ -10672,9 +10682,7 @@ fn check_stmt(ctx: mut ref SemaCtx, stmt: ref parser.Node, filename: ref u8) voi
         push_scope(ctx)
         if some_bind != none {
             scope_define(ctx, some_bind, 1, payload_name, payload_is_ref, line)
-            if payload_is_ref == 1 {
-                scope_set_type_node(ctx, some_bind, payload_ty)
-            }
+            scope_set_type_node(ctx, some_bind, payload_ty)
             scope_set_implicit_mut(ctx, some_bind)
         }
         if some_body_node != none {
@@ -10733,9 +10741,7 @@ fn check_stmt(ctx: mut ref SemaCtx, stmt: ref parser.Node, filename: ref u8) voi
         push_scope(ctx)
         if ok_bind != none {
             scope_define(ctx, ok_bind, 1, ok_payload_name, ok_payload_is_ref, line)
-            if ok_payload_is_ref == 1 {
-                scope_set_type_node(ctx, ok_bind, ok_payload_ty)
-            }
+            scope_set_type_node(ctx, ok_bind, ok_payload_ty)
             scope_set_implicit_mut(ctx, ok_bind)
         }
         if ok_body_node != none {
@@ -10753,9 +10759,7 @@ fn check_stmt(ctx: mut ref SemaCtx, stmt: ref parser.Node, filename: ref u8) voi
         push_scope(ctx)
         if err_bind != none {
             scope_define(ctx, err_bind, 1, err_payload_name, err_payload_is_ref, line)
-            if err_payload_is_ref == 1 {
-                scope_set_type_node(ctx, err_bind, err_payload_ty)
-            }
+            scope_set_type_node(ctx, err_bind, err_payload_ty)
             scope_set_implicit_mut(ctx, err_bind)
         }
         if err_body_node != none {
