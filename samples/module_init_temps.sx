@@ -1,0 +1,13 @@
+/// Module initializers emitted into sx__init must not reuse temp names.
+
+val FIRST: [4]u8 = [1, 2, 3, 4]
+
+pub fn marker() i32 = {
+    return 0
+}
+
+val SECOND: [4]u8 = [5, 6, 7, 8]
+
+pub fn main() i32 = {
+    return marker()
+}

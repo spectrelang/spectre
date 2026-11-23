@@ -104,6 +104,7 @@ pub type CCtx = {
     inv_cur_ptypes: mut list[ref u8]
     expected_ty: mut ref parser.Node
     init_sb: mut ref void
+    init_tmp: mut i64
     gfn_names: mut list[ref u8]
     gfn_nodes: mut list[ref void]
     gfn_prefixes: mut list[ref u8]
@@ -199,6 +200,7 @@ fn cc_new() ref CCtx = trust {
     ctx.inv_cur_ptypes = mem.new[ref u8]()
     ctx.expected_ty = none
     ctx.init_sb = builder.StringBuilder.new()
+    ctx.init_tmp = 0
     ctx.gfn_names = mem.new[ref u8]()
     ctx.gfn_nodes = mem.new[ref void]()
     ctx.gfn_prefixes = mem.new[ref u8]()
@@ -262,6 +264,19 @@ fn fresh_tmp(ctx: mut ref CCtx) i64 = trust {
     val n: i64 = ctx.tmp
     ctx.tmp = n + 1
     return n
+}
+
+/// Reserve a temp counter namespace shared by all module initializers emitted
+/// into sx__init, so per-function temp resets cannot cause duplicate names.
+fn cc_init_tmp_enter(ctx: mut ref CCtx) i64 = trust {
+    val saved: i64 = ctx.tmp
+    ctx.tmp = ctx.init_tmp
+    return saved
+}
+
+fn cc_init_tmp_leave(ctx: mut ref CCtx, saved: i64) void = trust {
+    ctx.init_tmp = ctx.tmp
+    ctx.tmp = saved
 }
 
 fn emit(ctx: ref CCtx, s: ref u8) void = trust {
@@ -11086,6 +11101,7 @@ fn gen_module_storage(
     if init_expr != none {
         val old_sb = ctx.sb
         ctx.sb = ctx.init_sb
+        val saved_tmp = cc_init_tmp_enter(ctx)
         val old_expected = ctx.expected_ty
         ctx.expected_ty = ty_node
         val fixed_ty: ref parser.Node = cc_fixed_arr_ty(ctx, ty_node)
@@ -11103,6 +11119,7 @@ fn gen_module_storage(
         @snprintf(init_buf, 2048, "{s} = ({s})({s});\n", {mangled, ct, val_str})
         builder.StringBuilder.append_cstr(ctx.init_sb, init_buf)
         cc_expr_drain(ctx)
+        cc_init_tmp_leave(ctx, saved_tmp)
         ctx.sb = old_sb
     }
 }
@@ -11146,6 +11163,7 @@ fn gen_module_const_list(
     if init_expr != none {
         val old_sb = ctx.sb
         ctx.sb = ctx.init_sb
+        val saved_tmp = cc_init_tmp_enter(ctx)
         val old_expected = ctx.expected_ty
         ctx.expected_ty = ty_node
         val fixed_ty: ref parser.Node = cc_fixed_arr_ty(ctx, ty_node)
@@ -11163,6 +11181,7 @@ fn gen_module_const_list(
         @snprintf(init_buf, 2048, "{s} = (int64_t)({s});\n", {mangled, val_str})
         builder.StringBuilder.append_cstr(ctx.init_sb, init_buf)
         cc_expr_drain(ctx)
+        cc_init_tmp_leave(ctx, saved_tmp)
         ctx.sb = old_sb
     }
 }
