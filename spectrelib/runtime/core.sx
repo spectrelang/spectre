@@ -197,10 +197,18 @@ otherwise {
     //!suppress "unused-function"
     extern (C, header) fn c_strdup(s: ref u8) ref u8 = "strdup"
     when windows {
-        extern (C) fn c_strtok_r(s: ref u8, delim: ref u8, save: ref ref u8) ref u8 = "sx_hosted_strtok_r"
+        extern (C) fn c_strtok_r(
+            s: ref u8,
+            delim: ref u8,
+            save: ref ref u8
+        ) ref u8 = "sx_hosted_strtok_r"
     }
     otherwise {
-        extern (C, header) fn c_strtok_r(s: ref u8, delim: ref u8, save: ref ref u8) ref u8 = "strtok_r"
+        extern (C, header) fn c_strtok_r(
+            s: ref u8,
+            delim: ref u8,
+            save: ref ref u8
+        ) ref u8 = "strtok_r"
     }
     extern (C, header) fn c_atoi(s: ref u8) i32 = "atoi"
     extern (C, header) fn c_isdigit(c: i32) i32 = "isdigit"
@@ -290,7 +298,10 @@ otherwise {
         extern (C, header) fn c_popen_win(cmd: ref u8, mode: ref u8) ref void = "_popen"
         extern (C, header) fn c_pclose_win(pipe: ref void) i32 = "_pclose"
         extern (C, header) fn c_get_std_handle(kind: i32) ref void = "GetStdHandle"
-        extern (C, header) fn c_get_console_mode(handle: ref void, mode: ref u32) i32 = "GetConsoleMode"
+        extern (C, header) fn c_get_console_mode(
+            handle: ref void,
+            mode: ref u32
+        ) i32 = "GetConsoleMode"
         extern (C, header) fn c_set_console_mode(handle: ref void, mode: u32) i32 = "SetConsoleMode"
     }
 
@@ -349,7 +360,10 @@ otherwise {
             entry: usize,
             arg: ref void
         ) i32 = "pthread_create"
-        extern (C, header) fn c_pthread_join(thread: ref void, retval: ref void) i32 = "pthread_join"
+        extern (C, header) fn c_pthread_join(
+            thread: ref void,
+            retval: ref void
+        ) i32 = "pthread_join"
         extern (C, header) fn c_pthread_detach(thread: ref void) i32 = "pthread_detach"
         extern (C, header) fn c_pthread_self() ref void = "pthread_self"
         extern (C, header) fn c_sched_yield() i32 = "sched_yield"

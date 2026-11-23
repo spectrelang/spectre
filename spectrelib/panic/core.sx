@@ -161,8 +161,8 @@ when hosted {
             }
 
             if panic_contains(rp, c"panic/core.sx")
-                || panic_contains(rp, c"panic_handler.c")
-                || panic_contains(rp, c"spectre_c_shim") {
+            || panic_contains(rp, c"panic_handler.c")
+            || panic_contains(rp, c"spectre_c_shim") {
                 return 0
             }
 
@@ -500,7 +500,7 @@ fn panic_format_func(src: ref u8, dst: ref u8, cap: i64) i64 = trust {
             break
         }
         if @load8(@ptradd(src, i)) == 95 && i + 1 < n
-            && @load8(@ptradd(src, i + 1)) == 95 {
+        && @load8(@ptradd(src, i + 1)) == 95 {
             @store8(@ptradd(dst, j), 46)
             j = j + 1
             i = i + 2
