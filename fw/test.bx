@@ -5,11 +5,18 @@ var (
     std_dir        = "./spectrelib"
     compiler       = "./spectre-dev"
     bootstrap_only = false
-    total          = 0
-    passed         = 0
-    failed         = 0
-    skipped        = 0
 )
+
+var r = std.reduce
+
+reduce(r.sum) var (
+    total   = 0
+    passed  = 0
+    failed  = 0
+    skipped = 0
+)
+
+std.set_workers(4)
 
 for arg in args {
     if arg == "-bs" {
@@ -106,7 +113,7 @@ if (std.env("SPECTRE_TEST_DYNAMIC") ?? "0") == "1" {
 }
 
 fn run_samples() {
-    for file in std.glob(std.join(samples_dir, "*.sx")) {
+    para for file in std.glob(std.join(samples_dir, "*.sx")) {
         var filename = std.basename(file)
 
         if filename.ends_with("_rt_error.sx") {
