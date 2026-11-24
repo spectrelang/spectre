@@ -1,0 +1,5 @@
+pub fn main() void = {
+    fn inner_function() i32 = {
+        @puts("should error")
+    }
+}
