@@ -355,6 +355,59 @@ fn builtin_min_arity(name: ref u8) i64 = trust {
     return 0
 }
 
+/// Returns the exact argument count accepted by a fixed-arity builtin, or -1
+/// when the builtin is variadic or takes a variable number of operands.
+fn builtin_max_arity(name: ref u8) i64 = trust {
+    if cstr.eql(name, c"insert") {
+        return 3
+    }
+    if cstr.eql(name, c"len") || cstr.eql(name, c"capacity") {
+        return 1
+    }
+    if cstr.eql(name, c"append") || cstr.eql(name, c"remove") || cstr.eql(name, c"reserve") {
+        return 2
+    }
+    if cstr.eql(name, c"embed") || cstr.eql(name, c"embedlen") {
+        return 1
+    }
+    if cstr.eql(name, c"alloc") || cstr.eql(name, c"free") || cstr.eql(name, c"sizeof") {
+        return 1
+    }
+    if cstr.eql(name, c"realloc") || cstr.eql(name, c"bitcast") || cstr.eql(name, c"ptradd") {
+        return 2
+    }
+    if cstr.eql(name, c"load") || cstr.eql(name, c"load8") || cstr.eql(name, c"load16")
+    || cstr.eql(name, c"load32") || cstr.eql(name, c"load64") {
+        return 1
+    }
+    if cstr.eql(name, c"store") || cstr.eql(name, c"store8") || cstr.eql(name, c"store16")
+    || cstr.eql(name, c"store32") || cstr.eql(name, c"store64") {
+        return 2
+    }
+    if cstr.eql(name, c"memcpy") || cstr.eql(name, c"memset") || cstr.eql(name, c"memmove") {
+        return 3
+    }
+    if cstr.eql(name, c"va_start") || cstr.eql(name, c"args") {
+        return 0
+    }
+    if cstr.eql(name, c"va_arg") || cstr.eql(name, c"strcmp") {
+        return 2
+    }
+    if cstr.eql(name, c"va_end") || cstr.eql(name, c"puts") || cstr.eql(name, c"strlen")
+    || cstr.eql(name, c"atoi") || cstr.eql(name, c"staticerror") || cstr.eql(name, c"static")
+    || cstr.eql(name, c"argsalloc") || cstr.eql(name, c"listalloc")
+    || cstr.eql(name, c"listfree") {
+        return 1
+    }
+    if cstr.eql(name, c"fgets") {
+        return 3
+    }
+    if cstr.eql(name, c"addr") || cstr.eql(name, c"deref") {
+        return 1
+    }
+    return -1
+}
+
 /// Validate @embed/@embedlen and attach the resolved file path and size to
 /// the builtin node. Paths are relative to the file containing the builtin.
 fn resolve_embed_builtin(
@@ -5265,7 +5318,7 @@ fn check_printf_fmt(ctx: ref SemaCtx, fmt_str: ref u8, all_args: ref void,
                 }
                 if arg_node != none {
                     val arg_wrap: i64 = expr_wrap_kind(ctx, arg_node)
-                    if arg_wrap != 0 && !cstr.eql(exp_cat, c"ptr") {
+                    if sema_is_wrap_kind(arg_wrap) && !cstr.eql(exp_cat, c"ptr") {
                         val wrap_name: mut ref u8 = c"option"
                         if arg_wrap == 1 {
                             wrap_name = c"result"
@@ -6742,7 +6795,7 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
 
                             val arg_wrap: i64 = expr_wrap_kind(ctx, arg_node)
                             val param_wrap: i64 = ty_wrap_kind(pty)
-                            if arg_wrap != 0 && arg_wrap != param_wrap {
+                            if sema_is_wrap_kind(arg_wrap) && arg_wrap != param_wrap {
                                 val fn_name_w: mut ref u8 = none
                                 if base_callee != none {
                                     if base_callee.kind == parser.NK_IDENT {
@@ -7518,6 +7571,31 @@ fn check_expr(ctx: mut ref SemaCtx, expr: ref parser.Node, filename: ref u8) voi
                 add_error(ctx, ebuf)
                 return
             }
+        }
+
+        val max_arity: i64 = builtin_max_arity(bname)
+        if max_arity >= 0 && actual_argc > max_arity {
+            val ebuf: ref u8 = allocators.ScopedArena.alloc_or_none(
+                ctx.arena,
+                (512) as usize
+            ) as ref u8
+            if min_arity == max_arity {
+                val plural: mut ref u8 = c"s"
+                if max_arity == 1 {
+                    plural = c""
+                }
+                @snprintf(ebuf, 512, "{s}:{lld}: builtin '@{s}' requires exactly {lld} argument{s}, got {lld}",
+                    {filename, line, bname, max_arity, plural, actual_argc})
+            } else {
+                val plural: mut ref u8 = c"s"
+                if max_arity == 1 {
+                    plural = c""
+                }
+                @snprintf(ebuf, 512, "{s}:{lld}: builtin '@{s}' accepts at most {lld} argument{s}, got {lld}",
+                    {filename, line, bname, max_arity, plural, actual_argc})
+            }
+            add_error(ctx, ebuf)
+            return
         }
 
         if cstr.eql(bname, c"embed") || cstr.eql(bname, c"embedlen") {

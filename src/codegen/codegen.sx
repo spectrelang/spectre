@@ -4249,6 +4249,7 @@ fn cg_emit_invariant_checks(ctx: mut ref CgCtx) void = trust {
                                     32 as usize
                                 ) as ref u8
                                 @snprintf(tmp_str, 32, "{lld}", {val_tmp})
+                                cg_unmark_slot(ctx, fname)
                                 cg_register_local_var(ctx, fname, tmp_str)
                                 cg_register_local_type(ctx, fname, c"i64")
                             } elif cstr.cmp(fqt, c"w") == 0 {
@@ -4271,6 +4272,7 @@ fn cg_emit_invariant_checks(ctx: mut ref CgCtx) void = trust {
                                     32 as usize
                                 ) as ref u8
                                 @snprintf(tmp_str, 32, "{lld}", {val_tmp})
+                                cg_unmark_slot(ctx, fname)
                                 cg_register_local_var(ctx, fname, tmp_str)
                                 cg_register_local_type(ctx, fname, c"i64")
                             }
@@ -5159,6 +5161,37 @@ fn is_word_type_name(name: ref u8) bool = trust {
         return true
     }
     return false
+}
+
+/// Returns true when a type name denotes an unsigned integer type.
+fn is_unsigned_int_type_name(name: ref u8) bool = trust {
+    if cstr.cmp(name, c"u8") == 0 {
+        return true
+    }
+    if cstr.cmp(name, c"u16") == 0 {
+        return true
+    }
+    if cstr.cmp(name, c"u32") == 0 {
+        return true
+    }
+    if cstr.cmp(name, c"u64") == 0 {
+        return true
+    }
+    if cstr.cmp(name, c"usize") == 0 {
+        return true
+    }
+    return false
+}
+
+fn expr_is_unsigned_int(ctx: mut ref CgCtx, expr: ref parser.Node) bool = trust {
+    if expr == none {
+        return false
+    }
+    val ann: ref u8 = infer_type_annotation(ctx, expr)
+    if ann == none || cstr.cmp(ann, c"") == 0 {
+        return false
+    }
+    return is_unsigned_int_type_name(cg_ann_deref(ann))
 }
 
 fn is_float_type_name(name: ref u8) bool = trust {
@@ -7093,16 +7126,19 @@ fn emit_global_val(ctx: mut ref CgCtx, mod_prefix: ref u8, node: ref parser.Node
     }
 
     val ginit: mut ref u8 = c"0"
+    val has_static_init: mut bool = false
     if gexpr != none {
         if gexpr.kind == parser.NK_BUILTIN && cstr.cmp(
             parser.node_str_raw(gexpr.d0),
             c"embedlen"
         ) == 0 {
             ginit = arenafmt.format(ctx.arena, "{lld}", {gexpr.d3}).ptr
+            has_static_init = true
         } else {
             val static_init: ref u8 = static_global_init_value(ctx, gexpr)
             if cstr.cmp(static_init, c"") != 0 {
                 ginit = static_init
+                has_static_init = true
             }
         }
     }
@@ -7153,12 +7189,21 @@ fn emit_global_val(ctx: mut ref CgCtx, mod_prefix: ref u8, node: ref parser.Node
         emit(ctx, data_buf)
     }
 
-    if gexpr != none && cstr.cmp(gqtype, c"l") == 0 {
+    if gexpr != none {
         val needs_runtime_init: mut bool = gexpr.kind == parser.NK_STRUCT_LIT ||
         gexpr.kind == parser.NK_ARGS_PACK ||
         gexpr.kind == parser.NK_CALL
         if gexpr.kind == parser.NK_ZERO_INIT {
             needs_runtime_init = !is_fixed_arr_type(gty_node)
+        }
+        if !has_static_init && gexpr.kind != parser.NK_LIST_LIT
+        && gexpr.kind != parser.NK_FIXED_ARR_LIT {
+            val is_embed: bool = gexpr.kind == parser.NK_BUILTIN
+            && (cstr.cmp(parser.node_str_raw(gexpr.d0), c"embed") == 0
+                || cstr.cmp(parser.node_str_raw(gexpr.d0), c"embedlen") == 0)
+            if !is_embed {
+                needs_runtime_init = true
+            }
         }
         if needs_runtime_init {
             val init: mut ref GlobalInit = allocators.ScopedArena.alloc_or_none(
@@ -7186,12 +7231,6 @@ fn emit_const_runtime_global(
     val gexpr: ref parser.Node = node.d2 as ref parser.Node
     val gty_node: ref parser.Node = node.d3 as ref parser.Node
     if gexpr == none || gty_node == none {
-        return
-    }
-    if gexpr.kind != parser.NK_CALL &&
-    gexpr.kind != parser.NK_STRUCT_LIT &&
-    gexpr.kind != parser.NK_ARGS_PACK &&
-    gexpr.kind != parser.NK_ZERO_INIT {
         return
     }
     val as_val: mut ref parser.Node = parser.make_node(ctx.arena, parser.NK_VAL, node.line)
@@ -7285,8 +7324,19 @@ fn cg_emit_global_init(ctx: mut ref CgCtx) void = trust {
         ctx.aggregate_heap++
         val v: ref u8 = gen_expr_expected(ctx, expr, ty)
         ctx.aggregate_heap--
+        val store_op: mut ref u8 = c"storel"
+        if ty != none && !is_fixed_arr_type(ty) {
+            val qt: ref u8 = qbe_type_of(ty)
+            if cstr.cmp(qt, c"w") == 0 {
+                store_op = c"storew"
+            } elif cstr.cmp(qt, c"s") == 0 {
+                store_op = c"stores"
+            } elif cstr.cmp(qt, c"d") == 0 {
+                store_op = c"stored"
+            }
+        }
         val buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 256 as usize) as ref u8
-        @snprintf(buf, 256, "    storel {s}, ${s}\n", {v, init.label})
+        @snprintf(buf, 256, "    {s} {s}, ${s}\n", {store_op, v, init.label})
         emit(ctx, buf)
     }
 
@@ -9419,13 +9469,17 @@ fn gen_binop(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
     op == parser.OP_SHL || op == parser.OP_SHR ||
     op == parser.OP_ADD || op == parser.OP_SUB || op == parser.OP_MUL ||
     op == parser.OP_DIV || op == parser.OP_REM {
+        val lhs_ext_instr: mut ref u8 = c"extsw"
+        if op == parser.OP_SHR && expr_is_unsigned_int(ctx, lhs_expr) {
+            lhs_ext_instr = c"extuw"
+        }
         if cstr.cmp(lhs_qbt, c"w") == 0 {
             val ext_tmp: i64 = fresh_tmp(ctx)
             val ext_buf: ref u8 = allocators.ScopedArena.alloc_or_none(
                 ctx.arena,
                 128 as usize
             ) as ref u8
-            @snprintf(ext_buf, 128, "    %%t{lld} =l extsw {s}\n", {ext_tmp, lhs_l})
+            @snprintf(ext_buf, 128, "    %%t{lld} =l {s} {s}\n", {ext_tmp, lhs_ext_instr, lhs_l})
             emit(
                 ctx,
                 ext_buf
@@ -10352,6 +10406,47 @@ fn gen_field(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
                         }
                     }
                     sfi4++
+                }
+            }
+        }
+    } elif base_expr.kind == parser.NK_CALL {
+        val inferred: ref u8 = infer_type_annotation(ctx, base_expr)
+        val lookup_type: ref u8 = cg_ann_deref(inferred)
+        if cstr.cmp(lookup_type, c"") != 0 {
+            val cfields: ref void = cg_lookup_struct(ctx, lookup_type)
+            if cfields != none {
+                val sflen5: i64 = @len(cfields as list[ref void]) as i64
+                val sfi5: mut i64 = 0
+                for {
+                    if sfi5 >= sflen5 {
+                        break
+                    }
+                    val sf5_opt = @get(cfields as list[ref void], sfi5 as usize)
+                    if sf5_opt is some sf5 {
+                        val sfn5: ref parser.Node = sf5 as ref parser.Node
+                        val sfname5: ref u8 = parser.node_str_raw(sfn5.d0)
+                        if cstr.cmp(sfname5, field_name) == 0 {
+                            val sfty5: ref parser.Node = sfn5.d2 as ref parser.Node
+                            if sfty5 != none {
+                                if sfty5.kind == parser.TY_FIXED_ARR {
+                                    field_is_fa = true
+                                } elif sfty5.kind == parser.TY_NAMED {
+                                    val ftype_name5: ref u8 = parser.node_str_raw(sfty5.d0)
+                                    if is_union_type_name(ctx, ftype_name5) {
+                                        field_is_union = true
+                                    } else {
+                                        val sfields5: ref void = cg_lookup_struct(ctx, ftype_name5)
+                                        if sfields5 != none {
+                                            field_is_multi_word_struct = true
+                                        }
+                                    }
+                                }
+                                field_load_instr = field_load_instr_for(sfty5)
+                            }
+                            sfi5 = sflen5
+                        }
+                    }
+                    sfi5++
                 }
             }
         }

@@ -3070,6 +3070,8 @@ fn eval_call(ctx: mut ref EvalCtx, expr: ref parser.Node) result[ref Val, ref Ev
     val old_ret: ref parser.Node = ctx.ret_ty
     val old_flow: i64 = ctx.flow
     val old_retv: ref Val = ctx.ret
+    val old_m: ref modinfo.ResolvedModule = ctx.m
+    ctx.m = module_for_fn(ctx.w, actual_fn, ctx.m)
     ctx.vars = mem.new[ref Var]()
     ctx.ret_ty = ty_resolve(ctx, actual_fn.d4 as ref parser.Node)
     ctx.flow = 0
@@ -3114,6 +3116,7 @@ fn eval_call(ctx: mut ref EvalCtx, expr: ref parser.Node) result[ref Val, ref Ev
     ctx.ret_ty = old_ret
     ctx.flow = old_flow
     ctx.ret = old_retv
+    ctx.m = old_m
     ctx.depth = ctx.depth - 1
     ctx.subst_names = saved_names
     ctx.subst_tys = saved_tys
