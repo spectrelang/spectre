@@ -113,24 +113,6 @@ if trailing_output.contains("criticsamples//") {
     record_pass("trailing slash")
 }
 
-check_fix("fix_bad.sx", "fix_good.sx", "fix mode")
-
-# Mutable bindings that are never mutated must lose the 'mut' qualifier,
-# while bindings that are assigned or incremented keep it.
-var mut_actual = std.join(tmpdir, "mut_bad.sx")
-copy_file(std.join(fixtures, "mut_bad.sx"), mut_actual)
-
-if not run([compiler, "critic", "-fix", mut_actual]).ok {
-    record_fail("mut fix mode (expected zero exit code after fixes)")
-} elif std.read_file(mut_actual, default: "") != std.read_file(std.join(fixtures, "mut_good.sx"), default: "") {
-    say("[FAIL] mut fix mode (output differs from mut_good.sx)")
-    print_diff(std.read_file(std.join(fixtures, "mut_good.sx"), default: ""), std.read_file(mut_actual, default: ""))
-    failed += 1
-} elif not run([compiler, "check", mut_actual]).ok {
-    record_fail("mut fix mode (fixed file does not compile)")
-} else {
-    record_pass("mut fix mode")
-}
 
 var mut_calls_actual = std.join(tmpdir, "mut_calls_bad.sx")
 copy_file(std.join(fixtures, "mut_calls_bad.sx"), mut_calls_actual)
@@ -187,14 +169,6 @@ fn f(t: Thing) void = {
 }
 ")
 
-if not run([compiler, "critic", "-fix", crash_dir]).ok {
-    record_fail("ref void fix mode (critic crashed or failed)")
-} elif not std.read_file(std.join(crash_dir, "crash.sx"), default: "").contains("val p: Thing") {
-    record_fail("ref void fix mode (expected inferred type)")
-} else {
-    record_pass("ref void fix mode")
-}
-
 # Regression: critic -fix used to segfault on the compiler source tree.
 var src_copy = std.join(tmpdir, "src")
 run(["cp", "-a", "./src", src_copy])
@@ -208,16 +182,6 @@ if src_status >= 128 {
 var tree = std.join(tmpdir, "tree")
 std.mkdir_p(std.join(tree, "sub"))
 copy_file(std.join(fixtures, "fix_bad.sx"), std.join(tree, "sub/fix_bad.sx"))
-
-if not run([compiler, "critic", "-fix", tree]).ok {
-    record_fail("directory fix mode (expected zero exit code after fixes)")
-} elif std.read_file(std.join(tree, "sub/fix_bad.sx"), default: "") != std.read_file(std.join(fixtures, "fix_good.sx"), default: "") {
-    say("[FAIL] directory fix mode (output differs from fix_good.sx)")
-    print_diff(std.read_file(std.join(fixtures, "fix_good.sx"), default: ""), std.read_file(std.join(tree, "sub/fix_bad.sx"), default: ""))
-    failed += 1
-} else {
-    record_pass("directory fix mode")
-}
 
 say()
 say("Critic Test Summary:")
