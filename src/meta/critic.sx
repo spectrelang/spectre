@@ -1368,45 +1368,10 @@ fn add_cast_removal_fix(ctx: mut ref Ctx, as_idx: i64) void = trust {
     add_fix(ctx, start, void_start + 4, c"")
 }
 
-fn is_ref_void_decl_initializer(ctx: mut ref Ctx, as_idx: i64) bool = trust {
-    val line: i64 = token_line(ctx, as_idx)
-    val i: mut i64 = as_idx - 1
-    for {
-        if i < 0 {
-            break
-        }
-        if token_line(ctx, i) != line {
-            break
-        }
-        if kind_is_eq(token_kind(ctx, i)) {
-            val j: mut i64 = i - 1
-            for {
-                if j < 0 || token_line(ctx, j) != line {
-                    break
-                }
-                if kind_is_colon(token_kind(ctx, j)) {
-                    val k: mut i64 = j + 1
-                    if kind_is_mut_tok(token_kind(ctx, k)) {
-                        k++
-                    }
-                    return kind_is_ref(token_kind(ctx, k)) && is_void_ident(ctx, k + 1)
-                }
-                if kind_is_val_tok(token_kind(ctx, j)) {
-                    break
-                }
-                j--
-            }
-            break
-        }
-        if kind_is_val_tok(token_kind(ctx, i)) || kind_is_ref(token_kind(ctx, i)) {
-            i--
-            continue
-        }
-        i--
-    }
-    return false
-}
-
+// Only casts that are part of an explicit `ref void` declaration are
+// rewritten. Arbitrary `expr as ref void` casts are left alone: raw
+// intrinsics (@memcpy, @memset, @free, ...) rely on the explicit type at the
+// call site, and removing the cast changed the meaning of the code.
 fn collect_ref_void_decl_fix(
     ctx: mut ref Ctx,
     name: ref u8,
@@ -1438,48 +1403,6 @@ fn collect_ref_void_decl_fix(
         if as_idx >= 0 {
             add_cast_removal_fix(ctx, as_idx)
         }
-    }
-}
-
-fn collect_cast_removal_fixes(ctx: mut ref Ctx) void = trust {
-    if !ctx.fix_mode {
-        return
-    }
-    val n: i64 = token_count(ctx)
-    val i: mut i64 = 0
-    for {
-        if i + 2 >= n {
-            break
-        }
-        if !kind_is_as(token_kind(ctx, i)) || is_ref_void_decl_initializer(ctx, i) {
-            i++
-            continue
-        }
-        val j: mut i64 = i + 1
-        if kind_is_mut_tok(token_kind(ctx, j)) {
-            j++
-        }
-        if !kind_is_ref(token_kind(ctx, j)) || !is_void_ident(ctx, j + 1) {
-            i++
-            continue
-        }
-        if i == 0 {
-            i++
-            continue
-        }
-        val operand: i64 = i - 1
-        val operand_type: mut ref u8 = none
-        val k: lexer.TokenKind = token_kind(ctx, operand)
-        match k {
-            Ident s => {
-                operand_type = lookup_var_type(ctx, s, token_line(ctx, operand))
-            }
-            else => {}
-        }
-        if operand_type != none && is_ref_type_name(operand_type) {
-            add_cast_removal_fix(ctx, i)
-        }
-        i++
     }
 }
 
@@ -2761,7 +2684,6 @@ fn analyze(ctx: mut ref Ctx, items: list[ref parser.Node]) void = trust {
     collect_fn_sigs(ctx, items)
     walk_items(ctx, items)
     check_unused_imports(ctx)
-    collect_cast_removal_fixes(ctx)
     collect_self_assignment_fixes(ctx)
     collect_redundant_arithmetic_fixes(ctx)
     collect_duplicate_condition_fixes(ctx)
