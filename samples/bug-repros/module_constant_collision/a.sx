@@ -1,0 +1,5 @@
+pub val HEADER_LEN: usize = 16
+
+pub fn value() usize = {
+    return HEADER_LEN
+}

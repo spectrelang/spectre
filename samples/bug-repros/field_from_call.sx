@@ -1,0 +1,29 @@
+// Bug: extracting a one-field named struct from a call result yields the
+// value loaded from the field instead of a reference to the field.
+// Run: spectre run samples/bug-repros/field_from_call.sx
+// Expected: id.p is the allocated pointer. Actual: id.p is 7, then @load8(id.p)
+// dereferences address 7 and segfaults.
+// Workaround: bind the call result first: val r = make(); val id = r.id
+
+val stdio = use("std/stdio")
+
+type Id = { p: mut ref u8 }
+type Rec = { id: mut Id, n: mut u64 }
+
+fn make() ref Rec = trust {
+    val p: ref u8 = @alloc(4) as ref u8
+    @store8(p, 7)
+    val r: mut ref Rec = @alloc(@sizeof(Rec)) as ref Rec
+    r.id = Id{p: p}
+    r.n = 42
+    return r
+}
+
+pub fn main() i32 = trust {
+    val r = make()
+    stdio.print("direct n={d} ptr-ok={d}\n", {r.n, r.id.p != none})
+    val id: Id = make().id
+    stdio.print("chained id.p value={d} (expected the pointer, not 7)\n", {id.p as usize})
+    stdio.print("chained id.p deref={d} (expected 7)\n", {(@load8(id.p)) as u64})
+    return 0
+}

@@ -1,0 +1,14 @@
+// Bug: @store64 accepts an extra argument and silently stores zero.
+// Run: spectre run samples/bug-repros/store64_arity.sx
+// Expected: a compile error for 3 arguments. Actual: prints 0.
+
+val stdio = use("std/stdio")
+
+pub fn main() i32 = trust {
+    val p: ref u8 = @alloc(8) as ref u8
+    @store64(p, 0, 42)
+    val got: u64 = @load64(p) as u64
+    stdio.print("@store64(p, 0, 42) -> {d} (expected 42)\n", {got})
+    @free(p as ref void)
+    return 0
+}

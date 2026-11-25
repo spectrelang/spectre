@@ -1,0 +1,14 @@
+// Bug: a computed top-level constant emits an invalid QBE load type.
+// Run: spectre samples/bug-repros/computed_constant.sx -o /tmp/computed-constant
+// Expected: compiles. Actual: "invalid type for first operand %MASK in load".
+// Workaround: write the literal value directly, e.g. val MASK: u64 = 0x3ffff.
+
+val MASK: u64 = (1 as u64 << 18) - 1
+
+pub fn main() i32 = {
+    val x: u64 = 123456
+    if (x & MASK) == 0 {
+        return 1
+    }
+    return 0
+}

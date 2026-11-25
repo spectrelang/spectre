@@ -1,0 +1,38 @@
+// Bug: a type invariant on a struct with a mutating method that runs a loop
+// and then @realloc's a field crashes in the invariant check at return.
+// Run: spectre run samples/bug-repros/invariant_realloc.sx
+// Expected: cap=128. Actual: segfault.
+// Removing the invariant makes the same program work.
+
+val stdio = use("std/stdio")
+
+type Buf = {
+    ptr: mut ref u8
+    len: mut usize
+    cap: mut usize
+    invariant {
+        (ptr != none && cap > 0) || (ptr == none && cap == 0 && len == 0)
+        len <= cap
+    }
+}
+
+pub fn (Buf) grow(b: mut self) void = {
+    val need: usize = 100
+    val cap: mut usize = b.cap
+    for cap < need {
+        cap = cap * 2
+    }
+    trust {
+        val q: ref void = @realloc(b.ptr as ref void, cap)
+        b.ptr = q as ref u8
+        b.cap = cap
+    }
+}
+
+pub fn main() i32 = trust {
+    val p: ref u8 = @alloc(64) as ref u8
+    val b: mut Buf = Buf{ptr: p, len: 0, cap: 64}
+    Buf.grow(b)
+    stdio.print("cap={d}\n", {b.cap})
+    return 0
+}

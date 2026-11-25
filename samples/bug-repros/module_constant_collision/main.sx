@@ -1,0 +1,14 @@
+// Bug: same-named top-level values in different modules collide when
+// referenced unqualified inside the defining module.
+// Run: spectre run samples/bug-repros/module_constant_collision/main.sx
+// Expected: a=16 b=1032. Actual: a=16 b=16 (direct b.HEADER_LEN is 1032).
+
+val stdio = use("std/stdio")
+val a = use("a.sx")
+val b = use("b.sx")
+
+pub fn main() i32 = trust {
+    stdio.print("a={d} b={d}\n", {a.value(), b.value()})
+    stdio.print("direct a={d} direct b={d}\n", {a.HEADER_LEN, b.HEADER_LEN})
+    return 0
+}

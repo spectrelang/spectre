@@ -1,0 +1,12 @@
+// Bug: `>>` on u32 sign-extends before shifting.
+// Run: spectre run samples/bug-repros/u32_shift.sx
+// Expected: 1. Actual: 4294967295.
+
+val stdio = use("std/stdio")
+
+pub fn main() i32 = trust {
+    val high: u32 = 0x80000000
+    val shifted: u32 = high >> 31
+    stdio.print("u32 0x80000000 >> 31 = {d} (expected 1)\n", {shifted})
+    return 0
+}

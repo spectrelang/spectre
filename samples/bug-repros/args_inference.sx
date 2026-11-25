@@ -1,0 +1,17 @@
+// Bug: @args() without a type annotation is inferred as an option-like value.
+// Run: spectre samples/bug-repros/args_inference.sx -o /tmp/args-inference
+// Expected: compiles; @args() has type list[ref u8].
+// Actual: "parameter 'args' does not accept a option value".
+// Workaround: val args: list[ref u8] = @args()
+
+val stdio = use("std/stdio")
+
+fn count(args: list[ref u8]) usize = {
+    return @len(args)
+}
+
+pub fn main() i32 = trust {
+    val args = @args()
+    stdio.print("argc={d}\n", {count(args)})
+    return 0
+}
