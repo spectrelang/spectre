@@ -182,17 +182,6 @@ fn token_ident_len(ctx: mut ref Ctx, idx: i64) i64 = trust {
     return cstr.len(txt)
 }
 
-fn kind_is_ref(k: lexer.TokenKind) bool = {
-    match k {
-        Ref() => {
-            return true
-        }
-        else => {
-            return false
-        }
-    }
-}
-
 fn kind_is_mut_tok(k: lexer.TokenKind) bool = {
     match k {
         Mut() => {
@@ -218,17 +207,6 @@ fn kind_is_colon(k: lexer.TokenKind) bool = {
 fn kind_is_eq(k: lexer.TokenKind) bool = {
     match k {
         Eq() => {
-            return true
-        }
-        else => {
-            return false
-        }
-    }
-}
-
-fn kind_is_as(k: lexer.TokenKind) bool = {
-    match k {
-        As() => {
             return true
         }
         else => {
@@ -296,18 +274,6 @@ fn kind_is_or_tok(k: lexer.TokenKind) bool = {
     match k {
         Or() => {
             return true
-        }
-        else => {
-            return false
-        }
-    }
-}
-
-fn is_void_ident(ctx: mut ref Ctx, idx: i64) bool = trust {
-    val k: lexer.TokenKind = token_kind(ctx, idx)
-    match k {
-        Ident s => {
-            return cstr.cmp(s, c"void") == 0
         }
         else => {
             return false
@@ -1188,19 +1154,6 @@ fn infer_concrete_type(ctx: mut ref Ctx, node: ref parser.Node) ref u8 = trust {
     return expr_type(ctx, node)
 }
 
-fn expr_is_ref_void_cast(node: ref parser.Node) bool = trust {
-    if node == none {
-        return false
-    }
-    if node.kind == parser.NK_TRUST {
-        return expr_is_ref_void_cast(node.d0 as ref parser.Node)
-    }
-    if node.kind == parser.NK_CAST {
-        return ty_is_ref_void(node.d1 as ref parser.Node)
-    }
-    return false
-}
-
 fn walk_type(ctx: mut ref Ctx, ty: ref parser.Node) void = trust {
     if ty == none {
         return
@@ -1275,69 +1228,6 @@ fn add_var_type_name(ctx: mut ref Ctx, name: ref u8, type_name: ref u8, line: i6
     @append(ctx.vars, vt)
 }
 
-fn find_val_ref_void_span(ctx: mut ref Ctx, name: ref u8, line: i64) ref TokSpan = trust {
-    val span: mut ref TokSpan = allocators.Arena.alloc_or_none(
-        ctx.arena,
-        @sizeof(TokSpan) as usize
-    ) as ref TokSpan
-    if span == none {
-        return none
-    }
-    span.start = -1
-    span.end = -1
-    val n: i64 = token_count(ctx)
-    val i: mut i64 = 0
-    for {
-        if i + 3 >= n {
-            break
-        }
-        if token_line(ctx, i) != line || !kind_is_val_tok(token_kind(ctx, i)) {
-            i++
-            continue
-        }
-        if token_line(ctx, i + 1) != line || !is_ident_text(ctx, i + 1, name) {
-            i++
-            continue
-        }
-        if token_line(ctx, i + 2) != line || !kind_is_colon(token_kind(ctx, i + 2)) {
-            i++
-            continue
-        }
-        val j: mut i64 = i + 3
-        if kind_is_mut_tok(token_kind(ctx, j)) {
-            j++
-        }
-        if kind_is_ref(token_kind(ctx, j)) && is_void_ident(ctx, j + 1) {
-            span.start = j
-            span.end = j + 1
-            return span
-        }
-        i++
-    }
-    return span
-}
-
-fn find_cast_after(ctx: mut ref Ctx, line: i64, from_idx: i64) i64 = trust {
-    val n: i64 = token_count(ctx)
-    val i: mut i64 = from_idx + 1
-    for {
-        if i + 2 >= n || token_line(ctx, i) != line {
-            break
-        }
-        if kind_is_as(token_kind(ctx, i)) {
-            val j: mut i64 = i + 1
-            if kind_is_mut_tok(token_kind(ctx, j)) {
-                j++
-            }
-            if kind_is_ref(token_kind(ctx, j)) && is_void_ident(ctx, j + 1) {
-                return i
-            }
-        }
-        i++
-    }
-    return -1
-}
-
 fn trim_ws_before(ctx: mut ref Ctx, pos: i64) i64 = trust {
     val i: mut i64 = pos
     for {
@@ -1351,59 +1241,6 @@ fn trim_ws_before(ctx: mut ref Ctx, pos: i64) i64 = trust {
         i--
     }
     return i
-}
-
-fn add_cast_removal_fix(ctx: mut ref Ctx, as_idx: i64) void = trust {
-    val as_start: i64 = token_start(ctx, as_idx)
-    val j: mut i64 = as_idx + 1
-    if kind_is_mut_tok(token_kind(ctx, j)) {
-        j++
-    }
-    j++
-    val void_start: i64 = token_start(ctx, j)
-    if as_start < 0 || void_start < 0 {
-        return
-    }
-    val start: i64 = trim_ws_before(ctx, as_start)
-    add_fix(ctx, start, void_start + 4, c"")
-}
-
-// Only casts that are part of an explicit `ref void` declaration are
-// rewritten. Arbitrary `expr as ref void` casts are left alone: raw
-// intrinsics (@memcpy, @memset, @free, ...) rely on the explicit type at the
-// call site, and removing the cast changed the meaning of the code.
-fn collect_ref_void_decl_fix(
-    ctx: mut ref Ctx,
-    name: ref u8,
-    line: i64,
-    init: ref parser.Node
-) void = trust {
-    if !ctx.fix_mode || init == none {
-        return
-    }
-    val inferred: ref u8 = infer_concrete_type(ctx, init)
-    if inferred == none || cstr.cmp(
-        inferred,
-        c"void"
-    ) == 0 || cstr.cmp(inferred, c"ref void") == 0 {
-        return
-    }
-    val span: ref TokSpan = find_val_ref_void_span(ctx, name, line)
-    if span.start < 0 {
-        return
-    }
-    val start: i64 = token_start(ctx, span.start)
-    val end: i64 = token_start(ctx, span.end) + 4
-    if start < 0 || end < start {
-        return
-    }
-    add_fix(ctx, start, end, inferred)
-    if expr_is_ref_void_cast(init) {
-        val as_idx: i64 = find_cast_after(ctx, line, span.end)
-        if as_idx >= 0 {
-            add_cast_removal_fix(ctx, as_idx)
-        }
-    }
 }
 
 fn line_has_only_assignment(ctx: mut ref Ctx, line: i64, lhs_idx: i64, rhs_idx: i64) bool = trust {
@@ -2389,9 +2226,6 @@ fn walk_stmts(ctx: mut ref Ctx, stmts: list[ref parser.Node]) void = trust {
             }
             walk_type(ctx, ty)
             walk_expr(ctx, init)
-            if ty_is_ref_void(ty) {
-                collect_ref_void_decl_fix(ctx, name, stmt.line, init)
-            }
             if ty != none {
                 add_var_type(ctx, name, ty, stmt.line)
             } else {
