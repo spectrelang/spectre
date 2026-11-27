@@ -66,6 +66,7 @@ type SemaCtx = {
     variant_names: mut list[ref u8]
     root_mod: mut ref modinfo.ResolvedModule
     src_target: mut ref u8
+    host_platform: mut ref u8
     in_unsafe_fn: mut i64
     in_trust: mut i64
     in_variadic_fn: mut i64
@@ -109,11 +110,7 @@ fn sema_platform_matches(ctx: ref SemaCtx, name: ref u8) bool = trust {
     if cstr.cmp(ctx.src_target, c"") != 0 {
         return modinfo.platform_matches(ctx.src_target, name)
     }
-    val arena: allocators.Arena = allocators.Arena.new(256 as usize)?
-    val current: ref u8 = reflection.current_platform_name[allocators.Arena](arena)
-    val matched: bool = modinfo.platform_matches(current, name)
-    allocators.Arena.free(arena)
-    return matched
+    return modinfo.platform_matches(ctx.host_platform, name)
 }
 
 /// Return the item/statement list of the active `when` branch, or none.
@@ -12677,6 +12674,9 @@ pub fn check_module(
     val ctx: mut ref SemaCtx = sema_new(arena)
     ctx.root_mod = root
     ctx.src_target = src_target
+    val platform_arena: allocators.Arena = allocators.Arena.new(256 as usize)?
+    ctx.host_platform = reflection.current_platform_name[allocators.Arena](platform_arena)
+    allocators.Arena.free(platform_arena)
     ctx.dead_code_strict = dead_code_strict
 
     for item in items {

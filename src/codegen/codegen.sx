@@ -179,7 +179,7 @@ fn cg_copy_str(ctx: ref CgCtx, s: ref u8) ref u8 = trust {
 
 fn cg_new() ref CgCtx = trust {
     val ctx: mut ref CgCtx = @alloc(@sizeof(CgCtx)) as ref CgCtx
-    match allocators.ScopedArena.new(67108864 as usize) {
+    match allocators.ScopedArena.new(mem.BLOCK_SIZE) {
         ok a => {
             ctx.arena = a
         }
@@ -11391,9 +11391,10 @@ fn gen_call(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
             @snprintf(grabuf, 128, "    %%t{lld} =l alloc8 {lld}\n", {gret_buf, gret_sz})
             emit(ctx, grabuf)
         }
+        val gcall_cap: i64 = 256 + (@len(arg_tmps_g) as i64) * 128
         val gcall_buf: ref u8 = allocators.ScopedArena.alloc_or_none(
             ctx.arena,
-            2048 as usize
+            gcall_cap as usize
         ) as ref u8
         val gcall_pos: mut i64 = 0
         val ghdr: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 256 as usize) as ref u8
@@ -11848,15 +11849,16 @@ fn gen_call(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
                     }
 
                     val result_tmp: i64 = fresh_tmp(ctx)
+                    val vlen: i64 = @len(variadic_args) as i64
+                    val call_cap_p: i64 = 256 + vlen * 96
                     val call_buf_p: ref u8 = allocators.ScopedArena.alloc_or_none(
                         ctx.arena,
-                        4096 as usize
+                        call_cap_p as usize
                     ) as ref u8
-                    val vlen: i64 = @len(variadic_args) as i64
                     if vlen == 0 {
                         @snprintf(
                             call_buf_p,
-                            4096,
+                            call_cap_p,
                             "    %%t{lld} =l call $printf(l %%t{lld}, ..., l 0)\n",
                             {result_tmp, fmt_tmp}
                         )
@@ -12090,7 +12092,8 @@ fn gen_call(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
         }
     }
 
-    val call_buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 8192 as usize) as ref u8
+    val call_cap: i64 = 256 + (@len(arg_tmps) as i64) * 128
+    val call_buf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, call_cap as usize) as ref u8
     val call_pos: mut i64 = 0
     val hdr: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 256 as usize) as ref u8
     val using_ext: bool = ext_sym2 != none && effective_callee == ext_sym2
@@ -13838,9 +13841,14 @@ fn gen_builtin(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
             }
         }
         val spec_i2: mut i64 = 0
+        val call_args_n2: mut i64 = 0
+        if args != none {
+            call_args_n2 = @len(args) as i64
+        }
+        val call_cap2: i64 = 256 + call_args_n2 * 96
         val call_buf2: ref u8 = allocators.ScopedArena.alloc_or_none(
             ctx.arena,
-            4096 as usize
+            call_cap2 as usize
         ) as ref u8
         val call_pos2: mut i64 = 0
         val hdr2: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 256 as usize) as ref u8
@@ -21988,7 +21996,7 @@ pub fn gen_module_resolved(
     val cg_out: mut ref CgOutput = @alloc(@sizeof(CgOutput)) as ref CgOutput
     cg_out.qbe = cg_finish_qbe(ctx)
     cg_out.shim = cg_build_c_shim(ctx)
-    return cg_out
+            return cg_out
 }
 
 pub fn get_used_prefixes(root: ref module.ResolvedModule) list[ref u8] = trust {
@@ -22412,7 +22420,7 @@ pub fn gen_module_resolved_test(
     val cg_out: mut ref CgOutput = @alloc(@sizeof(CgOutput)) as ref CgOutput
     cg_out.qbe = cg_finish_qbe(ctx)
     cg_out.shim = cg_build_c_shim(ctx)
-    return cg_out
+        return cg_out
 }
 
 /// Like gen_items_with_prefix but skips NK_LINK and NK_LIB directives.

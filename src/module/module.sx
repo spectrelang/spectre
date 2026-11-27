@@ -1424,7 +1424,14 @@ fn resolve_module_impl(
         return err @fmtalloc("cannot read module: {s}", {display_file})
     }
 
-    val lex_result = lexer.tokenize_with_view(arena, str.from_cstr(src))
+    val token_arena: allocators.ScopedArenaAllocator = allocators.ScopedArena.new(
+        1048576 as usize
+    )?
+    val lex_result = lexer.tokenize_with_arenas(
+        token_arena,
+        arena,
+        str.from_cstr(src)
+    )
     allocators.Arena.free(src_arena)
     val tokens: mut list[ref lexer.Token] = mem.new[ref lexer.Token]()
     match lex_result {
@@ -1432,12 +1439,14 @@ fn resolve_module_impl(
             tokens = t
         }
         err e => {
+            allocators.ScopedArena.free(token_arena)
             return err @fmtalloc("{s}:{s}", {display_file, e})
         }
     }
 
     val parse_result = parser.parse_module_with(arena, tokens, display_file)
     lexer.free_tokens(tokens)
+    allocators.ScopedArena.free(token_arena)
     val items: mut list[ref parser.Node] = mem.new[ref parser.Node]()
     match parse_result {
         ok i => {

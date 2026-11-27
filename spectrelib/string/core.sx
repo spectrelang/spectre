@@ -162,8 +162,32 @@ pub fn eql(a: StringView, b: StringView) bool = trust {
 }
 
 /// Compare a view with a null-terminated string literal.
+///
+/// Compares in place instead of constructing a temporary `StringView`; the
+/// lexer calls this for every identifier against every keyword, and building a
+/// view here would allocate on each comparison.
 pub fn eql_cstr(v: StringView, s: ref u8) bool = trust {
-    return eql(v, from_cstr(s))
+    if s == none {
+        return v.len == 0
+    }
+    if v.ptr == none {
+        return @load8(s) == 0
+    }
+    val i: mut i64 = 0
+    for {
+        if i >= v.len {
+            break
+        }
+        val c: u8 = @load8(@ptradd(s, i))
+        if c == 0 {
+            return false
+        }
+        if @load8(@ptradd(v.ptr, i)) != c {
+            return false
+        }
+        i++
+    }
+    return @load8(@ptradd(s, i)) == 0
 }
 
 /// Return a sub-view clamped to the bounds of `v`.

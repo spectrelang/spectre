@@ -126,7 +126,7 @@ pub type CCtx = {
 
 fn cc_new() ref CCtx = trust {
     val ctx: mut ref CCtx = @alloc(@sizeof(CCtx)) as ref CCtx
-    match allocators.ScopedArena.new(67108864 as usize) {
+    match allocators.ScopedArena.new(mem.BLOCK_SIZE) {
         ok a => {
             ctx.arena = a
         }

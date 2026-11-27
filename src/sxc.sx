@@ -14,9 +14,7 @@ when windows {
 
 pub fn main() i32 = trust {
     val arena = allocators.Arena.new(65536 as usize)?
-    val frontend_arena = allocators.ScopedArena.new(
-        67108864 as usize
-    )?
+    val frontend_arena = allocators.ScopedArena.new(mem.BLOCK_SIZE)?
     defer {
         allocators.ScopedArena.free(frontend_arena)
     }

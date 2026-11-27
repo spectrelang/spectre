@@ -2693,7 +2693,7 @@ pub fn cmd_doc(
     read_override: ref u8
 ) i32 = trust {
     val parse_arena: allocators.ScopedArenaAllocator = allocators.ScopedArena.new(
-        67108864 as usize
+        mem.BLOCK_SIZE
     )?
     val arena_state: mut ref DocArenaState = allocators.ScopedArena.alloc_or_none(
         parse_arena,

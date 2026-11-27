@@ -74,6 +74,7 @@ type World = {
     arena: mut allocators.ScopedArenaAllocator
     root: mut ref modinfo.ResolvedModule
     src_target: mut ref u8
+    host_platform: mut ref u8
     fuel_limit: mut i64
     depth_limit: mut i64
     result_limit: mut i64
@@ -663,11 +664,7 @@ fn platform_matches(w: ref World, name: ref u8) bool = trust {
     if cstr.cmp(target, c"") != 0 {
         return modinfo.platform_matches(target, name)
     }
-    val arena: allocators.Arena = allocators.Arena.new(256 as usize)?
-    val current: ref u8 = reflection.current_platform_name[allocators.Arena](arena)
-    val matched: bool = modinfo.platform_matches(current, name)
-    allocators.Arena.free(arena)
-    return matched
+    return modinfo.platform_matches(w.host_platform, name)
 }
 
 type GlobalHit = {
@@ -4993,6 +4990,9 @@ pub fn process(
     w.arena = arena
     w.root = root
     w.src_target = src_target
+    val platform_arena: allocators.Arena = allocators.Arena.new(256 as usize)?
+    w.host_platform = reflection.current_platform_name[allocators.Arena](platform_arena)
+    allocators.Arena.free(platform_arena)
     w.fuel_limit = fuel
     w.depth_limit = 256
     w.result_limit = 1048576

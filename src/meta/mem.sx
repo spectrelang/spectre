@@ -14,11 +14,17 @@ val stdio      = use("std/stdio")
 val os         = use("std/os")
 val diag       = use("diag.sx")
 
+/// Size of each backing block for the compiler's phase arenas.
+///
+/// Blocks are allocated eagerly, so a large block size directly inflates the
+/// compiler's resident set even when only a fraction of the block is used.
+pub val BLOCK_SIZE: usize = 4194304
+
 val state: mut ref allocators.ListArena = none
 
 pub fn init() void = {
     if state == none {
-        match trust allocators.ScopedArena.new(67108864 as usize) {
+        match trust allocators.ScopedArena.new(BLOCK_SIZE) {
             ok a => {
                 val next: mut ref allocators.ListArena = @alloc(
                     @sizeof(allocators.ListArena)

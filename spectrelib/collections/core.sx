@@ -711,9 +711,12 @@ pub fn (StringMap) set[A: allocators.GeneralAllocator](
     }
 }
 
-/// Look up a string key. Returns some(value) or none.
-pub fn (StringMap) get(map: self, key: ref u8) option[usize] = {
-    val header: ref void = map.header
+/// Look up a string key in a raw map header. Returns some(value) or none.
+///
+/// Callers that only have the header pointer use this directly; wrapping it in
+/// a `StringMap` value would materialize a heap copy of the wrapper on the hot
+/// lookup path.
+fn (StringMap) get_header(header: ref void, key: ref u8) option[usize] = {
     val cap: usize = trust @load(@ptradd(header, 16)) as usize
     val buckets: ref void = trust @load(header)
     val hash_fn: ref void = trust @load(@ptradd(header, 24))
@@ -740,10 +743,18 @@ pub fn (StringMap) get(map: self, key: ref u8) option[usize] = {
     return none
 }
 
+/// Look up a string key. Returns some(value) or none.
+pub fn (StringMap) get(map: self, key: ref u8) option[usize] = {
+    return StringMap.get_header(map.header, key)
+}
+
 /// Check if a string key exists.
 pub fn (StringMap) contains(map: self, key: ref u8) bool = {
-    val result = StringMap.get(map, key)
-    match result {
+    return StringMap.contains_header(map.header, key)
+}
+
+fn (StringMap) contains_header(header: ref void, key: ref u8) bool = {
+    match StringMap.get_header(header, key) {
         some _ => {
             return true
         }
@@ -968,12 +979,12 @@ pub fn (IndexMap) set[A: allocators.GeneralAllocator](
 
 /// Look up a key. Returns some(value) or none.
 pub fn (IndexMap) get(map: self, key: ref u8) option[usize] = trust {
-    return StringMap.get({ header: map.inner_header }, key)
+    return StringMap.get_header(map.inner_header, key)
 }
 
 /// Check if a key exists.
 pub fn (IndexMap) contains(map: self, key: ref u8) bool = {
-    return StringMap.contains({ header: map.inner_header }, key)
+    return StringMap.contains_header(map.inner_header, key)
 }
 
 /// Remove a key. Returns 1 if found, 0 otherwise.
@@ -1106,19 +1117,11 @@ pub fn (RawIndexMap) set(map: ref void, key: ref u8, value: usize) void = trust 
 }
 
 pub fn (RawIndexMap) get(map: ref void, key: ref u8) option[usize] = trust {
-    val inner: IndexMap = {
-        inner_header: @load(map) as ref void
-        keys: @load(@ptradd(map, 8)) as ref void
-    }
-    return IndexMap.get(inner, key)
+    return StringMap.get_header(@load(map) as ref void, key)
 }
 
 pub fn (RawIndexMap) contains(map: ref void, key: ref u8) bool = {
-    val inner: IndexMap = trust {
-        inner_header: @load(map) as ref void
-        keys: @load(@ptradd(map, 8)) as ref void
-    }
-    return IndexMap.contains(inner, key)
+    return trust StringMap.contains_header(@load(map) as ref void, key)
 }
 
 pub fn (RawIndexMap) delete(map: ref void, key: ref u8) usize = trust {

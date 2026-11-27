@@ -135,12 +135,14 @@ type Lexer = {
     line: mut i64
     col: mut i64
     arena: mut allocators.ScopedArenaAllocator
+    text_arena: mut allocators.ScopedArenaAllocator
     owns_arena: mut bool
     pending_suppress: mut i64
 }
 
 fn lexer_new(
     arena: allocators.ScopedArenaAllocator,
+    text_arena: allocators.ScopedArenaAllocator,
     owns_arena: bool,
     src: str.StringView
 ) ref Lexer = trust {
@@ -150,6 +152,11 @@ fn lexer_new(
     l.line = 1
     l.col = 1
     l.arena = arena
+    if text_arena == none {
+        l.text_arena = arena
+    } else {
+        l.text_arena = text_arena
+    }
     l.owns_arena = owns_arena
     l.pending_suppress = 0
     return l
@@ -406,7 +413,7 @@ fn lex_string(l: mut ref Lexer) str.StringView = trust {
         i++
     }
     @store8(@ptradd(buf, i), 0)
-    val result: ref u8 = allocators.ScopedArena.alloc_or_none(l.arena, (i + 1) as usize) as ref u8
+    val result: ref u8 = allocators.ScopedArena.alloc_or_none(l.text_arena, (i + 1) as usize) as ref u8
     @memcpy(result, buf, i + 1)
     @free(buf)
     return str.view(result, i)
@@ -425,7 +432,7 @@ fn lex_number(l: mut ref Lexer, line: i64, col: i64) ref Token = trust {
             }
             lx_advance(l)
         }
-        val hex_text: str.StringView = substr_view(l.arena, l.src, start, l.pos)
+        val hex_text: str.StringView = substr_view(l.text_arena, l.src, start, l.pos)
         val hex_tok: mut ref Token = make_tok(l, Int(hex_text.ptr), line, col)
         hex_tok.text = hex_text
         return hex_tok
@@ -460,7 +467,7 @@ fn lex_number(l: mut ref Lexer, line: i64, col: i64) ref Token = trust {
             }
         }
     }
-    val text: str.StringView = substr_view(l.arena, l.src, start, l.pos)
+    val text: str.StringView = substr_view(l.text_arena, l.src, start, l.pos)
     if is_float {
         val ftok: mut ref Token = make_tok(l, Float(text.ptr), line, col)
         ftok.text = text
@@ -615,7 +622,7 @@ fn lex_raw_string(l: mut ref Lexer, line: i64, col: i64) ref Token = trust {
         }
     }
     @store8(@ptradd(buf, i), 0)
-    val result: ref u8 = allocators.ScopedArena.alloc_or_none(l.arena, (i + 1) as usize) as ref u8
+    val result: ref u8 = allocators.ScopedArena.alloc_or_none(l.text_arena, (i + 1) as usize) as ref u8
     @memcpy(result, buf, i + 1)
     @free(buf)
     val sv: str.StringView = str.view(result, i)
@@ -657,7 +664,7 @@ fn lex_identifier(l: mut ref Lexer, line: i64, col: i64) ref Token = trust {
         }
         lx_advance(l)
     }
-    val text: str.StringView = substr_view(l.arena, l.src, start, l.pos)
+    val text: str.StringView = substr_view(l.text_arena, l.src, start, l.pos)
     val kind: TokenKind = keyword_kind(text)
     val tok: mut ref Token = make_tok(l, kind, line, col)
     tok.text = text
@@ -862,10 +869,11 @@ pub fn free_tokens(tokens: list[ref Token]) void = trust {
 
 fn tokenize_in(
     arena: allocators.ScopedArenaAllocator,
+    text_arena: allocators.ScopedArenaAllocator,
     owns_arena: bool,
     src: str.StringView
 ) result[list[ref Token], ref u8] = trust {
-    val l: mut ref Lexer = lexer_new(arena, owns_arena, src)
+    val l: mut ref Lexer = lexer_new(arena, text_arena, owns_arena, src)
     val tokens: mut list[ref Token] = mem.new[ref Token]()
     for {
         skip_whitespace(l)
@@ -952,7 +960,7 @@ fn tokenize_in(
 /// Convenience form that owns a private arena for the returned token list.
 pub fn tokenize_view(src: str.StringView) result[list[ref Token], ref u8] = trust {
     val arena: allocators.ScopedArenaAllocator = allocators.ScopedArena.new(1048576 as usize)?
-    val res = tokenize_in(arena, true, src)
+    val res = tokenize_in(arena, arena, true, src)
     match res {
         ok toks => {
             return ok toks
@@ -974,7 +982,19 @@ pub fn tokenize_with_view(
     arena: allocators.ScopedArenaAllocator,
     src: str.StringView
 ) result[list[ref Token], ref u8] = trust {
-    return tokenize_in(arena, false, src)
+    return tokenize_in(arena, arena, false, src)
+}
+
+/// Tokenize using separate arenas for token objects and their text.
+///
+/// The parser copies text into AST nodes, so the token-object arena can be
+/// released as soon as parsing finishes while the text arena keeps living.
+pub fn tokenize_with_arenas(
+    token_arena: allocators.ScopedArenaAllocator,
+    text_arena: allocators.ScopedArenaAllocator,
+    src: str.StringView
+) result[list[ref Token], ref u8] = trust {
+    return tokenize_in(token_arena, text_arena, false, src)
 }
 
 /// Tokenize using a caller-owned arena. The arena must outlive the tokens.
