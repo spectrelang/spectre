@@ -1478,8 +1478,30 @@ pub fn arc4random_buf(buf: ref void, n: usize) void = trust {
     when freestanding {
         sx_arc4random_buf(buf, n)
     }
+    or when linux {
+        fill_from_getrandom(buf, n)
+    }
+    or when android {
+        fill_from_getrandom(buf, n)
+    }
     otherwise {
         c_arc4random_buf(buf, n)
+    }
+}
+
+//!suppress "unused-function"
+fn fill_from_getrandom(buf: ref void, n: usize) void = trust {
+    val p: ref u8 = buf as ref u8
+    val done: mut usize = 0
+    for {
+        if done >= n {
+            break
+        }
+        val r: i64 = getrandom(@ptradd(p, done as i64), n - done, 0 as u32)
+        if r <= 0 {
+            break
+        }
+        done = done + (r as usize)
     }
 }
 
