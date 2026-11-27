@@ -1,0 +1,166 @@
+val trace: mut i64 = 0
+
+fn mark(digit: i64) void = trust {
+    trace = trace * 10 + digit
+}
+
+fn block_order() void = trust {
+    defer {
+        mark(1)
+    }
+    if true {
+        defer {
+            mark(2)
+        }
+        defer {
+            mark(3)
+        }
+        mark(4)
+    }
+    mark(5)
+}
+
+fn nested_return(x: i64) i64 = trust {
+    defer {
+        mark(1)
+    }
+    if x > 0 {
+        defer {
+            mark(2)
+        }
+        mark(3)
+        return x
+    }
+    mark(4)
+    return 0
+}
+
+fn loop_break() i64 = trust {
+    val acc: mut i64 = 0
+    defer {
+        mark(9)
+    }
+    for i = 0, i < 5, i++ {
+        defer {
+            mark(1)
+        }
+        if i == 2 {
+            break
+        }
+        acc = acc + i
+    }
+    return acc
+}
+
+fn loop_continue() i64 = trust {
+    val acc: mut i64 = 0
+    for i = 0, i < 4, i++ {
+        defer {
+            mark(2)
+        }
+        if i == 1 {
+            continue
+        }
+        acc = acc + i
+    }
+    return acc
+}
+
+fn failing(bad: bool) result[i64, i64] = trust {
+    defer {
+        mark(5)
+    }
+    if bad {
+        return err 7
+    }
+    return ok 2
+}
+
+fn propagate(bad: bool) result[i64, i64] = trust {
+    defer {
+        mark(6)
+    }
+    val value = failing(bad)?
+    return ok value
+}
+
+fn nested_break() i64 = trust {
+    val acc: mut i64 = 0
+    for i = 0, i < 3, i++ {
+        defer {
+            mark(1)
+        }
+        if i == 1 {
+            if true {
+                defer {
+                    mark(2)
+                }
+                break
+            }
+        }
+        acc = acc + i
+    }
+    return acc
+}
+
+fn nested_try(bad: bool) result[i64, i64] = trust {
+    defer {
+        mark(3)
+    }
+    if true {
+        defer {
+            mark(4)
+        }
+        val value = failing(bad)?
+        return ok value
+    }
+    return ok 0
+}
+
+pub fn main() void = trust {
+    trace = 0
+    block_order()
+    assert trace == 43251
+
+    trace = 0
+    assert nested_return(11) == 11
+    assert trace == 321
+
+    trace = 0
+    assert nested_return(0) == 0
+    assert trace == 41
+
+    trace = 0
+    assert loop_break() == 1
+    assert trace == 1119
+
+    trace = 0
+    assert loop_continue() == 5
+    assert trace == 2222
+
+    trace = 0
+    match propagate(true) {
+        ok _ => {
+            assert false
+        }
+        err code => {
+            assert code == 7
+        }
+    }
+    assert trace == 56
+
+    trace = 0
+    assert nested_break() == 0
+    assert trace == 121
+
+    trace = 0
+    match nested_try(true) {
+        ok _ => {
+            assert false
+        }
+        err code => {
+            assert code == 7
+        }
+    }
+    assert trace == 543
+}

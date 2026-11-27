@@ -78,6 +78,8 @@ pub type CCtx = {
     etable_counts: mut list[i64]
     break_lbl: mut i64
     cont_lbl: mut i64
+    break_defer_depth: mut i64
+    cont_defer_depth: mut i64
     defer_stack: mut list[ref void]
     local_names: mut list[ref u8]
     local_ctypes: mut list[ref u8]
@@ -174,6 +176,8 @@ fn cc_new() ref CCtx = trust {
     ctx.etable_counts = mem.new[i64]()
     ctx.break_lbl = -1
     ctx.cont_lbl = -1
+    ctx.break_defer_depth = 0
+    ctx.cont_defer_depth = 0
     ctx.defer_stack = mem.new[ref void]()
     ctx.local_names = mem.new[ref u8]()
     ctx.local_ctypes = mem.new[ref u8]()
@@ -3017,8 +3021,15 @@ fn cc_defer_push(ctx: ref CCtx, body: ref parser.Node) void = trust {
 }
 
 fn cc_emit_defers(ctx: mut ref CCtx) void = trust {
+    cc_emit_defers_down_to(ctx, 0)
+}
+
+/// Emit deferred statements down to `target_depth` without removing them.
+/// Used on control-flow exits: other paths through the same lexical block
+/// still need the deferred statements that belong to enclosing blocks.
+fn cc_emit_defers_down_to(ctx: mut ref CCtx, target_depth: i64) void = trust {
     val n: i64 = @len(ctx.defer_stack) as i64
-    if n == 0 {
+    if n <= target_depth {
         return
     }
     // Each emission gets its own C scope. A defer can be emitted at several
@@ -3027,7 +3038,7 @@ fn cc_emit_defers(ctx: mut ref CCtx) void = trust {
     emitln(ctx, c"{")
     val i: mut i64 = n - 1
     for {
-        if i < 0 {
+        if i < target_depth {
             break
         }
         val d_opt = @get(ctx.defer_stack, i as usize)
@@ -3040,6 +3051,12 @@ fn cc_emit_defers(ctx: mut ref CCtx) void = trust {
 }
 
 fn cc_handle_block_defers(ctx: mut ref CCtx, target_depth: i64) void = trust {
+    val n0: i64 = @len(ctx.defer_stack) as i64
+    if n0 <= target_depth {
+        return
+    }
+    // Keep declarations in a deferred body out of the enclosing C scope.
+    emitln(ctx, c"{")
     for {
         val n: i64 = @len(ctx.defer_stack) as i64
         if n <= target_depth {
@@ -3051,6 +3068,7 @@ fn cc_handle_block_defers(ctx: mut ref CCtx, target_depth: i64) void = trust {
         }
         @remove(ctx.defer_stack, (n - 1) as usize)
     }
+    emitln(ctx, c"}")
 }
 
 /// Drop defers that belong to a block that cannot fall through. They have
@@ -8685,10 +8703,12 @@ fn gen_stmt(ctx: mut ref CCtx, stmt: ref parser.Node) void = trust {
         return
     }
     if k == parser.NK_BREAK {
+        cc_emit_defers_down_to(ctx, ctx.break_defer_depth)
         emitln(ctx, c"break;")
         return
     }
     if k == parser.NK_CONTINUE {
+        cc_emit_defers_down_to(ctx, ctx.cont_defer_depth)
         emitln(ctx, c"continue;")
         return
     }
@@ -9292,7 +9312,14 @@ fn cc_gen_autovec_vector(
         bi++
     }
     ctx.autovec_plan = plan
+    val prev_break_depth: i64 = ctx.break_defer_depth
+    val prev_cont_depth: i64 = ctx.cont_defer_depth
+    val loop_defer_depth: i64 = @len(ctx.defer_stack) as i64
+    ctx.break_defer_depth = loop_defer_depth
+    ctx.cont_defer_depth = loop_defer_depth
     gen_stmts(ctx, vec_body as ref parser.Node)
+    ctx.break_defer_depth = prev_break_depth
+    ctx.cont_defer_depth = prev_cont_depth
     ctx.autovec_plan = none
     emitln(ctx, c"}}")
     emitln(ctx, c"#endif")
@@ -9349,7 +9376,14 @@ fn gen_for_stmt(ctx: mut ref CCtx, stmt: ref parser.Node) void = trust {
     } else {
         emitln(ctx, c"for(;;){")
     }
+    val prev_break_depth: i64 = ctx.break_defer_depth
+    val prev_cont_depth: i64 = ctx.cont_defer_depth
+    val loop_defer_depth: i64 = @len(ctx.defer_stack) as i64
+    ctx.break_defer_depth = loop_defer_depth
+    ctx.cont_defer_depth = loop_defer_depth
     gen_stmts(ctx, stmt.d4 as ref parser.Node)
+    ctx.break_defer_depth = prev_break_depth
+    ctx.cont_defer_depth = prev_cont_depth
     emitln(ctx, c"}")
     if has_block {
         emitln(ctx, c"}")
@@ -9546,7 +9580,14 @@ fn gen_forin_stmt(ctx: mut ref CCtx, stmt: ref parser.Node) void = trust {
         emit(ctx, fixed_buf)
         cc_expr_drain(ctx)
         cc_register_local(ctx, binding, fixed_stype, fixed_inner, 1)
+        val prev_break_depth: i64 = ctx.break_defer_depth
+        val prev_cont_depth: i64 = ctx.cont_defer_depth
+        val loop_defer_depth: i64 = @len(ctx.defer_stack) as i64
+        ctx.break_defer_depth = loop_defer_depth
+        ctx.cont_defer_depth = loop_defer_depth
         gen_stmts(ctx, stmt.d2 as ref parser.Node)
+        ctx.break_defer_depth = prev_break_depth
+        ctx.cont_defer_depth = prev_cont_depth
         emitln(ctx, c"}}")
         return
     }
@@ -9565,7 +9606,14 @@ fn gen_forin_stmt(ctx: mut ref CCtx, stmt: ref parser.Node) void = trust {
         elem_ty = inner_ty
     }
     cc_register_local(ctx, binding, elem_stype, elem_ty, 1)
+    val prev_break_depth: i64 = ctx.break_defer_depth
+    val prev_cont_depth: i64 = ctx.cont_defer_depth
+    val loop_defer_depth: i64 = @len(ctx.defer_stack) as i64
+    ctx.break_defer_depth = loop_defer_depth
+    ctx.cont_defer_depth = loop_defer_depth
     gen_stmts(ctx, stmt.d2 as ref parser.Node)
+    ctx.break_defer_depth = prev_break_depth
+    ctx.cont_defer_depth = prev_cont_depth
     emitln(ctx, c"}}")
 }
 

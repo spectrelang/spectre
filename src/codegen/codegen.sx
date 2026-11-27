@@ -83,6 +83,8 @@ pub type CgCtx = {
     tv_fields: mut list[ref void]
     break_lbl: mut i64
     cont_lbl: mut i64
+    break_defer_depth: mut i64
+    cont_defer_depth: mut i64
     mc_names: mut list[ref u8]
     mc_vals: mut list[ref u8]
     mc_index: mut ref void
@@ -235,6 +237,8 @@ fn cg_new() ref CgCtx = trust {
     ctx.tv_fields = mem.new[ref void]()
     ctx.break_lbl = -1
     ctx.cont_lbl = -1
+    ctx.break_defer_depth = 0
+    ctx.cont_defer_depth = 0
     ctx.mc_names = mem.new[ref u8]()
     ctx.mc_vals = mem.new[ref u8]()
     ctx.mc_index = collections.RawIndexMap.new(64 as usize)
@@ -2123,6 +2127,55 @@ fn cg_emit_defers(ctx: mut ref CgCtx) void = trust {
     }
 }
 
+fn cg_defer_depth(ctx: ref CgCtx) i64 = trust {
+    return @len(ctx.defer_stack as list[ref void]) as i64
+}
+
+/// Emit deferred statements down to `target_depth` without removing them.
+/// Used on control-flow exits: other paths through the same lexical block
+/// still need the deferred statements that belong to enclosing blocks.
+fn cg_defer_emit_down_to(ctx: mut ref CgCtx, target_depth: i64) void = trust {
+    val n: i64 = cg_defer_depth(ctx)
+    val i: mut i64 = n - 1
+    for {
+        if i < target_depth {
+            break
+        }
+        val d_opt = @get(ctx.defer_stack as list[ref void], i as usize)
+        if d_opt is some d {
+            gen_stmts(ctx, d as ref parser.Node)
+        }
+        i--
+    }
+}
+
+/// Emit and remove deferred statements down to `target_depth`, newest first.
+fn cg_defer_emit_to(ctx: mut ref CgCtx, target_depth: i64) void = trust {
+    for {
+        val n: i64 = cg_defer_depth(ctx)
+        if n <= target_depth {
+            break
+        }
+        val d_opt = @get(ctx.defer_stack as list[ref void], (n - 1) as usize)
+        if d_opt is some d {
+            gen_stmts(ctx, d as ref parser.Node)
+        }
+        @remove(ctx.defer_stack as list[ref void], (n - 1) as usize)
+    }
+}
+
+/// Discard deferred statements down to `target_depth` without emitting them.
+/// Used when a block cannot fall through and has already emitted its defers.
+fn cg_defer_discard_to(ctx: mut ref CgCtx, target_depth: i64) void = trust {
+    for {
+        val n: i64 = cg_defer_depth(ctx)
+        if n <= target_depth {
+            break
+        }
+        @remove(ctx.defer_stack as list[ref void], (n - 1) as usize)
+    }
+}
+
 fn cg_mc_names(ctx: ref CgCtx) ref void = trust {
     return ctx.mc_names as ref void
 }
@@ -2488,8 +2541,12 @@ fn cg_build_c_shim(ctx: ref CgCtx) ref u8 = trust {
     val n_consts: i64 = @len(ctx.c_consts) as i64
     val n_adapters: i64 = @len(ctx.alloc_adapter_lines as list[ref u8]) as i64
     val want_panic: bool = cg_wants_panic_shim(ctx)
+    // macOS provides arc4random_buf but not the Linux getrandom entry point.
+    // The QBE runtime calls getrandom directly, so the shim supplies it.
+    val want_darwin_compat: bool = !runtime_is_freestanding()
+    && platform_matches_with_target(c"darwin", ctx.src_target)
     val want_headers: bool = n_consts != 0 || ctx.alloc_runtime || n_adapters != 0
-    || ctx.leak_check
+    || ctx.leak_check || want_darwin_compat
     if !want_headers && !want_panic {
         return c""
     }
@@ -2500,6 +2557,20 @@ fn cg_build_c_shim(ctx: ref CgCtx) ref u8 = trust {
         builder.StringBuilder.append_cstr(
             sb,
             c"#if defined(_WIN32)\n#include <windows.h>\n#endif\n"
+        )
+    }
+    if want_darwin_compat {
+        builder.StringBuilder.append(sb, \\
+            \\#include <stddef.h>
+            \\#include <stdint.h>
+            \\#include <stdlib.h>
+            \\extern void arc4random_buf(void*, size_t);
+            \\int64_t getrandom(void* buf, size_t n, unsigned flags) {
+            \\    (void)flags;
+            \\    arc4random_buf(buf, n);
+            \\    return (int64_t)n;
+            \\}
+            \\
         )
     }
     if ctx.leak_check {
@@ -16467,6 +16538,7 @@ fn gen_try(ctx: mut ref CgCtx, expr: ref parser.Node) ref u8 = trust {
         "    %%t{lld} =l loadl {s}\n    %%t{lld} =w ceql %%t{lld}, 0\n    jnz %%t{lld}, @lbl{lld}, @lbl{lld}\n@lbl{lld}\n",
         {tag_tmp, inner, is_ok, tag_tmp, is_ok, ok_lbl, err_lbl, err_lbl})
     emit(ctx, buf) // err branch: propagate the result
+    cg_emit_defers(ctx)
     if ctx.current_fn_ret_unboxed {
         val rbuf0: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 128 as usize) as ref u8
         @snprintf(rbuf0, 128, "    call $memcpy(l %%__ret, l {s}, l {lld})\n    ret %%__ret\n@lbl{lld}\n",
@@ -16513,6 +16585,9 @@ fn stmt_terminated(ctx: mut ref CgCtx, stmt: ref parser.Node) bool = trust {
     }
     if k == parser.NK_CONTINUE {
         return true
+    }
+    if k == parser.NK_TRUST_BLOCK {
+        return stmts_terminated(ctx, stmt.d0 as ref parser.Node)
     }
     if k == parser.NK_WHEN_STMT {
         return when_stmt_terminated(ctx, stmt)
@@ -16598,11 +16673,28 @@ fn when_stmt_terminated(ctx: mut ref CgCtx, stmt: ref parser.Node) bool = trust 
 }
 
 fn gen_stmts(ctx: mut ref CgCtx, stmts: ref parser.Node) void = trust {
+    gen_stmts_impl(ctx, stmts, true)
+}
+
+/// Generate a statement list that owns the outer function scope. Deferred
+/// statements registered directly in this list are left on the stack for the
+/// function epilogue to emit after invariant checks.
+fn gen_stmts_root(ctx: mut ref CgCtx, stmts: ref parser.Node) void = trust {
+    gen_stmts_impl(ctx, stmts, false)
+}
+
+fn gen_stmts_impl(
+    ctx: mut ref CgCtx,
+    stmts: ref parser.Node,
+    handle_scope: bool
+) void = trust {
     if stmts == none {
         return
     }
+    val old_depth: i64 = cg_defer_depth(ctx)
     val len: i64 = @len(stmts) as i64
     val i: mut i64 = 0
+    val terminated: mut bool = false
     for {
         if i >= len {
             break
@@ -16635,6 +16727,7 @@ fn gen_stmts(ctx: mut ref CgCtx, stmts: ref parser.Node) void = trust {
                     j++
                 }
                 if matched_terminated {
+                    terminated = true
                     break
                 }
                 i = j
@@ -16642,14 +16735,19 @@ fn gen_stmts(ctx: mut ref CgCtx, stmts: ref parser.Node) void = trust {
             } else {
                 cg_emit_dbg_loc(ctx, snode.line)
                 gen_stmt(ctx, snode)
-                if snode.kind == parser.NK_WHEN_STMT {
-                    if when_stmt_terminated(ctx, snode) {
-                        break
-                    }
+                if stmt_terminated(ctx, snode) {
+                    terminated = true
+                    break
                 }
             }
         }
         i++
+    }
+
+    if terminated {
+        cg_defer_discard_to(ctx, old_depth)
+    } elif handle_scope {
+        cg_defer_emit_to(ctx, old_depth)
     }
 }
 
@@ -17304,6 +17402,7 @@ fn gen_stmt(ctx: mut ref CgCtx, stmt: ref parser.Node) void = trust {
     }
 
     if k == parser.NK_BREAK {
+        cg_defer_emit_down_to(ctx, ctx.break_defer_depth)
         val blbl: i64 = cg_break_lbl(ctx)
         val bbuf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 64 as usize) as ref u8
         @snprintf(bbuf, 64, "    jmp @lbl{lld}\n", {blbl})
@@ -17312,6 +17411,7 @@ fn gen_stmt(ctx: mut ref CgCtx, stmt: ref parser.Node) void = trust {
     }
 
     if k == parser.NK_CONTINUE {
+        cg_defer_emit_down_to(ctx, ctx.cont_defer_depth)
         val clbl: i64 = cg_cont_lbl(ctx)
         val cbuf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 64 as usize) as ref u8
         @snprintf(cbuf, 64, "    jmp @lbl{lld}\n", {clbl})
@@ -18188,7 +18288,14 @@ fn gen_for_stmt(ctx: mut ref CgCtx, stmt: ref parser.Node) void = trust {
         emit(ctx, ibuf)
     }
 
+    val prev_break_depth: i64 = ctx.break_defer_depth
+    val prev_cont_depth: i64 = ctx.cont_defer_depth
+    val loop_defer_depth: i64 = cg_defer_depth(ctx)
+    ctx.break_defer_depth = loop_defer_depth
+    ctx.cont_defer_depth = loop_defer_depth
     gen_stmts(ctx, stmt.d4 as ref parser.Node)
+    ctx.break_defer_depth = prev_break_depth
+    ctx.cont_defer_depth = prev_cont_depth
 
     if !block_ends_with_terminator(stmt.d4 as ref parser.Node) {
         val cjbuf: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 64 as usize) as ref u8
@@ -18340,7 +18447,14 @@ fn gen_fixed_forin_stmt(
             }
         }
 
+        val prev_break_depth: i64 = ctx.break_defer_depth
+        val prev_cont_depth: i64 = ctx.cont_defer_depth
+        val loop_defer_depth: i64 = cg_defer_depth(ctx)
+        ctx.break_defer_depth = loop_defer_depth
+        ctx.cont_defer_depth = loop_defer_depth
         gen_stmts(ctx, stmt.d2 as ref parser.Node)
+        ctx.break_defer_depth = prev_break_depth
+        ctx.cont_defer_depth = prev_cont_depth
 
         val fixed_nxt: i64 = fresh_tmp(ctx)
         val fixed_tail: ref u8 = allocators.ScopedArena.alloc_or_none(
@@ -18562,7 +18676,14 @@ fn gen_forin_stmt(ctx: mut ref CgCtx, stmt: ref parser.Node) void = trust {
         }
     }
 
+    val prev_break_depth: i64 = ctx.break_defer_depth
+    val prev_cont_depth: i64 = ctx.cont_defer_depth
+    val loop_defer_depth: i64 = cg_defer_depth(ctx)
+    ctx.break_defer_depth = loop_defer_depth
+    ctx.cont_defer_depth = loop_defer_depth
     gen_stmts(ctx, body as ref parser.Node)
+    ctx.break_defer_depth = prev_break_depth
+    ctx.cont_defer_depth = prev_cont_depth
 
     val nxt: i64 = fresh_tmp(ctx)
     val buf4: ref u8 = allocators.ScopedArena.alloc_or_none(ctx.arena, 256 as usize) as ref u8
@@ -19857,7 +19978,7 @@ fn gen_fn_prefixed(ctx: mut ref CgCtx, fn_node: ref parser.Node, mod_prefix: ref
         }
     }
 
-    gen_stmts(ctx, body)
+    gen_stmts_root(ctx, body)
 
     val needs_ret: bool = !stmts_terminated(ctx, body)
     if needs_ret {
@@ -22018,7 +22139,7 @@ fn gen_test_fn(ctx: mut ref CgCtx, body_stmts: ref parser.Node, test_id: i64) vo
         }
         gi++
     }
-    gen_stmts(ctx, body_stmts)
+    gen_stmts_root(ctx, body_stmts)
     cg_emit_defers(ctx)
     emitln(ctx, c"    ret 0")
     emitln(ctx, c"}")
